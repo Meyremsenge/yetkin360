@@ -1,0 +1,53 @@
+LİSANS — HENÜZ BELİRLENMEDİ
+================================================================================
+
+> ❓ AÇIK SORU: Bu projenin lisansı henüz seçilmemiştir.
+
+Zemin360 Hackathon şartnamesi platformun açık kaynak olmasını zorunlu tutuyor.
+Ancak şartnamenin **izin verici bir lisans (MIT/Apache-2.0) şart koşup
+koşmadığı** teyit edilmemiştir (bkz. `yetkin360-final-analiz.md` §37, madde 0b).
+
+Bu teyit yapılmadan lisans seçilemez, çünkü seçim geri alınamaz:
+bir kez yayımlanan kod, o lisans altında alınmış olur.
+
+
+DEĞERLENDİRİLEN SEÇENEKLER
+--------------------------------------------------------------------------------
+
+AGPL-3.0  (final analiz §22.3'ün önerisi)
+    Ağ üzerinden hizmet sunan herkes kaynağı paylaşmak zorundadır.
+    Birinin kodu alıp kapalı bir SaaS'a dönüştürmesini engeller.
+    Ticarileşme opsiyonunu korur — hak sahibi çift lisanslama yapabilir.
+    RİSK: Şartname izin verici lisans şart koşuyorsa uyumsuzdur.
+
+Apache-2.0
+    İzin verici, ayrıca açık patent koruması içerir.
+    Kurumsal benimseme kolaydır; her şartnameyle uyumludur.
+    RİSK: Kapalı fork mümkündür.
+
+MIT
+    En kısa ve en izin verici lisans. Her şartnameyle uyumludur.
+    RİSK: Ticarileşme hedefi varken en zayıf korumadır.
+
+
+KARAR VERİLENE KADAR
+--------------------------------------------------------------------------------
+
+Bu depo, lisans belirlenene kadar açık bir lisans altında DEĞİLDİR.
+Telif hakkı, katkıda bulunanlara aittir ve tüm haklar saklıdır.
+
+Kodu kullanmak, kopyalamak veya dağıtmak isteyenler, lisans seçimi
+tamamlanana kadar beklemeli veya hak sahipleriyle iletişime geçmelidir.
+
+
+YAPILACAKLAR
+--------------------------------------------------------------------------------
+
+1. Zemin360 hackathon şartnamesinde lisans şartı var mı — teyit edilecek.
+2. Lisans seçilecek (yukarıdaki üç seçenekten biri).
+3. Bu dosyanın içeriği, seçilen lisansın TAM METNİ ile değiştirilecek.
+4. README.md ve CONTRIBUTING.md'deki lisans atıfları güncellenecek.
+5. Bağımlılık lisans uyumu kontrol edilecek (`pip-licenses`) — özellikle
+   AGPL seçilirse GPL-uyumsuz bağımlılık bulunmamalıdır.
+
+Bu adımlar tamamlanmadan depo herkese açık hâle getirilmemelidir.
