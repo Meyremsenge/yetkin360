@@ -50,7 +50,7 @@ Hedef: kimlik + kiracılık + yetkilendirme çekirdeği ayakta, profil ve skill 
 **Bu fazın kilit maddesi 1.2'dir.** Yetkilendirme sonradan eklenirse delikli olur.
 
 - [x] 1.1 İlk migration: user, talent, institution, organization, membership, skill @be1
-- [ ] 1.2 Yetkilendirme çekirdeği: `can()` + `scoped_*()` + `audit_events` @be2
+- [x] 1.2 Yetkilendirme çekirdeği: `can()` + `scoped_*()` + `audit_events` @be2
 - [ ] 1.3 Yetkilendirme test iskeleti + fixture'lar (aktör matrisi) @be2
 - [ ] 1.4 Auth: kayıt, giriş, token yenileme, çıkış @be2
 - [ ] 1.5 `outbox` tablosu + worker (ağ çağrısı transaction dışına) @be2
