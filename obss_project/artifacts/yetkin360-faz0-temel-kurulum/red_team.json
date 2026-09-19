@@ -1,0 +1,74 @@
+{
+  "task": "yetkin360-faz0-temel-kurulum",
+  "reviewed_at": "2026-09-19T21:00:00+03:00",
+  "summary": "İskelet kurulumu ATDD kapsamıyla büyük ölçüde uyumlu ve dosya seti kapsam dışına taşmıyor; en kritik açık, docker-compose'un bu makinede fiilen test edilememiş olması ve MinIO healthcheck'inde curl'ün image içinde bulunmama riski, ayrıca backend health endpoint'inin bağımlılık durumunu hiç kontrol etmemesi (ATDD'de bilinen sınırlama olarak zaten kabul edilmiş).",
+  "findings": [
+    {
+      "severity": "high",
+      "category": "risk",
+      "file": "docker-compose.yml",
+      "issue": "docker-compose.yml bu ortamda hiç ayağa kaldırılıp doğrulanamadı (Docker Desktop çalışmıyor); AC-1, AC-2, AC-7 (healthy durum, migration, bağlantı hatası davranışı) fiilen test edilmeden 'tamamlandı' olarak işaretleniyor.",
+      "better_approach": "Commit öncesi en az bir ortamda (CI runner veya başka bir makine) `docker compose up -d` + `docker compose ps` + `alembic upgrade head` zincirinin gerçekten çalıştığı doğrulanmalı; mümkün değilse görev durumu 'kısmen doğrulandı' sayılmalı.",
+      "reason": "ATDD AC-1/AC-2/AC-7 explicit olarak 'healthy' ve 'alembic upgrade head hatasız' şartı koşuyor; bunlar bu turda hiç çalıştırılmadı, dolayısıyla iddia edilen 'happy path çalışıyor' sonucu kanıtlanmamış varsayım.",
+      "outcome": "resolved",
+      "resolution": "Kullanıcının makinesinde gerçekten doğrulandı: docker compose up -d → postgres+minio healthy, alembic upgrade head gerçek Postgres'e bağlandı hatasız, uvicorn + GET /health → 200 {\"status\":\"ok\"}, GET /docs → 200. AC-1/AC-2/AC-7 artık kanıtlı."
+    },
+    {
+      "severity": "medium",
+      "category": "reliability",
+      "file": "docker-compose.yml",
+      "issue": "MinIO healthcheck'i `curl -f http://localhost:9000/minio/health/live` komutunu container içinde çalıştırıyor, ancak `minio/minio:latest` resmi imajında `curl` binary'si standart olarak bulunmuyor olabilir — bu durumda healthcheck sürekli 'unhealthy' kalır ve AC-1 hiç sağlanamaz.",
+      "better_approach": "minio image healthcheck için `mc ready local` veya image'ın kendi sağladığı health endpoint aracını kullanmak ya da gerçekten test edilip curl'ün var olduğu doğrulanmalı.",
+      "reason": "Docker fiilen çalıştırılamadığı için bu satırın gerçekten işe yaradığı kanıtlanmadı; sık karşılaşılan bir minio-compose hatasıdır.",
+      "outcome": "resolved",
+      "resolution": "Doğrulama sırasında farklı, daha ciddi bir sorun bulundu: Docker Hub'daki minio/minio:latest artık pull edilemiyor (\"pull access denied\" — MinIO'nun dağıtım politikası değişmiş). image quay.io/minio/minio:latest'e değiştirildi. O image'da curl VE mc mevcut (docker run --entrypoint sh ile doğrulandı), healthcheck değişikliğine gerek kalmadı; container gerçekten healthy oldu."
+    },
+    {
+      "severity": "low",
+      "category": "correctness",
+      "file": "backend/app/main.py",
+      "issue": "Davranış Sözleşmesi satır 5-6 (dış bağımlılık hatası/timeout → backend crash) ile kod arasında gerçek bir bağlantı yok: main.py'de DB'ye bağlanan hiçbir kod/startup event yok, sadece settings okunuyor.",
+      "better_approach": "atdd.md'de bu netleştirilmeli: 'bu iskelette henüz DB'ye gerçek bağlantı kurulmuyor, satır 5-6 Faz 1'e kayıyor'.",
+      "reason": "atdd.md Davranış Sözleşmesi tablosu satır 5 ve 6 açıkça 'backend başlangıçta bağlantı hatasıyla crash olur' diyor, ancak kod bunu implement etmiyor — dokümantasyon-kod tutarsızlığı var."
+    },
+    {
+      "severity": "low",
+      "category": "security",
+      "file": ".env.example",
+      "issue": "COOKIE_SECURE=false ve DEBUG=true default değerleri örnek dosyada var; geliştirici bunu unutup prod'a taşırsa güvenlik riski oluşur.",
+      "better_approach": "Değişiklik gerekmez, .env.example zaten 'DEGISTIR' placeholder'ları ve development varsayımlarıyla açıkça işaretlenmiş.",
+      "reason": "Faz 0 iskeleti için normal ve ATDD kapsamında (satır 10) zaten .env asla commit edilmiyor + placeholder değerler kuralına uyuluyor; düşük öncelikli gözlem."
+    }
+  ],
+  "strengths": [
+    ".env, .env.* .gitignore'a eklenmiş ve yalnızca .env.example (placeholder değerlerle) commit edilmiş — satır 10 tam karşılanıyor.",
+    "backend/app/core/config.py Pydantic BaseSettings kullanıyor, database_url zorunlu alan (default yok) — .env eksikse import anında ValidationError fırlatıp crash olacağı doğrulanabilir, AC-5 ile uyumlu.",
+    "CI workflow hem backend (ruff+mypy+pytest) hem frontend (lint+typecheck+build) job'larını ayrı ayrı çalıştırıyor, AC-8/AC-9 ile birebir eşleşiyor.",
+    "test_report.md npm audit ile tespit edilen CVE'leri (next, eslint) proaktif olarak yükselterek kapatmış, kalan riskleri açıkça 'bilinçli ertelendi' diye not düşmüş.",
+    "Eklenen dosya seti atdd.md 'Etkilenen Dosyalar' bölümüyle birebir örtüşüyor, kapsam dışına taşma yok."
+  ],
+  "risks": [
+    "Backend health-check'i bağımlılık bazında ayrım yapmıyor — ATDD'de bilinen sınırlama olarak kabul edilmiş, Faz 1'e geçmeden önce izlenmesi gereken teknik borç."
+  ],
+  "caveman_review": {
+    "complexity": "low",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve"
+}
