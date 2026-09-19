@@ -1,0 +1,58 @@
+{
+  "task": "yet-1-ilk-migration",
+  "reviewed_at": "2026-09-19T22:30:00+03:00",
+  "summary": "Migration ve modeller docs/DATABASE.md'deki 7 tablo şemasıyla kolon/tip/default/CHECK/UNIQUE düzeyinde birebir örtüşüyor, FK bağımlılık sırası upgrade/downgrade'de doğru, UUIDv7 kararı ATDD'deki 'assumption' statüsüyle tutarlı şekilde app-layer default olarak uygulanmış. İlk incelemede bulunan eksik performans index'leri (institution_members.user_id, organization_members.user_id, talent_profiles.institution_id partial, users.status partial) eklendi ve tam zincir (upgrade/no-op/downgrade/upgrade/pytest/ruff/mypy) yeniden doğrulandı.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "test-gap",
+      "file": "backend/alembic/versions/b82aa928fbd2_initial_schema_users_institutions_.py",
+      "issue": "docs/DATABASE.md §2.1'de açıkça 'kesinleşmiş DDL' olarak belirtilen performans index'leri (institution_members.user_id, organization_members.user_id, talent_profiles.institution_id partial, users.status partial) ilk migration taslağında eksikti.",
+      "better_approach": "Modellere Index() eklendi, migration autogenerate ile yeniden üretildi.",
+      "reason": "ATDD AC-1 docs'a birebir uyumu şart koşuyor, docs bu index'leri aynı DDL bölümünde veriyor.",
+      "outcome": "resolved",
+      "resolution": "backend/app/models/identity.py'ye 4 Index() eklendi (ix_users_status_active, ix_institution_members_user_id, ix_talent_profiles_institution_id_active, ix_organization_members_user_id), migration yeniden üretildi, upgrade/downgrade/upgrade round-trip ve 10 test tekrar hatasız geçti."
+    },
+    {
+      "severity": "low",
+      "category": "reliability",
+      "file": "backend/alembic/versions/b82aa928fbd2_initial_schema_users_institutions_.py",
+      "issue": "downgrade() sonunda DROP EXTENSION IF EXISTS citext çalıştırılıyor; ileride başka bir migration citext kullanan yeni bir kolon eklerse ve biri bu ilk migration'a kadar downgrade ederse extension kaldırılır.",
+      "better_approach": "Şimdilik değişiklik gerekmiyor (tek revizyon var); ekip yeni migration eklerken bu davranışı bilmeli.",
+      "reason": "docs/DATABASE.md her migration'ın geri alınabilir olmasını istiyor, downgrade fonksiyonel olarak doğru ama uzun vadeli bir bakım notu."
+    }
+  ],
+  "strengths": [
+    "7 tablonun kolon adları, tipleri (citext, timestamptz, smallint, uuid), NOT NULL/nullable durumları ve server_default değerleri docs/DATABASE.md §2.1-2.2 ile birebir eşleşiyor.",
+    "UUIDv7 üretimi doğru şekilde 'assumption' statüsünde uygulanmış: models/base.py'de uuid7_default() python-side default olarak tanımlı, migration'da id kolonunda server_default yok.",
+    "organizations.legal_id ve talent_profiles.public_slug için düz UniqueConstraint kullanımı, docs'taki 'PARTIAL WHERE ... IS NOT NULL' ile fonksiyonel olarak eşdeğer (PostgreSQL native UNIQUE'te NULL'lar çakışmaz) — test ile doğrulandı.",
+    "skills tablosundaki çoklu-kolon CHECK (status<>'MERGED' OR merged_into_id IS NOT NULL) hem migration'da hem modelde doğru, hem pozitif hem negatif test ile doğrulanmış.",
+    "Gerçek Postgres'e karşı tam round-trip (upgrade/no-op/downgrade/upgrade) ve CI simülasyonu (tamamen temiz DB) yapıldı, varsayıma dayanmıyor.",
+    "test_report.md'de belirtilen 4 düzeltme (CREATE EXTENSION, CI postgres servisi, assertion hatası, fixture izolasyonu) koda kalıcı olarak yansımış."
+  ],
+  "risks": [
+    "Docs'ta önerilen index'ler artık ekli, ama gelecekte modele yeni sorgu paternleri eklenirse (Faz 1 CRUD uçları) ek index ihtiyacı doğabilir — bu normal bir teknik borç, engelleyici değil.",
+    "UUIDv7 kararı (app-layer, uuid6 paketi) nihai mimari karar değil; pg_uuidv7 eklentisine geçilirse model+migration+requirements.txt değişecek."
+  ],
+  "caveman_review": {
+    "complexity": "low",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve"
+}
