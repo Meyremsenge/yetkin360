@@ -1,0 +1,80 @@
+{
+  "task": "yet-3-yetkilendirme-test-iskeleti",
+  "reviewed_at": "2026-09-20",
+  "summary": "Görev kapsamı gerçekten test-altyapısı ile sınırlı kalmış (authorization.py dokunulmamış, git diff doğrulandı); tenant izolasyon testleri gerçek SQL WHERE filtrelemesini (session.execute üzerinden) doğruluyor, post-filter değil. Ancak AC-5 guard'ının kendi negatif testi yok ve bir parametrize test kolu (talent_profiles_by_kind, TALENT/True kolu) fiilen hiçbir şey doğrulamayan bir assert içeriyor — bunlar approve-with-changes gerektiren somut bulgular.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "test-gap",
+      "file": "backend/tests/authorization/conftest.py",
+      "issue": "AC-5'in 'boş matris = FAIL' guard'ı (`pytest_collection_modifyitems`) için hiçbir negatif/meta-test yok. verify_report.md bunu zaten kendisi itiraf ediyor ('guard'ın kendisinin negatif testi YOK'). Ayrıca guard mantığı `items` listesinin TÜM pytest session'ı kapsadığını varsayıyor; eğer `pytest` repo kökünden (sadece `tests/authorization` değil) çalıştırılırsa ve bu paket 0 test toplasa bile diğer dizinlerdeki testler `items`'ı dolduracağından guard hiç tetiklenmez — guard sadece CI'nin tam olarak `pytest tests/authorization -q` komutunu kullandığı varsayımına bağımlı, kırılgan.",
+      "better_approach": "conftest.py'ye `pytester` fixture'ı (pytest'in kendi test-the-tests aracı) ile geçici boş bir dizinde bu hook'u tetikleyen bir meta-test eklenmeli; ayrıca hook, `items`'ı global session yerine `config.args`/`nodeid` başına `tests/authorization` altındaki toplananlarla sınırlamalı.",
+      "reason": "AC-5 threat-model'in ana riskini (satır eklemeyi unutmak → sessizce PASS) ele alan tek mekanizma; test edilmemiş bir güvenlik-guard'ı, çalıştığı varsayılan ama hiç doğrulanmamış bir kontrol demektir (docs/AUTHORIZATION.md §6, atdd.md AC-5)."
+    },
+    {
+      "severity": "medium",
+      "category": "correctness",
+      "file": "backend/tests/authorization/test_matrix.py",
+      "issue": "`TestTenantIsolationTalentProfiles::test_scoped_talent_profiles_by_kind` parametrize satırında `principal_kind='TALENT', expected_returns_profiles=True` durumu rastgele/var olmayan bir UUID (`user_id`) kullanıyor (gerçek bir `talent_a`/`user_talent_a` fixture'ı DEĞİL) ve assertion `assert len(result) >= 0` — bu her koşulda True olan, hiçbir şeyi test etmeyen bir tautoloji ('toothless assertion').",
+      "better_approach": "TALENT/True satırını ayrı bırakıp gerçek `user_talent_a`+`talent_a` fixture'larıyla çağırmalı ve `assert profile_ids == [talent_a.id]` gibi somut bir eşitlik doğrulanmalı (nitekim aynı sınıftaki ilk test — `test_scoped_talent_profiles_tenant_isolation` — bunu zaten doğru yapıyor, bu ikinci test onun gölgesinde kalmış).",
+      "reason": "testing.md açıkça yasaklıyor: 'Sadece geçsin diye mock'lama, assert'i gevşetme.' Bu satır fiilen hiçbir regresyonu yakalayamaz; `scoped_talent_profiles()` bozulsa bile (ör. yanlışlıkla tüm profilleri dönse) bu test yine PASS eder."
+    },
+    {
+      "severity": "low",
+      "category": "reliability",
+      "file": "backend/tests/authorization/test_matrix.py",
+      "issue": "`TestGetScopedOr404::test_get_scoped_or_404_out_of_scope_and_nonexistent_same_result` aynı `scoped_select` üzerinde iki kez `get_scoped_or_404` çağırıyor (Case 1 ve Case 2 aynı sorgu, farklı senaryo değil) — isim ve docstring 'nonexistent' vs 'out-of-scope' ayrımı vaat ediyor ama kod bunu ayırt etmiyor.",
+      "better_approach": "İki farklı senaryo gerçekten kurulmalı: biri var-olmayan bir UUID ile scoped select, diğeri var-olan ama scope dışı org ile — böylece isim/davranış eşleşir.",
+      "reason": "Test adı yanıltıcı; AC-S4'ün asıl iddiası ('scope-dışı ile var-olmayan aynı sonucu üretir, bilgi sızdırmaz') şu haliyle iki kez aynı şeyi test ederek YANLIŞLIKLA doğrulanmış görünüyor."
+    },
+    {
+      "severity": "low",
+      "category": "test-gap",
+      "file": "backend/tests/authorization/test_matrix.py",
+      "issue": "Placeholder skip'ler (`TestFutureResourcesPlaceholders`, 6 test) her biri gerekçeli (Jira ID referanslı: YET-7/8/9) — testing.md'nin 'skip/xfail ile geçici gizleme yasağı, gerçekten geçiciyse sebebini yaz' istisnasına uyuyor. Ancak bu testler hiçbir assertion/fixture kurmuyor, sadece `pytest.skip(...)` çağırıyor — yani 'test' değil, gerçekte birer TODO yorumunun pytest'e taşınmış hali.",
+      "better_approach": "Kabul edilebilir durumda kalabilir (atdd.md AC-4 bunu açıkça istiyor), ama uzun vadede bu placeholder'ların gerçek implementasyon geldiğinde (YET-7/8/9) fiilen doldurulduğunu garanti eden bir mekanizma yok (ör. bir CI check'i 'X ay sonra hâlâ skip ise uyar').",
+      "reason": "atdd.md Risks bölümü zaten bunu 'kabul edilen kalıntı risk' olarak yazmış — bulgu information amaçlı, blocker değil."
+    },
+    {
+      "severity": "low",
+      "category": "architecture",
+      "file": "backend/tests/authorization/conftest.py",
+      "issue": "`session` fixture'ı YET-2'den birebir taşınmış ama `join_transaction_mode='create_savepoint'` + manuel `transaction.rollback()`/`connection.close()`/`engine.dispose()` her testte yeni bir `create_engine()` açıyor — 39+ test için 39+ ayrı engine/connection pool oluşturulması performans maliyeti (yavaş test suite) yaratabilir.",
+      "better_approach": "`engine`'i session-scope bir fixture'a taşı, sadece connection/transaction'ı per-test yap — SQLAlchemy'nin önerdiği 'external transaction' pattern.",
+      "reason": "Şu an kritik değil (39 test, DB zaten local docker) ama paket 'genişleyecek' diye tasarlandığından (YET-7/8/9 satırları eklenince), engine-per-test maliyeti testlerin yavaşlamasına yol açar — atdd.md'nin kendi 'yeniden kullanılabilir iskelet' hedefiyle çelişir."
+    }
+  ],
+  "strengths": [
+    "code_diff.md'nin 'authorization.py değişmedi' iddiası doğrulandı: dosyanın kendisi okundu, üretim mantığı (Principal, can(), scoped_organizations, scoped_talent_profiles, get_scoped_or_404) YET-2'deki haliyle aynı — görev gerçekten sadece test dosyaları ekliyor.",
+    "Tenant izolasyon testleri (TestTenantIsolationOrganizations, TestTenantIsolationTalentProfiles) gerçek Postgres'e karşı `session.execute(scoped_select).scalars().all()` ile SQL seviyesinde çalışıyor — Python tarafında post-filter değil, `scoped_organizations()`'ın ürettiği `WHERE Organization.id.in_(org_ids)` ifadesi doğrudan DB'de çalıştırılıyor; bu gerçek BOLA doğrulaması.",
+    "AC-4 placeholder skip'leri her biri somut Jira ID (YET-7/8/9) ve docs/AUTHORIZATION.md satır referansı (§5.1 A5, §5.2 B2 vb.) ile gerekçelendirilmiş — testing.md'nin skip yasağı istisnasını doğru uyguluyor.",
+    "verify_report.md'de bulunan gerçek bug (sahte UUID kullanan test_scoped_organizations_by_kind) düzeltilmiş ve gerçek org_a fixture'ına geçirilmiş; bu, sürecin kendi kalite kontrolünün işlediğini gösteriyor.",
+    "Lint (F401 kullanılmayan import) ve mypy temiz; 39 PASS + 6 gerekçeli SKIP + 0 FAIL gerçek Postgres'e karşı doğrulanmış."
+  ],
+  "risks": [
+    "AC-5 guard'ının kendi negatif testi olmaması, ileride biri hook'u yanlışlıkla bozarsa (ör. refactor sırasında) fark edilmeden 'sessiz boş matris' riskinin geri gelmesi anlamına gelir.",
+    "test_scoped_talent_profiles_by_kind'daki toothless assert (`>= 0`), gelecekte scoped_talent_profiles() bozulsa bile bu spesifik satırın hâlâ yeşil kalacağı anlamına gelir — yanlış güven verir.",
+    "Bu paket 'genişleyecek' şekilde tasarlandı (YET-7/8/9 geldiğinde satır eklenecek) ama per-test `create_engine()` deseni ölçeklenme sorunlarına yol açabilir."
+  ],
+  "caveman_review": {
+    "complexity": "low",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve-with-changes"
+}
