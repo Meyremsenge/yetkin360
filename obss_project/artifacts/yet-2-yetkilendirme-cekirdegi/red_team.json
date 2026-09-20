@@ -1,0 +1,71 @@
+{
+  "task": "yet-2-yetkilendirme-cekirdegi",
+  "reviewed_at": "2026-09-19T23:00:00+03:00",
+  "summary": "Çekirdek can()/scoped_*()/audit_events implementasyonu atdd.md'nin 11 AC ve 6 AC-S kriteriyle örtüşüyor, tenant izolasyonu SQL WHERE seviyesinde doğru yapılmış ve audit immutability trigger doğru ERRCODE ile çalışıyor. can()'ın sadece iki somut (resource, action) çiftini implemente etmesi kabul edilebilir bir kapsam sınırlaması, iki test zaten bilinen zayıflığını koruyor (test-gap).",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "test-gap",
+      "file": "backend/tests/test_authorization.py",
+      "issue": "test_scoped_talent_profiles_tenant_isolation testi gerçek bir çapraz-kurum (Institution A/B) karşı-örneği içermiyor; docstring 'AC-S2 tenant izolasyonu' diyor ama yorumda 'profile2 may or may not be returned... simplified test' notu var.",
+      "better_approach": "Institution A ve Institution B'ye ait iki ayrı TalentProfile oluşturup, Institution A principal'ıyla sorgu çalıştırıp Institution B'nin profilinin KESİNLİKLE dönmediğini assert eden gerçek bir negatif test eklenmeli (scoped_organizations testindeki Org A/Org B deseniyle aynı).",
+      "reason": "atdd.md AC-S2 ve authz-test skill'i açıkça 'boş liste dönerse bunu PASS'e çevirme, karşı-örnekle doğrula' diyor; test_diff.md ve test_report.md'de bu zayıflık zaten kayda geçmiş, red-team bunu teyit etti."
+    },
+    {
+      "severity": "low",
+      "category": "test-gap",
+      "file": "backend/tests/test_authorization.py",
+      "issue": "test_get_scoped_or_404_out_of_scope_and_nonexistent_same_result testi aynı scoped_select nesnesini iki kez çalıştırıyor; 'kapsam dışı' ile 'gerçekten yok' senaryolarını ayrı veri kurulumlarıyla ayırt etmiyor.",
+      "better_approach": "İki ayrı senaryo kurulmalı: (1) var olan ama principal'ın kapsamı dışındaki bir kayıt, (2) hiç var olmayan bir id — ikisinin de None döndüğü ayrı ayrı assert edilmeli.",
+      "reason": "test_diff.md ve test_report.md'de zaten not düşülmüş bilinen bir zayıflık."
+    },
+    {
+      "severity": "low",
+      "category": "risk",
+      "file": "backend/app/services/audit.py",
+      "issue": "_check_pii_in_metadata() sadece 4 sabit anahtar kontrol ediyor (password, password_hash, email, tc_kimlik_no); telefon, isim, tc_kimlik farklı yazımları kontrol edilmiyor.",
+      "better_approach": "Bu görev kapsamında AC-S6'nın istediği 4 anahtarla tam örtüşüyor, doğru. Gerçek çağrı noktaları eklenince (YET-4/7/8/9) anahtar listesinin genişletilmesi düşünülmeli.",
+      "reason": "atdd.md AC-S6 tam bu 4 anahtarı istiyor — implementasyon eksikliği değil, backlog notu."
+    },
+    {
+      "severity": "low",
+      "category": "architecture",
+      "file": "backend/app/services/authorization.py",
+      "issue": "can() fonksiyonu isinstance tabanlı iki dallı bir if-zinciri (User, Organization); yeni resource tipleri eklendiğinde bu zincir büyüyecek.",
+      "better_approach": "Şu an CAVEMAN ilkesine uygun (2 dal, erken soyutlama yok) — doğru karar. 3. resource tipi eklendiğinde (rule of three) dict/registry tabanlı dispatch'e geçiş değerlendirilmeli.",
+      "reason": "atdd.md Risks bölümü zaten bunu öngörmüş — şimdiki haliyle doğru, engelleyici değil."
+    }
+  ],
+  "strengths": [
+    "audit_events tablosundaki 'metadata' kolonu Python tarafında SQLAlchemy'nin rezerve ismiyle çakışmayı önlemek için mapped_column(\"metadata\", JSONB, ...) ile event_metadata attribute adına eşlenmiş; DB kolon adı 'metadata' kalıyor, docs/DATABASE.md şemasına uyumlu.",
+    "scoped_organizations()/scoped_talent_profiles() kapsam dışı durumda .in_([]) ile SQL WHERE seviyesinde boş sonuç üretiyor — Python tarafında post-filter değil, AC-S2'yi doğru karşılıyor.",
+    "Trigger doğru ERRCODE = 'integrity_constraint_violation' ile RAISE EXCEPTION fırlatıyor, psycopg/SQLAlchemy IntegrityError'a doğru sınıflandırıyor.",
+    "can()'ın default-deny davranışı (tanımsız her kombinasyon için False) hiçbir exception fırlatmadan AC-S1'i doğru karşılıyor.",
+    "docs/AUTHORIZATION.md §5'teki Engagement/Evidence/Attestation tam test matrisi koda eklenmemiş — kapsam dışı listesine tam uyum."
+  ],
+  "risks": [
+    "can()'ın şu an sadece 2 örnek çift implemente etmesi kabul edilebilir, ama YET-7/8/9 genişletmek zorunda kalacak; her yeni dal için default-deny/AC-S5'in korunması gerekecek.",
+    "Çıplak select(Model) kullanımını tespit eden otomatik CI/lint kuralı henüz yok (atdd.md'de zaten kabul edilmiş risk, backlog'da)."
+  ],
+  "caveman_review": {
+    "complexity": "low",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve-with-changes"
+}

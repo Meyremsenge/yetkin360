@@ -31,10 +31,10 @@ gerçeğini bağlar. Backend'in bitmesini beklemek 3 kişilik ekipte en büyük 
 - [x] 0.6 `docs/SECURITY.md` — OWASP tablosu, dosya akışı, rate limit, senaryolar @be2
 - [x] 0.7 `docs/STATE_MACHINE.md` — Engagement durumları, geçiş ön koşulları @be1
 - [x] 0.8 Repo kökü: README, CONTRIBUTING, SECURITY.md, .gitignore, `docs/ENV.md` @all
-- [ ] 0.9 `.env.example` — `docs/ENV.md` §8 şablonundan repo köküne kopyalanır @all
-- [ ] 0.10 Docker Compose (PostgreSQL + MinIO) + backend iskeleti (FastAPI, alembic) @be2
-- [ ] 0.11 Frontend iskeleti (Next.js + TS + shadcn/ui) + TR metin dosyası @fe
-- [ ] 0.12 CI: ruff + mypy + pytest · npm lint + typecheck @be2
+- [x] 0.9 `.env.example` — `docs/ENV.md` §8 şablonundan repo köküne kopyalanır @all
+- [x] 0.10 Docker Compose (PostgreSQL + MinIO) + backend iskeleti (FastAPI, alembic) @be2
+- [x] 0.11 Frontend iskeleti (Next.js + TS + shadcn/ui) + TR metin dosyası @fe
+- [x] 0.12 CI: ruff + mypy + pytest · npm lint + typecheck @be2
 - [ ] 0.13 Ekip isim eşlemesi: `@be1`/`@be2`/`@fe` → kim (CONTRIBUTING'e yazılır) @all
 
 > **0.1 neden ilk madde:** Lisans seçimi geri alınamaz — bir kez yayımlanan kod
@@ -49,8 +49,8 @@ Hedef: kimlik + kiracılık + yetkilendirme çekirdeği ayakta, profil ve skill 
 
 **Bu fazın kilit maddesi 1.2'dir.** Yetkilendirme sonradan eklenirse delikli olur.
 
-- [ ] 1.1 İlk migration: user, talent, institution, organization, membership, skill @be1
-- [ ] 1.2 Yetkilendirme çekirdeği: `can()` + `scoped_*()` + `audit_events` @be2
+- [x] 1.1 İlk migration: user, talent, institution, organization, membership, skill @be1
+- [x] 1.2 Yetkilendirme çekirdeği: `can()` + `scoped_*()` + `audit_events` @be2
 - [ ] 1.3 Yetkilendirme test iskeleti + fixture'lar (aktör matrisi) @be2
 - [ ] 1.4 Auth: kayıt, giriş, token yenileme, çıkış @be2
 - [ ] 1.5 `outbox` tablosu + worker (ağ çağrısı transaction dışına) @be2
