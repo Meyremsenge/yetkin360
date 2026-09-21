@@ -15,13 +15,10 @@ isim değişse bile plan satırı kısa kalır.
 
 | Etiket | Alan | Kişi |
 |---|---|---|
-| `@be1` | Backend — alan modeli, engagement, institution, seed | *(doldurulacak)* |
-| `@be2` | Backend — yetkilendirme, auth, dosya, attestation, deploy | *(doldurulacak)* |
-| `@fe` | Frontend — tüm ekranlar, erişilebilirlik | *(doldurulacak)* |
+| `@be1` | Backend — alan modeli, engagement, institution, seed | Yusuf Çinar (`yutronax`) |
+| `@be2` | Backend — yetkilendirme, auth, dosya, attestation, deploy | Meyrem Şenge (`Meyremsenge`) |
+| `@fe` | Frontend — tüm ekranlar, erişilebilirlik | Elif Sara |
 | `@all` | Ortak — faz kapanışları, dokümantasyon, sunum | Tümü |
-
-> ❓ AÇIK SORU: İsim eşlemesi henüz yapılmadı (final analiz §37 madde 0a).
-> Ekip netleştiğinde bu tablo doldurulur.
 
 **Sahiplik ne demek:** Maddeyi bitirmek o kişinin sorumluluğudur — tek başına
 yazması gerekmez. Başkasının maddesine dokunmadan önce ona haber verin.

@@ -35,7 +35,7 @@ gerçeğini bağlar. Backend'in bitmesini beklemek 3 kişilik ekipte en büyük 
 - [x] 0.10 Docker Compose (PostgreSQL + MinIO) + backend iskeleti (FastAPI, alembic) @be2
 - [x] 0.11 Frontend iskeleti (Next.js + TS + shadcn/ui) + TR metin dosyası @fe
 - [x] 0.12 CI: ruff + mypy + pytest · npm lint + typecheck @be2
-- [ ] 0.13 Ekip isim eşlemesi: `@be1`/`@be2`/`@fe` → kim (CONTRIBUTING'e yazılır) @all
+- [x] 0.13 Ekip isim eşlemesi: `@be1`/`@be2`/`@fe` → kim (CONTRIBUTING'e yazılır) @all
 
 > **0.1 neden ilk madde:** Lisans seçimi geri alınamaz — bir kez yayımlanan kod
 > o lisans altında alınmış olur. Şartname teyit edilmeden repo herkese açık
@@ -51,7 +51,7 @@ Hedef: kimlik + kiracılık + yetkilendirme çekirdeği ayakta, profil ve skill 
 
 - [x] 1.1 İlk migration: user, talent, institution, organization, membership, skill @be1
 - [x] 1.2 Yetkilendirme çekirdeği: `can()` + `scoped_*()` + `audit_events` @be2
-- [ ] 1.3 Yetkilendirme test iskeleti + fixture'lar (aktör matrisi) @be2
+- [x] 1.3 Yetkilendirme test iskeleti + fixture'lar (aktör matrisi) @be2
 - [ ] 1.4 Auth: kayıt, giriş, token yenileme, çıkış @be2
 - [ ] 1.5 `outbox` tablosu + worker (ağ çağrısı transaction dışına) @be2
 - [ ] 1.6 Auth: e-posta doğrulama + şifre sıfırlama (outbox üzerinden) @be2
