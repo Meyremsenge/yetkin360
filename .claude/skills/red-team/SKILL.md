@@ -94,7 +94,7 @@ Her uygulanan özelliğin atdd.md'de var olduğunu doğrula. atdd.md'nin dışı
 ## Adımlar (CLI ajanı tarafında)
 1. `atdd.md`, `code_diff.md`, `test_report.md`/`verify_report.md` dosyalarını (aynı `<task-slug>` altında) oku.
 2. Yukarıdaki 8 inceleme alanı + Scope Review + Risk Review'u uygula. Gerçek kodu değiştirme — sadece bulgu üret. `obss-red-team`'e dispatch ediyorsan, yukarıdaki "Şema uyuşmazlığı" notundaki ÇIKTI ŞEMASI talimatını prompt'a MUTLAKA ekle.
-3. Birleşik bulguları aşağıdaki JSON şemasıyla `artifacts/<task-slug>/red_team.json` dosyasına yaz:
+3. Birleşik bulguları aşağıdaki JSON şemasıyla `obss_project/artifacts/<task-slug>/red_team.json` dosyasına yaz:
 
 ```json
 {

@@ -19,7 +19,7 @@ authoring call already ran. This skill does that discovery up front, for
 free (no Codex call), using Claude's own read tools against the real repo.
 
 ## Precondition
-`artifacts/<task-slug>/atdd.md` must exist (from `atdd`,
+`obss_project/artifacts/<task-slug>/atdd.md` must exist (from `atdd`,
 optionally enriched by `jira-sync`). If missing, point at `atdd` — don't plan
 against a task that was never clarified.
 
@@ -49,7 +49,7 @@ against a task that was never clarified.
    pipeline's projects generally forbid silent schema changes (see the
    target repo's own CLAUDE.md/ADRs for the actual rule, e.g. a target repo's
    ADR 0001 on `profiles.role`).
-4. **Write the plan** to `artifacts/<task-slug>/plan.md`:
+4. **Write the plan** to `obss_project/artifacts/<task-slug>/plan.md`:
 
 ```markdown
 # Plan — <task-slug>

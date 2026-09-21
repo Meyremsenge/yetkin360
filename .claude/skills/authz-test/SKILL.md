@@ -73,7 +73,7 @@ En az iki **farklı** aktör gerekir. Tek kullanıcıyla yetkilendirme test edil
   bunu PASS sayma, politika filtreliyor mu yoksa veri mi yok ayırt et.
 
 ## Raporlama
-`artifacts/<task-slug>/authz_test.md`: matris tablosu, her satır
+`obss_project/artifacts/<task-slug>/authz_test.md`: matris tablosu, her satır
 için PASS/FAIL/N-A + kanıt (durum kodu, gövde özeti), mock'lanan test varsa
 ayrıca işaretle. Kapsanmayan satır varsa **eksik** de, "uygulanmadı" deme.
 

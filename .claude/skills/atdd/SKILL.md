@@ -152,9 +152,27 @@ yapma (bunun yerine ilgili skill'i çağır), burada bir sonraki skill'e otomati
    `test-copilot` bunları test eder. Tabloda olmayan bir hata durumu, test
    edilmeyen bir hata durumudur.
 
+5b. **Threat-model tetik kontrolü — zorunlu adım, atlanamaz.**
+
+   Görev şunlardan **herhangi birine** dokunuyor mu kontrol et: kimlik
+   doğrulama/yetkilendirme, kullanıcı girdisi, dosya yükleme/indirme, ödeme,
+   PII, multi-tenant sınır, harici API çağrısı, background job, **yeni bir
+   HTTP endpoint**.
+
+   - **Eşleşme varsa:** taslağı kaydetmeden **önce** `threat-model` skill'ini
+     çağır. Ürettiği `AC-S<n>` kriterlerini atdd.md'ye göm, frontmatter'a
+     `threat_model: done` yaz.
+   - **Eşleşme yoksa:** `threat_model: not-applicable` yaz + tek cümlelik
+     gerekçe (hangi kategorilerin kontrol edilip neden uygulanmadığı).
+
+   `threat_model:` alanı **asla boş veya "unevaluated" bırakılamaz** — bu,
+   6. adımdaki kayıttan önce tamamlanması gereken bir Hard Stop'tur. Boş
+   bırakmak, threat-model'in hiç değerlendirilmediği anlamına gelir ve
+   `pipeline`'ın sonraki `plan` adımına sessizce geçmesine yol açar.
+
 5. **ATDD taslağını doldur** (şablon aşağıda), cevapları birebir kullanarak —
    soru sorup cevabı görmezden gelme, önceden netleşmiş kategorileri de dahil et.
-6. **Kaydet.** `artifacts/<task-slug>/atdd.md` yoluna yaz (klasör
+6. **Kaydet.** `obss_project/artifacts/<task-slug>/atdd.md` yoluna yaz (klasör
    yoksa oluştur). Var olan bir dosyayı sessizce ezme — üzerine yazmadan önce
    kullanıcıya söyle.
 7. **DUR VE ONAY BEKLE (Hard Stop).** Kaydettikten sonra kullanıcıya dosya yolunu ver ve ŞUNU SOR: *"atdd.md dosyasını oluşturdum. Lütfen dosyayı okuyun ve yanlış/eksik bir varsayım varsa düzeltin. Onaylıyorsanız 'devam' deyin, sonraki adıma geçelim."*
@@ -168,6 +186,7 @@ task_slug: <task-slug>
 jira_id: <JIRA-ID veya null>
 saga_task_id: <id veya null>
 priority: critical | high | medium | low
+threat_model: done | not-applicable  # ASLA boş bırakma — 5b adımına bak
 coverage_target: <yüzde, örn. 85>
 performance_target: <örn. "<200ms" veya null>
 memory_target: <örn. "<100MB" veya null>
@@ -291,3 +310,7 @@ tekrarladı, bkz. proje hafızası).>
 - Acceptance Criteria'da öncelik etiketi ([Critical]/[High]/[Medium]) zorunlu.
 - `test_strategy` yüzdeleri toplamı 100 olmalı; kullanıcı vermediyse proje
   tipine göre makul bir varsayılan öner ve **onaylat**, sessizce icat etme.
+- `threat_model:` frontmatter alanı **`done` veya `not-applicable` dışında
+  bir değerle veya boş kaydedilemez** (5b adımı) — bu, `pipeline`'ın
+  `threat-model`'i sessizce atlayıp doğrudan `plan`'a geçmesini önleyen
+  tek kontrol noktasıdır.

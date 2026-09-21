@@ -83,7 +83,7 @@ Commit kapsamındaki değişikliklere bak, ilgili proje için (örn. `your-servi
   adımında commit'e dahil et.
 
 ## 3. Ready To Commit Checklist
-İlgili task varsa (`artifacts/<task-slug>/red_team.json`), kaliteyi burada yeniden değerlendirme — `red-team` skill'i zaten bunu yapıp `ready_to_commit` alanına yazdı. Sadece oku:
+İlgili task varsa (`obss_project/artifacts/<task-slug>/red_team.json`), kaliteyi burada yeniden değerlendirme — `red-team` skill'i zaten bunu yapıp `ready_to_commit` alanına yazdı. Sadece oku:
 - `red_team.json` mevcut mu? Yoksa kullanıcıya söyle: "Bu task için red-team incelemesi yok, önce `red-team` skill'i çalıştırılmalı" ve onay iste (yine de devam et/etme, kullanıcı karar versin).
 - `ready_to_commit` alanındaki 8 maddeyi (`atdd_satisfied`, `tests_passed`, `no_critical_findings`, `scope_respected`, `caveman_satisfied`, `security_acceptable`, `maintainability_acceptable`, `no_blocking_risks`) olduğu gibi kullanıcıya göster.
 - `verdict` `"block"` ise kullanıcıya açıkça uyar ve onay iste — "red-team block dedi, yine de devam edeyim mi?"
@@ -172,7 +172,7 @@ Bu görev için ATDD pipeline'ının tamamı bu commit ile kapandıysa (yani
 `red-team`'in `ready_to_commit`'i tüm maddelerde `true`, başka bekleyen bir
 alt-görev yok), Saga güncellemesinden hemen sonra kullanıcıya sohbeti
 temizlemeyi öner: "Bu görev tamamlandı — konuşmayı temizlemek ister misin?
-İlerleme Saga'da (#<id>) ve `artifacts/<task-slug>/` altında
+İlerleme Saga'da (#<id>) ve `obss_project/artifacts/<task-slug>/` altında
 kayıtlı, yeni bir sohbette kaldığın yerden devam edebilirsin." Otomatik
 `/clear` yapma — sadece öner. Görevde hâlâ bekleyen bir alt-parça varsa
 (örn. kullanıcı bilinçli olarak PENDING bırakmış bir AC) bu öneriyi yapma.

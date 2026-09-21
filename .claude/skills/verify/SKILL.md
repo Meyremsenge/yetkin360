@@ -15,7 +15,7 @@ description: Runs the real quality-gate checklist (build/lint/type-check/unit/e2
 - Format kontrollerini ve CI komutlarını birebir çalıştır.
 
 ## Precondition
-`artifacts/<task-slug>/code_diff.md` should exist (from
+`obss_project/artifacts/<task-slug>/code_diff.md` should exist (from
 `code-copilot`, run after `test-copilot`) so you know which files/surfaces to
 verify. `test_diff.md`'s (from `test-copilot`) "AC -> Test Mapping" section tells you which
 test files to run — read it if present, don't guess.
@@ -135,7 +135,7 @@ canonical command.
 
 ## Report
 
-Write `artifacts/<task-slug>/verify_report.md`:
+Write `obss_project/artifacts/<task-slug>/verify_report.md`:
 
 ```markdown
 # Verify Report — <task-slug>

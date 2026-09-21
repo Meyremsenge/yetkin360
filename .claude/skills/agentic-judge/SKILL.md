@@ -27,7 +27,7 @@ Tetikleyici yoksa bu adımı atla, doğrudan `red-team`'e geç — bu skill
 Aynı `<task-slug>` altında:
 - `atdd.md` (agentic AC'leri içeren)
 - Değerlendirilecek en az bir gerçek konuşma transkripti/log kaydı
-  (`artifacts/<task-slug>/transcripts/*.json` veya kullanıcının
+  (`obss_project/artifacts/<task-slug>/transcripts/*.json` veya kullanıcının
   verdiği ham transkript)
 
 Transkript yoksa dur, kullanıcıdan hangi konuşma(lar)ın değerlendirileceğini iste.
@@ -97,7 +97,7 @@ Agent({
    Tutarsızsa subagent'a tek seferlik düzeltme isteğiyle geri gönder;
    ikinci denemede de tutarsızsa kullanıcıya ham çıktıyla birlikte bildir.
 
-4. Doğrulanan sonuçları `artifacts/<task-slug>/agentic_judge/<conversation_id>.json` yoluna yaz (append-only — var olan bir kaydı asla üzerine yazma, her transkript kendi dosyasında kalır, bu dosyalar sonradan aggregation job'una girdi olur).
+4. Doğrulanan sonuçları `obss_project/artifacts/<task-slug>/agentic_judge/<conversation_id>.json` yoluna yaz (append-only — var olan bir kaydı asla üzerine yazma, her transkript kendi dosyasında kalır, bu dosyalar sonradan aggregation job'una girdi olur).
 
 5. Task-slug bazında bir özet üret: kaç transkript `approve`/`approve-with-changes`/`block`, `sensitive_tool_involved` olan var mı. Kullanıcıya bu özeti ve dosya yollarını bildir.
 

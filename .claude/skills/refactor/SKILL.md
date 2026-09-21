@@ -67,7 +67,7 @@ düş, dokunma.
 kendisi de bir değişikliktir ve her değişiklik risk taşır.
 
 ## Raporlama
-`artifacts/<task-slug>/refactor.md`: yapılan her değişiklik
+`obss_project/artifacts/<task-slug>/refactor.md`: yapılan her değişiklik
 (dosya + ne + neden), test sonucu, **denenip geri alınanlar**, ve dokunulmayıp
 not düşülen sorunlar. Sonra `red-team`'e devret.
 

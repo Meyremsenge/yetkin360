@@ -53,6 +53,10 @@ new HTTP endpoint. Otherwise note "tetikleyici yok" and go straight to `plan`.
 It sits **before** `plan` on purpose — a security requirement that doesn't
 exist by `test-copilot`'s turn never gets a test, because `test-copilot` only
 tests what atdd.md's acceptance criteria say.
+Bu karar `atdd`'nin 5b adımında verilir ve `atdd.md`'nin `threat_model:`
+frontmatter alanına (`done` veya `not-applicable`) yazılır — bu alan boşsa
+`atdd` kendi Hard Stop'unu geçmemiş demektir, `pipeline` bir sonraki adıma
+geçmeden önce bunu kontrol eder.
 Test-first kuralı geçerlidir (bkz: `pipeline-rules.md` Kural 3). Artık test-first çalışır.
 
 | Step | Reads | Writes | Never does |
@@ -105,7 +109,7 @@ Kaynak: `.agents/skills/` (hem CLI ajanı hem Copilot'ta kurulu, bkz. `skills-lo
   exists").
 - **User asks "nerede kaldık" / "what's next":** call `jira-sync`'s Saga
   lookup (step A) to find the task's current status, then check which
-  artifact files exist under `artifacts/<task-slug>/`
+  artifact files exist under `obss_project/artifacts/<task-slug>/`
   (`atdd.md`, `plan.md`, `code_diff.md`, test files, `verify_report.md`,
   `red_team.json`) to see how far the chain already got. Resume at the next
   missing artifact, not from scratch.
@@ -118,7 +122,7 @@ Kaynak: `.agents/skills/` (hem CLI ajanı hem Copilot'ta kurulu, bkz. `skills-lo
   çıktıları — kullanıcıya şunu öner: mevcut ilerlemeyi (hangi artifact'lar
   tamam, sıradaki adım ne) Saga task'ına (`mcp__saga__task_update` ile
   description/status) yaz, sonra sohbeti temizleyip (`/clear`) yeni bir
-  sohbette Saga kaydından + `artifacts/<task-slug>/` altındaki
+  sohbette Saga kaydından + `obss_project/artifacts/<task-slug>/` altındaki
   dosyalardan devam etmeyi teklif et. Otomatik yapma — sadece öner ve
   kullanıcı onaylarsa Saga'yı güncelle. Bu, `commit`'in 12. adımındaki
   (görev bittiğinde clear önerisi) erken/ara sürümüdür — görev bitmeden de

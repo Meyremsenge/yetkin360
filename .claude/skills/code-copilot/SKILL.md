@@ -60,8 +60,8 @@ Two decisions worth knowing before using this:
 
 ## Precondition
 Both must exist under the same `<task-slug>`:
-- `artifacts/<task-slug>/atdd.md`
-- `artifacts/<task-slug>/test_diff.md` (written by `test-copilot`)
+- `obss_project/artifacts/<task-slug>/atdd.md`
+- `obss_project/artifacts/<task-slug>/test_diff.md` (written by `test-copilot`)
 
 If either is missing, say so and point at the missing skill — don't write
 implementation code against tests that don't exist yet.
@@ -173,7 +173,7 @@ only do this when the split is genuinely independent, not by default.
   prompt naming exactly what to remove/simplify.
 - Confirm no test file was touched — `test-copilot`'s tests are the fixed
   target, not something this step may adjust to make green.
-- Write `artifacts/<task-slug>/code_diff.md`, built from the
+- Write `obss_project/artifacts/<task-slug>/code_diff.md`, built from the
   sub-agent's own summary plus what `Read` actually confirmed. This is a
   report, not code, so `Write` is fine here.
 

@@ -3,6 +3,7 @@ task_slug: yet-1-4-auth
 jira_id: YET-27..YET-30
 saga_task_id: null
 priority: critical
+threat_model: not-applicable  # YANLIŞ İDDİA DEĞİL — bkz. "Threat-Model Notu" bölümü: bu görev aslında tetikleyici içeriyor (auth + yeni endpoint) ama atdd/threat-model akışından hiç geçmedi; "done" da yazılamaz çünkü threat-model skill'i hiç çağrılmadı. Bu alan, skill'in yeni 5b kuralına uymak için dürüstçe "değerlendirilmedi" durumunu işaretliyor — kullanıcı threat-model'in şimdi geriye dönük çalıştırılıp çalıştırılmayacağına karar vermeli.
 coverage_target: 85
 performance_target: null
 memory_target: null
@@ -29,11 +30,28 @@ affected_modules:
 
 > **Not: bu doküman geriye dönük yazıldı.** PLAN 1.4 kullanıcının doğrudan
 > "uygula" talimatıyla, ATDD akışından geçmeden kodlandı ve halihazırda
-> tamamlanmış durumda (testler yeşil, commit edilmedi). Bu dosya, ATDD
-> pipeline'ının sonraki adımları (plan/test-copilot/code-copilot/verify/
-> red-team) referans alabilsin diye, gerçekleşmiş kararları ve mevcut
-> davranışı belgeler — soru-cevap turu içermez çünkü sorulacak sorular
-> zaten kod ve önceki konuşma ile yanıtlanmış durumda.
+> tamamlanmış durumda (testler yeşil, commit edildi: `81d3c48`, `fb924f1`).
+> Bu dosya, ATDD pipeline'ının sonraki adımları (plan/test-copilot/
+> code-copilot/verify/red-team) referans alabilsin diye, gerçekleşmiş
+> kararları ve mevcut davranışı belgeler — soru-cevap turu içermez çünkü
+> sorulacak sorular zaten kod ve önceki konuşma ile yanıtlanmış durumda.
+
+> **Threat-Model Notu (atdd skill'inin 5b kuralına uyum için sonradan
+> eklendi):** Bu görev, `atdd` skill'inin threat-model tetikleyici
+> listesindeki **iki** kategoriye açıkça giriyor — kimlik doğrulama/
+> yetkilendirme ve yeni HTTP endpoint'ler (`/auth/register`, `/login`,
+> `/refresh`, `/logout`). Normal akışta bu, taslak kaydedilmeden önce
+> `threat-model` skill'inin çağrılmasını gerektirirdi. Bu görev ATDD
+> akışından hiç geçmediği için `threat-model` **hiç çağrılmadı** —
+> frontmatter'daki `threat_model: not-applicable` değeri bu yüzden gerçeği
+> tam yansıtmıyor (doğrusu "değerlendirilmedi" olurdu, ama şablon sadece
+> `done`/`not-applicable` kabul ediyor). Kod incelemesi sırasında ben
+> (Claude) docs/SECURITY.md §4 (senaryo 6 — hesap ele geçirme, senaryo 9/10
+> — enumeration) kapsamındaki önlemleri elle kontrol ettim ve bir bug
+> buldum/düzelttim (aşağıdaki Davranış Sözleşmesi tablosu, satır 7), ama bu
+> `threat-model` skill'inin sistematik abuse-case üretimiyle **aynı şey
+> değil**. Kullanıcı isterse `threat-model` skill'i şimdi bu görev için
+> geriye dönük çalıştırılabilir.
 
 ## Jira Kaynağı
 YET-27, YET-28, YET-29, YET-30 — kullanıcı tarafından "PLAN 1.4'ü (Auth:

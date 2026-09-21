@@ -22,7 +22,7 @@ taint akışı. Bu skill onları deterministik araçlarla kanıtlar. Bölüşüm
 Araç bulgusu olmaması **güvenli demek değildir** — sadece "bilinen imza yok" demektir.
 
 ## Ön koşul
-`artifacts/<task-slug>/code_diff.md` varsa, değişen dosya listesini
+`obss_project/artifacts/<task-slug>/code_diff.md` varsa, değişen dosya listesini
 oradan al ve taramayı o dosyalarla sınırla. Tüm repoyu taramak hem yavaştır hem
 de göreve ait olmayan eski bulgularla gate'i kirletir.
 
@@ -101,7 +101,7 @@ Bu, mevcut bulguları `.secrets.baseline`'a yazar; sonraki koşumlarda sadece
 - `npm audit` sadece `high`/`critical` seviyeyi FAIL sayar.
 
 ## Raporlama
-`artifacts/<task-slug>/security_scan.md` dosyasına yaz:
+`obss_project/artifacts/<task-slug>/security_scan.md` dosyasına yaz:
 gate tablosu (PASS/FAIL/N/A + gerekçe), bulgular, ve **hangi kapsamda**
 tarandığı. Bir gate `ERROR`/`TIMEOUT` ise sonuç `INCONCLUSIVE`'dir — bunu
 asla PASS diye raporlama.

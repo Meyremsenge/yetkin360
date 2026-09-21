@@ -48,7 +48,7 @@ bridge for the **test-authoring** side of an ATDD task.
   saw it.
 
 ## Precondition
-`artifacts/<task-slug>/atdd.md` must already exist (and
+`obss_project/artifacts/<task-slug>/atdd.md` must already exist (and
 `plan.md` if the `plan` skill ran). If atdd.md is missing, say so and point
 at the `atdd` skill — don't guess at scope.
 
@@ -146,7 +146,7 @@ speculatively; get the file list and project root right first.
 - `Read` the test files the sub-agent wrote, just enough to confirm they
   cover each Acceptance Criteria atdd.md lists (happy path + every edge
   case) — a presence check, not a quality review or a test run.
-- Write `artifacts/<task-slug>/test_diff.md`, listing the test
+- Write `obss_project/artifacts/<task-slug>/test_diff.md`, listing the test
   files created and which Acceptance Criteria each targets.
 
 ### 6. If the sub-agent's output looks wrong
