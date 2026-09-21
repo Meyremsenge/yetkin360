@@ -28,6 +28,9 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql+psycopg://test:test@localhost:5432/test
+      # CI-only throwaway value. Never used outside this ephemeral runner.
+      SECRET_KEY: ci_only_not_a_real_secret_ci_only_not_a_real_secret_64ch
+      COOKIE_SECURE: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

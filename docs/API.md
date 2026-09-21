@@ -141,15 +141,25 @@ büyük tabloda `COUNT(*)` pahalıdır. Gerekirse ayrı bir sayım ucu eklenir.
 
 ### 1.7 Kimlik doğrulama
 
+**Karar (final analiz §15.3, [SECURITY.md](SECURITY.md) §6):** Token'lar
+**response gövdesinde dönmez.** Tarayıcı cookie'leri taşır.
+
 | Konu | Karar |
 |---|---|
-| Şema | `Authorization: Bearer <access_token>` |
-| Yenileme | `POST /auth/refresh` |
+| Access token | JWT, **15 dk** (`ACCESS_TOKEN_TTL_MINUTES`), `httpOnly` + `Secure` + `SameSite=Lax` cookie |
+| Refresh token | **Veritabanında**, 30 gün (`REFRESH_TOKEN_TTL_DAYS`), rotating, ayrı `httpOnly` cookie |
+| Rotasyon | Her `/auth/refresh` yeni çift üretir; eski refresh token geçersizleşir |
+| Yeniden kullanım tespiti | Kullanılmış bir refresh token tekrar gelirse **o ailenin tümü iptal edilir** (çalınma sinyali) |
+| CSRF | `SameSite=Lax` + double-submit token: `csrf_token` cookie'si (JS okuyabilir) + `X-CSRF-Token` başlığı |
+| Şifre | **Argon2id** |
 
-> ❓ AÇIK SORU: Final analiz §15.3 token stratejisini belirliyor ama bu dosya
-> yazılırken o bölüm okunmadı (token disiplini). Access token ömrü, refresh
-> token saklama yeri (httpOnly cookie mi, response gövdesi mi) ve rotasyon
-> kuralı §15.3'ten alınıp buraya yazılmalı — [PLAN.md](../PLAN.md) 1.4 öncesinde.
+**Neden gövde değil cookie:** `localStorage`'daki token, herhangi bir XSS
+açığını tam hesap ele geçirmesine çevirir. `httpOnly` cookie JavaScript'ten
+okunamaz. Gerekçenin tamamı: [SECURITY.md](SECURITY.md) §6.
+
+**İstemci sonucu:** Frontend token saklamaz, `Authorization` başlığı kurmaz.
+Tüm istekler `credentials: "include"` ile gider; yazma isteklerine
+`X-CSRF-Token` başlığı eklenir.
 
 ### 1.8 Yetki sütununun okunuşu
 
@@ -176,15 +186,31 @@ Kesin, test edilebilir matris → [AUTHORIZATION.md](AUTHORIZATION.md).
 
 | Metot | Yol | Yetki | İstek | Cevap | Hatalar |
 |---|---|---|---|---|---|
-| `POST` | `/auth/register` | — | `email`, `password`, `full_name`, `role` | `201` — `user_id` | `409 EMAIL_TAKEN`, `429` |
-| `POST` | `/auth/login` | — | `email`, `password` | `200` — `access_token`, `refresh_token`, `expires_in` | `401 INVALID_CREDENTIALS`, `423 ACCOUNT_LOCKED`, `429` |
-| `POST` | `/auth/refresh` | — | `refresh_token` | `200` — yeni token çifti | `401 INVALID_REFRESH_TOKEN` |
-| `POST` | `/auth/logout` | `AUTH` | — | `204` | — |
+| `POST` | `/auth/register` | — | `email`, `password`, `full_name` | `201` — `user_id` | `409 EMAIL_TAKEN`, `422`, `429` |
+| `POST` | `/auth/login` | — | `email`, `password` | `200` — `user_id`, `role`, `email_verified` + **3 cookie** | `401 INVALID_CREDENTIALS`, `423 ACCOUNT_LOCKED`, `429` |
+| `POST` | `/auth/refresh` | — | — (refresh cookie'den) | `204` + **yenilenmiş cookie'ler** | `401 INVALID_REFRESH_TOKEN` |
+| `POST` | `/auth/logout` | `AUTH` | — | `204` + cookie'ler silinir | — |
 | `POST` | `/auth/verify-email` | — | `token` | `204` | `400 INVALID_TOKEN`, `410 TOKEN_EXPIRED` |
 | `POST` | `/auth/forgot-password` | — | `email` | `204` (her zaman) | `429` |
 | `POST` | `/auth/reset-password` | — | `token`, `new_password` | `204` | `400 INVALID_TOKEN`, `410 TOKEN_EXPIRED` |
 
+**Cookie'ler.** `/auth/login` ve `/auth/refresh` üç cookie yazar:
+
+| Cookie | `httpOnly` | Ömür | İçerik |
+|---|---|---|---|
+| `access_token` | ✅ | 15 dk | JWT |
+| `refresh_token` | ✅ | 30 gün | Opak değer; karşılığı DB'de |
+| `csrf_token` | ❌ (JS okumalı) | oturum | Double-submit için rastgele değer |
+
+Üçü de `Secure` + `SameSite=Lax`. `refresh_token` cookie'sinin `Path` değeri
+`/auth/refresh` — diğer isteklerde ağa çıkmaz.
+
 **Kritik davranışlar:**
+- Yazma metotlarında (`POST`/`PATCH`/`DELETE`) `X-CSRF-Token` başlığı
+  `csrf_token` cookie'siyle eşleşmezse → `403 CSRF_FAILED`. Bu, kaynağın
+  varlığını sızdırmadığı için 404 kuralının istisnasıdır.
+- `/auth/refresh` kullanılmış bir token alırsa → **token ailesinin tamamı
+  iptal edilir**, `401 INVALID_REFRESH_TOKEN`, `audit_events`'e kayıt düşer.
 - `/auth/forgot-password` **e-posta kayıtlı olmasa da `204`** döner. Aksi hâlde
   hangi e-postaların kayıtlı olduğu sızar (kullanıcı numaralandırma).
 - `/auth/login` başarısızlığında "e-posta yanlış" / "şifre yanlış" ayrımı
@@ -193,10 +219,22 @@ Kesin, test edilebilir matris → [AUTHORIZATION.md](AUTHORIZATION.md).
 - Kayıt sonrası e-posta doğrulanana kadar **hiçbir yazma işlemi yapılamaz**
   → `401 EMAIL_NOT_VERIFIED`.
 
-> ❓ AÇIK SORU: `register` isteğindeki `role` alanı — kullanıcı kayıt sırasında
-> "öğrenciyim / kurumdanım" seçimi mi yapıyor, yoksa herkes `User` olarak kaydolup
-> profil sonradan mı oluşuyor? §34 bunu belirtmiyor. Kayıt ekranı tasarımı
-> ([PLAN.md](../PLAN.md) 1.13) bu karara bağlı.
+**Karar — kayıtta rol seçimi yoktur.** `register` isteği `role` almaz.
+
+Herkes aynı şekilde kaydolur; sunucu **tek transaction'da** `users` +
+`talent_profiles` satırını birlikte açar ([DATABASE.md](DATABASE.md) §"Kullanıcı
+kaydı"). Talent profili boş alanlarla doğar, kullanıcı `PATCH /talents/me` ile
+doldurur.
+
+Gerekçe:
+- `users` tablosunda **`role` sütunu yoktur.** Rol kişiye değil **üyeliğe**
+  aittir: `institution_members.role`, `organization_members.role`.
+- Kullanıcı kendi rolünü **beyan edemez.** Koordinatör veya kurum üyeliği
+  yalnız davetle verilir — aksi hâlde herkes kendini koordinatör ilan ederdi.
+- Kayıt ekranı ([PLAN.md](../PLAN.md) 1.13) tek akış: e-posta, şifre, ad soyad.
+
+Kurumdan biri platforma katılırken de aynı kapıdan girer; kurum üyeliği
+sonradan eklenir. Bu kişinin talent profili boş kalır, zararı yoktur.
 
 ### 2.2 Profil ve yetkinlik — `/me`, `/talents`
 
