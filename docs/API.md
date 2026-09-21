@@ -186,7 +186,7 @@ Kesin, test edilebilir matris → [AUTHORIZATION.md](AUTHORIZATION.md).
 
 | Metot | Yol | Yetki | İstek | Cevap | Hatalar |
 |---|---|---|---|---|---|
-| `POST` | `/auth/register` | — | `email`, `password`, `full_name` | `201` — `user_id` | `409 EMAIL_TAKEN`, `422`, `429` |
+| `POST` | `/auth/register` | — | `email`, `password`, `full_name` | `201` — `user_id` (her zaman, kayıtlı e-postada bile) | `422`, `429` |
 | `POST` | `/auth/login` | — | `email`, `password` | `200` — `user_id`, `role`, `email_verified` + **3 cookie** | `401 INVALID_CREDENTIALS`, `423 ACCOUNT_LOCKED`, `429` |
 | `POST` | `/auth/refresh` | — | — (refresh cookie'den) | `204` + **yenilenmiş cookie'ler** | `401 INVALID_REFRESH_TOKEN` |
 | `POST` | `/auth/logout` | `AUTH` | — | `204` + cookie'ler silinir | — |
@@ -213,6 +213,11 @@ Kesin, test edilebilir matris → [AUTHORIZATION.md](AUTHORIZATION.md).
   iptal edilir**, `401 INVALID_REFRESH_TOKEN`, `audit_events`'e kayıt düşer.
 - `/auth/forgot-password` **e-posta kayıtlı olmasa da `204`** döner. Aksi hâlde
   hangi e-postaların kayıtlı olduğu sızar (kullanıcı numaralandırma).
+- `/auth/register` aynı prensiple **kayıtlı bir e-postayla çağrılsa da her
+  zaman `201`** döner (`EMAIL_TAKEN` gibi ayırt edici bir kod yok) — var olan
+  hesap dokunulmadan kalır, dönen `user_id` gerçek değildir. Var olan hesap
+  sahibine "e-postan tekrar kullanılmaya çalışıldı" bildirimi outbox
+  (PLAN 1.5) üzerinden atılacak; MVP'de henüz yok.
 - `/auth/login` başarısızlığında "e-posta yanlış" / "şifre yanlış" ayrımı
   **yapılmaz** — tek mesaj: "E-posta veya şifre hatalı."
 - `failed_login_count` eşiği aşılınca `locked_until` dolar → `423`.

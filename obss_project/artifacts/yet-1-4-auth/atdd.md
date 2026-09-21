@@ -3,7 +3,7 @@ task_slug: yet-1-4-auth
 jira_id: YET-27..YET-30
 saga_task_id: null
 priority: critical
-threat_model: not-applicable  # YANLIŞ İDDİA DEĞİL — bkz. "Threat-Model Notu" bölümü: bu görev aslında tetikleyici içeriyor (auth + yeni endpoint) ama atdd/threat-model akışından hiç geçmedi; "done" da yazılamaz çünkü threat-model skill'i hiç çağrılmadı. Bu alan, skill'in yeni 5b kuralına uymak için dürüstçe "değerlendirilmedi" durumunu işaretliyor — kullanıcı threat-model'in şimdi geriye dönük çalıştırılıp çalıştırılmayacağına karar vermeli.
+threat_model: done  # geriye dönük çalıştırıldı — bkz. "Threat-Model Notu" ve AC-S1..S3
 coverage_target: 85
 performance_target: null
 memory_target: null
@@ -36,22 +36,17 @@ affected_modules:
 > kararları ve mevcut davranışı belgeler — soru-cevap turu içermez çünkü
 > sorulacak sorular zaten kod ve önceki konuşma ile yanıtlanmış durumda.
 
-> **Threat-Model Notu (atdd skill'inin 5b kuralına uyum için sonradan
-> eklendi):** Bu görev, `atdd` skill'inin threat-model tetikleyici
-> listesindeki **iki** kategoriye açıkça giriyor — kimlik doğrulama/
-> yetkilendirme ve yeni HTTP endpoint'ler (`/auth/register`, `/login`,
-> `/refresh`, `/logout`). Normal akışta bu, taslak kaydedilmeden önce
-> `threat-model` skill'inin çağrılmasını gerektirirdi. Bu görev ATDD
-> akışından hiç geçmediği için `threat-model` **hiç çağrılmadı** —
-> frontmatter'daki `threat_model: not-applicable` değeri bu yüzden gerçeği
-> tam yansıtmıyor (doğrusu "değerlendirilmedi" olurdu, ama şablon sadece
-> `done`/`not-applicable` kabul ediyor). Kod incelemesi sırasında ben
-> (Claude) docs/SECURITY.md §4 (senaryo 6 — hesap ele geçirme, senaryo 9/10
-> — enumeration) kapsamındaki önlemleri elle kontrol ettim ve bir bug
-> buldum/düzelttim (aşağıdaki Davranış Sözleşmesi tablosu, satır 7), ama bu
-> `threat-model` skill'inin sistematik abuse-case üretimiyle **aynı şey
-> değil**. Kullanıcı isterse `threat-model` skill'i şimdi bu görev için
-> geriye dönük çalıştırılabilir.
+> **Threat-Model Notu:** Bu görev, `atdd` skill'inin threat-model
+> tetikleyici listesindeki **iki** kategoriye açıkça giriyor — kimlik
+> doğrulama/yetkilendirme ve yeni HTTP endpoint'ler (`/auth/register`,
+> `/login`, `/refresh`, `/logout`). Kod zaten yazılıp commit edildikten
+> (`81d3c48`, `fb924f1`) sonra, `atdd` skill'ine sonradan eklenen 5b
+> kuralına uymak için `threat-model` skill'i **geriye dönük** çalıştırıldı
+> — STRIDE-lite analizi yapıldı, sonuçlar aşağıdaki AC listesinin sonuna
+> `AC-S1`/`AC-S2`/`AC-S3` olarak eklendi. Normal akışta bu, kod yazılmadan
+> **önce** yapılırdı; burada tersine, mevcut koda karşı yapıldı. AC-S1
+> gerçek bir bulgudur ve kullanıcının karar vermesi gerekiyor (düzeltilsin
+> mi, kabul edilen risk mi).
 
 ## Jira Kaynağı
 YET-27, YET-28, YET-29, YET-30 — kullanıcı tarafından "PLAN 1.4'ü (Auth:
@@ -118,6 +113,44 @@ kullanabileyim**
 12. [High] Given oturum yok (access_token cookie'si yok/geçersiz), When
     `POST /auth/logout` çağrılır, Then `401 UNAUTHENTICATED` döner —
     CSRF kontrolünden **önce** çalışır (401 önceliklidir).
+
+**Güvenlik AC'leri (`threat-model` skill'i, geriye dönük çalıştırıldı — bkz.
+yukarıdaki Threat-Model Notu). STRIDE-lite: Tampering ve Elevation
+kategorilerinde açık bulunmadı (role hep sunucuda hesaplanıyor, yetki
+kontrolleri doğru sırada); aşağıdakiler Information Disclosure ve
+Repudiation kategorilerinde çıktı.**
+
+13. [High] **AC-S1 (Information Disclosure — kullanıcı numaralandırma):**
+    Given kayıtlı bir e-posta, When `POST /auth/register` o e-postayla
+    tekrar çağrılır, Then şu anki davranış `409 EMAIL_TAKEN` döner — bu,
+    saldırganın hangi e-postaların platformda kayıtlı olduğunu tek istekle
+    öğrenmesine izin verir. **docs/SECURITY.md §4 senaryo 10 ile doğrudan
+    çelişir** ("Kayıt/şifre sıfırlamada tek tip cevap"). Bu, `/auth/
+    forgot-password`'ün zaten uyguladığı (`204` her zaman) desenin
+    `/auth/register`'da uygulanmamış hâli. **Kabul edilen risk olarak mı
+    bırakılacak yoksa düzeltilecek mi kullanıcı karar vermeli** — düzeltme
+    `201` dönüp e-postayı gerçekte kaydetmemek (var olan hesaba "birisi bu
+    e-postayla kayıt denemesi yaptı" bildirimi outbox'tan atmak, PLAN 1.5/1.6
+    bağımlılığı) anlamına gelir ve register akışının UX'ini değiştirir; bu
+    yüzden burada sadece işaretleniyor, düzeltme bu görevin kapsamında
+    **yapılmadı**.
+14. [Medium] **AC-S2 (Repudiation — access token çalınması sınırı):** Given
+    bir saldırgan access_token cookie'sini (XSS dışı bir yolla, örn. tarayıcı
+    geçmişi/paylaşılan makine) ele geçirir, When bu token'la istek atılırsa,
+    Then hiçbir mekanizma bu token'ı erken iptal edemez (JWT stateless,
+    `decode_access_token` sadece imza+süre kontrol eder, DB'ye bakmaz) —
+    saldırgan token'ın kalan ömrü boyunca (en fazla 15dk) geçerli kalır.
+    **Kabul edilen risk**: TTL kısa (15dk) tutularak mitigasyon zaten
+    docs/SECURITY.md §5'te bilinçli bir tasarım kararı; giriş bildirimi/oturum
+    iptal listesi MVP dışı (V2, docs/SECURITY.md §4 senaryo 6).
+15. [Low] **AC-S3 (Repudiation — audit_events actor_ip proxy arkasında
+    yanlış olabilir):** Given tek-VPS + Nginx production kurulumu, When
+    `_client_ip()` `request.client.host`'a bakar, Then reverse-proxy'nin
+    kendi IP'si gerçek saldırgan IP'si yerine `audit_events`'e yazılabilir
+    (zaten Risks bölümünde not edilmişti, burada AC'ye bağlandı). Düzeltme:
+    `X-Forwarded-For` desteği — bu görevin kapsamında **yapılmadı**, ayrı
+    takip gerekiyor (Nginx güven zinciri kurulmadan header'a körü körüne
+    güvenmek IP spoofing'e açar, bu yüzden tek başına yapılmamalı).
 
 ## Davranış Sözleşmesi (hangi durumda ne döner)
 

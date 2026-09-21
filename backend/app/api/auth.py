@@ -75,10 +75,9 @@ def _clear_auth_cookies(response: Response) -> None:
 
 @router.post("/register", status_code=201, response_model=RegisterResponse)
 def register(body: RegisterRequest, session: Session = Depends(get_session)) -> RegisterResponse:
-    try:
-        result = auth_service.register_user(session, body.email, body.password, body.full_name)
-    except auth_service.EmailAlreadyTaken:
-        raise ApiError(409, "EMAIL_TAKEN", "Bu e-posta adresi zaten kayıtlı.")
+    # docs/SECURITY.md §4 senaryo 10: always 201, never leaks whether the
+    # email was already registered (see register_user's docstring).
+    result = auth_service.register_user(session, body.email, body.password, body.full_name)
     return RegisterResponse(user_id=result.user_id)
 
 

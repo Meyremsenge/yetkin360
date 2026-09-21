@@ -32,10 +32,6 @@ FAILED_LOGIN_LOCK_THRESHOLD = 10
 FAILED_LOGIN_LOCK_MINUTES = 15
 
 
-class EmailAlreadyTaken(Exception):
-    pass
-
-
 class InvalidCredentials(Exception):
     pass
 
@@ -113,10 +109,29 @@ def register_user(session: Session, email: str, password: str, full_name: str) -
     """
     Create a user + empty talent profile in one transaction (docs/API.md §2.1:
     registration never takes a role — role lives on membership, not on User).
+
+    docs/SECURITY.md §4 senaryo 10: registration must not let an attacker
+    enumerate which emails are already registered. If the email is already
+    taken, this returns as if registration succeeded (a fake, non-existent
+    user_id — never the real one, which would itself leak that the account
+    exists) and does not touch the existing row. The real account holder
+    gets no "someone tried to register your email" notice yet — that needs
+    outbox (PLAN 1.5) to send without blocking this transaction; until then
+    a real duplicate-registration attempt is silently dropped rather than
+    silently succeeding as a signal to an attacker.
     """
     existing = session.execute(select(User).where(User.email == email)).scalars().first()
     if existing is not None:
-        raise EmailAlreadyTaken()
+        log_audit_event(
+            session=session,
+            actor_user_id=None,
+            actor_ip=None,
+            action="USER_REGISTER_DUPLICATE_EMAIL",
+            subject_type="user",
+            subject_id=existing.id,
+            result="DENIED",
+        )
+        return RegisteredUser(user_id=uuid.uuid4())
 
     user = User(email=email, password_hash=hash_password(password))
     session.add(user)

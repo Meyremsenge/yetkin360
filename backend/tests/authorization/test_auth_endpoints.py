@@ -14,11 +14,12 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import func, select
 
 from app.core.deps import get_session
 from app.core.security import hash_password, hash_refresh_token
 from app.main import app
-from app.models import RefreshToken, User
+from app.models import RefreshToken, TalentProfile, User
 
 
 @pytest.fixture
@@ -49,13 +50,26 @@ class TestRegister:
         # Response must not leak the password/hash anywhere.
         assert "password" not in response.text.lower()
 
-    def test_register_rejects_duplicate_email(self, client, existing_user):
+    def test_register_duplicate_email_returns_201_without_enumeration(self, client, existing_user, session):
+        """
+        AC-S1 (threat-model, docs/SECURITY.md §4 senaryo 10): registering
+        with an already-taken email must not reveal that fact — same 201 as
+        a fresh registration, a fake user_id (not the real account's), and
+        no second talent_profiles row created for the existing user.
+        """
         response = client.post(
             "/auth/register",
             json={"email": "existing-auth@example.com", "password": "Str0ngPassw0rd!", "full_name": "Biri"},
         )
-        assert response.status_code == 409
-        assert response.json()["code"] == "EMAIL_TAKEN"
+        assert response.status_code == 201
+        body = response.json()
+        assert "user_id" in body
+        assert body["user_id"] != str(existing_user.id)
+
+        profile_count = session.execute(
+            select(func.count()).select_from(TalentProfile).where(TalentProfile.user_id == existing_user.id)
+        ).scalar()
+        assert profile_count == 0, "duplicate register must not create a second profile for the existing user"
 
     def test_register_rejects_role_field_silently_ignored(self, client):
         """docs/API.md §2.1: register never accepts role — extra fields must not grant one."""
