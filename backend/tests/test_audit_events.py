@@ -56,9 +56,14 @@ def test_log_audit_event_inserts_row(session):
         metadata={"login_method": "password"},
     )
 
-    # Query audit_events table
+    # Query audit_events table. Filtered by subject_id too, not just action:
+    # action="USER_LOGIN" is also emitted by the real app/services/auth.py
+    # login flow, so other tests/integration runs against this same
+    # database can add further USER_LOGIN rows (audit_events is append-only,
+    # they are never cleaned up). This test's fixed subject_id is specific
+    # enough to stay unique.
     audit_row = session.execute(
-        select(AuditEvent).filter_by(action=action)
+        select(AuditEvent).filter_by(action=action, subject_id=subject_id)
     ).scalar_one_or_none()
 
     assert audit_row is not None

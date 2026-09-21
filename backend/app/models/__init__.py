@@ -1,4 +1,5 @@
 from app.models.audit import AuditEvent
+from app.models.auth import RefreshToken
 from app.models.base import Base
 from app.models.identity import (
     Institution,
@@ -20,4 +21,5 @@ __all__ = [
     "OrganizationMember",
     "Skill",
     "AuditEvent",
+    "RefreshToken",
 ]
