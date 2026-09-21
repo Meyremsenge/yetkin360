@@ -9,6 +9,14 @@ Projenin okuduğu tüm ortam değişkenleri, varsayılanları ve anlamları.
 > **`.env` asla commit edilmez** — `.gitignore` içindedir.
 > `.env.example` yalnız **placeholder** içerir, gerçek sır içermez.
 
+**Tek `.env`, repo kökünde.** `backend/app/core/config.py` dosyayı kendi
+konumundan hesaplar (`REPO_ROOT / ".env"`), çalışma dizininden değil — yani
+`backend/` içinden de repo kökünden de aynı dosya okunur. `backend/.env`
+diye ikinci bir dosyaya **gerek yoktur**; varsa silin, yoksa ikisi ayrışır.
+
+**Öncelik:** gerçek ortam değişkeni > `.env` dosyası. CI `.env` kullanmaz,
+değişkenleri doğrudan tanımlar ([.github/workflows/ci.yml](../.github/workflows/ci.yml)).
+
 **İlgili dosyalar:**
 - Sır yönetimi kuralları → [SECURITY.md](SECURITY.md) §6
 - Hız sınırı gerekçeleri → [SECURITY.md](SECURITY.md) §3

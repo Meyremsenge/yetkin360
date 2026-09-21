@@ -1,8 +1,16 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Repo root, resolved from this file — not from the current working directory.
+# docs/ENV.md puts .env at the repo root, but the backend is usually run from
+# backend/, so a relative ".env" would resolve differently per command.
+# Real environment variables still win over the file (CI sets them directly).
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=REPO_ROOT / ".env", extra="ignore")
 
     environment: str = "development"
     debug: bool = True
