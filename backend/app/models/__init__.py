@@ -9,6 +9,7 @@ from app.models.identity import (
     TalentProfile,
     User,
 )
+from app.models.outbox import Outbox
 from app.models.skill import Skill
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     "Skill",
     "AuditEvent",
     "RefreshToken",
+    "Outbox",
 ]

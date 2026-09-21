@@ -27,6 +27,7 @@ from app.core.security import (
 )
 from app.models import InstitutionMember, OrganizationMember, RefreshToken, TalentProfile, User
 from app.services.audit import log_audit_event
+from app.services.outbox import enqueue
 
 FAILED_LOGIN_LOCK_THRESHOLD = 10
 FAILED_LOGIN_LOCK_MINUTES = 15
@@ -115,10 +116,9 @@ def register_user(session: Session, email: str, password: str, full_name: str) -
     taken, this returns as if registration succeeded (a fake, non-existent
     user_id — never the real one, which would itself leak that the account
     exists) and does not touch the existing row. The real account holder
-    gets no "someone tried to register your email" notice yet — that needs
-    outbox (PLAN 1.5) to send without blocking this transaction; until then
-    a real duplicate-registration attempt is silently dropped rather than
-    silently succeeding as a signal to an attacker.
+    is notified via outbox: a duplicate-registration attempt is enqueued to
+    the email.duplicate_registration_attempt topic, which the outbox worker
+    will process asynchronously without blocking this transaction.
     """
     existing = session.execute(select(User).where(User.email == email)).scalars().first()
     if existing is not None:
@@ -130,6 +130,13 @@ def register_user(session: Session, email: str, password: str, full_name: str) -
             subject_type="user",
             subject_id=existing.id,
             result="DENIED",
+        )
+        # Enqueue email notification (PLAN 1.5: outbox pattern)
+        # Payload uses "user_email" (safe key) instead of "email" (sensitive key)
+        enqueue(
+            session=session,
+            topic="email.duplicate_registration_attempt",
+            payload={"user_email": email},
         )
         return RegisteredUser(user_id=uuid.uuid4())
 

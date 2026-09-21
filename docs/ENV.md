@@ -94,6 +94,8 @@ Gönderim `outbox` worker üzerinden, **asla transaction içinde değil**
 | Değişken | Varsayılan | Açıklama |
 |---|---|---|
 | `EMAIL_BACKEND` | `console` | `console` \| `smtp`. MVP'de konsola yazılır |
+| `OUTBOX_POLL_INTERVAL_SECONDS` | `5` | Worker polling aralığı (saniye) |
+| `OUTBOX_MAX_ATTEMPTS` | `5` | Maksimum yeniden deneme sayısı |
 | `SMTP_HOST` | *(boş)* | |
 | `SMTP_PORT` | `587` | |
 | `SMTP_USER` | *(boş)* | |
@@ -191,8 +193,10 @@ MAX_USER_QUOTA_MB=100
 ALLOWED_FILE_TYPES=pdf,png,jpg,jpeg,docx,zip
 USER_CONTENT_BASE_URL=
 
-# --- E-posta ---
+# --- E-posta (outbox worker) ---
 EMAIL_BACKEND=console
+OUTBOX_POLL_INTERVAL_SECONDS=5
+OUTBOX_MAX_ATTEMPTS=5
 SMTP_HOST=
 SMTP_PORT=587
 SMTP_USER=

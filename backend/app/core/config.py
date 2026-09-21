@@ -27,5 +27,10 @@ class Settings(BaseSettings):
     refresh_token_ttl_days: int = 30
     cookie_secure: bool = True  # False only for local HTTP development
 
+    # Outbox / Email — docs/ENV.md §6, PLAN 1.5 (yet-5-outbox-worker)
+    outbox_poll_interval_seconds: int = 5
+    outbox_max_attempts: int = 5
+    email_backend: str = "console"
+
 
 settings = Settings()  # type: ignore[call-arg]  # values come from .env

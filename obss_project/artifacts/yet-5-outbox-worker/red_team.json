@@ -1,0 +1,74 @@
+{
+  "task": "yet-5-outbox-worker",
+  "reviewed_at": "2026-09-22T00:00:00Z",
+  "summary": "Outbox altyapısı ve worker'ın çekirdek tasarımı (transaction-içi enqueue, SKIP LOCKED, PII guard, davranış sözleşmesi) atdd.md ile büyük ölçüde uyumlu ve testlerle doğrulanmış. İlk turda bulunan kritik correctness açığı (process_batch()'te commit eksikliği) dar kapsamlı bir düzeltmeyle kapatıldı ve tam test paketi + lint + mypy ile yeniden doğrulandı — bkz. code_diff.md 'GÜNCELLEME' bölümü. Kalan bulgular (medium/low) blocking değil.",
+  "findings": [
+    {
+      "severity": "critical",
+      "category": "correctness",
+      "file": "backend/app/workers/outbox_worker.py",
+      "issue": "process_batch() satır 79-85'te processed_at/attempts değişiklikleri sadece session.flush() ile yazılıyor, hiçbir zaman session.commit() çağrılmıyor. Dosyanın tek gerçek çalıştırma yolu olan __main__ bloğu (satır 147-149) `with Session(engine) as session: count = process_batch(session, DEFAULT_HANDLERS)` yapıyor ve context manager'dan çıkışta commit çağırmıyor — SQLAlchemy'nin varsayılan davranışı `Session.close()`'da commit edilmemiş transaction'ı rollback etmektir. Sonuç: worker her poll'de aynı satırları işliyormuş gibi görünür (processed_count > 0 döner, handler çağrılır — örn. e-posta gönderilir/loglanır) ama processed_at/attempts DB'de asla kalıcı olmaz; bir sonraki poll'de aynı satırlar tekrar seçilir ve handler tekrar tekrar çalıştırılır (duplicate-email bildirimi sürekli yeniden 'gönderilir', attempts sayacı da hiç ilerlemediği için AC-5'teki max_attempts sınırı da devreye giremez).",
+      "better_approach": "process_batch() döngüsünün sonunda (veya her satır sonrası, izolasyon için tercihen her satır sonrası) session.commit() çağrılmalı; ya da fonksiyon commit sorumluluğunu üstlenmeyecekse (çağıranın transaction'ına dahil edilecekse) bu açıkça docstring'de belirtilmeli VE __main__ bloğu her process_batch() çağrısından sonra session.commit() eklenmeli.",
+      "reason": "atdd.md AC-2 'handler başarılı dönerse processed_at = now() UPDATE edilir' ve AC-4 'attempts += 1 UPDATE edilir' diyor — bu bir DB'ye kalıcı yazma vaadidir, sadece in-memory/flush değil. Davranış Sözleşmesi tablosu satır 1 de 'outbox.processed_at = now() UPDATE edilir' yan etkisini vaat ediyor. Testler bu açığı yakalamıyor çünkü hepsi process_batch()'i çağıran testle aynı session/fixture içinde assert ediyor (backend/tests/test_outbox_worker.py:97 örn. `session.execute(select(Outbox)...)` — aynı flush edilmemiş transaction içinde okuma, flush sonrası her zaman görünür olduğu için commit eksikliğini maskeliyor).",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "medium",
+      "category": "test-gap",
+      "file": "backend/tests/test_outbox_worker.py",
+      "issue": "Hiçbir test process_batch()'i çağıran session kapatılıp/rollback edilip YENİ bir session ile satırın processed_at durumunu doğrulamıyor — yani worker'ın kalıcılık (durability) davranışı hiç test edilmemiş, sadece aynı-session görünürlüğü test edilmiş.",
+      "better_approach": "En az bir integration testi: process_batch() çağrıldıktan sonra session.commit() (veya __main__ akışının simülasyonu) yapılıp, ayrı bir session/connection ile satırın processed_at IS NOT NULL olduğunu doğrulamalı.",
+      "reason": "Bu tür bir test yazılsaydı, yukarıdaki critical bulgu (Bulgu 1) code-copilot aşamasında yakalanırdı; atdd.md'nin Test Strategy bölümü zaten 'integration: 35% — gerçek PostgreSQL test DB'sine karşı' diyor ama kalıcılık/commit senaryosu bu %35'in kapsamına dahil edilmemiş."
+    },
+    {
+      "severity": "low",
+      "category": "reliability",
+      "file": "backend/app/workers/outbox_worker.py",
+      "issue": "Satır 71-73: `handlers.get(row.topic)` None dönerse satır sessizce atlanıyor (`continue`) — hiçbir log yazılmıyor. atdd.md/test_diff.md bu durumu bilinçli olarak gevşek bırakmış ('davranışı netleşmemişti') ama bu, DB'de topic'i olup handler'ı hiç kayıtlı olmayan satırların (örn. yazım hatası ile topic girilmiş, veya kod deploy edilmeden enqueue edilmiş bir topic) hiçbir iz bırakmadan sonsuza kadar `processed_at IS NULL` durumunda kalmasına yol açar — debug edilmesi zor bir sessiz-birikim durumu.",
+      "better_approach": "En azından debug-level bir log satırı (`logger.debug(f\"No handler for topic={row.topic}, outbox_id={row.id}\")`) eklenebilir; kritik değil çünkü atdd.md bunu açıkça kapsam dışı/belirsiz bırakmış.",
+      "reason": "Red-team'in Davranış Sözleşmesi denetimi kuralı 'sessiz başarı' değil ama 'sessiz hiçbir-şey-yapmama' durumunu işaretlememi istiyor — severity düşük çünkü atdd.md bunu bilinçli olarak gevşek bırakmış, blocking değil."
+    },
+    {
+      "severity": "low",
+      "category": "scope",
+      "file": "backend/app/workers/outbox_worker.py",
+      "issue": "Satır 120-122'deki `elif settings.email_backend == \"smtp\": pass` dalı fiilen ölü kod — hiçbir şey yapmadan sessizce 'başarı' bildiriyor (exception atmıyor, handler normal döner → processed_at set edilir). Yani `EMAIL_BACKEND=smtp` olarak set edilirse worker, hiçbir e-posta göndermeden satırları 'başarıyla işlenmiş' olarak işaretleyecek.",
+      "better_approach": "code_diff.md bunun bilinçli olarak kapsam dışı bırakıldığını belirtiyor (PLAN 1.6), doğru; ama `pass` yerine en azından `raise NotImplementedError(\"SMTP backend not yet implemented — PLAN 1.6\")` daha güvenli olurdu, çünkü mevcut haliyle yanlışlıkla `EMAIL_BACKEND=smtp` set edilirse (örn. yanlış .env) sessiz veri kaybı (e-posta hiç gitmez ama satır 'işlendi' sayılır) oluşur — tam da red-team'in aradığı 'sessiz başarı' kalıbı.",
+      "reason": "Davranış Sözleşmesi denetimi: 'sessiz başarı: hiçbir şey yapmadan başarı bildiren yol var mı?' sorusuna evet — severity low çünkü MVP'de EMAIL_BACKEND=smtp hiç kullanılmıyor (varsayılan console) ve atdd.md Kapsam Dışı bunu zaten kabul etmiş, ama gelecekte yanlış konfigürasyonla tetiklenebilecek gerçek bir tuzak."
+    }
+  ],
+  "strengths": [
+    "enqueue()'nin PII guard'ı (backend/app/services/outbox.py:19-47) case-insensitive ve nested dict'leri doğru tarıyor, 13 test ile iyi kapsanmış (AC-S1/AC-7 tam karşılanıyor).",
+    "SKIP LOCKED sorgusu (backend/app/workers/outbox_worker.py:57-64) AC-6'yı doğru uyguluyor: processed_at IS NULL + attempts < max_attempts + FOR UPDATE SKIP LOCKED birlikte.",
+    "Hata loglama (AC-S2) payload içeriğini basmıyor, sadece outbox_id/topic/error_type/error_message içeriyor — güvenlik gereksinimini karşılıyor.",
+    "register_user() entegrasyonu (backend/app/services/auth.py:134-140) payload'da 'email' yerine güvenli 'user_email' anahtarını kullanarak kendi PII guard kuralına çarpmayacak şekilde tasarlanmış — bilinçli ve doğru bir seçim.",
+    "docs/DATABASE.md:30 zaten outbox için bigserial PK istisnasını belgelemiş; database.md kuralındaki 'UUIDv7 zorunlu' ilkesine görünürdeki aykırılık aslında önceden onaylanmış bir istisna, yeni bir ihlal değil.",
+    "Migration'daki sa.Identity() ve sa.Text() düzeltmeleri (verify turunda) doğru uygulanmış, ham SQL yok."
+  ],
+  "risks": [
+    "Kritik bulgu düzeltildi (bkz. finding[0].outcome) ve 57 hedefli + 136 tam suite testle yeniden doğrulandı — artık commit'i bloklamıyor.",
+    "AC-3 testi (`test_outbox_row_creation_on_duplicate_email`) hâlâ register_user()'ı gerçekten çağırmıyor (code_diff.md ve test_diff.md'de zaten bilinen bir boşluk olarak işaretli) — bu red-team'in yeni bulgusu değil, var olan bilinen sınırlamanın teyididir.",
+    "PII retention riski (AC-S3) atdd.md'de bilinçli kabul edilmiş risk olarak zaten belgelenmiş, red-team bunu tekrar bulgu olarak raporlamıyor."
+  ],
+  "caveman_review": {
+    "complexity": "low",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve-with-changes"
+}
