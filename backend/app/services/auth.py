@@ -301,11 +301,16 @@ def reset_password(session: Session, raw_token: str, new_password: str) -> None:
 
         # A password reset is also a credential-theft recovery path — revoke
         # every existing refresh token so a stolen session doesn't survive it.
+        # FOR UPDATE closes the race with a concurrent /auth/refresh: without
+        # it, refresh_tokens() could read a not-yet-revoked row and rotate it
+        # into a fresh token after this revoke commits.
         active_tokens = session.execute(
-            select(RefreshToken).where(
+            select(RefreshToken)
+            .where(
                 RefreshToken.user_id == user.id,
                 RefreshToken.revoked_at.is_(None),
             )
+            .with_for_update()
         ).scalars().all()
         now = datetime.now(timezone.utc)
         for t in active_tokens:
@@ -403,9 +408,12 @@ def refresh_tokens(session: Session, refresh_token_value: str, actor_ip: str | N
     Rotates the refresh token. Reuse of an already-revoked token revokes the
     entire family (docs/API.md §2.1, docs/SECURITY.md §5: theft signal).
     """
+    # FOR UPDATE pairs with reset_password()'s lock on the same row — without
+    # it, a reset committing concurrently could revoke this token right after
+    # it's read here as still-active, and this call would rotate it anyway.
     token_hash = hash_refresh_token(refresh_token_value)
     token = session.execute(
-        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+        select(RefreshToken).where(RefreshToken.token_hash == token_hash).with_for_update()
     ).scalars().first()
 
     if token is None:

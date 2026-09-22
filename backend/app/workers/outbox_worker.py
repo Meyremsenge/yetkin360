@@ -78,8 +78,12 @@ def process_batch(
         try:
             # Call handler
             handler(row.payload, row.id)
-            # On success, mark as processed
+            # On success, mark as processed and redact the payload — rows
+            # exempted from the PII guard (email.verify_email,
+            # email.password_reset) carry a raw bearer token that must not
+            # remain in the DB/backups once it has been delivered.
             row.processed_at = datetime.now(timezone.utc)
+            row.payload = {}
             session.flush()
             session.commit()
             processed_count += 1
