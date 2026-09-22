@@ -298,3 +298,75 @@ export async function resetPassword(
     body: { token, new_password },
   });
 }
+
+/**
+ * AC-2: Update talent profile. Calls PATCH /talents/me.
+ * All fields are optional for partial updates.
+ * Returns updated profile on 200; throws ApiError on 409 SLUG_TAKEN or other errors.
+ */
+export async function updateTalentProfile(
+  headline?: string | null,
+  department?: string | null,
+  study_year?: number | null,
+  city?: string | null,
+  visibility?: string | null,
+  public_slug?: string | null
+): Promise<Record<string, unknown> | undefined> {
+  const body: Record<string, unknown> = {};
+  if (headline !== undefined) body.headline = headline;
+  if (department !== undefined) body.department = department;
+  if (study_year !== undefined) body.study_year = study_year;
+  if (city !== undefined) body.city = city;
+  if (visibility !== undefined) body.visibility = visibility;
+  if (public_slug !== undefined) body.public_slug = public_slug;
+
+  return apiFetch("/talents/me", {
+    method: "PATCH",
+    body,
+  });
+}
+
+/**
+ * AC-4: Get current user's skills. Calls GET /talents/me/skills.
+ * Returns { items: [...] } where each item has skill (id, name_tr) and claimed_level.
+ */
+export async function getMySkills(): Promise<{ items: unknown[] } | undefined> {
+  return apiFetch("/talents/me/skills");
+}
+
+/**
+ * AC-13: List available skills. Calls GET /skills or GET /skills?q=query.
+ * Returns { items: [...] } where each item has id and name_tr.
+ */
+export async function listSkills(query?: string): Promise<{ items: unknown[] } | undefined> {
+  const path = query ? `/skills?q=${encodeURIComponent(query)}` : "/skills";
+  return apiFetch(path);
+}
+
+/**
+ * AC-5: Add skill to current user. Calls POST /talents/me/skills.
+ * skill_id is required; claimed_level is optional.
+ * Returns undefined on 201; throws ApiError on 409 ALREADY_CLAIMED, 404 SKILL_NOT_FOUND, etc.
+ */
+export async function addSkill(
+  skill_id: string,
+  claimed_level?: string
+): Promise<void> {
+  const body: Record<string, unknown> = { skill_id };
+  if (claimed_level !== undefined) body.claimed_level = claimed_level;
+
+  await apiFetch("/talents/me/skills", {
+    method: "POST",
+    body,
+  });
+}
+
+/**
+ * AC-8: Remove skill from current user. Calls DELETE /talents/me/skills/{skill_id}.
+ * Returns undefined on 204; throws ApiError on 404 (already deleted) or other errors.
+ */
+export async function removeSkill(skill_id: string): Promise<void> {
+  await apiFetch(`/talents/me/skills/${skill_id}`, {
+    method: "DELETE",
+  });
+}

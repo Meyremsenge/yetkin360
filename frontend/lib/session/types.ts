@@ -5,7 +5,20 @@
  *
  * Required: user (id string), organizations[], institutions[]
  * Optional: talent_profile (object | null), user.email, user.full_name
+ *
+ * AC-1/AC-2: talent_profile strengthened with concrete fields (all optional).
+ * Backward compatible: still accepts Record<string, unknown> | null via union.
  */
+
+export interface TalentProfile {
+  headline?: string | null;
+  department?: string | null;
+  study_year?: number | null;
+  city?: string | null;
+  visibility?: string | null;
+  public_slug?: string | null;
+  [key: string]: unknown; // Allow unknown fields for extensibility
+}
 
 export interface MeResponse {
   user: {
@@ -13,7 +26,7 @@ export interface MeResponse {
     email?: string;
     full_name?: string;
   };
-  talent_profile?: Record<string, unknown> | null;
+  talent_profile?: TalentProfile | null;
   organizations: unknown[];
   institutions: unknown[];
 }
