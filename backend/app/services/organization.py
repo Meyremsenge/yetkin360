@@ -266,7 +266,9 @@ def verify_domain(
         answers = resolver.resolve(org.domain, "TXT", lifetime=timeout)
         # Check if our verification token is in the TXT records
         for rdata in answers:
-            for txt_string in rdata.strings:
+            # Not all Rdata subtypes carry .strings (only TXT-like records do);
+            # a resolver could theoretically hand back a mixed answer set.
+            for txt_string in getattr(rdata, "strings", ()):
                 if txt_string.decode().strip() == txt_record:
                     # AC-9: Check if domain is already verified in another organization
                     conflicting_org = session.execute(
