@@ -48,3 +48,43 @@ zamanında buraya **aktarır** — yeniden yorumlamaz.
   (409) yolunda rate-limit'in hiç kalıcı olmadığı (DNS amplifikasyon riski)
   bulundu — rate-limit bump'ından hemen sonra, DNS sorgusundan önce erken bir
   `session.commit()` eklenerek düzeltildi.
+
+## YET-7 — User + Talent profili: GET /me, PATCH /talents/me (2026-09-22)
+
+**Kaynak:** `obss_project/artifacts/yet-7-user-talent-profili/`
+
+### Kabul edilen riskler / teknik karar gerekçeleri (kaynak: atdd.md, plan.md "Kararlar")
+- DOMAIN.md'nin eski "is_public = true ise public_slug zorunlu" ifadesi
+  yerine gerçek şemadaki `visibility=PUBLIC ise public_slug zorunlu`
+  varsayımı kullanıldı (DOMAIN.md güncel değil, ayrı bir dokümantasyon
+  görevi gerektirir).
+- **Kod keşfinde bulunan gerçek mimari boşluk:** `scoped_talent_profiles()`
+  yalnızca `principal.kind == "TALENT"` ise çalışıyordu — aynı zamanda
+  kurum/organizasyon admin'i olan bir kullanıcı (kind en yüksek rolü
+  gösterdiği için) kendi talent profiline PATCH atayamıyordu. Koşul
+  `principal.talent_id is not None` olarak düzeltildi (AC-8) — bu bir
+  yetkilendirme mantığı değişikliğiydi, kullanıcı onayı alındı.
+- **Kod keşfinde bulunan dokümantasyon-kod tutarsızlığı:** `docs/API.md`
+  §1.4'ün belgelediği hata sözleşmesine (`{code, message, request_id}`)
+  mevcut YET-8/YET-9 kodu hiç uymuyordu (düz string `detail` kullanıyorlardı,
+  gerçek yanıtta `code` hep `"HTTP_ERROR"` oluyordu). YET-7 doğru/dokümante
+  edilen sözleşmeyi kullanacak şekilde bilinçli olarak yazıldı — geçmiş
+  tutarsızlık ayrı bir borç olarak `postmortem`'e not düşüldü.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, red_team.json)
+- Bir Haiku alt-ajanı, prompt'ta hiç istenmemişken repo kökünde yetkisiz bir
+  `.env` dosyası oluşturdu — `.gitignore`'da olduğu doğrulandı (hiç commit
+  riski yoktu), kullanıcı tarafından silindi. Orkestratörün kendisi de
+  harness'ın deny-rule'u yüzünden bu dosyayı silemedi (güvenlik ağı olarak
+  çalıştı). (Süreç ihlali, kayıt: `code_diff.md`.)
+- İlk implementasyon `get_me_context()` içinde çıplak `select(Model)`
+  kullanıyordu (CLAUDE.md "merkezi yetkilendirme zorunlu" kuralı ihlali) —
+  ikinci bir dispatch ile mevcut `scoped_organizations()`/`scoped_institutions()`/
+  `scoped_talent_profiles()` fonksiyonlarını kullanacak şekilde düzeltildi.
+- `verify` adımında, test-copilot ile code-copilot'un PATCH /talents/me
+  yanıt şeklini (sarmalı `{"talent_profile":{...}}` vs düz obje) birbirini
+  görmeden farklı varsaydığı bulundu — API.md'nin gerçek sözleşmesine göre
+  (düz obje) testler düzeltildi.
+- `red-team` incelemesinde `get_me_context()`'in register-invaryantına
+  (her User'ın bir TalentProfile'ı olması) savunmasız güvendiği bulundu —
+  `None` ise `404 TALENT_PROFILE_NOT_FOUND` döndürecek bir kontrol eklendi.

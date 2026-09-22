@@ -1,0 +1,44 @@
+{
+  "task": "yet-7-user-talent-profili",
+  "reviewed_at": "2026-09-22T00:00:00Z",
+  "summary": "Uygulama atdd.md AC-1..8 ve AC-S1..S3'ü doğru karşılıyor; scoped_talent_profiles() düzeltmesi (talent_id is not None) doğru ve izole (grep ile doğrulandı — yalnız me.py ve testlerde kullanılıyor, institutions/organizations'a yan etki yok). public_slug için DB UNIQUE constraint'in gerçekten var olduğu orkestratör tarafından doğrulandı (app/models/identity.py:105) — alt-ajanın bu konudaki riski asılsız çıktı, kapatıldı. Kalan tek gerçek bulgu: get_me_context()'in register-invariant'a savunmasız güvenmesi (düşük olasılık ama ucuz düzeltme).",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "reliability",
+      "file": "backend/app/services/talent.py",
+      "issue": "[DÜZELTİLDİ] get_me_context() içinde `talent` None kontrolü yapılmadan kullanılıyordu (register invaryantına savunmasız güven).",
+      "better_approach": "Uygulandı: `talent is None` ise `ValueError` fırlatılıyor (talent.py), `me.py`'deki `get_me()` bunu yakalayıp `404 TALENT_PROFILE_NOT_FOUND` (patch_talents_me ile tutarlı kod) döndürüyor.",
+      "reason": "Kullanıcı onayıyla bir Haiku alt-ajanı dispatch edilip düzeltildi, orkestratör tarafından kod (talent.py, me.py) ve testler (`pytest -q` → 253 passed, 6 skipped; `ruff check .`/`mypy app` temiz) bağımsız olarak yeniden doğrulandı."
+    },
+    {
+      "severity": "low",
+      "category": "correctness",
+      "file": "backend/app/api/me.py",
+      "issue": "patch_talents_me içinde `if not talent_profile:` kullanılıyor (satır 177) — ORM nesnesi için çalışır ama niyeti daha net ifade eden `is None` yerine örtük truthiness kontrolüne dayanıyor.",
+      "better_approach": "`if talent_profile is None:` kullanılmalı.",
+      "reason": "Gelecekteki model değişikliklerine (custom __bool__/__len__ eklenmesi) karşı daha dayanıklı, niyeti daha açık ifade eder — düşük öncelikli okunabilirlik notu."
+    },
+    {
+      "severity": "low",
+      "category": "maintainability",
+      "file": "backend/app/services/authorization.py",
+      "issue": "`get_scoped_or_404` fonksiyon adı '404 fırlatır' izlenimi veriyor ama aslında yalnızca `first()`/`None` döndürüyor — 404 fırlatma sorumluluğu çağırana bırakılmış. `talent.py`'nin `get_me_context()`'i bunu yanlış varsaydı (yukarıdaki bulgu), isimlendirme bu tür bir unutmaya zemin hazırlıyor.",
+      "better_approach": "Bu proje-geneli bir isimlendirme sorunu (organizations.py/institutions.py da aynı fonksiyonu aynı şekilde kullanıyor) — bu görevin kapsamında yeniden adlandırılmaz, ayrı bir refactor/postmortem notu olarak kaydedilir.",
+      "reason": "İsim/davranış uyuşmazlığı ileride benzer bir None-check unutmasına yol açabilir."
+    }
+  ],
+  "strengths": [
+    "scoped_talent_profiles() düzeltmesi (kind=='TALENT' yerine talent_id is not None) doğru yapılmış ve grep ile doğrulandı — yalnızca me.py ve ilgili testlerde kullanılıyor, institutions.py/organizations.py'de scoped_organizations/scoped_institutions'a dokunulmamış, yan etki yok.",
+    "public_slug çakışma kontrolü DB yazımından (setattr/flush) önce yapılıyor (talent.py) — AC-4 atomiklik doğru sağlanmış; ayrıca DB'de gerçek UNIQUE constraint var (app/models/identity.py:105) — hem uygulama hem DB seviyesinde çift katman koruma (CLAUDE.md 'kısıtlar veritabanında olur' kuralına tam uygun).",
+    "409 SLUG_TAKEN yanıtı yalnızca {code, message, request_id} döndürüyor, çakışan profilin id/user_id/email bilgisi hiçbir yerde response'a girmiyor — AC-S3 kod düzeyinde doğru karşılanmış.",
+    "UpdateTalentProfileRequest şemasında institution_id/user_id/id/talent_profile_id alanları hiç tanımlı değil — Pydantic bu alanları otomatik reddediyor, IDOR yüzeyi yapısal olarak kapalı (AC-6, AC-S2).",
+    "TalentProfileResponse/GetMeResponse ayrı Pydantic response şemaları — ORM modeli doğrudan dönülmüyor, deleted_at gibi dahili alan response şemasında yok.",
+    "Test dosyaları implementasyon detaylarına değil gerçek davranışa (HTTP status, DB state, response içeriği) bağımlı; AC-8 mixed-role testi gerçekten InstitutionMember oluşturup senaryoyu kuruyor."
+  ],
+  "risks": [],
+  "caveman_review": {"complexity": "low", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {"atdd_satisfied": true, "tests_passed": true, "no_critical_findings": true, "scope_respected": true, "caveman_satisfied": true, "security_acceptable": true, "maintainability_acceptable": true, "no_blocking_risks": true},
+  "verdict": "approve"
+}
