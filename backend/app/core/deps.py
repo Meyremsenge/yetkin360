@@ -46,6 +46,19 @@ def get_current_user(request: Request, session: Session = Depends(get_session)) 
     return user
 
 
+def require_email_verified(current_user: User = Depends(get_current_user)) -> User:
+    """
+    docs/API.md §2.1, docs/AUTHORIZATION.md G6: no write succeeds until the
+    account's email is verified. Endpoints that mutate state depend on this
+    instead of get_current_user directly; read-only endpoints and
+    /auth/logout intentionally keep using get_current_user so an unverified
+    user can still read their own data and sign out.
+    """
+    if current_user.email_verified_at is None:
+        raise ApiError(401, "EMAIL_NOT_VERIFIED", "E-posta doğrulanmadan bu işlem yapılamaz.")
+    return current_user
+
+
 def require_csrf(request: Request) -> None:
     """
     docs/API.md §2.1: write methods must present X-CSRF-Token matching the

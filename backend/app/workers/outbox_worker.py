@@ -14,7 +14,9 @@ deployments.
 """
 
 import logging
+import smtplib
 from datetime import datetime, timezone
+from email.message import EmailMessage
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -76,8 +78,12 @@ def process_batch(
         try:
             # Call handler
             handler(row.payload, row.id)
-            # On success, mark as processed
+            # On success, mark as processed and redact the payload — rows
+            # exempted from the PII guard (email.verify_email,
+            # email.password_reset) carry a raw bearer token that must not
+            # remain in the DB/backups once it has been delivered.
             row.processed_at = datetime.now(timezone.utc)
+            row.payload = {}
             session.flush()
             session.commit()
             processed_count += 1
@@ -125,9 +131,109 @@ def email_duplicate_registration_handler(payload: dict, outbox_id: int) -> None:
         pass
 
 
+def _send_smtp_email(to_email: str, subject: str, body: str) -> None:
+    """
+    docs/ENV.md §6: SMTP_HOST/PORT/USER/PASSWORD, EMAIL_FROM/EMAIL_FROM_NAME.
+    Blocking call — safe here because this runs in the worker process, never
+    inside a request/transaction (that's the entire point of the outbox).
+    """
+    from app.core.config import settings
+
+    message = EmailMessage()
+    message["Subject"] = subject
+    message["From"] = f"{settings.email_from_name} <{settings.email_from}>"
+    message["To"] = to_email
+    message.set_content(body)
+
+    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10) as smtp:
+        smtp.starttls()
+        if settings.smtp_user:
+            smtp.login(settings.smtp_user, settings.smtp_password)
+        smtp.send_message(message)
+
+
+def _resolve_user_email(user_id: str) -> str | None:
+    """
+    Opens its own short-lived session — the worker's main session is mid-batch
+    (see process_batch), and this handler must not reuse it for an unrelated read.
+    """
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session as _Session
+
+    from app.core.config import settings
+    from app.models import User
+
+    engine = create_engine(settings.database_url)
+    try:
+        with _Session(engine) as session:
+            user = session.execute(select(User).where(User.id == user_id)).scalars().first()
+            return user.email if user is not None else None
+    finally:
+        engine.dispose()
+
+
+def email_verify_email_handler(payload: dict, outbox_id: int) -> None:
+    """
+    Handler for email.verify_email topic.
+
+    Args:
+      - payload: {"user_id": "...", "raw_token": "..."} — see
+        app/services/outbox.py's PII guard exemption for why raw_token is here.
+      - outbox_id: row ID in outbox table
+    """
+    from app.core.config import settings
+
+    raw_token = payload["raw_token"]
+    verify_url = f"{settings.frontend_origin}/verify-email?token={raw_token}"
+
+    if settings.email_backend == "console":
+        print(f"[EMAIL] Verify email link (outbox_id={outbox_id}): {verify_url}")
+        return
+
+    to_email = _resolve_user_email(payload["user_id"])
+    if to_email is None:
+        return
+
+    _send_smtp_email(
+        to_email=to_email,
+        subject="Yetkin360 - E-posta adresini doğrula",
+        body=f"E-posta adresini doğrulamak için: {verify_url}\n\nBu bağlantı 24 saat geçerlidir.",
+    )
+
+
+def email_password_reset_handler(payload: dict, outbox_id: int) -> None:
+    """
+    Handler for email.password_reset topic.
+
+    Args:
+      - payload: {"user_id": "...", "raw_token": "..."}
+      - outbox_id: row ID in outbox table
+    """
+    from app.core.config import settings
+
+    raw_token = payload["raw_token"]
+    reset_url = f"{settings.frontend_origin}/reset-password?token={raw_token}"
+
+    if settings.email_backend == "console":
+        print(f"[EMAIL] Password reset link (outbox_id={outbox_id}): {reset_url}")
+        return
+
+    to_email = _resolve_user_email(payload["user_id"])
+    if to_email is None:
+        return
+
+    _send_smtp_email(
+        to_email=to_email,
+        subject="Yetkin360 - Şifre sıfırlama",
+        body=f"Şifreni sıfırlamak için: {reset_url}\n\nBu bağlantı 1 saat geçerlidir.",
+    )
+
+
 # Handler dispatch table (expanded as new topics are introduced)
 DEFAULT_HANDLERS = {
     "email.duplicate_registration_attempt": email_duplicate_registration_handler,
+    "email.verify_email": email_verify_email_handler,
+    "email.password_reset": email_password_reset_handler,
 }
 
 

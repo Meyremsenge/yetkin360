@@ -53,8 +53,13 @@ Hedef: kimlik + kiracılık + yetkilendirme çekirdeği ayakta, profil ve skill 
 - [x] 1.2 Yetkilendirme çekirdeği: `can()` + `scoped_*()` + `audit_events` @be2
 - [x] 1.3 Yetkilendirme test iskeleti + fixture'lar (aktör matrisi) @be2
 - [x] 1.4 Auth: kayıt, giriş, token yenileme, çıkış @be2
-- [ ] 1.5 `outbox` tablosu + worker (ağ çağrısı transaction dışına) @be2
-- [ ] 1.6 Auth: e-posta doğrulama + şifre sıfırlama (outbox üzerinden) @be2
+- [x] 1.5 `outbox` tablosu + worker (ağ çağrısı transaction dışına) @be2
+- [x] 1.6 Auth: e-posta doğrulama + şifre sıfırlama (outbox üzerinden) @be2
+      > PR #5 Copilot incelemesi: 2 ertelenen bulgu — (a) `/auth/forgot-password`
+      > rate limit yok, genel rate-limit altyapısı kararı gerektiriyor;
+      > (b) outbox worker `process_batch` batch'i tek `FOR UPDATE` ile baştan
+      > kilitliyor, SMTP süresince sıradaki satırların kilidi de tutuluyor.
+      > Faz 5.2/5.6 kapsamına alınabilir.
 - [ ] 1.7 User + Talent profili: `GET /me`, `PATCH /talents/me` @be1
 - [ ] 1.8 Institution + koordinatör rolü + öğrenci bağı @be1
 - [ ] 1.9 Organization + üyelik + domain doğrulama (T2) @be1

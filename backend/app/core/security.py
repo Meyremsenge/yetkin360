@@ -49,6 +49,17 @@ def generate_csrf_token() -> str:
     return secrets.token_urlsafe(32)
 
 
+def generate_email_token() -> str:
+    """Opaque, unguessable value for email-verification/password-reset links."""
+    return secrets.token_urlsafe(32)
+
+
+def hash_email_token(token: str) -> str:
+    """SHA-256, not Argon2id — same reasoning as hash_refresh_token: the token
+    already has enough entropy from secrets.token_urlsafe."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
 def encode_access_token(user_id: uuid.UUID) -> str:
     now = datetime.now(timezone.utc)
     payload = {

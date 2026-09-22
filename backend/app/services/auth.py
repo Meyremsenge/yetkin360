@@ -20,14 +20,27 @@ from app.core.config import settings
 from app.core.security import (
     encode_access_token,
     generate_csrf_token,
+    generate_email_token,
     generate_refresh_token,
+    hash_email_token,
     hash_password,
     hash_refresh_token,
     verify_password,
 )
-from app.models import InstitutionMember, OrganizationMember, RefreshToken, TalentProfile, User
+from app.models import (
+    EmailVerificationToken,
+    InstitutionMember,
+    OrganizationMember,
+    PasswordResetToken,
+    RefreshToken,
+    TalentProfile,
+    User,
+)
 from app.services.audit import log_audit_event
 from app.services.outbox import enqueue
+
+EMAIL_VERIFICATION_TOKEN_TTL_HOURS = 24
+PASSWORD_RESET_TOKEN_TTL_HOURS = 1
 
 FAILED_LOGIN_LOCK_THRESHOLD = 10
 FAILED_LOGIN_LOCK_MINUTES = 15
@@ -42,6 +55,14 @@ class AccountLocked(Exception):
 
 
 class InvalidRefreshToken(Exception):
+    pass
+
+
+class InvalidEmailToken(Exception):
+    pass
+
+
+class EmailTokenExpired(Exception):
     pass
 
 
@@ -158,7 +179,164 @@ def register_user(session: Session, email: str, password: str, full_name: str) -
         result="SUCCESS",
     )
 
+    _issue_email_verification_token(session, user.id)
+
     return RegisteredUser(user_id=user.id)
+
+
+def _issue_email_verification_token(session: Session, user_id: uuid.UUID) -> None:
+    """
+    Creates the token row (hash only) and enqueues delivery. The raw token is
+    a one-way hash in the DB, so it can only reach the worker through the
+    outbox payload itself — app/services/outbox.py whitelists "raw_token" for
+    this topic specifically for that reason (see its module docstring).
+    """
+    raw_token = generate_email_token()
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=EMAIL_VERIFICATION_TOKEN_TTL_HOURS)
+
+    session.add(
+        EmailVerificationToken(
+            user_id=user_id,
+            token_hash=hash_email_token(raw_token),
+            expires_at=expires_at,
+        )
+    )
+    session.flush()
+
+    enqueue(
+        session=session,
+        topic="email.verify_email",
+        payload={"user_id": str(user_id), "raw_token": raw_token},
+    )
+
+
+def request_password_reset(session: Session, email: str) -> None:
+    """
+    docs/API.md §2.1: always returns as if the email was sent, whether or not
+    the account exists — same enumeration guard as register_user/forgot-password.
+    """
+    user = session.execute(select(User).where(User.email == email)).scalars().first()
+    if user is None:
+        return
+
+    raw_token = generate_email_token()
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=PASSWORD_RESET_TOKEN_TTL_HOURS)
+
+    session.add(
+        PasswordResetToken(
+            user_id=user.id,
+            token_hash=hash_email_token(raw_token),
+            expires_at=expires_at,
+        )
+    )
+    session.flush()
+
+    enqueue(
+        session=session,
+        topic="email.password_reset",
+        payload={"user_id": str(user.id), "raw_token": raw_token},
+    )
+
+    log_audit_event(
+        session=session,
+        actor_user_id=None,
+        actor_ip=None,
+        action="PASSWORD_RESET_REQUESTED",
+        subject_type="user",
+        subject_id=user.id,
+        result="SUCCESS",
+    )
+
+
+def verify_email(session: Session, raw_token: str) -> None:
+    # FOR UPDATE closes a double-claim race: without it, two concurrent
+    # requests for the same token can both read used_at IS NULL and both
+    # succeed.
+    token_hash = hash_email_token(raw_token)
+    token = session.execute(
+        select(EmailVerificationToken)
+        .where(EmailVerificationToken.token_hash == token_hash)
+        .with_for_update()
+    ).scalars().first()
+
+    if token is None or token.used_at is not None:
+        raise InvalidEmailToken()
+
+    if token.expires_at <= datetime.now(timezone.utc):
+        raise EmailTokenExpired()
+
+    token.used_at = datetime.now(timezone.utc)
+
+    user = session.execute(select(User).where(User.id == token.user_id)).scalars().first()
+    if user is not None:
+        user.email_verified_at = datetime.now(timezone.utc)
+
+    session.flush()
+
+    log_audit_event(
+        session=session,
+        actor_user_id=token.user_id,
+        actor_ip=None,
+        action="EMAIL_VERIFIED",
+        subject_type="user",
+        subject_id=token.user_id,
+        result="SUCCESS",
+    )
+
+
+def reset_password(session: Session, raw_token: str, new_password: str) -> None:
+    # FOR UPDATE closes a double-claim race: without it, two concurrent
+    # requests for the same token can both read used_at IS NULL and both
+    # succeed.
+    token_hash = hash_email_token(raw_token)
+    token = session.execute(
+        select(PasswordResetToken)
+        .where(PasswordResetToken.token_hash == token_hash)
+        .with_for_update()
+    ).scalars().first()
+
+    if token is None or token.used_at is not None:
+        raise InvalidEmailToken()
+
+    if token.expires_at <= datetime.now(timezone.utc):
+        raise EmailTokenExpired()
+
+    token.used_at = datetime.now(timezone.utc)
+
+    user = session.execute(select(User).where(User.id == token.user_id)).scalars().first()
+    if user is not None:
+        user.password_hash = hash_password(new_password)
+        user.failed_login_count = 0
+        user.locked_until = None
+
+        # A password reset is also a credential-theft recovery path — revoke
+        # every existing refresh token so a stolen session doesn't survive it.
+        # FOR UPDATE closes the race with a concurrent /auth/refresh: without
+        # it, refresh_tokens() could read a not-yet-revoked row and rotate it
+        # into a fresh token after this revoke commits.
+        active_tokens = session.execute(
+            select(RefreshToken)
+            .where(
+                RefreshToken.user_id == user.id,
+                RefreshToken.revoked_at.is_(None),
+            )
+            .with_for_update()
+        ).scalars().all()
+        now = datetime.now(timezone.utc)
+        for t in active_tokens:
+            t.revoked_at = now
+
+    session.flush()
+
+    log_audit_event(
+        session=session,
+        actor_user_id=token.user_id,
+        actor_ip=None,
+        action="PASSWORD_RESET_COMPLETED",
+        subject_type="user",
+        subject_id=token.user_id,
+        result="SUCCESS",
+    )
 
 
 def _issue_tokens(session: Session, user_id: uuid.UUID, family_id: uuid.UUID) -> IssuedTokens:
@@ -240,9 +418,12 @@ def refresh_tokens(session: Session, refresh_token_value: str, actor_ip: str | N
     Rotates the refresh token. Reuse of an already-revoked token revokes the
     entire family (docs/API.md §2.1, docs/SECURITY.md §5: theft signal).
     """
+    # FOR UPDATE pairs with reset_password()'s lock on the same row — without
+    # it, a reset committing concurrently could revoke this token right after
+    # it's read here as still-active, and this call would rotate it anyway.
     token_hash = hash_refresh_token(refresh_token_value)
     token = session.execute(
-        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+        select(RefreshToken).where(RefreshToken.token_hash == token_hash).with_for_update()
     ).scalars().first()
 
     if token is None:

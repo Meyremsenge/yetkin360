@@ -17,7 +17,15 @@ from app.core.config import settings
 from app.core.deps import get_current_user, get_session, require_csrf
 from app.core.errors import ApiError
 from app.models import User
-from app.schemas.auth import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse
+from app.schemas.auth import (
+    ForgotPasswordRequest,
+    LoginRequest,
+    LoginResponse,
+    RegisterRequest,
+    RegisterResponse,
+    ResetPasswordRequest,
+    VerifyEmailRequest,
+)
 from app.services import auth as auth_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -133,3 +141,30 @@ def logout(
         _client_ip(request),
     )
     _clear_auth_cookies(response)
+
+
+@router.post("/verify-email", status_code=204)
+def verify_email(body: VerifyEmailRequest, session: Session = Depends(get_session)) -> None:
+    try:
+        auth_service.verify_email(session, body.token)
+    except auth_service.InvalidEmailToken:
+        raise ApiError(400, "INVALID_TOKEN", "Doğrulama bağlantısı geçersiz.")
+    except auth_service.EmailTokenExpired:
+        raise ApiError(410, "TOKEN_EXPIRED", "Doğrulama bağlantısının süresi dolmuş.")
+
+
+@router.post("/forgot-password", status_code=204)
+def forgot_password(body: ForgotPasswordRequest, session: Session = Depends(get_session)) -> None:
+    # docs/API.md §2.1: always 204, whether or not the email is registered
+    # (enumeration guard — same principle as /auth/register).
+    auth_service.request_password_reset(session, body.email)
+
+
+@router.post("/reset-password", status_code=204)
+def reset_password(body: ResetPasswordRequest, session: Session = Depends(get_session)) -> None:
+    try:
+        auth_service.reset_password(session, body.token, body.new_password)
+    except auth_service.InvalidEmailToken:
+        raise ApiError(400, "INVALID_TOKEN", "Bağlantı geçersiz.")
+    except auth_service.EmailTokenExpired:
+        raise ApiError(410, "TOKEN_EXPIRED", "Bağlantının süresi dolmuş.")
