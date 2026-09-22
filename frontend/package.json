@@ -18,7 +18,7 @@
     "next": "15.5.25",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "react-hook-form": "7.51.3",
+    "react-hook-form": "7.88.0",
     "tailwind-merge": "2.3.0",
     "zod": "3.23.8"
   },
