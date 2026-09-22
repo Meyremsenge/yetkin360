@@ -567,6 +567,369 @@ describe("apiFetch", () => {
   });
 });
 
+  describe("New auth functions", () => {
+    beforeEach(() => {
+      vi.stubGlobal("fetch", vi.fn());
+      vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://api.test");
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+      vi.useRealTimers();
+    });
+
+    it("AC-1/AC-S1: register(email, password, full_name) calls POST /auth/register", async () => {
+      const { apiFetch } = await loadClient();
+      const fetchMock = vi.mocked(global.fetch);
+      fetchMock.mockResolvedValueOnce(
+        new Response(JSON.stringify({ user_id: "uuid-123" }), {
+          status: 201,
+          headers: { "content-type": "application/json" },
+        })
+      );
+
+      const result = await apiFetch("/auth/register", {
+        method: "POST",
+        body: {
+          email: "test@example.com",
+          password: "password123",
+          full_name: "Test User",
+        },
+      });
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/auth/register"),
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            email: "test@example.com",
+            password: "password123",
+            full_name: "Test User",
+          }),
+        })
+      );
+      expect(result).toEqual({ user_id: "uuid-123" });
+    });
+
+    it("AC-1/AC-S1: register returns 422 (validation error) → ApiError with fields", async () => {
+      const { apiFetch, ApiError } = await loadClient();
+      const fetchMock = vi.mocked(global.fetch);
+      fetchMock.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: "VALIDATION_ERROR",
+            message: "Validation failed",
+            fields: { password: "Password must be at least 8 characters" },
+            request_id: "req-422",
+          }),
+          { status: 422 }
+        )
+      );
+
+      const error = (await apiFetch("/auth/register", {
+        method: "POST",
+        body: { email: "test@example.com", password: "short", full_name: "Test" },
+      }).catch((e) => e)) as InstanceType<typeof ApiError>;
+
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.status).toBe(422);
+      expect(error.code).toBe("VALIDATION_ERROR");
+      expect(error.fields?.password).toBeDefined();
+    });
+
+    it("AC-1/AC-S1: register returns 429 (rate limit) → ApiError", async () => {
+      const { apiFetch, ApiError } = await loadClient();
+      const fetchMock = vi.mocked(global.fetch);
+      fetchMock.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: "RATE_LIMITED",
+            message: "Too many registration attempts",
+            request_id: "req-429",
+          }),
+          { status: 429 }
+        )
+      );
+
+      const error = (await apiFetch("/auth/register", {
+        method: "POST",
+        body: { email: "test@example.com", password: "password123", full_name: "Test" },
+      }).catch((e) => e)) as InstanceType<typeof ApiError>;
+
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.status).toBe(429);
+      expect(error.code).toBe("RATE_LIMITED");
+    });
+
+    it("AC-3/AC-4: login(email, password) calls POST /auth/login", async () => {
+      const { apiFetch } = await loadClient();
+      const fetchMock = vi.mocked(global.fetch);
+      fetchMock.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            user_id: "uuid-456",
+            role: "user",
+            email_verified: false,
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      );
+
+      const result = await apiFetch("/auth/login", {
+        method: "POST",
+        body: { email: "test@example.com", password: "password123" },
+      });
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/auth/login"),
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            email: "test@example.com",
+            password: "password123",
+          }),
+        })
+      );
+      expect(result).toEqual({
+        user_id: "uuid-456",
+        role: "user",
+        email_verified: false,
+      });
+    });
+
+    it("AC-3: login returns 401 INVALID_CREDENTIALS → ApiError", async () => {
+      const { apiFetch, ApiError } = await loadClient();
+      const fetchMock = vi.mocked(global.fetch);
+      fetchMock.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: "INVALID_CREDENTIALS",
+            message: "E-posta veya şifre hatalı",
+            request_id: "req-401-invalid",
+          }),
+          { status: 401 }
+        )
+      );
+
+      const error = (await apiFetch("/auth/login", {
+        method: "POST",
+        body: { email: "test@example.com", password: "wrong" },
+      }).catch((e) => e)) as InstanceType<typeof ApiError>;
+
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.status).toBe(401);
+      expect(error.code).toBe("INVALID_CREDENTIALS");
+    });
+
+    it("AC-4: login returns 423 ACCOUNT_LOCKED → ApiError", async () => {
+      const { apiFetch, ApiError } = await loadClient();
+      const fetchMock = vi.mocked(global.fetch);
+      fetchMock.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: "ACCOUNT_LOCKED",
+            message: "Hesabınız geçici olarak kilitlendi",
+            request_id: "req-423-locked",
+          }),
+          { status: 423 }
+        )
+      );
+
+      const error = (await apiFetch("/auth/login", {
+        method: "POST",
+        body: { email: "test@example.com", password: "password123" },
+      }).catch((e) => e)) as InstanceType<typeof ApiError>;
+
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.status).toBe(423);
+      expect(error.code).toBe("ACCOUNT_LOCKED");
+    });
+
+    it("AC-5/AC-6: verifyEmail(token) calls POST /auth/verify-email → 204", async () => {
+      const { apiFetch } = await loadClient();
+      const fetchMock = vi.mocked(global.fetch);
+      fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+      const result = await apiFetch("/auth/verify-email", {
+        method: "POST",
+        body: { token: "valid-token-abc" },
+      });
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/auth/verify-email"),
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ token: "valid-token-abc" }),
+        })
+      );
+      expect(result).toBeUndefined();
+    });
+
+    it("AC-6: verifyEmail returns 400 INVALID_TOKEN → ApiError", async () => {
+      const { apiFetch, ApiError } = await loadClient();
+      const fetchMock = vi.mocked(global.fetch);
+      fetchMock.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: "INVALID_TOKEN",
+            message: "Bağlantı geçersiz",
+            request_id: "req-400-token",
+          }),
+          { status: 400 }
+        )
+      );
+
+      const error = (await apiFetch("/auth/verify-email", {
+        method: "POST",
+        body: { token: "invalid-token" },
+      }).catch((e) => e)) as InstanceType<typeof ApiError>;
+
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.status).toBe(400);
+      expect(error.code).toBe("INVALID_TOKEN");
+    });
+
+    it("AC-6: verifyEmail returns 410 TOKEN_EXPIRED → ApiError", async () => {
+      const { apiFetch, ApiError } = await loadClient();
+      const fetchMock = vi.mocked(global.fetch);
+      fetchMock.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: "TOKEN_EXPIRED",
+            message: "Bağlantı süresi dolmuş",
+            request_id: "req-410-expired",
+          }),
+          { status: 410 }
+        )
+      );
+
+      const error = (await apiFetch("/auth/verify-email", {
+        method: "POST",
+        body: { token: "expired-token" },
+      }).catch((e) => e)) as InstanceType<typeof ApiError>;
+
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.status).toBe(410);
+      expect(error.code).toBe("TOKEN_EXPIRED");
+    });
+
+    it("AC-7/AC-S2/AC-S6: forgotPassword(email) calls POST /auth/forgot-password → 204 always", async () => {
+      const { apiFetch } = await loadClient();
+      const fetchMock = vi.mocked(global.fetch);
+      fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+      const result = await apiFetch("/auth/forgot-password", {
+        method: "POST",
+        body: { email: "test@example.com" },
+      });
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/auth/forgot-password"),
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ email: "test@example.com" }),
+        })
+      );
+      expect(result).toBeUndefined();
+    });
+
+    it("AC-7/AC-S2: forgotPassword returns 429 (rate limit) → ApiError", async () => {
+      const { apiFetch, ApiError } = await loadClient();
+      const fetchMock = vi.mocked(global.fetch);
+      fetchMock.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: "RATE_LIMITED",
+            message: "Too many password reset attempts",
+            request_id: "req-429-forgot",
+          }),
+          { status: 429 }
+        )
+      );
+
+      const error = (await apiFetch("/auth/forgot-password", {
+        method: "POST",
+        body: { email: "test@example.com" },
+      }).catch((e) => e)) as InstanceType<typeof ApiError>;
+
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.status).toBe(429);
+      expect(error.code).toBe("RATE_LIMITED");
+    });
+
+    it("AC-8/AC-6: resetPassword(token, new_password) calls POST /auth/reset-password → 204", async () => {
+      const { apiFetch } = await loadClient();
+      const fetchMock = vi.mocked(global.fetch);
+      fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+      const result = await apiFetch("/auth/reset-password", {
+        method: "POST",
+        body: { token: "reset-token-xyz", new_password: "newpassword123" },
+      });
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/auth/reset-password"),
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            token: "reset-token-xyz",
+            new_password: "newpassword123",
+          }),
+        })
+      );
+      expect(result).toBeUndefined();
+    });
+
+    it("AC-6: resetPassword returns 400 INVALID_TOKEN → ApiError", async () => {
+      const { apiFetch, ApiError } = await loadClient();
+      const fetchMock = vi.mocked(global.fetch);
+      fetchMock.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: "INVALID_TOKEN",
+            message: "Bağlantı geçersiz",
+            request_id: "req-400-reset",
+          }),
+          { status: 400 }
+        )
+      );
+
+      const error = (await apiFetch("/auth/reset-password", {
+        method: "POST",
+        body: { token: "invalid-token", new_password: "newpassword" },
+      }).catch((e) => e)) as InstanceType<typeof ApiError>;
+
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.status).toBe(400);
+      expect(error.code).toBe("INVALID_TOKEN");
+    });
+
+    it("AC-6: resetPassword returns 410 TOKEN_EXPIRED → ApiError", async () => {
+      const { apiFetch, ApiError } = await loadClient();
+      const fetchMock = vi.mocked(global.fetch);
+      fetchMock.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: "TOKEN_EXPIRED",
+            message: "Bağlantı süresi dolmuş",
+            request_id: "req-410-reset",
+          }),
+          { status: 410 }
+        )
+      );
+
+      const error = (await apiFetch("/auth/reset-password", {
+        method: "POST",
+        body: { token: "expired-reset-token", new_password: "newpassword" },
+      }).catch((e) => e)) as InstanceType<typeof ApiError>;
+
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.status).toBe(410);
+      expect(error.code).toBe("TOKEN_EXPIRED");
+    });
+  });
+
 describe("AC-S2: Source code check — no localStorage/JWT/Authorization", () => {
   it("AC-S2: client.ts exists and is non-empty", async () => {
     const { readFileSync } = await import("node:fs");

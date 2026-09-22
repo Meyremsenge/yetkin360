@@ -48,6 +48,38 @@ describe("shouldRedirect", () => {
       expect(shouldRedirect("/giris/email-dogrula", [])).toBeNull();
     });
 
+    it("AC-1: allows `/kayit` without cookies (registration page)", () => {
+      expect(shouldRedirect("/kayit", [])).toBeNull();
+    });
+
+    it("AC-1: allows `/kayit/*` subpaths without cookies", () => {
+      expect(shouldRedirect("/kayit/confirm", [])).toBeNull();
+    });
+
+    it("AC-5/AC-6: allows `/e-posta-dogrula` without cookies (email verification page)", () => {
+      expect(shouldRedirect("/e-posta-dogrula", [])).toBeNull();
+    });
+
+    it("AC-5/AC-6: allows `/e-posta-dogrula/*` subpaths without cookies", () => {
+      expect(shouldRedirect("/e-posta-dogrula?token=abc", [])).toBeNull();
+    });
+
+    it("AC-7/AC-S2: allows `/sifre-unuttum` without cookies (forgot password page)", () => {
+      expect(shouldRedirect("/sifre-unuttum", [])).toBeNull();
+    });
+
+    it("AC-7/AC-S2: allows `/sifre-unuttum/*` subpaths without cookies", () => {
+      expect(shouldRedirect("/sifre-unuttum/confirm", [])).toBeNull();
+    });
+
+    it("AC-8/AC-6: allows `/sifre-sifirla` without cookies (password reset page)", () => {
+      expect(shouldRedirect("/sifre-sifirla", [])).toBeNull();
+    });
+
+    it("AC-8/AC-6: allows `/sifre-sifirla/*` subpaths without cookies", () => {
+      expect(shouldRedirect("/sifre-sifirla?token=xyz", [])).toBeNull();
+    });
+
     it("Davranış 2: allows `/_next/*` (Next.js internals)", () => {
       expect(shouldRedirect("/_next/image", [])).toBeNull();
       expect(shouldRedirect("/_next/static/abc", [])).toBeNull();

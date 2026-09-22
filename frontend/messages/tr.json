@@ -16,11 +16,12 @@
   },
   "errors": {
     "generic": "Bir hata oluştu. Lütfen daha sonra tekrar deneyin.",
-    "network": "Ağ bağlantısı hatası. Lütfen bağlantınızı kontrol edin.",
+    "network": "Bağlantı hatası. Lütfen bağlantınızı kontrol edin.",
     "timeout": "İstek zaman aşımına uğradı. Lütfen tekrar deneyin.",
     "retry": "Tekrar dene",
     "supportCode": "Destek kodu",
-    "emailNotVerified": "E-posta adresiniz henüz doğrulanmadı. Lütfen e-posta adresinizi doğrulayın."
+    "emailNotVerified": "E-posta adresiniz henüz doğrulanmadı. Lütfen e-posta adresinizi doğrulayın.",
+    "rateLimited": "Çok fazla deneme yaptınız. Lütfen daha sonra tekrar deneyin."
   },
   "notFound": {
     "title": "Sayfa bulunamadı",
@@ -32,6 +33,36 @@
     "title": "Giriş",
     "placeholder": "E-posta adresiniz",
     "login": "Giriş Yap",
-    "formComingSoon": "Giriş formu 1.13 maddesinde eklenecektir."
+    "formComingSoon": "Giriş formu 1.13 maddesinde eklenecektir.",
+    "emailLabel": "E-posta",
+    "passwordLabel": "Şifre",
+    "invalidCredentials": "E-posta veya şifre hatalı.",
+    "accountLocked": "Hesabınız geçici olarak kilitlendi."
+  },
+  "kayit": {
+    "title": "Kayıt Ol",
+    "emailLabel": "E-posta",
+    "passwordLabel": "Şifre",
+    "fullNameLabel": "Ad Soyad",
+    "submit": "Kayıt Ol",
+    "success": "Kaydınız alındı. E-postanızı doğrulayın."
+  },
+  "epostaDogrula": {
+    "verifying": "E-posta doğrulanıyor...",
+    "success": "E-postanız doğrulandı.",
+    "tokenInvalid": "Bağlantı geçersiz veya süresi dolmuş."
+  },
+  "sifreUnuttum": {
+    "title": "Şifre Unuttum",
+    "emailLabel": "E-posta",
+    "submit": "Şifre Sıfırlama Bağlantısı Gönder",
+    "sentMessage": "Şifre sıfırlama bağlantısı gönderildi. E-postanızı kontrol edin."
+  },
+  "sifreSifirla": {
+    "title": "Şifre Sıfırla",
+    "newPasswordLabel": "Yeni Şifre",
+    "confirmPasswordLabel": "Yeni Şifre Tekrar",
+    "submit": "Şifre Sıfırla",
+    "success": "Şifreniz değiştirildi."
   }
 }
