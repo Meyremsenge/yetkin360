@@ -1,0 +1,38 @@
+{
+  "task": "yet-10-skill-search",
+  "reviewed_at": "2026-09-22T00:00:00Z",
+  "summary": "Implementasyon ATDD'deki AC-1..AC-9 ve AC-S1..AC-S2'yi karşılıyor, frontend listSkills() ile response kontratı ({items:[{id, name_tr, ...}]}) birebir uyuşuyor (kontrat kopukluğu, YET-9/YET-11'deki gibi, burada tekrarlanmadı). Bulunan tek gerçek bulgu: ILIKE deseninde `%`/`_` karakterlerinin escape edilmemesi (medium/correctness, kullanıcı kararına bırakıldı). Diğer bulgu (scoped_* istisnasının onaysız olduğu iddiası) orkestratör tarafından yanlış çıktı — plan.md'de gerçek kullanıcı yetkisiyle onaylanmış, kapatıldı.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "correctness",
+      "file": "backend/app/services/skill.py",
+      "issue": "[DÜZELTİLDİ] search_skills() `q`'yu ILIKE deseni içine `%`/`_` escape etmeden gömüyordu.",
+      "better_approach": "Uygulandı: `q` ILIKE'a geçmeden önce `\\`, `%`, `_` escape ediliyor, `.ilike(pattern, escape='\\\\')` kullanılıyor (skill.py satır 32-40).",
+      "reason": "Kullanıcı onayıyla bir Haiku alt-ajanı dispatch edilip düzeltildi, orkestratör tarafından kod ve testler (`pytest -q` → 335 passed, 6 skipped; `ruff check .`/`mypy app` temiz) bağımsız olarak yeniden doğrulandı."
+    },
+    {
+      "severity": "low",
+      "category": "reliability",
+      "file": "backend/scripts/seed.py",
+      "issue": "seed_skills() check-then-insert deseni (satır ~266-283) — iki eşzamanlı script çalıştırması arasında teorik bir UniqueViolation race condition penceresi var.",
+      "better_approach": "`INSERT ... ON CONFLICT (slug) DO NOTHING` kullanılabilirdi.",
+      "reason": "Script CLI'dan tek seferde, elle çalıştırılıyor (`python -m scripts.seed`, production'da çalıştırılmaz notu var) — pratik önemi düşük, YET-11'de aynı türden bir bulgu için de benzer kabul edilmişti ama orada gerçek bir HTTP endpoint'ti (eşzamanlı istek riski gerçekti); burada CLI-tek-seferlik olduğu için risk daha da düşük."
+    }
+  ],
+  "strengths": [
+    "Frontend listSkills() (frontend/lib/api/client.ts) ile backend SkillListResponse/SkillItemResponse (backend/app/api/skills.py) kontratı tam uyumlu — YET-9/YET-11'de yaşanan kontrat kopukluğu burada tekrarlanmadı, orkestratör tarafından ayrıca doğrulandı.",
+    "search_skills() her zaman `Skill.status == 'ACTIVE'` filtresiyle başlıyor — MERGED/DEPRECATED skill'lerin hiçbir kombinasyonda sızması yapısal olarak imkansız, AC-7 testlerle doğrulanmış.",
+    "SQLAlchemy ORM parametreli `.ilike()`/`.where()` — SQL injection'a karşı güvenli, AC-S2 testleri gerçek DROP TABLE/UNION/OR-injection senaryolarını kapsıyor.",
+    "SkillItemResponse yalnızca izin verilen 6 alanı içeriyor, status/merged_into_id/created_at/updated_at sızmıyor — AC-S1 testleriyle doğrulanmış.",
+    "limit parametresi `Query(50, gt=0, le=100)` ile doğru sınırlandırılmış, boundary testleri mevcut.",
+    "`search_skills()`'in scoped_*() paterni dışında merkezi bir servis fonksiyonu kullanması — plan.md'de gerçek kullanıcı yetkisiyle (Sonnet 5 low alt-ajanı aracılığıyla) açıkça onaylanmış bir karar (orkestratör tarafından doğrulandı — alt-ajanın 'onay izi yok' iddiası yanlıştı, plan.md'nin 'Kararlar' bölümünde kayıtlı)."
+  ],
+  "risks": [
+    "Seed script'i production'da yanlışlıkla çalıştırılabilir — yalnızca docstring uyarısı var, teknik bir guard yok. Kabul edilen risk: MVP kapsamında ek bir ortam kontrolü CLAUDE.md'nin 'gereksiz karmaşıklık ekleme' ilkesine aykırı olur."
+  ],
+  "caveman_review": {"complexity": "low", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {"atdd_satisfied": true, "tests_passed": true, "no_critical_findings": true, "scope_respected": true, "caveman_satisfied": true, "security_acceptable": true, "maintainability_acceptable": true, "no_blocking_risks": true},
+  "verdict": "approve"
+}

@@ -213,3 +213,44 @@ zamanında buraya **aktarır** — yeniden yorumlamaz.
   yakalanmadığı (500 yerine 409 dönmesi gerekirken) bulundu — `flush()`
   artık `try/except IntegrityError` ile sarılı, mevcut
   `SkillAlreadyClaimedError`'a çevriliyor.
+
+## YET-10 — Skill taksonomisi seed + arama ucu (2026-09-22)
+
+**Kaynak:** `obss_project/artifacts/yet-10-skill-search/`
+
+### Bağlam (kaynak: atdd.md)
+YET-10 Jira'da "Tamamlandı" işaretliydi ama kod tabanında hiçbir `GET
+/skills` ucu/seed script'i bulunamadı — YET-14'ün (frontend, zaten merge
+edilmiş) `GET /skills?q=...` çağırdığı ama var olmayan bir ucu çağırdığı
+somut olarak doğrulandı (testler `listSkills`'i mock'ladığı için hiç
+yakalanmamıştı). Bu görev o boşluğu kapattı.
+
+### Kabul edilen riskler / teknik karar gerekçeleri (kaynak: atdd.md, plan.md "Kararlar")
+- **MVP'de tam "~150" skill yerine ~36 temsili skill** (her kategoriden
+  6-8 örnek) — hackathon süresi için tam listeyi elle yazmak orantısız,
+  "~150" yaklaşık bir hedef.
+- **`search_skills()` scoped_*() paterni dışında** — `Skill` platform-geneli
+  bir kaynak (kiracıya özel değil), merkezi tek bir servis fonksiyonu
+  üzerinden filtreli sorgu kullanıldı; bu, CLAUDE.md'nin "çıplak select()
+  yasak" kuralının amacını (dağınık/denetimsiz erişim) ihlal etmiyor.
+  Kullanıcı yetkisiyle (Sonnet 5 low alt-ajanı aracılığıyla) onaylandı.
+- Kimliksiz istek → `401` (404 değil) — bu bir kiracı-izolasyon kaynağı
+  değil, genel kimlik doğrulama gereksinimi.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, red_team.json)
+- **Orkestratör kaynaklı yan etki:** Seed script'inin gerçekten çalıştığını
+  doğrulamak için bizzat çalıştırıldı — bu paylaşılan dev DB'ye 36 gerçek
+  satır ekledi, test fixture'ları aynı slug'larla çakışıp 32 test hatasına
+  yol açtı (implementasyon hatası değil, doğrulama adımının kendisiydi).
+  `DELETE FROM skills WHERE slug IN (...)` ile temizlendi. **Ders: seed
+  script'i gerçek DB'ye karşı doğrulanırken, sonradan eklenen veri mutlaka
+  temizlenmeli.**
+- `red-team` incelemesinde `search_skills()`'in `q` parametresini ILIKE
+  deseni içine `%`/`_` escape etmeden gömdüğü bulundu — güvenlik açığı
+  değil (parametreli sorgu, injection riski yok) ama kullanıcı aramada bu
+  karakterleri kullanırsa yanlış/geniş sonuç alıyordu. Escape eklenerek
+  düzeltildi.
+- `red-team`'in "scoped_*() istisnasının onaysız olduğu" iddiası
+  orkestratör tarafından **yanlış** bulundu — `plan.md`'de gerçek kullanıcı
+  yetkisiyle zaten onaylanmıştı, kapatıldı (subagent'ların bazen kendi
+  bağlamlarında eksik bilgiyle yanlış bulgu üretebileceğine dair bir örnek).
