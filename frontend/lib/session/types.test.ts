@@ -297,4 +297,190 @@ describe("isMeResponse", () => {
       expect(isMeResponse(emptyResponse)).toBe(true);
     });
   });
+
+  describe("AC-1/AC-2: talent_profile with concrete fields (TypeScript strengthening)", () => {
+    it("AC-1: talent_profile with headline field", () => {
+      const response: unknown = {
+        user: { id: "talent-1" },
+        talent_profile: {
+          headline: "Software Engineer",
+        },
+        organizations: [],
+        institutions: [],
+      };
+      expect(isMeResponse(response)).toBe(true);
+    });
+
+    it("AC-1: talent_profile with headline and department", () => {
+      const response: unknown = {
+        user: { id: "talent-2" },
+        talent_profile: {
+          headline: "Senior Developer",
+          department: "Engineering",
+        },
+        organizations: [],
+        institutions: [],
+      };
+      expect(isMeResponse(response)).toBe(true);
+    });
+
+    it("AC-1: talent_profile with study_year as number", () => {
+      const response: unknown = {
+        user: { id: "talent-3" },
+        talent_profile: {
+          study_year: 3,
+        },
+        organizations: [],
+        institutions: [],
+      };
+      expect(isMeResponse(response)).toBe(true);
+    });
+
+    it("AC-1: talent_profile with city field", () => {
+      const response: unknown = {
+        user: { id: "talent-4" },
+        talent_profile: {
+          city: "İstanbul",
+        },
+        organizations: [],
+        institutions: [],
+      };
+      expect(isMeResponse(response)).toBe(true);
+    });
+
+    it("AC-S3: talent_profile with visibility enum value PRIVATE", () => {
+      const response: unknown = {
+        user: { id: "talent-5" },
+        talent_profile: {
+          visibility: "PRIVATE",
+        },
+        organizations: [],
+        institutions: [],
+      };
+      expect(isMeResponse(response)).toBe(true);
+    });
+
+    it("AC-S3: talent_profile with visibility enum value INSTITUTION", () => {
+      const response: unknown = {
+        user: { id: "talent-6" },
+        talent_profile: {
+          visibility: "INSTITUTION",
+        },
+        organizations: [],
+        institutions: [],
+      };
+      expect(isMeResponse(response)).toBe(true);
+    });
+
+    it("AC-S3: talent_profile with visibility enum value ORGANIZATIONS", () => {
+      const response: unknown = {
+        user: { id: "talent-7" },
+        talent_profile: {
+          visibility: "ORGANIZATIONS",
+        },
+        organizations: [],
+        institutions: [],
+      };
+      expect(isMeResponse(response)).toBe(true);
+    });
+
+    it("AC-S3: talent_profile with visibility enum value PUBLIC", () => {
+      const response: unknown = {
+        user: { id: "talent-8" },
+        talent_profile: {
+          visibility: "PUBLIC",
+        },
+        organizations: [],
+        institutions: [],
+      };
+      expect(isMeResponse(response)).toBe(true);
+    });
+
+    it("AC-S2: talent_profile with public_slug field", () => {
+      const response: unknown = {
+        user: { id: "talent-9" },
+        talent_profile: {
+          public_slug: "ali-engineer",
+        },
+        organizations: [],
+        institutions: [],
+      };
+      expect(isMeResponse(response)).toBe(true);
+    });
+
+    it("AC-1/AC-2: talent_profile with all concrete fields", () => {
+      const response: unknown = {
+        user: { id: "talent-full" },
+        talent_profile: {
+          headline: "Senior Software Engineer",
+          department: "Engineering",
+          study_year: 4,
+          city: "Ankara",
+          visibility: "PUBLIC",
+          public_slug: "ali-senior-engineer",
+        },
+        organizations: [],
+        institutions: [],
+      };
+      expect(isMeResponse(response)).toBe(true);
+    });
+
+    it("AC-1: talent_profile with mixed concrete and unknown fields", () => {
+      const response: unknown = {
+        user: { id: "talent-mixed" },
+        talent_profile: {
+          headline: "Developer",
+          level: "intermediate",
+          some_future_field: "value",
+        },
+        organizations: [],
+        institutions: [],
+      };
+      expect(isMeResponse(response)).toBe(true);
+    });
+
+    it("AC-1: talent_profile with null values for optional fields", () => {
+      const response: unknown = {
+        user: { id: "talent-nulls" },
+        talent_profile: {
+          headline: null,
+          department: null,
+          study_year: null,
+          city: null,
+          visibility: null,
+          public_slug: null,
+        },
+        organizations: [],
+        institutions: [],
+      };
+      expect(isMeResponse(response)).toBe(true);
+    });
+
+    it("AC-1: talent_profile empty object still valid (backward compat with empty durum)", () => {
+      const response: unknown = {
+        user: { id: "talent-empty" },
+        talent_profile: {},
+        organizations: [],
+        institutions: [],
+      };
+      expect(isMeResponse(response)).toBe(true);
+    });
+
+    it("AC-2/AC-S3: TypeScript type guard accepts MeResponse with strengthened talent_profile", () => {
+      const strengthenedResponse: MeResponse = {
+        user: { id: "talent-ts" },
+        talent_profile: {
+          headline: "TypeScript Specialist",
+          department: "Frontend",
+          study_year: 2,
+          city: "İzmir",
+          visibility: "INSTITUTION",
+          public_slug: "ts-specialist",
+        },
+        organizations: [],
+        institutions: [],
+      };
+      expect(isMeResponse(strengthenedResponse)).toBe(true);
+    });
+  });
 });

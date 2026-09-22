@@ -5,6 +5,53 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## YET-14 — Frontend: talent profil + yetkinlik beyanı ekranı (2026-09-22)
+
+**Kaynak:** `obss_project/artifacts/yet-14-talent-profil-yetkinlik/`
+
+### Teknik karar gerekçeleri (kaynak: atdd.md/plan.md)
+- Backend'de `/talents/me/skills` (GET/POST/DELETE) ve `/skills` uçları hem
+  router hem DB şeması (talent-skill junction tablosu) hiç yoktu (YET-11,
+  başka bir geliştiriciye atanmış, "Yapılacaklar"da) — YET-13'teki "sözleşme
+  önce" deseniyle `docs/API.md`'ye göre mock ile ilerlendi.
+- `/profil`, projenin `AppShell`'i ilk kez gerçek bir sayfada kullandığı yer
+  oldu — YET-12'nin red-team'inin bıraktığı "AppShell hiçbir sayfada
+  kullanılmıyor" bulgusunu kapattı.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, red_team.json)
+- code-copilot'un ilk yazdığı `skills-section.tsx`'te debounce `useEffect`'i
+  bir state'i (`searchTimeout`) hem tutuyor hem dependency olarak kullanıyordu
+  — `setSearchTimeout` her çağrıldığında effect'i tekrar tetikleyip sonsuz
+  "temizle→kur→tetikle" döngüsü yaratıyordu; testler 120 saniyede bile
+  bitmiyordu. `useRef`'e çevrilerek düzeltildi.
+- Aynı implementasyon, planın öngördüğü `AppShell` sarmalayıcısını
+  kullanmadan yazılmıştı (kendi loading/error mantığını yeniden icat etmiş)
+  — mimari sapma fark edilip düzeltildi.
+- `skills-section.tsx` `useQuery` kullanıyordu ama testler
+  `QueryClientProvider` sağlamıyordu — `useQuery` senkron hata fırlatıp bir
+  "optional" fallback sessizce boş veri dönüyordu, `getMySkills`/`addSkill`/
+  `removeSkill` gerçekte HİÇ çağrılmıyordu. İlk turda düz `useState`+
+  `useEffect`'e geçilerek "çözüldü" ama bu `.claude/rules/frontend.md`'nin
+  "Sunucu durumu: TanStack Query, tartışma yok" kuralını ihlal ediyordu —
+  `red-team` bunu bulup `block` verdi, doğru çözüm (testlere gerçek
+  `QueryClientProvider` sarmalayıcısı eklemek) ikinci bir turda uygulandı.
+- `red-team`, iki gerçek backend sözleşme uyumsuzluğu buldu (kodun kendisi,
+  atdd.md'nin "kabul edilmiş risk" dediği backend-henüz-yok durumundan
+  AYRI bir hata): (1) `claimed_level` seçenekleri `PROFICIENT`/`EXPERT`
+  kullanıyordu, gerçek DB `CHECK` kısıtı (`docs/DATABASE.md`)
+  `BEGINNER`/`INTERMEDIATE`/`ADVANCED`; (2) `GET /talents/me/skills`
+  cevabı `docs/API.md`'ye göre `items[].skill.{id,name_tr}` (iç içe) +
+  kardeş `claimed_level` dönerken, implementasyon `items[].id` gibi düz
+  bir şekil okuyordu. İkisi de testler AYNI yanlış varsayımı mock'ladığı
+  için 613 yeşil testin hiçbirinde yakalanmamıştı — orkestratör dosyaları
+  bizzat okuyarak doğruladı, düzeltildi.
+- Test-fix turlarında art arda 3 küçük test-izolasyon/senkron sorunu
+  çıktı (çift `useSession()` çağrısının tek seferlik mock'la çakışması,
+  bölünmüş text node'ların `getByText` ile bulunamaması, bir testin kendi
+  debounce timer'ını bekletmeden bitip bir sonraki testin mock kuyruğunu
+  erken tüketmesi) — her biri tek başına test edilip kök nedeni izole
+  edilerek düzeltildi.
+
 ## YET-13 — Frontend: kayıt, giriş, e-posta doğrulama, şifre sıfırlama (2026-09-22)
 
 **Kaynak:** `obss_project/artifacts/yet-13-auth-ekranlari/`

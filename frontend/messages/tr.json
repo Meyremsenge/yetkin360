@@ -21,7 +21,10 @@
     "retry": "Tekrar dene",
     "supportCode": "Destek kodu",
     "emailNotVerified": "E-posta adresiniz henüz doğrulanmadı. Lütfen e-posta adresinizi doğrulayın.",
-    "rateLimited": "Çok fazla deneme yaptınız. Lütfen daha sonra tekrar deneyin."
+    "rateLimited": "Çok fazla deneme yaptınız. Lütfen daha sonra tekrar deneyin.",
+    "slugTaken": "Bu slug zaten alındı, lütfen farklı bir profil linki seçin.",
+    "skillAlreadyClaimed": "Bu yetkinliği zaten eklediniz.",
+    "skillNotFound": "Bu yetkinlik artık mevcut değil, listeyi yeniledik."
   },
   "notFound": {
     "title": "Sayfa bulunamadı",
@@ -64,5 +67,26 @@
     "confirmPasswordLabel": "Yeni Şifre Tekrar",
     "submit": "Şifre Sıfırla",
     "success": "Şifreniz değiştirildi."
+  },
+  "profil": {
+    "title": "Profil",
+    "headline": "Başlık",
+    "department": "Bölüm",
+    "studyYear": "Öğrenim Yılı",
+    "city": "Şehir",
+    "visibility": "Görünürlük",
+    "publicSlug": "Profil Linki",
+    "saveButton": "Kaydet",
+    "savingButton": "Kaydediliyor...",
+    "successMessage": "Profiliniz başarıyla kaydedildi.",
+    "loadError": "Profiliniz yüklenemedi, lütfen destek ile iletişime geçin.",
+    "skillsSection": "Yetkinlikler",
+    "emptySkillsMessage": "Henüz bir yetkinlik eklemediniz.",
+    "skillSearchPlaceholder": "Yetkinlik ara...",
+    "addSkillButton": "Ekle",
+    "removeSkillButton": "Kaldır",
+    "skillAddedMessage": "Yetkinlik eklendi.",
+    "skillRemovedMessage": "Yetkinlik kaldırıldı.",
+    "claimedLevel": "Seviye"
   }
 }

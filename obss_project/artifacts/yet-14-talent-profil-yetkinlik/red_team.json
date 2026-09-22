@@ -1,0 +1,83 @@
+{
+  "task": "yet-14-talent-profil-yetkinlik",
+  "reviewed_at": "2026-09-22T00:00:00Z",
+  "summary": "AC'lerin çoğu testlerle doğru şekilde kapatılmış (XSS hijyeni gerçekten yok, debounce useRef'e düzeltilmiş, AppShell gerçekten kullanılıyor, AC-S3 backend değerini koruyor), ama backend sözleşmesiyle iki gerçek kontrat uyumsuzluğu var (claimed_level enum değerleri ve getMySkills() items şekli) ve skills-section.tsx zorunlu TanStack Query mimarisini terk etmiş — bunlar backend (YET-11) bittiğinde özelliği fiilen kıracak, testler ise yanlış varsayımı mock'ladığı için bunu yakalamıyor.",
+  "findings": [
+    {
+      "severity": "critical",
+      "category": "correctness",
+      "file": "frontend/app/profil/skills-section.tsx",
+      "issue": "claimedLevel state'i ve <select> seçenekleri 'BEGINNER'/'PROFICIENT'/'EXPERT' kullanıyor. Bu oturumda `docs/DATABASE.md:141` ve `docs/DOMAIN.md:222` okunarak doğrulandı: gerçek CHECK kısıtı `claimed_level IN ('BEGINNER','INTERMEDIATE','ADVANCED')`. 'PROFICIENT'/'EXPERT' backend'de GEÇERSİZ değerler.",
+      "better_approach": "select seçeneklerini ve varsayılan state'i BEGINNER/INTERMEDIATE/ADVANCED olacak şekilde düzelt; tr.json'daki etiketleri buna göre güncelle.",
+      "reason": "Backend (YET-11) implemente edildiğinde her POST /talents/me/skills isteği CHECK constraint ihlaliyle başarısız olacak."
+    },
+    {
+      "severity": "high",
+      "category": "correctness",
+      "file": "frontend/app/profil/skills-section.tsx",
+      "issue": "mySkills/currentSkillIds item'ları düz obje olarak okunuyor (`skill.id`, `skill.name_tr`, `skill.claimed_level`). `docs/API.md:251` ve signals örneği (satır ~266) doğrulandı: gerçek şekil `items[]` içinde iç içe `skill` objesi + kardeş `claimed_level` alanı.",
+      "better_approach": "`item.skill.id`, `item.skill.name_tr`, `item.claimed_level` kullan; currentSkillIds de `item.skill.id` üzerinden kurulmalı.",
+      "reason": "skills-section.test.tsx'teki mock veriler de implementasyonla aynı yanlış düz şekli kullanıyor — hem kod hem test gerçek backend'e karşı hiç doğrulanmamış. Backend hazır olduğunda liste boş/undefined isim gösterecek, AC-6 proaktif filtreleme id eşleşmemesi yüzünden çalışmayacak."
+    },
+    {
+      "severity": "high",
+      "category": "architecture",
+      "file": "frontend/app/profil/skills-section.tsx",
+      "issue": "skills-section.tsx TanStack Query (useQuery) kullanmıyor; düz useState+useEffect ile fetch yapıyor. code_diff.md bunu bir test-provider sorunundan kaçmak için yapılan bir geri dönüş olarak belgeliyor. `.claude/rules/frontend.md`'nin değişmez kararıyla çelişiyor: 'Sunucu durumu: TanStack Query... tartışma yok, uygula.'",
+      "better_approach": "Testlere bir QueryClientProvider render-wrapper eklenerek useQuery korunmalıydı; plan.md'de zaten ayrı bir [\"talent-skills\"] query key öngörülmüştü ama hiç kullanılmadı.",
+      "reason": "Production'da gerçek provider varken bile bu component artık cache paylaşımı/dedupe/refetch gibi TanStack Query özelliklerinden faydalanmıyor — kalıcı bir mimari sapma."
+    },
+    {
+      "severity": "medium",
+      "category": "correctness",
+      "file": "frontend/app/profil/skills-section.tsx",
+      "issue": "Yetkinlik EKLENDİĞİNDE kullanıcıya yanlışlıkla `messages.profil.skillRemovedMessage` (\"Yetkinlik kaldırıldı.\") gösteriliyor.",
+      "better_approach": "tr.json'a `skillAddedMessage: \"Yetkinlik eklendi.\"` ekle, handleAddSkill onu kullansın.",
+      "reason": "Kullanıcı deneyimi hatası — hiçbir test bu mesajın metnini doğrulamadığı için testlerden kaçmış."
+    },
+    {
+      "severity": "low",
+      "category": "caveman",
+      "file": "frontend/lib/session/types.ts",
+      "issue": "`talent_profile?: TalentProfile | Record<string, unknown> | null` — TalentProfile zaten index imzasına sahip, ikinci union dalı gereksiz.",
+      "better_approach": "`talent_profile?: TalentProfile | null` yeterli.",
+      "reason": "Gereksiz tip karmaşıklığı."
+    },
+    {
+      "severity": "low",
+      "category": "caveman",
+      "file": "frontend/app/profil/skills-section.tsx",
+      "issue": "`.map(...) ?? []` — `.map()` asla null/undefined dönmez, `?? []` ölü kod.",
+      "better_approach": "`?? []` kısmını kaldır.",
+      "reason": "Gereksiz savunma kodu."
+    }
+  ],
+  "strengths": [
+    "dangerouslySetInnerHTML gerçekten hiç kullanılmıyor (grep ile doğrulandı) — AC-S1/AC-S2 XSS hijyeni sağlanmış.",
+    "Debounce useRef ile yönetiliyor, önceki sonsuz döngü hatası gerçekten kapatılmış.",
+    "page.tsx gerçekten <AppShell> içine sarılmış — YET-12 bulgusu gerçekten kapanmış.",
+    "profile-form.tsx defaultValues gerçekten backend'den gelen initialData üzerinden kuruluyor; visibility sessizce genişletilmiyor (AC-S3 sağlanmış).",
+    "AC-6 proaktif filtreleme mantığı doğru kurgulanmış (id kaynağı yanlış olsa da mantık doğru).",
+    "Hata işleme tutarlı duck-typing deseniyle yapılmış, YET-13 deseniyle tutarlı.",
+    "AC-9 (404'te sessiz refetch) doğru uygulanmış."
+  ],
+  "risks": [
+    "claimed_level enum uyuşmazlığı ve getMySkills() item şekli uyuşmazlığı, backend (YET-11) bittiğinde özelliği gerçek ortamda kırar; mevcut 613 test bunu yakalamıyor çünkü testler implementasyonla aynı yanlış varsayımı mock'luyor.",
+    "CI npm run test'i çalıştırmıyor (bu görevden önce var) — kontrat hataları backend entegre olduğunda otomatik hiçbir yerde yakalanmayacak.",
+    "skills-section.tsx'in TanStack Query'den vazgeçmesi, ileride tutarsız cache/fetch davranışına zemin hazırlıyor."
+  ],
+  "caveman_review": {"complexity": "low", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve",
+  "post_fix_note": "2026-09-22: 6 bulgunun tamamı düzeltildi — claimed_level enum'u BEGINNER/INTERMEDIATE/ADVANCED'a çevrildi (docs/DATABASE.md ile uyumlu); getMySkills() item'ları artık item.skill.id/item.skill.name_tr olarak iç içe okunuyor (docs/API.md ile uyumlu); skills-section.tsx ve profile-form.tsx workaround'ları (useOptionalQuery/useOptionalQueryClient) kaldırılıp gerçek useQuery/useQueryClient kullanıma alındı (testlere gerçek QueryClientProvider sarmalayıcısı eklendi, .claude/rules/frontend.md ile tam uyum); yanlış 'kaldırıldı' mesajı düzeltildi; 2 caveman bulgusu (gereksiz union tip, ölü kod) temizlendi. Bu oturumda orkestratör tarafından bizzat doğrulandı: `npx vitest run` 613/613 PASS (3 kez art arda), `npm run lint` 0 hata, `npm run typecheck` 0 hata, `npm run build` başarılı, dangerouslySetInnerHTML/enum/nested-shape değişiklikleri grep ile teyit edildi. verdict block'tan approve'a güncellendi."
+}
