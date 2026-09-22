@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
-from app.models import Institution, Organization, TalentProfile, User
+from app.models import Institution, Organization, Skill, TalentProfile, User
 
 
 @dataclass
@@ -130,6 +130,28 @@ def scoped_talent_profiles(session: Session, principal: Principal) -> Select:
         return select(TalentProfile).where(TalentProfile.user_id == principal.user_id)
     # All other kinds: no talent profiles in scope
     return select(TalentProfile).where(TalentProfile.id.in_([]))
+
+
+def scoped_skills(session: Session, principal: Principal) -> Select:
+    """
+    Return a SQLAlchemy Select query filtered to skills in principal's scope.
+
+    Skill taxonomy is global reference data — all authenticated principals can access all skills.
+    No tenant/role filtering applied; this function serves as the mandatory access point
+    (CLAUDE.md: "çıplak select(Model) yasak").
+
+    Args:
+      - session: SQLAlchemy Session
+      - principal: Principal object
+
+    Returns:
+      - sqlalchemy.sql.Select: Query returning all Skill rows (no filtering by kind)
+
+    Implements AC-1, AC-5: Authenticated user access, no tenant isolation.
+    """
+    # Global taxonomy: return all skills (no filtering by principal.kind or IDs)
+    # Authorization check (authenticated vs. unauthenticated) happens at API layer (get_current_principal)
+    return select(Skill)
 
 
 def get_scoped_or_404(scoped_select: Select, session: Session):

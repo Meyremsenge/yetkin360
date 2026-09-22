@@ -1,0 +1,66 @@
+{
+  "task": "skill-taksonomisi-seed-arama",
+  "reviewed_at": "2026-09-22T00:00:00Z",
+  "summary": "Implementasyon atdd.md'nin 11 Acceptance Criteria'sını karşılıyor, mevcut proje deseniyle (katmanlama, merkezi yetkilendirme, ApiError formatı) tutarlı, tam test paketi yeşil (263 passed). İlk incelemede bulunan 3 bulgunun (1 medium, 2 low) hepsi düzeltildi ve doğrulandı (ruff/mypy/pytest tekrar çalıştırıldı, 263 passed, 0 failed, 8 skipped). Kritik bir güvenlik veya correctness sorunu bulunmadı.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "reliability",
+      "file": "backend/scripts/seed.py",
+      "issue": "Docstring 'If session is provided: uses it, does NOT commit/close (caller manages transaction)' diyor, ama kod her durumda `session.commit()` çağırıyor (satır 233) — session dışarıdan verilse bile. Bu, çağıranın transaction kontrolünü beklenmedik şekilde ele geçiriyor: bir çağıran `main(session=session)`'ı kendi transaction'ının içinde çağırıp sonra rollback yapmayı planlıyorsa, seed zaten commit etmiş olacak.",
+      "better_approach": "Docstring'i koda uydur (session verilirse de commit edileceğini yaz) VEYA kodu docstring'e uydur (session dışarıdan verildiğinde commit etmeyip çağırana bırak, sadece close_session=True durumunda commit et).",
+      "reason": "Davranış Sözleşmesi denetimi: atdd.md'nin Davranış Sözleşmesi tablosu satır 7 ('kısmi başarı — transaction rollback olur, DB'de kısmi veri kalmaz') ve satır 8 ('hiçbir şey yapılamadı ama hata yok') senaryolarının doğru çalışması, fonksiyonun transaction sınırının net olmasına bağlı. Şu an docstring yanlış bir garanti veriyor — gerçek kod bunu tutmuyor. Testler bunu yakalamıyor çünkü testler zaten commit bekliyor (rollback-at-end deseni test session'ında ayrı bir katmanda çalışıyor).",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "low",
+      "category": "maintainability",
+      "file": "backend/app/services/skill.py",
+      "issue": "Arama sorgusu (satır 48-58) ve count sorgusu (satır 61-69) aynı `where` koşullarını (`status != 'DEPRECATED'`, `name_tr.ilike(...) | name_en.ilike(...)`) iki kez ayrı ayrı yazıyor.",
+      "better_approach": "Ortak filtre koşulunu bir değişkene çıkarıp her iki sorguda da kullanmak (ör. `filter_clause = (Skill.status != 'DEPRECATED') & (...)`, sonra `.where(filter_clause)` iki yerde de).",
+      "reason": "CAVEMAN ilkesi: tekrar eden karmaşıklık. Şu an iki koşul senkron değişmek zorunda — biri güncellenip diğeri unutulursa arama sonucu ile total sayısı tutarsızlaşır (ör. gelecekte bir filtre eklenirse). Görev boyutu küçük olduğu için commit'i bloklamaz, ama bir sonraki değişiklikte risk taşır.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "low",
+      "category": "test-gap",
+      "file": "backend/tests/test_seed_skills.py",
+      "issue": "TestSeedScriptSubprocess sınıfındaki iki test (`test_seed_script_via_subprocess_empty_db`, `test_seed_script_via_subprocess_idempotency`) `@pytest.mark.skip(reason=\"Seed script not yet implemented\")` ile hâlâ atlanıyor — ama seed.py artık yazıldı, bu neden artık geçerli değil.",
+      "better_approach": "Bu iki testin skip'ini kaldırıp gerçek subprocess çağrısıyla (`python -m scripts.seed`) çalıştırmak, ya da bilinçli olarak kapsam dışı bırakılıyorsa (ör. CI'da ayrı bir DB gerektirdiği için) skip nedenini güncellemek ('seed.py exists but subprocess test requires isolated DB, intentionally skipped').",
+      "reason": "atdd.md'nin Test Strategy bölümü subprocess entegrasyonunu açıkça istemese de, bu iki test zaten yazılmış ve artık yanlış bir gerekçeyle atlanıyor — okuyan biri 'seed.py eksik' sanabilir. Küçük bir netlik sorunu, commit'i bloklamaz.",
+      "outcome": "fixed"
+    }
+  ],
+  "strengths": [
+    "Davranış Sözleşmesi tablosunun 8 satırının hepsi ayrı testlerle karşılanmış; özellikle 'kısmi başarı' (AC-8, transaction rollback) ve 'hiçbir şey yapılamadı ama hata yok' (AC-7, idempotent 0-yeni-kayıt) satırları atlanmamış.",
+    "AC-4 (MERGED skill'in hedef slug/name_tr'sinin tek response'ta dönmesi) ek bir sorguyla doğru çözülmüş, frontend'e ikinci round-trip yüklenmiyor.",
+    "Yetkilendirme deseni (scoped_skills) mevcut scoped_organizations/scoped_institutions/scoped_talent_profiles ile tutarlı, çıplak select(Model) kullanılmamış.",
+    "SQL injection riski yok — ilike() SQLAlchemy tarafından parametrize ediliyor, ham string interpolation kullanılmıyor (query metni f-string ile kuruluyor ama .ilike() çağrısına argüman olarak veriliyor, SQL'e gömülmüyor — SQLAlchemy bind parameter kullanıyor).",
+    "500 hata yanıtı gerçekten generic (ApiError ile), stack trace/exception detayı sızmıyor; hata loglanıyor ama response'a yansımıyor.",
+    "code-copilot iterasyonu sırasında bulunan pipeline-dışı bir kritik altyapı sorunu (alembic migration branching) kullanıcı onayıyla düzeltilmiş, bu görevin regresyon riskini azaltmış."
+  ],
+  "risks": [
+    "Seed script'in transaction/commit davranışı (yukarıdaki medium bulgu) gelecekte seed.py'nin başka bir yerden (ör. bir migration script'inden veya admin panelinden) session paylaşılarak çağrılması durumunda beklenmedik erken commit'e yol açabilir — şu an tek çağıran (`python -m scripts.seed` CLI) için risk düşük."
+  ],
+  "caveman_review": {
+    "complexity": "low",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve"
+}
