@@ -5,12 +5,12 @@ Implements access control and data scoping per atdd.md (yet-2-yetkilendirme-ceki
 """
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
-from app.models import Organization, TalentProfile, User
+from app.models import Institution, Organization, TalentProfile, User
 
 
 @dataclass
@@ -21,12 +21,17 @@ class Principal:
     Fields:
       - user_id: UUID of the authenticated user (None for ANONYMOUS)
       - kind: Role/type of principal (str, plain values: "ANONYMOUS", "TALENT", "ORG_MEMBER", etc.)
+        WARNING: Display use only. Authorization decisions must use per-resource ID lists
+        (org_ids, org_admin_ids, institution_ids, institution_admin_ids), never kind alone.
+        kind represents the principal's highest role across all resources; it is not
+        authoritative for per-resource checks.
       - talent_id: UUID of associated talent profile (if kind == "TALENT")
       - org_ids: List of organization IDs the principal is a member of
       - org_admin_ids: List of organization IDs the principal is an admin of
       - institution_ids: List of institution IDs the principal is associated with
       - is_platform_admin: True if principal is a platform administrator
       - is_suspended: True if principal's account is suspended
+      - institution_admin_ids: List of institution IDs the principal is an admin of
     """
     user_id: uuid.UUID | None
     kind: str
@@ -36,6 +41,7 @@ class Principal:
     institution_ids: list[uuid.UUID]
     is_platform_admin: bool
     is_suspended: bool
+    institution_admin_ids: list[uuid.UUID] = field(default_factory=list)
 
 
 def can(principal: Principal, action: str, resource) -> bool:
@@ -55,15 +61,15 @@ def can(principal: Principal, action: str, resource) -> bool:
     # Defense-in-depth: check resource ownership directly
     # Handle User resource: can read own User
     if isinstance(resource, User):
-        if action == "read" and principal.user_id == resource.id:
-            return True
-        return False
+        return action == "read" and principal.user_id == resource.id
 
     # Handle Organization resource: can admin_update if principal is org admin
     if isinstance(resource, Organization):
-        if action == "admin_update" and principal.kind == "ORG_ADMIN" and resource.id in principal.org_admin_ids:
-            return True
-        return False
+        return action == "admin_update" and principal.kind == "ORG_ADMIN" and resource.id in principal.org_admin_ids
+
+    # Handle Institution resource: can admin_update if principal is institution admin
+    if isinstance(resource, Institution):
+        return action == "admin_update" and principal.kind == "INST_ADMIN" and resource.id in principal.institution_admin_ids
 
     # Undefined action/resource combination: default-deny
     return False
@@ -86,6 +92,25 @@ def scoped_organizations(session: Session, principal: Principal) -> Select:
         return select(Organization).where(Organization.id.in_(principal.org_ids))
     # All other kinds: no organizations in scope
     return select(Organization).where(Organization.id.in_([]))
+
+
+def scoped_institutions(session: Session, principal: Principal) -> Select:
+    """
+    Return a SQLAlchemy Select query filtered to institutions in principal's scope.
+
+    Args:
+      - session: SQLAlchemy Session
+      - principal: Principal object
+
+    Returns:
+      - sqlalchemy.sql.Select: Query returning Institution rows in principal's scope
+
+    Implements AC-2, AC-S2 (tenant isolation).
+    """
+    if principal.kind in ("INST_ADMIN", "COORDINATOR"):
+        return select(Institution).where(Institution.id.in_(principal.institution_ids))
+    # All other kinds: no institutions in scope
+    return select(Institution).where(Institution.id.in_([]))
 
 
 def scoped_talent_profiles(session: Session, principal: Principal) -> Select:

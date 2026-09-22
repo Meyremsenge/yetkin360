@@ -1,0 +1,73 @@
+{
+  "task": "yet-8-institution-koordinator-ogrenci-bagi",
+  "reviewed_at": "2026-09-21",
+  "summary": "AC-1..AC-8 fonksiyonel olarak doğru uygulanmış, invite_member_endpoint'teki bilinen privilege-escalation (global kind) başarıyla per-institution institution_admin_ids ile kapatılmış. Ancak deps.py'deki global 'en yüksek yetki' kind alanı hâlâ yaşıyor ve approve_link_request_endpoint'in ilk kapısı buna dayanıyor; güvenliği yalnızca ikinci bir defense-in-depth sorgusu (scoped_institutions+get_scoped_or_404) sağlıyor. Bu, aynı hata sınıfının gelecekte tekrar üretilebileceği bir mimari kalıntı riski.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "architecture",
+      "file": "backend/app/api/deps.py",
+      "issue": "get_current_principal (satır 72-84) hâlâ TÜM kurumlar arasında 'en yüksek yetki' mantığıyla tek bir global `kind` string'i hesaplıyor (`institution_admin_ids` varsa kind='INST_ADMIN', yoksa `institution_ids` varsa kind='COORDINATOR'). Bu tam olarak invite_member'da bulunup düzeltilen açığın kök nedeniydi; şimdi sadece invite_member kendi başına institution_admin_ids kullanarak düzeltilmiş, ama global kind kavramı Principal'dan çıkarılmamış.",
+      "better_approach": "`kind`'ı Principal'dan kaldırın ya da açıkça 'display_kind: bilgilendirme amaçlı, yetkilendirme kararı için KULLANILMAZ' diye işaretleyin. Tüm endpoint yetkilendirme kararları yalnızca per-kurum ID listeleri (institution_admin_ids, institution_ids) veya can()/scoped_*() üzerinden verilmeli.",
+      "reason": "atdd.md Threat Model bölümü Elevation of Privilege'i 'çekirdek risk' olarak işaretlemiş; global kind alanının varlığı, gelecekte yazılacak bir uçta (ör. yeni bir Institution action) geliştiricinin institution_admin_ids yerine kolayca `principal.kind == 'INST_ADMIN'` yazmasını mümkün kılıyor — invite_member'daki hatanın birebir kopyası."
+    },
+    {
+      "severity": "medium",
+      "category": "security",
+      "file": "backend/app/api/institutions.py",
+      "issue": "approve_link_request_endpoint (satır 270) ilk kapı kontrolü olarak `principal.kind not in (\"INST_ADMIN\", \"COORDINATOR\")` kullanıyor — bu global/tüm-kurumlar-arası bir bayrak. Doğru sonuç şu an yalnızca ikinci adımdaki `scoped_institutions(session, principal).where(Institution.id == institution_id)` + `get_scoped_or_404` sorgusunun institution_ids (o kurumdaki gerçek üyelik) üzerinden yeniden doğrulama yapmasıyla sağlanıyor.",
+      "better_approach": "İlk kapı kontrolünü de per-kurum yapın: `institution_id not in principal.institution_ids` (institution_admin_ids DEĞİL, çünkü hem ADMIN hem COORDINATOR onaylayabiliyor — AC-3b kasıtlı). Böylece tek bir doğru kaynak (institution_ids) hem ilk filtrede hem defense-in-depth'te kullanılır, global kind'a hiç ihtiyaç kalmaz.",
+      "reason": "Şu anki hâliyle güvenlik TEK bir savunma katmanına (ikinci sorgu) bağımlı; ilk katman yalnızca kozmetik bir erken-çıkış. İkinci katman bir refactor sırasında 'zaten kind kontrol edildi, performans için atlayalım' diye kaldırılırsa açık geri döner — invite_member'daki olayın tam benzeri."
+    },
+    {
+      "severity": "medium",
+      "category": "test-gap",
+      "file": "backend/tests/test_institution_authorization.py",
+      "issue": "Mevcut BOLA testleri (TestTenantIsolationBOLA) her zaman İKİ AYRI kullanıcı kullanıyor (user_a_admin / user_b_admin gibi) — kullanıcının A'da ADMIN, B'de FARKLI bir role (COORDINATOR) veya HİÇ üyeliğinin olmadığı 'tek kullanıcı, çoklu kurum, karışık rol' senaryosu (tam olarak orijinal bug'ın tanımı: 'Kurum A'da ADMIN, Kurum B'de sadece COORDINATOR') tek bir Principal üzerinde açıkça test edilmiyor.",
+      "better_approach": "Yeni bir test ekleyin: tek bir user'a InstitutionMember(A, ADMIN) VE InstitutionMember(B, COORDINATOR) ata, sonra bu user ile `POST /institutions/{B}/members` çağırıp 404 beklediğini doğrulayın (global kind='INST_ADMIN' olacağı için, per-kurum kontrol olmasaydı 201 dönerdi).",
+      "reason": "atdd.md 'authz-test skill'i çağrılmalı' notu ve testing.md 'her uç × her aktör kombinasyonu' ilkesiyle uyumlu — şu anki testler regresyonu (kind alanı tekrar sole-gate olursa) YAKALAYAMAZ çünkü hiçbir test tek kullanıcıda çelişen rolleri kurmuyor."
+    },
+    {
+      "severity": "low",
+      "category": "architecture",
+      "file": "backend/app/api/institutions.py",
+      "issue": "request_institution_link_endpoint (satır 219-221) `session.execute(select(Institution).where(...))` ile çıplak select kullanıyor — CLAUDE.md'nin 'Tüm veri erişimi merkezî yetkilendirmeden geçer... Çıplak select(Model) yasak' kuralını literal olarak ihlal ediyor.",
+      "better_approach": "scoped_institutions()/get_scoped_or_404() yerine, Institution kaynağının bu bağlamda tenant-scope'suz (herkese açık varlık kontrolü) olduğunu kabul eden ayrı bir merkezi yardımcı (`lookup_institution_or_404` gibi) authorization.py'ye eklenmeli, ya da mevcut istisna doküman/yorumla açıkça gerekçelendirilmeli.",
+      "reason": "Fonksiyonel olarak zararsız (Institution var/yok kontrolü zaten domain-uniqueness 409'u ile de sızdırılıyor), ama kuralın 'her zaman' istisnasız uygulanması açık kaynak repo tutarlılığı için önemli — merkezi olmayan select'ler gelecekte ayırt edilemeyen 'kasıtlı istisna mı, unutulmuş kontrol mü' belirsizliği yaratır."
+    }
+  ],
+  "strengths": [
+    "invite_member_endpoint artık `institution_id not in principal.institution_admin_ids` ile PER-KURUM admin kontrolü yapıyor (backend/app/api/institutions.py:161) — bulunan orijinal açığın doğru düzeltmesi, global kind'a bağlı değil.",
+    "institution_link_requests tablosu DB seviyesinde CHECK constraint (status enum) ve partial UNIQUE index (yalnızca PENDING için) ile korunuyor (backend/app/models/institution_link_request.py:26-37) — CLAUDE.md 'kısıtlar veritabanında olur' kuralına tam uyum, AC-8 sadece uygulama kontrolüne değil DB'ye de dayanıyor.",
+    "Tüm yetkisiz erişim senaryoları tutarlı şekilde 404 döndürüyor (403 değil), CLAUDE.md'nin sızdırmama kuralına uygun.",
+    "ORM modelleri doğrudan dönülmüyor, ayrı Pydantic response şemaları var (InstitutionResponse, InstitutionMemberResponse, InstitutionLinkRequestResponse).",
+    "67 PASS / 6 SKIP / 0 FAIL, migration upgrade+downgrade+re-upgrade doğrulanmış, mypy/ruff/bandit temiz."
+  ],
+  "risks": [
+    "deps.py'deki global `kind` alanı, gelecekte yazılacak yeni Institution/Organization uçlarında invite_member'daki hatanın birebir tekrarına açık kapı bırakıyor — mevcut düzeltme yalnızca invite_member'a özel, sistemik değil.",
+    "approve_link_request_endpoint'in güvenliği tek bir defense-in-depth sorgusuna dayanıyor; bu sorgu kaldırılır/optimize edilirse (ör. 'zaten kind kontrol edildi' varsayımıyla) açık geri döner.",
+    "Mevcut testler tek-kullanıcı-çoklu-kurum-karışık-rol senaryosunu kapsamadığı için, yukarıdaki riskin gerçek bir regresyon test bekçisi henüz yok."
+  ],
+  "caveman_review": {
+    "complexity": "low",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve-with-changes",
+  "post_fix_note": "4 bulgu (approve_link_request_endpoint per-kurum kontrolü, Principal.kind docstring uyarısı, çoklu-kurum-karışık-rol regresyon testi, çıplak select yorumu) düzeltildi ve bağımsız olarak yeniden doğrulandı (68 PASS/6 SKIP/0 FAIL, ruff/mypy temiz) — bkz. verify_report.md 'Red-Team Sonrası Güncelleme'. maintainability_acceptable bu düzeltmeler sonrası true olarak güncellendi."
+}
