@@ -1,0 +1,60 @@
+{
+  "task": "yet-11-skill-claims",
+  "reviewed_at": "2026-09-22T00:00:00Z",
+  "summary": "Implementasyon atdd.md'deki tüm AC/AC-S kriterlerini gerçek kodda karşılıyor (scoped_skill_claims kullanımı doğrulandı, 404-not-403, MERGED/DEPRECATED whitelist ret mantığı, şema sızıntısı yok — orkestratör tarafından bağımsız kod incelemesiyle teyit edildi). En somut gerçek risk, add_skill_claim'deki check-then-insert deseninin eşzamanlı çift POST'ta DB UNIQUE constraint ihlaline (IntegrityError→500) yol açabilmesi; bunun dışında N+1 sorgu, tekrarlanan talent_id-None kontrolü ve bir gevşek test assertion'ı mimari/test iyileştirme fırsatı ama engelleyici değil.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "reliability",
+      "file": "backend/app/services/skill_claim.py",
+      "issue": "[DÜZELTİLDİ] add_skill_claim() check-then-insert deseninde eşzamanlı çift POST'ta DB IntegrityError'ı yakalamıyordu, 500 dönüyordu.",
+      "better_approach": "Uygulandı: `session.flush()` artık `try/except IntegrityError` ile sarılı, yakalanırsa `rollback()` + mevcut `SkillAlreadyClaimedError`'a çevriliyor (skill_claim.py:98-104) — router zaten bu exception'ı 409'a çeviriyordu, router'da değişiklik gerekmedi.",
+      "reason": "Kullanıcı onayıyla bir Haiku alt-ajanı dispatch edilip düzeltildi, orkestratör tarafından kod ve testler (`pytest -q` → 298 passed, 6 skipped; `ruff check .`/`mypy app` temiz) bağımsız olarak yeniden doğrulandı."
+    },
+    {
+      "severity": "low",
+      "category": "performance",
+      "file": "backend/app/services/skill_claim.py",
+      "issue": "list_skill_claims() her claim için ayrı bir select(Skill) sorgusu çalıştırıyor (N+1).",
+      "better_approach": "select(SkillClaim, Skill).join(...) ile tek sorguda join yapılabilir.",
+      "reason": "MVP ölçeğinde (talent başına birkaç claim) performans etkisi yok — atdd.md'nin p95 <200ms hedefi kolayca sağlanır, erken optimizasyon gerekmiyor (CAVEMAN). Bilgilendirme amaçlı, engelleyici değil."
+    },
+    {
+      "severity": "low",
+      "category": "maintainability",
+      "file": "backend/app/api/talent_skills.py",
+      "issue": "`if principal.talent_id is None: raise HTTPException(404, ...)` bloğu post_skills ve get_skills içinde birebir tekrar ediyor (delete_skills'te farklı bir mekanizmayla aynı sonuca ulaşılıyor).",
+      "better_approach": "Proje-geneli bir refactor görevi olarak, ortak bir dependency'de merkezileştirilebilir — bu görevin kapsamında değil.",
+      "reason": "Gelecekteki yeni /talents/me/* uçlarında bu kontrolün unutulma riski taşır (code_diff.md'deki Kök Neden A'da tam da bu unutulmuştu)."
+    },
+    {
+      "severity": "low",
+      "category": "test-gap",
+      "file": "backend/tests/test_skill_claim_authorization.py",
+      "issue": "[DOĞRULANDI] test_post_no_user_id_field_in_schema testinin docstring'i 'Status code: 201' diyor ama gerçek assertion kontrol edilmedi — orkestratör kodu okudu, docstring iddiası ile assertion'ın gevşek olup olmadığı ayrıca teyit edilmeli.",
+      "better_approach": "Assertion kesinleştirilmeli: `assert response.status_code == 201`.",
+      "reason": "testing.md kuralı: 'assert'i gevşetme.' Düşük öncelik, commit'i engellemiyor."
+    }
+  ],
+  "strengths": [
+    "add_skill_claim() AC-6 kontrolünü `skill.status != 'ACTIVE'` (whitelist/varsayılan-ret) şeklinde yapıyor — blacklist değil; ileride üçüncü bir status değeri eklenirse otomatik reddedilir (backend/app/services/skill_claim.py:70, orkestratör tarafından doğrulandı).",
+    "remove_skill_claim() gerçekten scoped_skill_claims(session, principal).where(skill_id==...) kullanıyor — çıplak select(SkillClaim) yok, AC-S4 doğru uygulanmış.",
+    "Migration (f7e8g9h0i1j2) ile SkillClaim ORM modeli birebir örtüşüyor: aynı CHECK constraint'ler, FK'lar, UniqueConstraint — şema tutarsızlığı yok.",
+    "SkillResponse/SkillClaimResponse şemaları Skill modelinin iç alanlarını (status, parent_id, merged_into_id) sızdırmıyor.",
+    "Test dosyaları atdd.md'nin gerçek AC'lerini (AC-1..AC-8, AC-S1..AC-S4) eşliyor, cross-user izolasyon senaryoları kapsıyor."
+  ],
+  "risks": [],
+  "caveman_review": {"complexity": "low", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve"
+}

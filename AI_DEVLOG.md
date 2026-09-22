@@ -172,3 +172,44 @@ zamanında buraya **aktarır** — yeniden yorumlamaz.
 - `red-team` incelemesinde `get_me_context()`'in register-invaryantına
   (her User'ın bir TalentProfile'ı olması) savunmasız güvendiği bulundu —
   `None` ise `404 TALENT_PROFILE_NOT_FOUND` döndürecek bir kontrol eklendi.
+
+## YET-11 — Talent yetkinlik beyanı: skill ekle/listele/çıkar (2026-09-22)
+
+**Kaynak:** `obss_project/artifacts/yet-11-skill-claims/`
+
+### Kabul edilen riskler / teknik karar gerekçeleri (kaynak: atdd.md, plan.md "Kararlar")
+- **DOMAIN.md §3.6 ile DATABASE.md §2.2 arasında şema tutarsızlığı** bulundu:
+  DOMAIN.md `self_level`/`note`/`deleted_at` (soft-delete) tanımlıyor,
+  DATABASE.md `claimed_level`/`source`/`confirmed_by_user_at` (hard-delete)
+  tanımlıyor. CLAUDE.md kuralı gereği ("şema esastır") DATABASE.md esas
+  alındı — DOMAIN.md güncel değil, ayrı bir dokümantasyon senkronizasyon
+  görevi gerektirir.
+- **YET-10'un iddia ettiği kapsam kod tabanında bulunamadı** — Jira'da
+  "Tamamlandı" işaretli ama skill arama ucu/seed script'i yok, yalnız
+  `Skill` tablosu var. YET-11'i bloke etmedi (skill_id doğrudan
+  kullanıldı) ama Jira durumu şüpheli.
+- MERGED/DEPRECATED skill'e claim denemesi `404 SKILL_NOT_FOUND` ile
+  reddedildi (ayrı kod icat edilmedi, `merged_into_id`'ye otomatik
+  yönlendirme yapılmadı — kullanıcı iradesi dışında farklı bir skill'e
+  claim atmak MVP kapsamını genişletir).
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, red_team.json)
+- Docker Desktop bu görev sırasında kapanmıştı — ilk Haiku alt-ajanı bu
+  yüzden migration/testleri çalıştıramadığını raporladı, orkestratör bunu
+  bağımsız `docker ps`/`docker info` ile doğruladı (gerçek bir ortam
+  sorunuydu), kullanıcıdan Docker'ı yeniden başlatmasını istedi ve devam
+  etti.
+- Kod incelemesinde iki gerçek implementasyon hatası bulundu: `POST`/`GET
+  /talents/me/skills` uçları `principal.talent_id is None` durumunu kontrol
+  etmiyordu — biri `IntegrityError` (500) ile, diğeri "boş liste ↔ yetkisiz
+  erişim" karışmasıyla sonuçlanıyordu (AC-S1 ihlali). Her ikisine de
+  `me.py`'deki `TALENT_PROFILE_NOT_FOUND` koduyla tutarlı bir kontrol
+  eklendi.
+- Bir test assertion hatası bulundu: `claimed_level` gönderilmeden yapılan
+  bir istekte testin `is not None` beklemesi yanlıştı (alan nullable,
+  gönderilmediyse `None` doğru davranış) — düzeltildi.
+- `red-team` incelemesinde `add_skill_claim()`'in check-then-insert
+  deseninde eşzamanlı çift `POST`'ta DB `IntegrityError`'ının
+  yakalanmadığı (500 yerine 409 dönmesi gerekirken) bulundu — `flush()`
+  artık `try/except IntegrityError` ile sarılı, mevcut
+  `SkillAlreadyClaimedError`'a çevriliyor.

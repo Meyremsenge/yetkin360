@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
-from app.models import Institution, Organization, TalentProfile, User
+from app.models import Institution, Organization, SkillClaim, TalentProfile, User
 
 
 @dataclass
@@ -130,6 +130,25 @@ def scoped_talent_profiles(session: Session, principal: Principal) -> Select:
         return select(TalentProfile).where(TalentProfile.user_id == principal.user_id)
     # All other kinds: no talent profiles in scope
     return select(TalentProfile).where(TalentProfile.id.in_([]))
+
+
+def scoped_skill_claims(session: Session, principal: Principal) -> Select:
+    """
+    Return a SQLAlchemy Select query filtered to skill claims in principal's scope.
+
+    Args:
+      - session: SQLAlchemy Session
+      - principal: Principal object
+
+    Returns:
+      - sqlalchemy.sql.Select: Query returning SkillClaim rows in principal's scope
+
+    Implements AC-S3 (YET-11): only returns claims for authenticated talent.
+    """
+    if principal.talent_id is not None:
+        return select(SkillClaim).where(SkillClaim.talent_id == principal.talent_id)
+    # All other kinds: no skill claims in scope
+    return select(SkillClaim).where(SkillClaim.id.in_([]))
 
 
 def get_scoped_or_404(scoped_select: Select, session: Session):

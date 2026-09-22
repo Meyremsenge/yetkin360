@@ -13,6 +13,7 @@ from app.models.identity import (
 from app.models.institution_link_request import InstitutionLinkRequest
 from app.models.outbox import Outbox
 from app.models.skill import Skill
+from app.models.skill_claim import SkillClaim
 
 __all__ = [
     "Base",
@@ -24,6 +25,7 @@ __all__ = [
     "Organization",
     "OrganizationMember",
     "Skill",
+    "SkillClaim",
     "AuditEvent",
     "RefreshToken",
     "EmailVerificationToken",
