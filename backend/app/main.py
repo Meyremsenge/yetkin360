@@ -7,6 +7,7 @@ from app.api.auth import router as auth_router
 from app.api.institutions import router as institutions_router
 from app.api.me import router as me_router
 from app.api.organizations import router as organizations_router
+from app.api.talent_skills import router as talent_skills_router
 from app.core.config import settings
 
 app = FastAPI(title="Yetkin360 API")
@@ -23,6 +24,7 @@ app.include_router(auth_router)
 app.include_router(institutions_router)
 app.include_router(me_router)
 app.include_router(organizations_router)
+app.include_router(talent_skills_router)
 
 
 @app.exception_handler(HTTPException)
