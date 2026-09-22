@@ -1,60 +1,30 @@
 """FastAPI dependencies (database session, authentication context)."""
 
-from typing import Generator
+from fastapi import Depends
+from sqlalchemy.orm import Session
 
-from fastapi import Depends, Header, HTTPException
-from sqlalchemy.orm import Session, sessionmaker
-
-from app.core.config import settings
+from app.core.deps import get_session as core_get_session
+from app.core.deps import get_current_user
 from app.models import InstitutionMember, OrganizationMember, TalentProfile, User
 from app.services.authorization import Principal
 
-# TEMPORARY: YET-4 (real JWT auth) will replace this.
-# Right now, X-Debug-User-Id header is used for testing and local dev.
-
-# Database session factory
-from sqlalchemy import create_engine
-
-_engine = create_engine(settings.database_url)
-SessionLocal = sessionmaker(bind=_engine, expire_on_commit=False)
-
-
-def get_session() -> Generator[Session, None, None]:
-    """FastAPI dependency: returns database session."""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# Re-export get_session from core.deps (real database session factory)
+get_session = core_get_session
 
 
 def get_current_principal(
-    x_debug_user_id: str | None = Header(default=None),
+    user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> Principal:
     """
-    Build Principal from debug header (user_id) and database state.
+    Build Principal from authenticated user and database state.
 
-    TEMPORARY: YET-4 will replace with real JWT/token validation.
+    Uses real JWT authentication (httpOnly cookie) via get_current_user
+    from app.core.deps. Constructs Principal by querying database for
+    the user's organization/institution memberships and talent profile.
 
-    For now, reads X-Debug-User-Id header (test-only mechanism) and constructs
-    a real Principal by querying database for the user's organization/institution
-    memberships and talent profile.
-
-    If header missing or user not found → 401 Unauthorized.
+    User is already authenticated at this point. Returns 401 if not.
     """
-    if not x_debug_user_id:
-        raise HTTPException(status_code=401, detail="Missing X-Debug-User-Id header")
-
-    try:
-        user_id = x_debug_user_id  # Assume it's already a valid UUID string
-        user = session.query(User).filter_by(id=user_id).first()
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid X-Debug-User-Id")
-
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-
     # Determine user's organization memberships
     org_memberships = session.query(OrganizationMember).filter_by(user_id=user.id).all()
     org_ids = [m.organization_id for m in org_memberships]

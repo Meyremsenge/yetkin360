@@ -1,12 +1,15 @@
 """Pytest fixtures and configuration for institution tests."""
 
 import pytest
+from fastapi import Header, HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_session
 from app.core.config import settings
+from app.core.deps import get_current_user as core_get_current_user
+from app.models import User
 from app.main import app
 
 
@@ -29,11 +32,13 @@ def session():
 @pytest.fixture
 def client(request, session):
     """
-    TestClient with dependency overrides for database session.
+    TestClient with dependency overrides for database session and authentication.
 
-    Override get_session to use test session. Tests must pass X-Debug-User-Id
-    header explicitly to set auth context (app.api.deps.get_current_principal
-    reads it from the request).
+    Overrides:
+    1. get_session to use test session (isolated transaction per test)
+    2. get_current_user to read X-Debug-User-Id header for tests (no real JWT needed)
+
+    Tests pass X-Debug-User-Id header explicitly to set auth context.
     """
     # Use injected session fixture to ensure proper fixture ordering
     test_session = session
@@ -42,7 +47,29 @@ def client(request, session):
         """Override get_session to use test session."""
         return test_session
 
+    def override_get_current_user(x_debug_user_id: str | None = Header(default=None)):
+        """
+        Test-only override: read X-Debug-User-Id header instead of JWT cookie.
+
+        This allows tests to pass a user_id via header without needing real
+        JWT auth. In production, get_current_user uses real JWT validation.
+        """
+        if not x_debug_user_id:
+            raise HTTPException(status_code=401, detail="Missing X-Debug-User-Id header")
+
+        try:
+            # Query test session to find user by ID
+            user = test_session.query(User).filter_by(id=x_debug_user_id).first()
+        except Exception:
+            raise HTTPException(status_code=401, detail="Invalid X-Debug-User-Id")
+
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+
+        return user
+
     app.dependency_overrides[get_session] = override_get_session
+    app.dependency_overrides[core_get_current_user] = override_get_current_user
 
     test_client = TestClient(app)
 
