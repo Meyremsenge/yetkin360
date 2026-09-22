@@ -249,9 +249,14 @@ def request_password_reset(session: Session, email: str) -> None:
 
 
 def verify_email(session: Session, raw_token: str) -> None:
+    # FOR UPDATE closes a double-claim race: without it, two concurrent
+    # requests for the same token can both read used_at IS NULL and both
+    # succeed.
     token_hash = hash_email_token(raw_token)
     token = session.execute(
-        select(EmailVerificationToken).where(EmailVerificationToken.token_hash == token_hash)
+        select(EmailVerificationToken)
+        .where(EmailVerificationToken.token_hash == token_hash)
+        .with_for_update()
     ).scalars().first()
 
     if token is None or token.used_at is not None:
@@ -280,9 +285,14 @@ def verify_email(session: Session, raw_token: str) -> None:
 
 
 def reset_password(session: Session, raw_token: str, new_password: str) -> None:
+    # FOR UPDATE closes a double-claim race: without it, two concurrent
+    # requests for the same token can both read used_at IS NULL and both
+    # succeed.
     token_hash = hash_email_token(raw_token)
     token = session.execute(
-        select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash)
+        select(PasswordResetToken)
+        .where(PasswordResetToken.token_hash == token_hash)
+        .with_for_update()
     ).scalars().first()
 
     if token is None or token.used_at is not None:
