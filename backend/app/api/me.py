@@ -1,0 +1,206 @@
+"""User profile endpoints (GET /me, PATCH /talents/me)."""
+
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy.orm import Session
+
+from app.api.deps import get_current_principal, get_current_user, get_session
+from app.models import User
+from app.services.authorization import Principal, get_scoped_or_404, scoped_talent_profiles
+from app.services.talent import SlugTakenError, get_me_context, update_talent_profile
+
+router = APIRouter(tags=["me"])
+
+
+# ============================================================================
+# Pydantic Schemas (Request/Response DTOs)
+# ============================================================================
+
+
+class TalentProfileResponse(BaseModel):
+    """Response schema for TalentProfile."""
+
+    id: uuid.UUID
+    user_id: uuid.UUID
+    institution_id: uuid.UUID | None
+    full_name: str
+    headline: str | None
+    department: str | None
+    study_year: int | None
+    city: str | None
+    visibility: str
+    public_slug: str | None
+
+    class Config:
+        from_attributes = True
+
+
+class UserResponse(BaseModel):
+    """Response schema for User."""
+
+    id: uuid.UUID
+    email: str
+
+    class Config:
+        from_attributes = True
+
+
+class OrganizationResponse(BaseModel):
+    """Response schema for Organization (in GET /me)."""
+
+    id: uuid.UUID
+    name: str
+
+    class Config:
+        from_attributes = True
+
+
+class InstitutionResponse(BaseModel):
+    """Response schema for Institution (in GET /me)."""
+
+    id: uuid.UUID
+    name: str
+
+    class Config:
+        from_attributes = True
+
+
+class GetMeResponse(BaseModel):
+    """Response schema for GET /me."""
+
+    user: UserResponse
+    talent_profile: TalentProfileResponse
+    organizations: list[OrganizationResponse]
+    institutions: list[InstitutionResponse]
+
+
+class UpdateTalentProfileRequest(BaseModel):
+    """Request schema for PATCH /talents/me."""
+
+    headline: str | None = Field(None, max_length=255)
+    city: str | None = Field(None, max_length=100)
+    department: str | None = Field(None, max_length=100)
+    study_year: int | None = None
+    visibility: str | None = None
+    public_slug: str | None = Field(None, max_length=100)
+
+    @field_validator("study_year")
+    @classmethod
+    def validate_study_year(cls, v):
+        """Validate study_year is in range 1-8 if provided."""
+        if v is not None and (v < 1 or v > 8):
+            raise ValueError("study_year must be between 1 and 8")
+        return v
+
+    @field_validator("visibility")
+    @classmethod
+    def validate_visibility(cls, v):
+        """Validate visibility is a valid enum value."""
+        if v is not None:
+            valid_values = {"PRIVATE", "INSTITUTION", "ORGANIZATIONS", "PUBLIC"}
+            if v not in valid_values:
+                raise ValueError(f"visibility must be one of {valid_values}")
+        return v
+
+
+# ============================================================================
+# AC-1: GET /me
+# ============================================================================
+
+
+@router.get("/me", response_model=GetMeResponse)
+def get_me(
+    principal: Principal = Depends(get_current_principal),
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> GetMeResponse:
+    """
+    AC-1: Return current user's profile and associations.
+
+    Returns:
+        GET /me → 200 + {user, talent_profile, organizations[], institutions[]}
+
+    Security:
+        - AC-S1: Query/body parameters are ignored, authenticated user's context only
+    """
+    try:
+        context = get_me_context(principal, user, session)
+    except ValueError:
+        raise HTTPException(status_code=404, detail={"code": "TALENT_PROFILE_NOT_FOUND", "message": "Talent profili bulunamadı.", "request_id": None})
+
+    # Build response
+    org_responses = [
+        OrganizationResponse(id=o.id, name=o.name) for o in context["organizations"]
+    ]
+    inst_responses = [
+        InstitutionResponse(id=i.id, name=i.name) for i in context["institutions"]
+    ]
+
+    return GetMeResponse(
+        user=UserResponse(id=user.id, email=user.email),
+        talent_profile=TalentProfileResponse.from_orm(context["talent_profile"]),
+        organizations=org_responses,
+        institutions=inst_responses,
+    )
+
+
+# ============================================================================
+# AC-3 through AC-7: PATCH /talents/me
+# ============================================================================
+
+
+@router.patch("/talents/me", response_model=TalentProfileResponse)
+def patch_talents_me(
+    payload: UpdateTalentProfileRequest,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> TalentProfileResponse:
+    """
+    AC-3 through AC-7: Update current user's talent profile.
+
+    Accepts:
+        - headline, city, department, study_year, visibility, public_slug
+        - Ignores: institution_id, user_id, id, talent_profile_id (if sent)
+
+    Returns:
+        200 + updated TalentProfile
+
+    Errors:
+        - 409 SLUG_TAKEN: public_slug already in use (atomicity: no update)
+        - 422: Invalid study_year (not 1-8) or visibility (invalid enum)
+
+    Security:
+        - AC-S2: Body ID fields ignored, always updates authenticated user's profile (principal.talent_id)
+        - AC-8: Authorization based on talent_id, not kind (handles user with multiple roles)
+    """
+    # Get current user's talent profile (via scoped query for authorization)
+    scoped_query = scoped_talent_profiles(session, principal)
+    talent_profile = get_scoped_or_404(scoped_query, session)
+    if not talent_profile:
+        raise HTTPException(status_code=404, detail={"code": "TALENT_PROFILE_NOT_FOUND", "message": "Talent profili bulunamadı.", "request_id": None})
+
+    # Extract only provided, valid fields (ignore institution_id, user_id, etc.)
+    updates = {}
+    for field in ["headline", "city", "department", "study_year", "visibility", "public_slug"]:
+        if getattr(payload, field) is not None:
+            updates[field] = getattr(payload, field)
+
+    # Update profile (handles validation, slug uniqueness check, atomicity)
+    try:
+        updated_profile = update_talent_profile(talent_profile, updates, session)
+    except SlugTakenError:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "SLUG_TAKEN",
+                "message": "Bu kısa bağlantı zaten kullanılıyor.",
+                "request_id": None,
+            },
+        )
+
+    # Commit transaction
+    session.commit()
+
+    return TalentProfileResponse.from_orm(updated_profile)

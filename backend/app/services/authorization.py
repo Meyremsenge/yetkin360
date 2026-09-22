@@ -126,7 +126,7 @@ def scoped_talent_profiles(session: Session, principal: Principal) -> Select:
 
     Implements AC-2, AC-S2 (tenant isolation).
     """
-    if principal.kind == "TALENT" and principal.user_id is not None:
+    if principal.talent_id is not None:
         return select(TalentProfile).where(TalentProfile.user_id == principal.user_id)
     # All other kinds: no talent profiles in scope
     return select(TalentProfile).where(TalentProfile.id.in_([]))
