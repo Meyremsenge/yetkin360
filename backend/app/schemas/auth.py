@@ -32,3 +32,16 @@ class LoginResponse(BaseModel):
     user_id: uuid.UUID
     role: str
     email_verified: bool
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=512)
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str = Field(pattern=_EMAIL_PATTERN, max_length=320)
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=512)
+    new_password: str = Field(min_length=8, max_length=128)

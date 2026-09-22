@@ -17,9 +17,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from app.core.deps import get_session
-from app.core.security import hash_password, hash_refresh_token
+from app.core.security import hash_email_token, hash_password, hash_refresh_token
 from app.main import app
-from app.models import RefreshToken, TalentProfile, User
+from app.models import EmailVerificationToken, PasswordResetToken, RefreshToken, TalentProfile, User
 
 
 @pytest.fixture
@@ -227,3 +227,194 @@ class TestLogout:
         response = client.post("/auth/logout", headers={"X-CSRF-Token": "not-the-real-token"})
         assert response.status_code == 403
         assert response.json()["code"] == "CSRF_FAILED"
+
+
+class TestVerifyEmail:
+    """PLAN 1.6 (docs/API.md §2.1): POST /auth/verify-email."""
+
+    def test_register_issues_a_verification_token_row(self, client, session):
+        response = client.post(
+            "/auth/register",
+            json={"email": "verify-me@example.com", "password": "Str0ngPassw0rd!", "full_name": "Doğrulanacak"},
+        )
+        user_id = uuid.UUID(response.json()["user_id"])
+        token_count = session.execute(
+            select(func.count()).select_from(EmailVerificationToken).where(
+                EmailVerificationToken.user_id == user_id
+            )
+        ).scalar()
+        assert token_count == 1
+
+    def test_verify_email_with_valid_token_marks_user_verified(self, client, existing_user, session):
+        raw_token = "valid-verification-token"
+        session.add(
+            EmailVerificationToken(
+                user_id=existing_user.id,
+                token_hash=hash_email_token(raw_token),
+                expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+            )
+        )
+        session.flush()
+
+        response = client.post("/auth/verify-email", json={"token": raw_token})
+        assert response.status_code == 204
+
+        session.refresh(existing_user)
+        assert existing_user.email_verified_at is not None
+
+    def test_verify_email_token_is_single_use(self, client, existing_user, session):
+        raw_token = "single-use-token"
+        session.add(
+            EmailVerificationToken(
+                user_id=existing_user.id,
+                token_hash=hash_email_token(raw_token),
+                expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+            )
+        )
+        session.flush()
+
+        first = client.post("/auth/verify-email", json={"token": raw_token})
+        assert first.status_code == 204
+
+        second = client.post("/auth/verify-email", json={"token": raw_token})
+        assert second.status_code == 400
+        assert second.json()["code"] == "INVALID_TOKEN"
+
+    def test_verify_email_unknown_token_returns_400(self, client):
+        response = client.post("/auth/verify-email", json={"token": "does-not-exist"})
+        assert response.status_code == 400
+        assert response.json()["code"] == "INVALID_TOKEN"
+
+    def test_verify_email_expired_token_returns_410(self, client, existing_user, session):
+        raw_token = "expired-verification-token"
+        session.add(
+            EmailVerificationToken(
+                user_id=existing_user.id,
+                token_hash=hash_email_token(raw_token),
+                expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+            )
+        )
+        session.flush()
+
+        response = client.post("/auth/verify-email", json={"token": raw_token})
+        assert response.status_code == 410
+        assert response.json()["code"] == "TOKEN_EXPIRED"
+
+
+class TestForgotPassword:
+    """PLAN 1.6 (docs/API.md §2.1): POST /auth/forgot-password."""
+
+    def test_forgot_password_known_email_returns_204(self, client, existing_user):
+        response = client.post("/auth/forgot-password", json={"email": "existing-auth@example.com"})
+        assert response.status_code == 204
+
+    def test_forgot_password_unknown_email_returns_same_204(self, client):
+        """docs/API.md §2.1: must not leak whether the email is registered."""
+        response = client.post("/auth/forgot-password", json={"email": "nobody-here@example.com"})
+        assert response.status_code == 204
+
+    def test_forgot_password_known_email_creates_reset_token(self, client, existing_user, session):
+        client.post("/auth/forgot-password", json={"email": "existing-auth@example.com"})
+        token_count = session.execute(
+            select(func.count()).select_from(PasswordResetToken).where(
+                PasswordResetToken.user_id == existing_user.id
+            )
+        ).scalar()
+        assert token_count == 1
+
+    def test_forgot_password_unknown_email_creates_no_token(self, client, session):
+        client.post("/auth/forgot-password", json={"email": "nobody-here@example.com"})
+        token_count = session.execute(select(func.count()).select_from(PasswordResetToken)).scalar()
+        assert token_count == 0
+
+
+class TestResetPassword:
+    """PLAN 1.6 (docs/API.md §2.1): POST /auth/reset-password."""
+
+    def test_reset_password_with_valid_token_changes_password(self, client, existing_user, session):
+        raw_token = "valid-reset-token"
+        session.add(
+            PasswordResetToken(
+                user_id=existing_user.id,
+                token_hash=hash_email_token(raw_token),
+                expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+            )
+        )
+        session.flush()
+
+        response = client.post(
+            "/auth/reset-password", json={"token": raw_token, "new_password": "N3wStr0ngPassw0rd!"}
+        )
+        assert response.status_code == 204
+
+        login_response = client.post(
+            "/auth/login", json={"email": "existing-auth@example.com", "password": "N3wStr0ngPassw0rd!"}
+        )
+        assert login_response.status_code == 200
+
+    def test_reset_password_revokes_existing_refresh_tokens(self, client, existing_user, session):
+        login_response = client.post(
+            "/auth/login", json={"email": "existing-auth@example.com", "password": "Str0ngPassw0rd!"}
+        )
+        assert login_response.status_code == 200
+
+        raw_token = "reset-token-revokes-sessions"
+        session.add(
+            PasswordResetToken(
+                user_id=existing_user.id,
+                token_hash=hash_email_token(raw_token),
+                expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+            )
+        )
+        session.flush()
+
+        client.post("/auth/reset-password", json={"token": raw_token, "new_password": "N3wStr0ngPassw0rd!"})
+
+        refresh_response = client.post("/auth/refresh")
+        assert refresh_response.status_code == 401
+
+    def test_reset_password_token_is_single_use(self, client, existing_user, session):
+        raw_token = "single-use-reset-token"
+        session.add(
+            PasswordResetToken(
+                user_id=existing_user.id,
+                token_hash=hash_email_token(raw_token),
+                expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+            )
+        )
+        session.flush()
+
+        first = client.post(
+            "/auth/reset-password", json={"token": raw_token, "new_password": "N3wStr0ngPassw0rd!"}
+        )
+        assert first.status_code == 204
+
+        second = client.post(
+            "/auth/reset-password", json={"token": raw_token, "new_password": "AnotherPassw0rd!"}
+        )
+        assert second.status_code == 400
+        assert second.json()["code"] == "INVALID_TOKEN"
+
+    def test_reset_password_unknown_token_returns_400(self, client):
+        response = client.post(
+            "/auth/reset-password", json={"token": "does-not-exist", "new_password": "N3wStr0ngPassw0rd!"}
+        )
+        assert response.status_code == 400
+        assert response.json()["code"] == "INVALID_TOKEN"
+
+    def test_reset_password_expired_token_returns_410(self, client, existing_user, session):
+        raw_token = "expired-reset-token"
+        session.add(
+            PasswordResetToken(
+                user_id=existing_user.id,
+                token_hash=hash_email_token(raw_token),
+                expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+            )
+        )
+        session.flush()
+
+        response = client.post(
+            "/auth/reset-password", json={"token": raw_token, "new_password": "N3wStr0ngPassw0rd!"}
+        )
+        assert response.status_code == 410
+        assert response.json()["code"] == "TOKEN_EXPIRED"

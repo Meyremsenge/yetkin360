@@ -27,10 +27,16 @@ class Settings(BaseSettings):
     refresh_token_ttl_days: int = 30
     cookie_secure: bool = True  # False only for local HTTP development
 
-    # Outbox / Email — docs/ENV.md §6, PLAN 1.5 (yet-5-outbox-worker)
+    # Outbox / Email — docs/ENV.md §6, PLAN 1.5 (yet-5-outbox-worker), PLAN 1.6
     outbox_poll_interval_seconds: int = 5
     outbox_max_attempts: int = 5
     email_backend: str = "console"
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    email_from: str = "noreply@yetkin360.local"
+    email_from_name: str = "Yetkin360"
 
 
 settings = Settings()  # type: ignore[call-arg]  # values come from .env
