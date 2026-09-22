@@ -1,16 +1,18 @@
 import messages from "@/messages/tr.json";
+import LoginForm from "./form";
 
-export default async function LoginPlaceholderPage({
+export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ neden?: string }>;
+  searchParams: Promise<{ neden?: string; next?: string }>;
 }) {
   const params = await searchParams;
   const showExpiredMessage = params.neden === "oturum-bitti";
+  const nextPath = params.next;
 
   return (
     <div className="flex items-center justify-center min-h-screen">
-      <div className="max-w-md w-full">
+      <div className="max-w-md w-full px-4">
         <h1 className="text-2xl font-bold mb-4 text-slate-900">
           {messages.giris.title}
         </h1>
@@ -24,11 +26,7 @@ export default async function LoginPlaceholderPage({
           </div>
         )}
 
-        <div className="rounded-md bg-slate-50 p-6 border border-slate-200">
-          <p className="text-slate-600 text-center">
-            {messages.giris.formComingSoon}
-          </p>
-        </div>
+        <LoginForm nextPath={nextPath} />
       </div>
     </div>
   );

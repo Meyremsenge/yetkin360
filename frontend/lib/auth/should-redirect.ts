@@ -25,8 +25,11 @@ export function shouldRedirect(
   pathname: string,
   cookieNames: readonly string[]
 ): string | null {
+  // Extract base path (remove query params and hash)
+  const basePath = pathname.split("?")[0].split("#")[0];
+
   // Public allowlist (fail-closed: default redirect)
-  if (isPublicRoute(pathname)) {
+  if (isPublicRoute(basePath)) {
     return null; // No redirect needed
   }
 
@@ -48,6 +51,18 @@ function isPublicRoute(pathname: string): boolean {
 
   // Login page and subpaths
   if (pathname === "/giris" || pathname.startsWith("/giris/")) return true;
+
+  // Registration page and subpaths
+  if (pathname === "/kayit" || pathname.startsWith("/kayit/")) return true;
+
+  // Email verification page and subpaths
+  if (pathname === "/e-posta-dogrula" || pathname.startsWith("/e-posta-dogrula/")) return true;
+
+  // Forgot password page and subpaths
+  if (pathname === "/sifre-unuttum" || pathname.startsWith("/sifre-unuttum/")) return true;
+
+  // Reset password page and subpaths
+  if (pathname === "/sifre-sifirla" || pathname.startsWith("/sifre-sifirla/")) return true;
 
   // Next.js internals
   if (pathname.startsWith("/_next/")) return true;

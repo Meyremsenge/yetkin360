@@ -5,6 +5,43 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## YET-13 — Frontend: kayıt, giriş, e-posta doğrulama, şifre sıfırlama (2026-09-22)
+
+**Kaynak:** `obss_project/artifacts/yet-13-auth-ekranlari/`
+
+### Teknik karar gerekçeleri (kaynak: plan.md "Açık Sorular")
+- `.claude/rules/frontend.md`in öngördüğü React Hook Form + Zod + shadcn/ui
+  o ana kadar hiç kullanılmamıştı (proje düz `useState`/native form ile
+  gitmişti) — kullanıcı onayıyla kurala uyuldu, 3 yeni bağımlılık eklendi.
+- `should-redirect.ts`'in `isPublicRoute` allowlist'ine 4 yeni route
+  eklenmesi (auth mantığı değişikliği) ayrıca kullanıcı onayına sunuldu.
+- Backend'de `/auth/verify-email`, `/auth/forgot-password`,
+  `/auth/reset-password` uçları henüz yoktu (yalnız register/login şeması
+  vardı, grep ile doğrulandı) — Jira'nın kendi bağımlılık notu
+  ("backend'in bitmesini beklemeden mock ile ilerlenir") gereği frontend
+  docs/API.md sözleşmesine göre yazıldı, testler `apiFetch`'i mock'ladı.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, red_team.json)
+- Test-copilot'un yazdığı bir test dosyasında ("New auth functions" describe
+  bloğu) yanlışlıkla dış `describe` bloğunun dışında kalmış, `beforeEach`
+  mock'unu miras almıyordu — 14 test `fetchMock.mockResolvedValueOnce is
+  not a function` ile başarısız oluyordu, kendi `beforeEach`/`afterEach`'i
+  eklenerek düzeltildi.
+- code-copilot'un yazdığı `client.ts`, `register`/`login`/`resetPassword`
+  için object-parametre kullanmıştı, testler (bağımsız yazılmış) positional
+  parametre bekliyordu — testler doğru referans alınarak `client.ts`
+  düzeltildi.
+- `red-team`, `giris/form.tsx`'te `next` query param'ının
+  `sanitizeNext()`'ten hiç geçmeden `router.push`'a verildiğini (open
+  redirect, AC-S5 ihlali) ve varsayılan yönlendirme hedefinin plan.md'nin
+  kararına (`/`) aykırı, var olmayan `/panel` rotasına sabitlendiğini
+  (404 riski) buldu — ikisi de düzeltildi, ardından kullanıcı isteğiyle 4
+  adversarial entegrasyon testi (`//evil.com`, `https://evil.com`,
+  `javascript:`, backslash bypass) eklenerek uçtan uca kanıtlandı.
+- `kayit/form.tsx`'te kayıt başarı mesajının senkron `router.push` yüzünden
+  gerçek tarayıcıda hiç görünmediği (test'te `useRouter` mock'landığı için
+  fark edilmemişti) bulundu — kısa bir gecikmeyle düzeltildi.
+
 ## YET-9 — Organization + domain doğrulama (2026-09-22)
 
 **Kaynak:** `obss_project/artifacts/yet-9-organization-domain-dogrulama/`

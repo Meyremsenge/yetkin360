@@ -230,3 +230,71 @@ async function performRefresh(): Promise<void> {
 
   return refreshPromise;
 }
+
+/**
+ * AC-1: Register new user. Calls POST /auth/register.
+ * Returns user_id on 201; throws ApiError on 422/429/etc.
+ */
+export async function register(
+  email: string,
+  password: string,
+  full_name: string
+): Promise<{ user_id: string } | undefined> {
+  return apiFetch<{ user_id: string }>("/auth/register", {
+    method: "POST",
+    body: { email, password, full_name },
+  });
+}
+
+/**
+ * AC-2/AC-3/AC-4: Login. Calls POST /auth/login.
+ * Returns user_id, role, email_verified on 200; throws ApiError on 401/423/etc.
+ */
+export async function login(
+  email: string,
+  password: string
+): Promise<{ user_id: string; role: string; email_verified: boolean } | undefined> {
+  return apiFetch<{ user_id: string; role: string; email_verified: boolean }>(
+    "/auth/login",
+    {
+      method: "POST",
+      body: { email, password },
+    }
+  );
+}
+
+/**
+ * AC-5/AC-6: Verify email. Calls POST /auth/verify-email with token.
+ * Returns undefined on 204; throws ApiError on 400/410/etc.
+ */
+export async function verifyEmail(token: string): Promise<void> {
+  await apiFetch("/auth/verify-email", {
+    method: "POST",
+    body: { token },
+  });
+}
+
+/**
+ * AC-7/AC-S2: Forgot password. Calls POST /auth/forgot-password.
+ * Returns undefined on 204 (always, even for non-existent emails); throws ApiError on 429/etc.
+ */
+export async function forgotPassword(email: string): Promise<void> {
+  await apiFetch("/auth/forgot-password", {
+    method: "POST",
+    body: { email },
+  });
+}
+
+/**
+ * AC-8/AC-6: Reset password. Calls POST /auth/reset-password.
+ * Returns undefined on 204; throws ApiError on 400/410/etc.
+ */
+export async function resetPassword(
+  token: string,
+  new_password: string
+): Promise<void> {
+  await apiFetch("/auth/reset-password", {
+    method: "POST",
+    body: { token, new_password },
+  });
+}

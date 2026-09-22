@@ -24,11 +24,34 @@ describe("messages/tr.json", () => {
       "errors.retry",
       "errors.supportCode",
       "errors.emailNotVerified",
+      "errors.rateLimited",
       "notFound.title",
       "notFound.home",
       "notFound.login",
       "giris.title",
       "giris.placeholder",
+      "giris.emailLabel",
+      "giris.passwordLabel",
+      "giris.invalidCredentials",
+      "giris.accountLocked",
+      "kayit.title",
+      "kayit.emailLabel",
+      "kayit.passwordLabel",
+      "kayit.fullNameLabel",
+      "kayit.submit",
+      "kayit.success",
+      "epostaDogrula.verifying",
+      "epostaDogrula.success",
+      "epostaDogrula.tokenInvalid",
+      "sifreUnuttum.title",
+      "sifreUnuttum.emailLabel",
+      "sifreUnuttum.submit",
+      "sifreUnuttum.sentMessage",
+      "sifreSifirla.title",
+      "sifreSifirla.newPasswordLabel",
+      "sifreSifirla.confirmPasswordLabel",
+      "sifreSifirla.submit",
+      "sifreSifirla.success",
     ];
 
     it.each(requiredPaths)(
@@ -123,11 +146,34 @@ describe("messages/tr.json", () => {
       ["errors", "retry"],
       ["errors", "supportCode"],
       ["errors", "emailNotVerified"],
+      ["errors", "rateLimited"],
       ["notFound", "title"],
       ["notFound", "home"],
       ["notFound", "login"],
       ["giris", "title"],
       ["giris", "placeholder"],
+      ["giris", "emailLabel"],
+      ["giris", "passwordLabel"],
+      ["giris", "invalidCredentials"],
+      ["giris", "accountLocked"],
+      ["kayit", "title"],
+      ["kayit", "emailLabel"],
+      ["kayit", "passwordLabel"],
+      ["kayit", "fullNameLabel"],
+      ["kayit", "submit"],
+      ["kayit", "success"],
+      ["epostaDogrula", "verifying"],
+      ["epostaDogrula", "success"],
+      ["epostaDogrula", "tokenInvalid"],
+      ["sifreUnuttum", "title"],
+      ["sifreUnuttum", "emailLabel"],
+      ["sifreUnuttum", "submit"],
+      ["sifreUnuttum", "sentMessage"],
+      ["sifreSifirla", "title"],
+      ["sifreSifirla", "newPasswordLabel"],
+      ["sifreSifirla", "confirmPasswordLabel"],
+      ["sifreSifirla", "submit"],
+      ["sifreSifirla", "success"],
     ];
 
     it.each(messagePaths)(
@@ -149,13 +195,17 @@ describe("messages/tr.json", () => {
       expect(messages).not.toBeNull();
     });
 
-    it("AC-9: Ana gruplar var: home, shell, session, errors, notFound, giris", () => {
+    it("AC-9: Ana gruplar var: home, shell, session, errors, notFound, giris, kayit, epostaDogrula, sifreUnuttum, sifreSifirla", () => {
       expect(messages).toHaveProperty("home");
       expect(messages).toHaveProperty("shell");
       expect(messages).toHaveProperty("session");
       expect(messages).toHaveProperty("errors");
       expect(messages).toHaveProperty("notFound");
       expect(messages).toHaveProperty("giris");
+      expect(messages).toHaveProperty("kayit");
+      expect(messages).toHaveProperty("epostaDogrula");
+      expect(messages).toHaveProperty("sifreUnuttum");
+      expect(messages).toHaveProperty("sifreSifirla");
     });
   });
 

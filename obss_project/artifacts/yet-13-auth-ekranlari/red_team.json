@@ -1,0 +1,83 @@
+{
+  "task": "yet-13-auth-ekranlari",
+  "reviewed_at": "2026-09-22T00:00:00Z",
+  "summary": "AC-S1/S2/S3/S4/S6 UI'da doğru uygulanmış (sabit mesajlar, dallanma yok, dangerouslySetInnerHTML yok, password autoComplete doğru, otomatik retry yok). Ancak AC-S5 (open redirect) fiilen ihlal ediliyor: giriş sonrası next parametresi sanitizeNext'ten hiç geçmeden router.push'a veriliyor. Ayrıca varsayılan giriş-sonrası hedef, atdd.md/plan.md'de netleştirilen `/` kararına rağmen var olmayan `/panel` rotasına sabitlenmiş (404 riski). Kayıt formunda başarı mesajı test-copilot turlarında kaldırılan gecikme nedeniyle gerçek kullanıcıya asla görünmüyor. Kod genel olarak okunaklı ve testler kapsamlı, ama iki kritik ve birkaç orta seviye bulgu commit öncesi düzeltilmeli.",
+  "findings": [
+    {
+      "severity": "critical",
+      "category": "security",
+      "file": "frontend/app/giris/form.tsx",
+      "issue": "Giriş başarılı olduğunda `router.push(nextPath || \"/panel\")` çağrılıyor; `nextPath` doğrudan `app/giris/page.tsx`'teki ham `searchParams.next` değeri (kullanıcı girdisi), hiçbir zaman `lib/auth/sanitize-next.ts`'teki `sanitizeNext()` fonksiyonundan geçmiyor. Bu oturumda `grep` ile doğrulandı: giris/form.tsx'te `sanitizeNext` import/çağrısı yok. AC-S5'in açıkça yasakladığı 'yeni sayfalar kendi serbest redirect hedefi üretmez' kuralını ihlal ediyor.",
+      "better_approach": "form.tsx içinde `nextPath`'i `router.push`'tan önce `sanitizeNext()`'ten geçirin.",
+      "reason": "atdd.md AC-S5: 'next param'ı yalnızca mevcut middleware/login akışında ve mevcut sanitizeNext ile kullanılmaya devam eder' — kod bu sözleşmeyi yerine getirmiyor."
+    },
+    {
+      "severity": "critical",
+      "category": "correctness",
+      "file": "frontend/app/giris/form.tsx",
+      "issue": "`next` param yokken varsayılan yönlendirme hedefi `\"/panel\"` olarak hardcode edilmiş (satır 45, bu oturumda grep ile doğrulandı). `frontend/app` altında `/panel` diye bir route YOK. plan.md §3 açıkça hedefin `/` olduğunu teyit etmişti; uygulama sessizce `/panel`'e kaymış.",
+      "better_approach": "Varsayılan hedefi `\"/\"` yapın (plan.md kararıyla uyumlu), ilgili test buna göre güncellenmeli.",
+      "reason": "Gerçek kullanıcı giriş yaptığında (next param olmadan) 404 sayfasına düşer — temel akışı kırıcı bir regresyon, ve CLAUDE.md'nin 'karara aykırı kanıt görürsen sessiz sapma, sor' kuralının ihlali."
+    },
+    {
+      "severity": "medium",
+      "category": "reliability",
+      "file": "frontend/app/kayit/form.tsx",
+      "issue": "Kayıt başarılı olunca `setSuccessMessage(...)` hemen ardından senkron `router.push(\"/giris\")` çalıştırılıyor. Gerçek tarayıcıda navigasyon mesaj state'i commit olmadan gerçekleşebilir; testte `useRouter` mock'landığı için bu görünmüyor.",
+      "better_approach": "Mesajı /giris'e query/route-state ile taşıyın (should-redirect.ts'teki `neden=oturum-bitti` deseniyle simetrik) ya da kısa bir gecikmeyle yönlendirin ve testi `vi.useFakeTimers()`/`waitFor` ile buna göre yazın.",
+      "reason": "AC-1 davranış sözleşmesi: kullanıcı 'e-postanı doğrula' mesajıyla yönlendirilir diyor — mesajın görülmesi zımni gereksinim, şu an görünmüyor."
+    },
+    {
+      "severity": "low",
+      "category": "maintainability",
+      "file": "frontend/app/kayit/form.tsx",
+      "issue": "`lib/auth/schemas.ts`'teki merkezi `registerSchema` varken `kayit/form.tsx` kendi ayrı, tekrar eden `registerFormSchema`'sını tanımlıyor.",
+      "better_approach": "`registerSchema.extend({ password_confirm: z.string() }).refine(...)` ile merkezi şemanın üstüne kurun.",
+      "reason": "DRY ihlali, gelecekte sessiz senkronizasyon hatası riski (şifre min-length değişirse iki yerde güncellenmesi gerekir)."
+    },
+    {
+      "severity": "low",
+      "category": "maintainability",
+      "file": "frontend/app/giris/form.tsx, frontend/app/kayit/form.tsx, frontend/app/sifre-unuttum/page.tsx, frontend/app/sifre-sifirla/page.tsx",
+      "issue": "Hata işleme deseni sayfalar arasında tutarsız: bazıları duck-typing, bazıları instanceof, bazıları ikisini art arda kullanıyor. `giris/form.tsx`'te `errObj.fieldErrors` kontrolü var ama `ApiError` sınıfı hiç `fieldErrors` üretmiyor (test-fixing turlarından kalan ölü kod).",
+      "better_approach": "Tüm sayfalarda tek bir desene (duck-typing, zaten çoğunlukla kullanılan) geçin; ölü `fieldErrors` dalını kaldırın.",
+      "reason": "Birden fazla düzeltme turundan kalan tutarsızlık — okunabilirlik ve bakım riski."
+    },
+    {
+      "severity": "low",
+      "category": "scope",
+      "file": "obss_project/artifacts/yet-13-auth-ekranlari/code_diff.md",
+      "issue": "code_diff.md, plan.md'de onaylanan `@radix-ui/react-label`/`class-variance-authority` paketlerinin eklendiğini iddia ediyor ama gerçek `package.json`'da yoklar; `components/ui/input.tsx`/`label.tsx` düz Tailwind ile yazılmış, planlanan `components/ui/form.tsx` hiç oluşturulmamış.",
+      "better_approach": "Sonucun kendisi (daha az bağımlılık) sorun değil — code_diff.md gerçek diff'e göre düzeltilmeli.",
+      "reason": "Denetim izninin doğruluğu; postmortem gelecekte bu rapora güvenip yanlış bilgiyle hareket edebilir."
+    }
+  ],
+  "strengths": [
+    "AC-S1/AC-S2: kayıt ve şifre-unuttum akışlarında numaralandırmayı önleyen hiçbir dallanma yok.",
+    "AC-S3: dangerouslySetInnerHTML projede hiç bulunmuyor; token sadece POST body'sinde gönderiliyor.",
+    "AC-S4: password input'ları doğru type/autoComplete kullanıyor; console.*'da password/token literal geçmiyor.",
+    "client.ts fonksiyonlarının body şekilleri backend sözleşmesiyle tutarlı.",
+    "password_confirm alanı backend'e hiç gönderilmiyor, sadece client-side kontrol.",
+    "should-redirect.ts'e eklenen 4 route /giris ile birebir aynı desende, fazladan yol açığa çıkarmıyor."
+  ],
+  "risks": [
+    "Open redirect (AC-S5 ihlali): giris/form.tsx sanitizeNext'i atlıyor — prod'a gitmeden düzeltilmeli.",
+    "Varsayılan giriş-sonrası yönlendirme /panel'e gidiyor ama böyle bir route yok.",
+    "Kayıt başarı mesajı gerçek kullanıcıya görünmüyor.",
+    "npm audit'teki pre-existing next/postcss high CVE bu görevin parçası değil ama ayrı ele alınmalı."
+  ],
+  "caveman_review": {"complexity": "medium", "unnecessary_files": 0, "unnecessary_helpers": 1, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve",
+  "post_fix_note": "2026-09-22: 6 bulgunun tamamı düzeltildi (open redirect: sanitizeNext() artık kullanılıyor; /panel kaldırıldı, varsayılan '/' oldu; kayıt başarı mesajı 800ms gecikmeyle görünür kılındı; kayit/form.tsx merkezi registerSchema'yı kullanıyor; hata işleme 5 sayfada duck-typing'e tutarlılaştırıldı; code_diff.md gerçek dışı paket iddiası düzeltildi). Bu oturumda orkestratör tarafından bizzat doğrulandı: `npx vitest run` 504/504 PASS, `npm run lint` 0 hata, `npm run typecheck` 0 hata, `npm run build` başarılı. verdict block'tan approve'a güncellendi. Ek olarak kullanıcı isteğiyle 4 adversarial entegrasyon testi eklendi (giris/page.test.tsx, AC-S5: //evil.com, https://evil.com, javascript:, backslash bypass — hepsi '/'e sanitize ediliyor, hiçbiri kötü niyetli değere yönlendirmiyor) — açık artık uçtan uca kanıtlanmış. Tam paket: 508/508 PASS."
+}
