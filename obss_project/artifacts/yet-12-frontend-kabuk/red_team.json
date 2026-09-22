@@ -1,0 +1,81 @@
+{
+  "task": "yet-12-frontend-kabuk",
+  "reviewed_at": "2026-09-22T00:00:00Z",
+  "summary": "Testler (370/370) ve doğrulama gate'leri (build/lint/typecheck) yeşil; bireysel modüller (client.ts, use-session.ts, middleware.ts vb.) atdd.md'nin AC'lerini karşılıyor ve iyi izole edilmiş testlere sahip. Ancak görevin merkezi teslimi olan AppShell/useSession hiçbir gerçek sayfada (layout.tsx dahil) kullanılmıyor — bu proje kapsamında (1.12'nin 'yalnız kabuk verir' sınırı) beklenebilir bir durum olsa da, sonraki adımlarda unutulmaması için yüksek görünürlükte işaretlenmeli. İki yerde tr.json kuralına aykırı gömülü Türkçe metin bulundu. İki gömülü-metin bulgusu (not-found.tsx, giris/page.tsx) kullanıcı onayıyla düzeltildi ve tekrar doğrulandı (370/370 test, lint/typecheck/build yeşil).",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "architecture",
+      "file": "frontend/app/layout.tsx",
+      "issue": "AppShell/useSession/useLogout hiçbir gerçek sayfada (app/layout.tsx, app/page.tsx, app/giris/page.tsx) kullanılmıyor — yalnız kendi test dosyasında (components/app-shell.test.tsx) çağrılıyor. Görevin User Story'si ('a consistent app shell with session handling and protected routes') şu an çalışan uygulamada gözlemlenemez; oturum/hata UI'ı hiçbir kullanıcı yolunda görünmez.",
+      "better_approach": "Ya (a) 1.13/1.14'ün ilk protected sayfasını beklerken bunu atdd.md'nin 'Kapsam Dışı'na açıkça 'AppShell'in gerçek sayfaya bağlanması 1.13/1.14'e bırakıldı' notuyla ekle (zaten örtük ama açık yazılmamış), ya da (b) en azından bir örnek/iskelet protected route group (`app/(protected)/layout.tsx`) ile AppShell'i tek bir yerde göster.",
+      "reason": "plan.md'nin Kapsam Dışı bölümü '1.12 yalnız kabuk verir' diyor ve şu an protected bir sayfa yok (home public, /giris public yer tutucu) — bu yüzden AppShell'i genel layout'a sarmak AC-S1'in kendi tasarımına (public sayfalarda gereksiz session kontrolü yapılmaz) aykırı olurdu. Yani bu 'kırık' değil, ama sessizce unutulursa 1.13/1.14 sıfırdan aynı kararı vermek zorunda kalır — verify'ın gate 7 (E2E) N/A olmasının asıl sebebi de bu (gösterecek gerçek bir akış yok)."
+    },
+    {
+      "severity": "medium",
+      "category": "correctness",
+      "file": "frontend/app/not-found.tsx",
+      "issue": "13. satırdaki \"Aradığınız sayfa bulunamadı.\" metni messages/tr.json'dan DEĞİL, doğrudan JSX'e gömülü. `.claude/rules/frontend.md`: 'UI metni Türkçe; koda gömülmez (sabit metin dosyasından).' kuralına aykırı.",
+      "better_approach": "messages/tr.json'a `notFound.description` gibi bir anahtar eklenip buradan okunmalı.",
+      "reason": "AC-9 ve proje geneli kural bu satırı test etmiyor (not-found.test.tsx yalnız `notFound.title/home/login` anahtarlarını kontrol ediyor) — test-gap ile birleşen bir correctness bulgusu.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "medium",
+      "category": "correctness",
+      "file": "frontend/app/giris/page.tsx",
+      "issue": "29. satırdaki \"Giriş formu 1.13 maddesinde eklenecektir.\" metni messages/tr.json'dan DEĞİL, doğrudan JSX'e gömülü. Aynı kural ihlali.",
+      "better_approach": "messages/tr.json'a `giris.formComingSoon` gibi bir anahtar eklenip buradan okunmalı.",
+      "reason": "giris/page.test.tsx bu satırı hiç doğrulamıyor (yalnız başlık ve 'oturum sona erdi' mesajını kontrol ediyor) — test-gap.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "low",
+      "category": "risk",
+      "file": "frontend/lib/auth/should-redirect.ts",
+      "issue": "`isPublicRoute`'un `hasExtension` kontrolü, son path segmentinde HERHANGİ bir nokta geçen her yolu 'public' sayıp middleware ipucu kontrolünü tamamen atlıyor (ör. `/profil/rapor.pdf` gibi ileride eklenecek bir dosya-indirme yolu).",
+      "better_approach": "Statik varlık algısını yalnız `middleware.ts`'in `config.matcher` regex'indeki sabit uzantı listesine bırak; `isPublicRoute` içinde ayrı ve daha geniş bir `hasExtension` mantığı tutma (iki yerde farklı kapsamlı uzantı algısı = tutarsızlık riski).",
+      "reason": "Şu an sömürülebilir değil (middleware yalnız ipucu, gerçek yetki sunucuda — atdd.md Risks bölümünde bilinçli kabul edilmiş), ama 1.14+ dosya indirme yolları eklediğinde bu boşluk üzerinden middleware ipucu sessizce atlanabilir; o zaman fark edilmesi zor olur."
+    },
+    {
+      "severity": "low",
+      "category": "reliability",
+      "file": "frontend/lib/session/use-session.ts",
+      "issue": "`hasHandledExpired` ref, `SessionExpiredError` işleyicisinin bir `AppShell`/`useSession` bileşen örneği ömrü boyunca yalnız BİR KEZ çalışmasını sağlıyor. Aynı mount edilmiş bileşen ikinci kez `SessionExpiredError` alırsa (ör. başka bir sekmede token iptali sonrası tekrar sorgu tetiklenirse) cache temizleme/yönlendirme bir daha ÇALIŞMAZ.",
+      "better_approach": "`hasHandledExpired.current = true` yerine `queryClient.clear()`+`router.replace(...)` sonrası ref'i sıfırlamak yerine, tam sayfa navigasyonu zaten component'i unmount edeceği için bu düşük risklidir; yine de bilinçli bir tasarım kararı olarak atdd.md'ye not düşülebilir.",
+      "reason": "Test paketinde bu ikinci-expiry senaryosu hiç test edilmemiş (test-gap); gerçek dünyada düşük olasılıklı ama sessiz bir davranış farkı."
+    }
+  ],
+  "strengths": [
+    "client.ts'teki single-flight refresh, zaman aşımı (Promise.race) ve hata sınıflandırması iyi izole edilmiş saf yardımcı fonksiyonlarla (readBody, fetchWithTimeout, handleResponse, performRefresh) yazılmış — her biri gerekçeli.",
+    "Threat-model'in ürettiği AC-S1–AC-S6 güvenlik kriterlerinin hepsi kodda karşılanmış ve testlerle doğrulanmış (sanitizeNext, X-CSRF-Token, single-flight refresh fırtınası önleme).",
+    "Davranış Sözleşmesi tablosunun 'kısmi başarı' (7a/7b) ve 'hiçbir şey yapılamadı ama hata yok' (8) satırları gerçekten test edilmiş, sessiz başarı yolu yok.",
+    "370/370 test + build/lint/typecheck CI'nın kullandığı komutlarla birebir yeşil."
+  ],
+  "risks": [
+    "npm audit: postcss'te 1 high şiddetli açık (next'in transitive bağımlılığı) — bu görevden önce de vardı, düzeltmesi kırıcı bir Next sürüm yükseltmesi ister (verify_report.md gate 10).",
+    "CI (.github/workflows/ci.yml) frontend işi `npm test` çalıştırmıyor — bu görevin 370 testi CI'da hiç koşmuyor, regresyon fark edilmeyebilir (verify_report.md Coverage/Quality Notes).",
+    "AppShell/useSession'ın gerçek route tree'ye bağlanmaması (bkz. findings #1) — 1.13/1.14 bunu unutup kendi oturum mantığını icat edebilir."
+  ],
+  "caveman_review": {
+    "complexity": "low",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve-with-changes"
+}

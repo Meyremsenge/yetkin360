@@ -3,5 +3,35 @@
     "title": "Yetkin360",
     "tagline": "beyan → kanıt → tanıklık → doğrulanmış deneyim",
     "cta": "Başla"
+  },
+  "shell": {
+    "loading": "Yükleniyor...",
+    "noOrganizations": "Henüz bir kuruluşunuz yok. Lütfen yöneticinize başvurun."
+  },
+  "session": {
+    "expired": "Oturumunuz sona erdi. Lütfen tekrar giriş yapınız.",
+    "loadFailed": "Bilgileriniz şu an yüklenemedi.",
+    "logout": "Çıkış",
+    "logoutFailed": "Çıkış tamamlanamadı, lütfen tekrar deneyin."
+  },
+  "errors": {
+    "generic": "Bir hata oluştu. Lütfen daha sonra tekrar deneyin.",
+    "network": "Ağ bağlantısı hatası. Lütfen bağlantınızı kontrol edin.",
+    "timeout": "İstek zaman aşımına uğradı. Lütfen tekrar deneyin.",
+    "retry": "Tekrar dene",
+    "supportCode": "Destek kodu",
+    "emailNotVerified": "E-posta adresiniz henüz doğrulanmadı. Lütfen e-posta adresinizi doğrulayın."
+  },
+  "notFound": {
+    "title": "Sayfa bulunamadı",
+    "description": "Aradığınız sayfa bulunamadı.",
+    "home": "Ana Sayfaya Dön",
+    "login": "Giriş Sayfasına Dön"
+  },
+  "giris": {
+    "title": "Giriş",
+    "placeholder": "E-posta adresiniz",
+    "login": "Giriş Yap",
+    "formComingSoon": "Giriş formu 1.13 maddesinde eklenecektir."
   }
 }

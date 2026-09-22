@@ -6,24 +6,29 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint app components",
-    "typecheck": "tsc --noEmit"
+    "lint": "eslint app components lib middleware.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@tanstack/react-query": "5.103.2",
     "next": "15.5.25",
     "react": "19.0.0",
     "react-dom": "19.0.0"
   },
   "devDependencies": {
-    "typescript": "5.7.2",
+    "@eslint/eslintrc": "3.2.0",
+    "@testing-library/react": "16.3.3",
     "@types/node": "22.10.5",
     "@types/react": "19.0.2",
     "@types/react-dom": "19.0.2",
+    "autoprefixer": "10.4.20",
     "eslint": "9.39.5",
     "eslint-config-next": "15.5.25",
-    "@eslint/eslintrc": "3.2.0",
-    "tailwindcss": "3.4.17",
+    "jsdom": "29.1.1",
     "postcss": "8.4.49",
-    "autoprefixer": "10.4.20"
+    "tailwindcss": "3.4.17",
+    "typescript": "5.7.2",
+    "vitest": "4.1.11"
   }
 }
