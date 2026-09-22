@@ -9,6 +9,7 @@ from app.models.identity import (
     TalentProfile,
     User,
 )
+from app.models.institution_link_request import InstitutionLinkRequest
 from app.models.outbox import Outbox
 from app.models.skill import Skill
 
@@ -17,6 +18,7 @@ __all__ = [
     "User",
     "Institution",
     "InstitutionMember",
+    "InstitutionLinkRequest",
     "TalentProfile",
     "Organization",
     "OrganizationMember",

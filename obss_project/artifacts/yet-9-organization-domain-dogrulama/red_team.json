@@ -1,0 +1,56 @@
+{
+  "task": "yet-9-organization-domain-dogrulama",
+  "reviewed_at": "2026-09-22T00:00:00Z",
+  "summary": "atdd.md'deki AC-1..AC-11 ve AC-S1..AC-S7'nin çoğu doğru karşılanıyor (404-değil-403, scoped_*() kullanımı, PII guard'lı outbox/audit, AC-9 ve AC-S5 kontrollerinin doğru yerde olması — orkestratör tarafından koda bakılarak bağımsız doğrulandı). Ancak gerçek production `get_session` (app/core/deps.py) her exception'da rollback yaptığı için, `verify_domain()`'in yalnızca `flush()` ettiği rate-limit/token alanları FREE_EMAIL_DOMAIN ve DOMAIN_ALREADY_VERIFIED hata yollarında kalıcı olmuyor — bu yollarda AC-11/AC-S4'ün DoS/amplifikasyon koruması fiilen devre dışı kalıyor. Test suite'i bunu yakalamıyor çünkü conftest.py'nin test `get_session` override'ı bu rollback davranışını taklit etmiyor.",
+  "findings": [
+    {
+      "severity": "high",
+      "category": "reliability",
+      "file": "backend/app/services/organization.py",
+      "issue": "[DÜZELTİLDİ] verify_domain() içinde `org.last_verify_attempt_at` sadece `session.flush()` ile yazılıyordu, `session.commit()` edilmiyordu. Gerçek production `get_session` (app/core/deps.py) her exception'da rollback yapıyor — `DomainAlreadyVerifiedError`→409 yolunda rate-limit bump'ı kalıcı olmuyordu.",
+      "better_approach": "Uygulandı: rate-limit bump'ından hemen sonra, DNS sorgusundan ve AC-9 conflict kontrolünden ÖNCE `session.commit()` eklendi (organization.py:260) — bu, sonraki bir hata (DomainAlreadyVerifiedError→409) rollback tetiklese bile rate-limit alanlarının kalıcı kalmasını sağlıyor.",
+      "reason": "Kullanıcı onayıyla bir Haiku alt-ajanı dispatch edilip düzeltildi, orkestratör tarafından kod (organization.py:260 — `session.commit()` satırı doğru konumda) ve testler (`pytest -q` → 212 passed, 6 skipped; `ruff check .`/`mypy app` temiz) bağımsız olarak yeniden doğrulandı."
+    },
+    {
+      "severity": "low",
+      "category": "test-gap",
+      "file": "backend/tests/test_organization.py",
+      "issue": "Bazı testler tam hata koduna değil gevşek substring kontrolüne dayanıyor: ör. `\"domain\" in str(data).lower() or \"verified\" in str(data).lower()`, `\"legal_id\" in str(data).lower() or \"taken\" in str(data).lower()`, `\"already\" in str(data).lower() or \"member\" in str(data).lower()`.",
+      "better_approach": "Davranış Sözleşmesi tablosundaki tam hata kodlarını (`LEGAL_ID_TAKEN`, `ALREADY_MEMBER`, `DOMAIN_ALREADY_VERIFIED`) `assert data[\"detail\"] == \"...\"` ile tam eşleşme olarak doğrulayın.",
+      "reason": "testing.md kuralı: 'test gerçek davranışı doğrular, assert'i gevşetme.' Gevşek substring kontrolü, implementasyon yanlış ama benzer kelime içeren bir mesaj döndürse bile testi yeşil bırakabilir."
+    }
+  ],
+  "strengths": [
+    "AC-9 kontrolü (organization.py:270-284) T2'ye yükseltmeden hemen önce, DNS-TXT-eşleşme bulunan try bloğunun içinde doğru sırada yapılıyor — code_diff.md'nin belgelediği düzeltme orkestratör tarafından Read ile bağımsız doğrulandı.",
+    "outbox.enqueue() payload'ında (organizations.py:257-266) email anahtarı yok, sadece user_id/organization_id/role kullanılmış — PII guard'a uygun.",
+    "AC-S1/AC-S6 tenant izolasyonu tüm uçlarda scoped_organizations()+get_scoped_or_404 ile yapılıyor, çıplak select(Organization)/select(OrganizationMember) kullanılmamış.",
+    "validate_hostname() (organizations.py) localhost/IPv4/port/path/IPv6-loopback reddi doğru uygulanmış ve hem create hem verify-domain uçlarında çağrılıyor (2. tur düzeltmesi doğrulandı).",
+    "AC-S3 tampering koruması DTO seviyesinde: OrganizationCreate şemasında verification_level/verified_at/verified_by_user_id alanı hiç yok, istemci bu alanları göndermeye çalışsa bile Pydantic zaten yok sayıyor."
+  ],
+  "risks": [
+    "Yukarıdaki high-severity bulgu: DOMAIN_ALREADY_VERIFIED/FREE_EMAIL_DOMAIN hata yollarında rate-limit kalıcı olmuyor (DNS amplifikasyon/DoS riski, dar kapsamlı).",
+    "Rate-limit için DB-tabanlı last_verify_attempt_at, atdd.md'de zaten 'kabul edilen risk' olarak işaretli bir race condition içeriyor (eşzamanlı iki istek) — bu red-team turunda ek doğrulama yapılmadı, mevcut kabul geçerli sayıldı.",
+    "app/services/authorization.py'deki scoped_organizations()'ın MEMBER/ADMIN filtre ayrımı bu turda ayrıca yeniden doğrulanmadı (önceki turlarda zaten Read edilip incelenmişti — code_diff.md'de kayıtlı)."
+  ],
+  "caveman_review": {
+    "complexity": "low",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve"
+}
