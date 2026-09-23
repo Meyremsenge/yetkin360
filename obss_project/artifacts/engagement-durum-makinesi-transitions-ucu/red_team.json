@@ -1,0 +1,72 @@
+{
+  "task": "engagement-durum-makinesi-transitions-ucu",
+  "reviewed_at": "2026-09-23T00:00:00Z",
+  "summary": "Uygulama ATDD'nin 14 AC + 4 AC-S kriterini karşılıyor, optimistic locking doğru (atomik UPDATE...WHERE) ve iki özel soruşturma konusu (version kontrol sırası, TOCTOU) gerçek bir güvenlik açığı değil. Ancak T2/T3/T6 yetki kontrolünde INST_ADMIN rolü için yanlış scope listesi kullanılması gerçek bir yetkilendirme genişlemesi/hatasıydı, ve reddedilme/iptal 'reason' alanı hiçbir yerde kalıcı olarak saklanmıyordu.",
+  "findings": [
+    {
+      "severity": "high",
+      "category": "security",
+      "file": "backend/app/services/engagement.py",
+      "issue": "T2/T3/T6 geçişlerinde INST_ADMIN rolü principal.institution_ids (genel ilişki listesi) ile kontrol ediliyordu; can()'daki admin_update deseni institution_admin_ids kullanıyor. atdd.md persona bölümü INST_ADMIN'i hiç T2/T3 aktörü olarak tanımlamıyordu.",
+      "better_approach": "INST_ADMIN'i T2/T3/T6'dan tamamen kaldır, sadece COORDINATOR/ORG_ADMIN bırak.",
+      "reason": "Mutasyon işlemleri için okuma-scope listesi kullanmak ilkeye aykırı geniş yetki verir."
+    },
+    {
+      "severity": "medium",
+      "category": "correctness",
+      "file": "backend/app/services/engagement.py",
+      "issue": "T3/T6'da zorunlu reason alanı hiçbir yerde kalıcı saklanmıyordu — engagement tablosunda kolon yok, audit/outbox'a bilinçli olarak konulmuyor.",
+      "better_approach": "engagements.reason kolonu eklenmeli.",
+      "reason": "CLAUDE.md 'kanıta dayalı' ilkesiyle çelişiyor — reddin/iptalin gerekçesi kayboluyordu."
+    },
+    {
+      "severity": "low",
+      "category": "test-gap",
+      "file": "backend/tests/test_engagement_transitions.py",
+      "issue": "INST_ADMIN rolüyle T2/T3/T6 testi yoktu.",
+      "better_approach": "N/A — INST_ADMIN artık yetkili değil, test gerekmiyor.",
+      "reason": "Kaldırılan bir yol için test gerekmiyor."
+    },
+    {
+      "severity": "low",
+      "category": "reliability",
+      "file": "backend/app/services/engagement.py",
+      "issue": "Erken version kontrolü ile UPDATE'teki WHERE arasında gerçek bir TOCTOU açığı yok — doğrulandı, sadece fast-path optimizasyonu.",
+      "better_approach": "Değişiklik gerekmiyor.",
+      "reason": "Gerçek atomik karar UPDATE'in WHERE'i tarafından veriliyor."
+    },
+    {
+      "severity": "low",
+      "category": "security",
+      "file": "backend/app/services/engagement.py",
+      "issue": "Version kontrolünün diğer kontrollerden önce yapılması teorik bir bilgi sızıntısı sorusu doğurdu ama gerçek sızıntı değil.",
+      "better_approach": "Değişiklik gerekmiyor.",
+      "reason": "AC-S4 zaten version tampering'in her koşulda 409'a düşmesini istiyor."
+    }
+  ],
+  "strengths": [
+    "Optimistic locking doğru desenle uygulanmış (ham UPDATE...WHERE + rowcount).",
+    "404 vs 403 ayrımı doğru uygulanmış (STATE_MACHINE.md §4.3'ün kasıtlı istisnası).",
+    "reason'ın audit_event/outbox payload'larına konulmaması (PII riski) doğru önlenmiş.",
+    "Her geçişte istisnasız AuditEvent + tek transaction.",
+    "5 domain exception sınıfının ayrı tutulması doğru bir karar."
+  ],
+  "risks": [
+    "INST_ADMIN scope hatası düzeltildi — artık risk yok.",
+    "reason kalıcılığı eklendi — artık risk yok."
+  ],
+  "caveman_review": {"complexity": "low", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve-with-changes",
+  "post_fix_note": "2026-09-23: High-severity bulgu (INST_ADMIN scope genişlemesi) ve medium-severity bulgu (reason kalıcılığı) düzeltildi. INST_ADMIN artık T2/T3/T6'dan tamamen kaldırıldı (sadece COORDINATOR/ORG_ADMIN yetkili, atdd.md persona tanımıyla eşleşiyor). reason için yeni migration + engagements.reason kolonu eklendi, T3/T6 başarılı olduğunda kalıcı yazılıyor, AC-15 olarak atdd.md'ye eklendi. Doğrulama: alembic upgrade/downgrade döngüsü, ruff (All checks passed!), mypy (no issues), pytest -q tam paket (381 passed, 4 skipped, öncekinden +2)."
+}

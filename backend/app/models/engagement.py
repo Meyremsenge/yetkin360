@@ -54,3 +54,4 @@ class Engagement(Base, TimestampMixin):
     ended_on: Mapped[date | None] = mapped_column(nullable=True)
     confidential: Mapped[bool] = mapped_column(nullable=False, server_default=false())
     version: Mapped[int] = mapped_column(nullable=False, server_default="1")
+    reason: Mapped[str | None] = mapped_column(nullable=True)

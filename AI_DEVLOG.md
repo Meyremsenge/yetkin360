@@ -5,6 +5,56 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## YET-2.2 — Durum makinesi: POST /engagements/{id}/transitions (2026-09-23)
+
+**Kaynak:** `obss_project/artifacts/engagement-durum-makinesi-transitions-ucu/`
+
+### Bilinçli kararlar (kaynak: atdd.md Assumptions, plan.md)
+- Kapsam T1/T2/T3/T6 ile sınırlandı (kullanıcı onayıyla) — T4 (koordinatörsüz
+  DRAFT→ACTIVE) STATE_MACHINE.md'nin kendi açık sorusu, MVP'de gerçeklenmiyor;
+  T5/T7/T8/T9/T10 Deliverable/Evaluation/VerifiedExperience/Attestation
+  henüz yok (PLAN 2.4, 2.7, 2.8, 2.9).
+- T1'in `institution_id` ön koşulu: transition isteğine `institution_id`
+  eklenmiyor (API.md şeması bunu içermiyor) — engagement zaten oluşturma
+  sırasında `institution_id` dolu olmalı, NULL ise T1 hiç yapılamaz (bir
+  kilitlenme değil, T4'ün kasıtlı olarak kapsam dışı bırakılmasının doğal
+  sonucu).
+- Optimistic locking için ORM `session.add()+flush()` deseni YERİNE ham
+  `UPDATE ... WHERE status=... AND version=...` + `rowcount` kontrolü
+  kullanıldı (plan.md'de kod keşfinde bulunan risk: ORM deseni race
+  condition'a karşı korumasız).
+
+### Kabul edilen riskler (kaynak: atdd.md Risks)
+- Rate limiting yok — diğer uçlarla tutarlı, MVP kapsamı.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, red_team.json)
+- test-copilot'un ilk teslimi var olmayan bir model (`InstitutionCoordinator`)
+  import etmişti — `ImportError` ile tüm test dosyasını kırıyordu. Gerçek
+  model `InstitutionMember(role="COORDINATOR")` ile değiştirildi.
+- code-copilot'un ilk teslimi 2 gerçek hata içeriyordu: response şemasında
+  `updated_at` alanı eksikti; `transition_table` dict'i (karışık tipli
+  değerler: list + callable) mypy'de "object not iterable/callable" hatası
+  veriyordu — `TransitionSpec` TypedDict ile düzeltildi.
+- Test dosyasında 6 fixture hatası bulundu: 5 test fonksiyonu üyelik satırı
+  olmayan `User`-only fixture'ları (`user_inst_coord_diana`/
+  `user_org_admin_evan`) istiyordu, gerçek üyelik satırını oluşturan
+  (`inst_coord_diana`/`org_admin_evan`) fixture'ları HİÇ istemiyordu — bu
+  yüzden principal.kind "COORDINATOR"/"ORG_ADMIN" yerine "USER" oluyor,
+  testler 404 alıyordu. 1 testte de yanlış kullanıcı-engagement eşleşmesi
+  vardı. Düzeltildi.
+- `red-team`, **kritik bir yetkilendirme genişlemesi** buldu: T2/T3/T6
+  kodunda `principal.kind in ("COORDINATOR", "INST_ADMIN")` kontrolü vardı
+  — atdd.md'nin persona tanımı INST_ADMIN'i hiç T2/T3 aktörü olarak
+  saymıyordu, üstelik yanlış scope listesiyle kontrol ediliyordu
+  (`institution_ids` — genel ilişki listesi — yerine `institution_admin_ids`
+  olmalıydı, `can()`'daki admin_update deseniyle tutarsızdı). INST_ADMIN
+  T2/T3/T6'dan tamamen kaldırıldı.
+- `red-team`, T3/T6'nın zorunlu `reason` alanının hiçbir yerde kalıcı
+  saklanmadığını buldu (ne engagement satırında bir kolon vardı, ne
+  audit/outbox'a bilinçli olarak konuluyordu) — kullanıcı onayıyla yeni bir
+  migration (`engagements.reason`) eklenip T3/T6 başarılı olduğunda kalıcı
+  yazılması sağlandı (AC-15 olarak atdd.md'ye eklendi).
+
 ## YET-2.1 — Engagement modeli + migration + oluşturma ucu (2026-09-23)
 
 **Kaynak:** `obss_project/artifacts/engagement-model-olusturma-ucu/`
