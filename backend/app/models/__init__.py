@@ -3,6 +3,7 @@ from app.models.auth import RefreshToken
 from app.models.base import Base
 from app.models.email_tokens import EmailVerificationToken, PasswordResetToken
 from app.models.engagement import Engagement
+from app.models.evaluation import Evaluation, EvaluationItem
 from app.models.evidence import Evidence
 from app.models.identity import (
     Institution,
@@ -32,6 +33,8 @@ __all__ = [
     "Engagement",
     "EngagementTask",
     "Deliverable",
+    "Evaluation",
+    "EvaluationItem",
     "AuditEvent",
     "RefreshToken",
     "EmailVerificationToken",

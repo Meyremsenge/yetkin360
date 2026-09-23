@@ -23,6 +23,19 @@ from app.services.engagement import (
     create_engagement_task,
     create_deliverable,
 )
+from app.services.evaluation import (
+    EngagementNotFoundError as EvalEngagementNotFoundError,
+    IllegalTransitionError as EvalIllegalTransitionError,
+    TransitionForbiddenError as EvalTransitionForbiddenError,
+    DuplicateEvaluationError,
+    InvalidSkillError,
+    create_evaluation,
+)
+from app.schemas.evaluation import (
+    EvaluationCreate,
+    EvaluationResponse,
+    EvaluationItemResponse,
+)
 
 router = APIRouter(prefix="/engagements", tags=["engagements"])
 
@@ -528,4 +541,142 @@ def post_engagement_deliverables(
         submitted_at=deliverable.submitted_at,
         created_at=deliverable.created_at,
         updated_at=deliverable.updated_at,
+    )
+
+
+# ============================================================================
+# PLAN 2.7: POST /engagements/{id}/evaluation (Evaluation Form Submission)
+# ============================================================================
+
+
+@router.post("/{engagement_id}/evaluation", response_model=EvaluationResponse, status_code=201)
+def post_engagement_evaluation(
+    engagement_id: str,
+    payload: EvaluationCreate,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> EvaluationResponse:
+    """
+    PLAN 2.7 (YET-69, YET-86, YET-87): Submit a structured evaluation form on an engagement.
+
+    Implements AC-1 through AC-9, AC-S1 through AC-S3.
+
+    Returns:
+        201 + evaluation object (private_note NEVER included in response).
+
+    Errors:
+        - 404 NOT_FOUND: Engagement not found or not accessible
+        - 403 FORBIDDEN: Principal authorized but not allowed to evaluate (direction/role mismatch, AC-S3)
+        - 409 CONFLICT: Engagement not in PENDING_EVALUATION, or duplicate evaluation (UNIQUE violation)
+        - 422 UNPROCESSABLE_ENTITY: Invalid items[], criterion missing/empty, invalid skill_id, etc.
+        - 401: Unauthenticated
+
+    Security:
+        - AC-S1: private_note NEVER appears in response JSON
+        - AC-S2: evaluator_user_id always from principal (never from request body)
+        - AC-S3: direction must match principal's role (TALENT→TALENT_TO_ORG only, ORG_MEMBER→ORG_TO_TALENT only)
+        - AC-5: Scope check (out-of-scope → 404, in-scope but wrong role → 403)
+    """
+    if principal.user_id is None:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "code": "UNAUTHORIZED",
+                "message": "Kimlik doğrulama gerekli.",
+                "request_id": None,
+            },
+        )
+
+    try:
+        # Build items list from request (convert skill_id UUID to string for service layer)
+        items = []
+        for item in payload.items:
+            items.append({
+                "criterion": item.criterion,
+                "skill_id": str(item.skill_id) if item.skill_id else None,
+                "rating": item.rating,
+                "comment": item.comment,
+            })
+
+        evaluation = create_evaluation(
+            session=session,
+            principal=principal,
+            engagement_id=engagement_id,
+            direction=payload.direction,
+            items=items,
+            private_note=payload.private_note,
+        )
+    except EvalEngagementNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "NOT_FOUND",
+                "message": "Engagement bulunamadı.",
+                "request_id": None,
+            },
+        )
+    except EvalIllegalTransitionError:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "CONFLICT",
+                "message": "Engagement bu durumda değerlendirilemiyor.",
+                "request_id": None,
+            },
+        )
+    except EvalTransitionForbiddenError:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "FORBIDDEN",
+                "message": "Bu yönde değerlendirme yapma yetkiniz yok.",
+                "request_id": None,
+            },
+        )
+    except DuplicateEvaluationError:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "CONFLICT",
+                "message": "Bu yönde zaten değerlendirme gönderilmiş.",
+                "request_id": None,
+            },
+        )
+    except InvalidSkillError:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "INVALID_REQUEST",
+                "message": "Geçersiz skill_id.",
+                "request_id": None,
+            },
+        )
+
+    # Commit transaction
+    session.commit()
+
+    # Build response (query evaluation items from DB to ensure fresh data)
+    # Refresh to get related items
+    session.refresh(evaluation)
+
+    # Load evaluation_items relationship
+    evaluation_items_response = []
+    for item in evaluation.evaluation_items:
+        evaluation_items_response.append(
+            EvaluationItemResponse(
+                id=str(item.id),
+                criterion=item.criterion,
+                skill_id=str(item.skill_id) if item.skill_id else None,
+                rating=item.rating,
+                comment=item.comment,
+            )
+        )
+
+    return EvaluationResponse(
+        id=str(evaluation.id),
+        engagement_id=str(evaluation.engagement_id),
+        direction=evaluation.direction,
+        items=evaluation_items_response,
+        submitted_at=evaluation.submitted_at,
+        # CRITICAL: private_note is NOT included in response
     )
