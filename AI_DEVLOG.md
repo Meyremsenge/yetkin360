@@ -226,6 +226,57 @@ zamanında buraya **aktarır** — yeniden yorumlamaz.
   bulundu — rate-limit bump'ından hemen sonra, DNS sorgusundan önce erken bir
   `session.commit()` eklenerek düzeltildi.
 
+## YET-82/YET-83 — Evidence upload-url (2026-09-23)
+
+**Kaynak:** `obss_project/artifacts/yet-82-83-evidence-upload-url/`
+
+### Mimari sapma (kaynak: atdd.md)
+- Kullanıcının orijinal isteğinde "magic-byte doğrulaması upload-url ucunda
+  senkron" deniyordu; final analiz §18 ile çelişiyordu (gerçek mimari:
+  imzalı URL üretimi senkron/hafif, gerçek magic-byte/virüs taraması ayrı bir
+  worker + outbox akışında asenkron). Final analize uyacak şekilde kapsam
+  daraltıldı — bu görev sadece content-type header allowlist + boyut
+  deklarasyon kontrolü + presigned URL üretimi yapıyor; gerçek byte-level
+  MIME doğrulaması ayrı bir PLAN maddesine (2.6+) bırakıldı.
+
+### Kabul edilen riskler (kaynak: atdd.md)
+- Rate limit için Redis yasak — in-memory `dict` tabanlı sliding-window
+  sayaç (dakikada 10 istek/kullanıcı) kullanıldı; process restart'ta
+  sıfırlanır, çoklu worker'da paylaşılmaz (tek-VPS/MVP varsayımıyla kabul
+  edilebilir).
+- MinIO bucket policy (talent-prefix bazlı erişim kısıtlaması) uygulanmadı —
+  app-seviyesi kontrol (object_key'in doğru talent_id ile üretilmesi) mevcut,
+  depolama-seviyesi savunma derinliği ayrı bir altyapı görevi.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: verify_report.md, red_team.json)
+- `verify` adımında gerçek `pytest` çalıştırıldığında implementasyon değil
+  test fixture eksikliği bulundu: 35 test `talent_a` fixture'ını (asıl
+  `TalentProfile` DB kaydını yazan fixture) hiç kullanmıyordu, bu yüzden
+  endpoint'in doğru "talent profili yok → 403" kontrolüne takılıp yanlışlıkla
+  "implementasyon bozuk" görünümü veriyordu — implementasyon sağlamdı, test
+  fixture'ları düzeltildi.
+- Aynı turda klasik bir `unittest.mock.patch` hedef hatası bulundu:
+  `patch("app.services.storage.generate_presigned_url")` fonksiyonun
+  TANIMLANDIĞI yeri patch'liyordu, ama `app/api/evidence.py` onu
+  `from...import` ile kendi namespace'ine almıştı — doğru hedef
+  `app.api.evidence.generate_presigned_url` olmalıydı, mock hiç devreye
+  girmiyordu (`Called 0 times`).
+- `red-team` incelemesinde kritik bir güvenlik bulgusu çıktı: boto3'ün
+  `generate_presigned_url("put_object", Params={..., "ContentLength": ...})`
+  çağrısı `ContentLength`'i **sessizce yok sayıyor** (canlı test ile
+  doğrulandı — S3 presigned URL imza mekanizması sadece query-string
+  parametrelerini imzalar, `Content-Length` bir HTTP header'ıdır ve bu API
+  ile signed-headers'a hiç eklenmez). AC-S2'nin "boyut tamperinge karşı
+  korumalı" iddiası yanlıştı — 10MB sınırı sadece deklarasyon seviyesindeydi,
+  gerçek MinIO PUT'unda bypass edilebilirdi. Düzeltme: `generate_presigned_url`
+  yerine `generate_presigned_post` kullanıldı (`Conditions=[["content-length-range",
+  size_bytes, size_bytes]]` ile boyut GERÇEKTEN S3/MinIO tarafında zorlanıyor).
+  Bu, API sözleşmesini değiştirdi (düz `upload_url` string yerine
+  `{upload_url, upload_fields}` — form-based POST, PUT değil).
+- Aynı incelemede `principal.is_suspended` durumunun endpoint'te hiç
+  kontrol edilmediği bulundu — projenin kendi güvenlik matrisi ("Askıya
+  alınmış kullanıcı yazma → 403") ihlal ediliyordu. Kontrol eklendi.
+
 ## YET-7 — User + Talent profili: GET /me, PATCH /talents/me (2026-09-22)
 
 **Kaynak:** `obss_project/artifacts/yet-7-user-talent-profili/`

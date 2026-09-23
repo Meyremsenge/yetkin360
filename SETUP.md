@@ -43,3 +43,20 @@ bağımlılık/migration/kurulum adımlarını **birebir aktarır**.
   cd backend
   alembic upgrade head
   ```
+
+## YET-82/YET-83 — Evidence upload-url
+
+**Kaynak:** `obss_project/artifacts/yet-82-83-evidence-upload-url/plan.md`
+
+- Yeni bağımlılık: `boto3==1.35.0` (`backend/requirements.txt`) — MinIO ile
+  S3-uyumlu presigned URL/POST üretimi için.
+- Yeni env değişkenleri (`.env`'e eklenmeli, `.env.example`'da placeholder
+  zaten mevcut): `S3_ENDPOINT_URL`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`,
+  `S3_BUCKET` (opsiyonel, default `yetkin360-evidence`), `S3_REGION`
+  (opsiyonel, default `us-east-1`), `S3_USE_SSL` (opsiyonel, default
+  `false`). Yerel geliştirmede `docker-compose.yml`'deki MinIO servisiyle
+  eşleşmeli (`S3_ENDPOINT_URL=http://localhost:9010`).
+- Migration yok — bu görev evidence DB kaydı yapmıyor (PLAN 2.6'ya bırakıldı).
+- Yeni endpoint: `POST /evidence/upload-url` — kimlik doğrulanmış talent
+  kullanıcılar için MinIO presigned POST üretir (content-type allowlist:
+  pdf/jpeg/png/docx, boyut sınırı 10MB, rate limit 10 istek/dakika).

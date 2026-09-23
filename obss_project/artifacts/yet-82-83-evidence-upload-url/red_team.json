@@ -1,0 +1,76 @@
+{
+  "task": "yet-82-83-evidence-upload-url",
+  "reviewed_at": "2026-09-23",
+  "summary": "İlk incelemede iki 'high' bulgu tespit edildi ve ikisi de düzeltildi: (1) askıya alınmış kullanıcı kontrolü eklendi, (2) presigned URL üretimi generate_presigned_post'a geçirilerek boyut kısıtı artık gerçekten S3/MinIO tarafında zorlanıyor (content-length-range koşuluyla). Düzeltmeler bağımsız olarak doğrulandı: ruff/mypy temiz, tam proje test paketi 358/358 PASS.",
+  "findings": [
+    {
+      "severity": "high",
+      "category": "security",
+      "file": "backend/app/services/storage.py",
+      "issue": "generate_presigned_url, boto3'ün generate_presigned_url('put_object', Params={..., 'ContentLength': size_bytes}) çağrısını yapıyor ve docstring/AC-S2 bunun 'Content-Length koşulunu imzaya dahil ederek tampering'i önlediğini' iddia ediyor. Gerçek boto3 davranışı DOĞRULANDI (canlı test edildi, backend/.venv üzerinden): generate_presigned_url, ContentLength parametresini SESSİZCE YOK SAYAR — üretilen URL'de sadece content-type query parametresi imzaya dahil oluyor, ContentLength hiçbir yerde görünmüyor (boto3/S3 presigned URL mekanizması sadece query-string parametrelerini imzalar; Content-Length bir HTTP header'ıdır ve bu API ile signed-headers listesine eklenmez).",
+      "better_approach": "Boyut sınırını gerçekten zorlamak için ya (a) presigned POST policy kullan (s3_client.generate_presigned_post ile Conditions=[['content-length-range', 0, max_bytes]] — bu gerçekten S3/MinIO tarafında zorlanır) ya da (b) mevcut tasarımı koru ama atdd.md/docstring'deki 'Content-Length tampering koruması var' iddiasını kaldır ve bunu açık bir kabul edilen risk olarak Risks bölümüne yaz.",
+      "reason": "atdd.md AC-S2 açıkça 'presigned URL'nin Content-Type VE Content-Length'e bağlı olması' gerektiğini söylüyor (threat-model'in Tampering savunması). Şu anki implementasyon bu gereksinimin yarısını (content-type) karşılıyor, diğer yarısını (boyut) karşılamıyor ama karşılıyormuş gibi kod yorumlarında ve response şemasında iddia ediliyor — bu, gerçekte var olmayan bir güvenlik kontrolüne güvenilmesine yol açar (10MB'lık deklare edilmiş bir dosya için üretilen presigned URL ile istemci teorik olarak çok daha büyük bir dosya PUT edebilir).",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "high",
+      "category": "security",
+      "file": "backend/app/api/evidence.py",
+      "issue": "Endpoint, principal.is_suspended durumunu hiç kontrol etmiyor. Principal dataclass'ı zaten bu bilgiyi taşıyor (app/api/deps.py:65: is_suspended=user.status == 'SUSPENDED') ama upload_url fonksiyonu bunu okumuyor.",
+      "better_approach": "principal.talent_id is None kontrolünden hemen önce/sonra bir principal.is_suspended kontrolü ekle: if principal.is_suspended: raise ApiError(403, ...).",
+      "reason": "Final analiz §21.2 (authorization test matrisi) ve backend/.claude/rules/testing.md açıkça şunu istiyor: 'Askıya alınmış kullanıcı yazma → 403'. Bu endpoint state-changing bir POST'tur (rate-limit sayacını artırır, gerçek bir presigned URL üretip döner) — bu nedenle bir 'yazma' işlemidir. Askıya alınmış bir kullanıcının hâlâ geçerli bir upload URL alabilmesi, projenin kendi yazılı güvenlik kuralının doğrudan ihlalidir ve authorization test matrisinde test edilmesi beklenen bir satırdır (bkz. final analiz §21.2 tablosu: 'Askıya alınmış kullanıcı | Herhangi bir yazma | Write | 403').",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "low",
+      "category": "test-gap",
+      "file": "backend/tests/authorization/test_evidence_upload_url.py",
+      "issue": "talent_id=None (talent profili olmayan bir kullanıcı, örn. sadece ORG_MEMBER/COORDINATOR) tarafından yapılan istek için 403 TALENT_PROFILE_REQUIRED döndüğünü doğrudan doğrulayan hiçbir test yok. Bu davranış code-copilot'un implementasyon turunda persona-kısıtı ihlali bulunduğunda sonradan eklendi ama atdd.md'ye bir AC olarak hiç yansıtılmadı.",
+      "better_approach": "atdd.md'ye AC-9 olarak ekle: 'Given talent profili olmayan kimlik doğrulanmış bir kullanıcı (örn. ORG_MEMBER), When POST /evidence/upload-url çağrılır, Then 403 TALENT_PROFILE_REQUIRED döner.' Sonra test-copilot'a bu senaryo için bir test ekletilmeli.",
+      "reason": "verify_report.md bu boşluğu zaten not düşmüştü; red-team incelemesi bunu doğruladı — mevcut 91+ testin hiçbiri org_member/institution gibi talent-olmayan bir aktörle bu endpoint'i denemiyor, bu yüzden 403 yolu sadece dolaylı olarak (code-copilot'un önceki debug oturumunda elle) doğrulanmış, otomatik test paketinde yok.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "low",
+      "category": "maintainability",
+      "file": "backend/app/services/storage.py",
+      "issue": "build_object_key(talent_id, filename, content_type) fonksiyonu filename parametresini alıyor ama gövdede hiç kullanmıyor — uzantı content_type'tan (CONTENT_TYPE_TO_EXT eşlemesi) türetiliyor, filename'den değil. Bu kafa karıştırıcı: fonksiyonun imzası filename'in object_key'i etkilediğini ima ediyor ama etkilemiyor.",
+      "better_approach": "Ya filename parametresini fonksiyondan tamamen kaldır (çağıran yerde de kaldırılır — app/api/evidence.py:111), ya da docstring'e 'filename şu anda kullanılmıyor, gelecekte orijinal dosya adını object metadata'sında saklamak için ayrılmış' gibi bir not düş (eğer bilinçli bir tasarım kararıysa).",
+      "reason": "CAVEMAN ilkesi: kullanılmayan parametre kafa karışıklığı yaratır ve 'bu neden burada?' sorusuna yol açar. Olumlu tarafı: bu tasarım aslında path-traversal riskini önlüyor (kullanıcı girdisi olan filename hiç object_key'e karışmıyor) — bu kasıtlıysa dokümante edilmeli, kasıtsızsa temizlenmeli.",
+      "outcome": "fixed",
+      "outcome_note": "Parametrenin kendisi kaldırılamadı — backend/tests/test_storage.py'de 4 ayrı test fonksiyonu build_object_key'i 3 parametreyle (talent_id, filename, content_type) çağırıyor, kaldırmak testleri kırardı. Bunun yerine docstring düzeltildi: filename'in neden kullanılmadığı (path-traversal önleme, API simetrisi) ve yanlış olan eski açıklama ('used only for extension mapping') giderildi."
+    }
+  ],
+  "strengths": [
+    "AC-S1 (elevation) sağlam: object_key'in talent_id kısmı sadece principal.talent_id'den (DB sorgusuyla belirlenen, istemci tarafından etkilenemeyen) geliyor — request body'de hiçbir talent_id alanı yok, testlerle doğrulandı.",
+    "filename kullanıcı girdisi object_key üretiminde hiç kullanılmıyor — path traversal riski yapısal olarak yok (filename sadece Pydantic seviyesinde 1-255 karakter doğrulanıyor, storage.py'de hiç işlenmiyor).",
+    "AC-S4 (info disclosure) doğru uygulanmış: MinIO'nun EndpointConnectionError/ConnectTimeoutError istisnaları yakalanıp sabit, genel bir Türkçe mesajla 503'e çevriliyor, ham exception/bucket/endpoint bilgisi sızmıyor.",
+    "content-type kısıtı gerçekten çalışıyor (canlı doğrulandı): presigned URL'nin imzası content-type parametresine bağlı, istemci farklı bir content-type ile PUT etmeye çalışırsa MinIO reddeder.",
+    "358/358 test PASS, ruff/mypy temiz — kod kalitesi gate'leri gerçekten (uydurulmadan) doğrulanmış."
+  ],
+  "risks": [
+    "In-memory rate-limit sayacı (dict tabanlı) process restart'ta sıfırlanır ve birden fazla uvicorn worker process'i olursa paylaşılmaz — atdd.md'de zaten kabul edilen bir MVP riski olarak işaretli, yeni bir bulgu değil ama commit öncesi bir kez daha teyit edilmesi iyi olur (tek-VPS/tek-worker varsayımının deployment'ta gerçekten geçerli olacağı doğrulanmalı).",
+    "MinIO bucket policy (talent-prefix bazlı erişim kısıtlaması) uygulanmadı — atdd.md'de zaten 'Unknowns' olarak işaretli, app-seviyesi kontrol (doğru object_key üretimi) mevcut ama depolama-seviyesi savunma derinliği eksik."
+  ],
+  "caveman_review": {
+    "complexity": "low",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve"
+}
