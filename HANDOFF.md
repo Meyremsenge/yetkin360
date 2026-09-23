@@ -1,5 +1,37 @@
 # HANDOFF — PLAN 2.7 (YET-69): Değerlendirme formu şeması
 
+## Yeni oturuma başlarken ilk 3 adım
+1. **Bu dosyayı ve şunu oku (başka bir şeye başlamadan önce):**
+   `obss_project/artifacts/yet-69-degerlendirme-formu-semasi/verify_report.md`
+   (en güncel durum burada — hangi gate PASS/FAIL/ÇALIŞTIRILMADI, tek tek yazılı).
+2. **Branch'i çek:** `git fetch origin && git checkout feature/plan-2.7-degerlendirme-formu-semasi`
+   (zaten push edildi, commit `9e0cda8`).
+3. **Ortamı ayağa kaldır (kendi makinende bu migration henüz uygulanmamış olacak):**
+   ```bash
+   docker compose up -d          # Postgres + MinIO
+   cd backend
+   python -m alembic upgrade head   # BU BRANCH'İN migration'larını (j1k2l3m4n5o6 + a337f634c1d1) senin DB'ne uygular
+   python -m alembic heads          # tek head olmalı: a337f634c1d1 — birden fazla çıkarsa DURMA, "Ne İşe Yaramadı #1"i oku
+   ```
+
+## Bu görevde kullanılan skill'ler (proje pipeline'ı: `pipeline` skill'inde tanımlı)
+Sıra: `atdd → plan → test-copilot → code-copilot → verify → red-team → commit`.
+Bu oturumda şu ana kadar çalıştırılanlar (hepsi tamamlandı, tekrar çalıştırma):
+1. `atdd` — atdd.md yazıldı, kullanıcı onayladı ("devam" dedi).
+2. `plan` — plan.md yazıldı, 2 açık soru Sonnet 5 alt-ajanına çözdürüldü.
+3. `test-copilot` — Haiku alt-ajanı `test_evaluation.py` + `test_evaluation_authorization.py`'yi yazdı (red step).
+4. `code-copilot` — Haiku alt-ajanı implementasyonu yazdı (green step): models/evaluation.py, schemas/evaluation.py, services/evaluation.py, engagements.py'ye endpoint, migration.
+5. `verify` — **YARIM KALDI, token kısıtı nedeniyle kesildi.** Migration upgrade/downgrade doğrulandı (PASS), ama lint/type-check/tam test paketi/security-scan hiç çalıştırılmadı, unit testler kısmen çalıştırılıp bir fixture hatası bulundu.
+
+**Senin çalıştırman gereken sıradaki skill'ler (bu sırayla):**
+1. Önce elle düzeltme (aşağıdaki "Sıradaki Adımlar" #1-3) — bu bir skill değil, doğrudan `Read`/`Edit`.
+2. `verify` skill'ini **yeniden** çağır (`Skill: verify`, args: `obss_project/artifacts/yet-69-degerlendirme-formu-semasi/atdd.md obss_project/artifacts/yet-69-degerlendirme-formu-semasi/code_diff.md`) — bu sefer TÜM gate'leri (lint, mypy, tam pytest, security-scan) gerçekten çalıştır, N/A/FAIL durumlarını doğru işaretle.
+3. Verify tamamen yeşilse `red-team` skill'ini çağır — atdd.md + code_diff.md + (verify'ın üreteceği) test_report.md okuyup red_team.json üretecek. Bu adım hiç çalışmadı, atlama.
+4. Kullanıcıdan nihai onay al.
+5. `commit` skill'ini çağır (kullanıcı açıkça "commit at" demeden kendi başına commit ATMA — bu görevde önceki commit `9e0cda8` zaten WIP olarak atıldı, bu sefer normal akışta kullanıcı onayı bekle).
+
+**Not:** `code-copilot`/`test-copilot` gibi "authoring" skill'lerini BİR DAHA çağırma — implementasyon ve testler zaten yazıldı ve doğrulandı (code_diff.md/test_diff.md'ye bak). Sadece küçük bir fixture düzeltmesi gerekiyor (bkz. "Sıradaki Adımlar" #1-2), bu da doğrudan `Edit` ile yapılır, yeni bir Haiku alt-ajanı dispatch etmeye gerek yok (tek dosya, tek fixture, küçük düzeltme).
+
 ## Hedef
 PLAN 2.7 / YET-69: `evaluations` + `evaluation_items` şeması (yetkinlik + davranış kriterleri,
 `NOT_OBSERVED` durumu) + `POST /engagements/{id}/evaluation` ucu. Tam ATDD zinciri
