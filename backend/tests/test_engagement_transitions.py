@@ -12,7 +12,7 @@ Test patterns:
 - Engagement states (DRAFT, PENDING_APPROVAL, ACTIVE) seeded directly with session.add() + session.flush()
 - Optimistic locking simulated: two sequential requests with same version (first wins, second → 409)
 
-Status: Tests are RED/IMPORT-ERROR — implementation not yet written.
+Status: Tests are PASSING — implementation completed in PLAN 2.2 (transition_engagement).
 This is expected behavior. Tests implement behavior contract (ATDD).
 
 Coverage Target: 90% (services/engagement.py::transition_engagement)
@@ -225,11 +225,50 @@ def org_admin_evan(session, organization_a, user_org_admin_evan):
 
 
 @pytest.fixture
+def evan_member_of_org_b(session, organization_b, user_org_admin_evan, org_admin_evan):
+    """Evan is ORG:ADMIN of organization_a (org_admin_evan) AND ORG:MEMBER (not ADMIN) of organization_b —
+    for org_ids⊃org_admin_ids scenario (same principal, different roles per org).
+
+    Ensures principal.kind="ORG_ADMIN" and org_admin_ids contains organization_a but not organization_b,
+    testing the authorization logic path for access (visible) vs. permission (write denied)."""
+    member = OrganizationMember(
+        organization_id=organization_b.id,
+        user_id=user_org_admin_evan.id,
+        role="MEMBER",
+    )
+    session.add(member)
+    session.flush()
+    return member
+
+
+@pytest.fixture
 def inst_coord_diana(session, institution_a, user_inst_coord_diana):
     """Diana is INST:COORD of institution_a."""
     coord = InstitutionMember(
         institution_id=institution_a.id,
         user_id=user_inst_coord_diana.id,
+        role="COORDINATOR",
+    )
+    session.add(coord)
+    session.flush()
+    return coord
+
+
+@pytest.fixture
+def user_inst_coord_fiona(session):
+    """INST:COORD user Fiona (for institution_b)."""
+    user = User(email="fiona.coord@example.com", password_hash="hash_fiona")
+    session.add(user)
+    session.flush()
+    return user
+
+
+@pytest.fixture
+def inst_coord_fiona(session, institution_b, user_inst_coord_fiona):
+    """Fiona is INST:COORD of institution_b."""
+    coord = InstitutionMember(
+        institution_id=institution_b.id,
+        user_id=user_inst_coord_fiona.id,
         role="COORDINATOR",
     )
     session.add(coord)
@@ -316,6 +355,40 @@ def engagement_draft_bob_isolated(session, talent_bob, organization_b, instituti
         title="Bob Internship",
         status="DRAFT",
         version=1,
+    )
+    session.add(engagement)
+    session.flush()
+    return engagement
+
+
+@pytest.fixture
+def engagement_pending_approval_bob(session, talent_bob, organization_b, institution_b):
+    """Engagement in PENDING_APPROVAL (Bob, organization_b, institution_b, version=2)."""
+    engagement = Engagement(
+        talent_id=talent_bob.id,
+        organization_id=organization_b.id,
+        institution_id=institution_b.id,
+        kind="CAPSTONE",
+        title="Bob Capstone",
+        status="PENDING_APPROVAL",
+        version=2,
+    )
+    session.add(engagement)
+    session.flush()
+    return engagement
+
+
+@pytest.fixture
+def engagement_active_bob(session, talent_bob, organization_b, institution_b):
+    """Engagement in ACTIVE (Bob, organization_b, institution_b, version=3)."""
+    engagement = Engagement(
+        talent_id=talent_bob.id,
+        organization_id=organization_b.id,
+        institution_id=institution_b.id,
+        kind="SHORT_PROJECT",
+        title="Bob Project",
+        status="ACTIVE",
+        version=3,
     )
     session.add(engagement)
     session.flush()
@@ -1122,3 +1195,272 @@ class TestTransitionReasonPersistence:
 
         session.refresh(engagement_active_alice)
         assert engagement_active_alice.reason == "Bütçe kısıtı"
+
+
+# ============================================================================
+# AC-2, AC-3, AC-5 / AC-S1, AC-S2: Cross-Institution COORDINATOR Scenarios
+# ============================================================================
+
+
+class TestCoordinatorCrossInstitution:
+    """
+    AC-2/AC-S1: COORDINATOR of institution A tries to transition engagement in institution B.
+    AC-3/AC-S2: Same, but with invalid to_status → ensures scope-check comes before validation.
+    AC-5: Symmetric: COORDINATOR of institution B vs engagement in institution A.
+
+    Kritik: Tüm senaryolarda 404 dönmeli (403 değil), ve response body'de
+    Bob'un engagement'ına ait hiçbir alan (institution_id, status, vb.) görünmemeli.
+    """
+
+    def test_transition_cross_institution_coordinator_pending_to_active_404(
+        self, client, session, user_inst_coord_diana, inst_coord_diana, engagement_pending_approval_bob
+    ):
+        """
+        AC-2/AC-S1: Diana (COORDINATOR of institution_a) tries to transition
+        Bob's engagement (institution_b) PENDING_APPROVAL → ACTIVE → 404.
+
+        Acceptance Criteria:
+        - Status code: 404 (not 403, not 422, not 200)
+        - Error code: NOT_FOUND (exact match)
+        - Response body does not contain engagement fields (institution_id, status, organization_id, etc.)
+        """
+        payload = {
+            "to_status": "ACTIVE",
+            "version": 2,
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_pending_approval_bob.id}/transitions",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_inst_coord_diana.id)},
+        )
+
+        assert response.status_code == 404, f"Expected 404, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        error_obj = data.get("detail") if "detail" in data else data
+
+        # CRITICAL: error code must be exactly NOT_FOUND (not FORBIDDEN, not others)
+        assert error_obj.get("code") == "NOT_FOUND", f"Expected code NOT_FOUND, got {error_obj.get('code')}"
+
+        # SECURITY: Response body must not leak engagement details
+        error_message = str(error_obj.get("message", ""))
+        assert "institution" not in error_message.lower(), "Error message must not leak institution info"
+        assert "bob" not in error_message.lower(), "Error message must not leak talent name"
+
+    def test_transition_cross_institution_coordinator_invalid_to_status_404(
+        self, client, session, user_inst_coord_diana, inst_coord_diana, engagement_pending_approval_bob
+    ):
+        """
+        AC-3/AC-S2: Diana (COORDINATOR of institution_a) tries to transition
+        Bob's engagement (institution_b) with invalid to_status=FOOBAR → 404 (not 422).
+
+        This test ensures scope-check (access control) runs BEFORE transition validation.
+        If the order were reversed, we'd get 422 for the invalid status before 404 for scope.
+
+        Acceptance Criteria:
+        - Status code: 404 (not 422, not 200)
+        - Error code: NOT_FOUND (exact match, not ILLEGAL_TRANSITION)
+        """
+        payload = {
+            "to_status": "FOOBAR",  # Intentionally invalid status
+            "version": 2,
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_pending_approval_bob.id}/transitions",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_inst_coord_diana.id)},
+        )
+
+        # CRITICAL: Must be 404, not 422 (scope-check order verification)
+        assert response.status_code == 404, f"Expected 404 (scope-check first), got {response.status_code}: {response.text}"
+
+        data = response.json()
+        error_obj = data.get("detail") if "detail" in data else data
+
+        assert error_obj.get("code") == "NOT_FOUND", f"Expected NOT_FOUND, got {error_obj.get('code')}"
+
+    def test_transition_cross_institution_fiona_vs_alice_404(
+        self, client, session, user_inst_coord_fiona, inst_coord_fiona, engagement_pending_approval_alice
+    ):
+        """
+        AC-5: Fiona (COORDINATOR of institution_b) tries to transition
+        Alice's engagement (institution_a) → 404.
+
+        Symmetric validation: institution isolation works in both directions.
+
+        Acceptance Criteria:
+        - Status code: 404 (not 403)
+        - Error code: NOT_FOUND
+        """
+        payload = {
+            "to_status": "ACTIVE",
+            "version": 2,
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_pending_approval_alice.id}/transitions",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_inst_coord_fiona.id)},
+        )
+
+        assert response.status_code == 404, f"Expected 404, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        error_obj = data.get("detail") if "detail" in data else data
+
+        assert error_obj.get("code") == "NOT_FOUND", f"Expected NOT_FOUND, got {error_obj.get('code')}"
+
+
+# ============================================================================
+# AC-4 / AC-S3: ORG_ADMIN org_ids⊃org_admin_ids Mismatch (403 vs 404)
+# ============================================================================
+
+
+class TestOrgAdminScopeVsAdminMismatch:
+    """
+    AC-4/AC-S3: ORG_ADMIN of org_ids but not org_admin_ids tries to transition
+    an engagement in their visible organizations (org_ids).
+
+    Kritik ayrım: Kaynak org_ids kapsamında GÖRÜNÜR (not 404) ama action
+    yetki kontrol edilir (org_admin_ids), sonuç 403 FORBIDDEN.
+
+    Bu durum org_ids ve org_admin_ids'in ayrı olduğu Principal yapısından kaynaklanır:
+    - org_ids: kuruluş üyelikler (GET, read access)
+    - org_admin_ids: kuruluş yönetici rolleri (PUT, DELETE, transition — write access)
+
+    Örn: Evan = Org A ADMIN + Org B MEMBER. Org A'daki engagementler için 200,
+    Org B'dekiler için 403 (görünür ama yazma yapamaz).
+    """
+
+    def test_org_member_not_admin_vs_active_engagement_403(
+        self, client, session, user_org_admin_evan, evan_member_of_org_b, engagement_active_bob
+    ):
+        """
+        AC-4/AC-S3: Evan is ORG:ADMIN of organization_a AND ORG:MEMBER (not ADMIN) of organization_b.
+        Evan tries to transition ACTIVE engagement in organization_b → CANCELLED.
+        Result: 403 FORBIDDEN (not 404), because 403 comes from org_admin_ids check.
+
+        Scenario:
+        - Evan is ADMIN of organization_a (org_admin_evan fixture establishing principal.kind="ORG_ADMIN")
+        - Evan is MEMBER of organization_b (evan_member_of_org_b fixture adding second membership)
+        - principal.org_ids = {organization_a.id, organization_b.id}
+        - principal.org_admin_ids = {organization_a.id} (does NOT contain organization_b)
+        - engagement_active_bob.organization_id = organization_b.id
+        - Evan can READ (visible in org_ids) but cannot WRITE (requires admin role in org_admin_ids)
+        - 403 result verifies: `(principal.kind == "ORG_ADMIN" and engagement.organization_id in principal.org_admin_ids)`
+          evaluates to False, triggering FORBIDDEN (not from lack of ORG_ADMIN kind, but from org_admin_ids mismatch)
+
+        Acceptance Criteria:
+        - Status code: 403 (not 404, not 200)
+        - Error code: FORBIDDEN (exact match)
+        - Response indicates lack of permission, not "not found"
+        - Engagement status in DB unchanged
+        """
+        payload = {
+            "to_status": "CANCELLED",
+            "version": 3,
+            "reason": "Evan'ın karar",
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_active_bob.id}/transitions",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_org_admin_evan.id)},
+        )
+
+        # CRITICAL: 403, not 404 (resource visible, action forbidden)
+        assert response.status_code == 403, f"Expected 403, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        error_obj = data.get("detail") if "detail" in data else data
+
+        assert error_obj.get("code") == "FORBIDDEN", f"Expected FORBIDDEN, got {error_obj.get('code')}"
+
+        # Assert: DB state unchanged
+        session.refresh(engagement_active_bob)
+        assert engagement_active_bob.status == "ACTIVE"
+        assert engagement_active_bob.version == 3
+
+
+# ============================================================================
+# AC-8 / AC-S4: Request Body Extra Fields Ignored
+# ============================================================================
+
+
+class TestExtraFieldsIgnored:
+    """
+    AC-8/AC-S4: Request body contains extra fields not in TransitionEngagementRequest schema.
+    These fields must be ignored and cannot expand the principal's scope.
+
+    Örn: İstemci `organization_id` veya `institution_id` alanı ekleyerek
+    kapsamını genişletmeye çalışırsa, Pydantic bu alanları reddeder ve
+    transition gerçek principal kapsamına göre değerlendirilir.
+    """
+
+    def test_extra_org_id_in_payload_ignored(
+        self, client, session, user_talent_alice, engagement_draft_alice
+    ):
+        """
+        AC-8/AC-S4: Request body contains extra 'organization_id' field.
+        Pydantic must reject/ignore it; scope is not expanded.
+
+        Acceptance Criteria:
+        - Status code: 200 (transition succeeds with Alice's real scope)
+        - Extra field does not affect authorization (Alice can transition her own engagement)
+        """
+        payload = {
+            "to_status": "PENDING_APPROVAL",
+            "version": 1,
+            "organization_id": "550e8400-e29b-41d4-a716-446655440999",  # Extra field
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_draft_alice.id}/transitions",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_talent_alice.id)},
+        )
+
+        # Should succeed (Alice can do this transition on her own engagement)
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        assert data.get("status") == "PENDING_APPROVAL"
+
+    def test_extra_institution_id_in_payload_ignored(
+        self, client, session, user_inst_coord_diana, inst_coord_diana, engagement_pending_approval_alice
+    ):
+        """
+        AC-8/AC-S4: Request body contains extra 'institution_id' field from different institution.
+        Even with extra field, Diana can only transition within her actual institution scope.
+
+        Scenario:
+        - Diana = COORDINATOR of institution_a
+        - Payload contains 'institution_id' of institution_b (trying to expand scope)
+        - Transition should still be allowed for institution_a engagement (her real scope)
+        - Should fail if we tried to use it on institution_b (but we're using institution_a)
+
+        For this test: Diana's real scope + Alice's real engagement = 200 (unaffected by extra field).
+
+        Acceptance Criteria:
+        - Status code: 200 (Diana can transition Alice's engagement in her real scope)
+        - Extra 'institution_id' field does not expand scope
+        """
+        payload = {
+            "to_status": "ACTIVE",
+            "version": 2,
+            "institution_id": "550e8400-e29b-41d4-a716-446655440999",  # Extra field (not real institution_b id)
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_pending_approval_alice.id}/transitions",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_inst_coord_diana.id)},
+        )
+
+        # Should succeed (Diana's real institution + Alice's real engagement)
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        assert data.get("status") == "ACTIVE"

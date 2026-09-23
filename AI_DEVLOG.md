@@ -347,3 +347,40 @@ yakalanmamıştı). Bu görev o boşluğu kapattı.
   orkestratör tarafından **yanlış** bulundu — `plan.md`'de gerçek kullanıcı
   yetkisiyle zaten onaylanmıştı, kapatıldı (subagent'ların bazen kendi
   bağlamlarında eksik bilgiyle yanlış bulgu üretebileceğine dair bir örnek).
+
+## YET-65 — [PLAN 2.3] Koordinatör onayı geçişi + yetkilendirme testleri (2026-09-23)
+
+**Kaynak:** `obss_project/artifacts/koordinator-onay-gecisi-yetkilendirme-testleri/`
+
+### Bağlam (kaynak: atdd.md)
+İmplementasyon (`transition_engagement`, `scoped_engagements`) PLAN 2.2'de
+zaten doğru yazılmıştı — bu görev klasik red→green değil, docs/AUTHORIZATION.md
+§5.1 A5 ve §5.5 E1-E6'nın COORDINATOR/ORG_ADMIN çapraz-kurum/çapraz-org
+senaryolarını HTTP-uç seviyesinde kapatan bir test-tamamlama göreviydi
+(`tests/authorization/test_matrix.py`'deki YET-7 pending placeholder'ları).
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorun (kaynak: code_diff.md, red_team.json)
+- **`red-team` incelemesi ilk turda medium-severity bir test-gap buldu:**
+  `TestOrgAdminScopeVsAdminMismatch` testindeki `evan_member_of_org_b`
+  fixture'ı `org_admin_evan` (organization_a'daki ADMIN üyeliği) fixture'ını
+  zincire dahil etmiyordu — sonuçta Evan'ın principal.kind'ı `ORG_MEMBER`
+  çıkıyordu (`ORG_ADMIN` değil), test 403 sonucunu doğru ama **yanlış kod
+  yolundan** (basit "üye zaten yetkisiz" reddi) kanıtlıyordu; asıl hedeflenen
+  `org_ids⊃org_admin_ids` (aynı principal bir kurumda admin, başka kurumda
+  sade üye) senaryosu hiç tetiklenmiyordu. Fixture zincirine `org_admin_evan`
+  bağımlılığı eklenerek düzeltildi, kod okumasıyla (principal.kind artık
+  gerçekten `ORG_ADMIN`) teyit edildi, testler tekrar yeşil geçti.
+  **Ders:** "kaynak görünür ama eylem yasak → 403" testleri yazarken,
+  principal'ın GERÇEKTEN doğru `kind`'a düştüğünü (sadece sonuç kodunu değil,
+  hangi yetki dalının tetiklendiğini) fixture seviyesinde doğrulamak gerekir
+  — aksi halde test yanlış nedenle yeşil kalıp gerçek bir regresyonu (ör.
+  `org_admin_ids` yerine yanlışlıkla `org_ids` kullanılması) yakalamaz.
+
+### Kabul edilen riskler (kaynak: atdd.md Risks)
+- MCP_DOCKER (Saga sunucusu) bu görev boyunca bağlı kalmadı — `saga_task_id`
+  `null` bırakıldı, Saga senkronizasyonu bağlantı düzeldiğinde manuel yapılmalı.
+- `POST /engagements/{id}/transitions` ucuna özel rate limit yok — düşük
+  hacimli iç-kullanıcı ucu olduğu için kabul edilen risk, ayrı görev gerektirir.
+- `AC-S6` (authz-test skill ile tam parametrik IDOR matrisi, YET-77'nin
+  istediği) bu pipeline turunda tetiklenmedi — `verify_report.md`'de PENDING
+  olarak not edildi, ayrı bir adımda ele alınabilir.

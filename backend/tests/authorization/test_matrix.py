@@ -464,7 +464,7 @@ class TestFutureResourcesPlaceholders:
         """
         AC-4: docs/AUTHORIZATION.md §5.1 A5 (org member read Org A engagement).
 
-        Status: YET-7 (Engagement model + can()/scoped_*() implementation pending).
+        Status: YET-65 ile HTTP-uç seviyesinde tamamlandı, bkz. tests/test_engagement_transitions.py
 
         Acceptance Criteria:
         - ORG:MEMBER of Organization A can read engagements belonging to Organization A
@@ -580,7 +580,7 @@ class TestFutureResourcesPlaceholders:
         """
         AC-4: docs/AUTHORIZATION.md §5.5 E1-E6 (coordinator institution-scoped access).
 
-        Status: YET-7 (Engagement + coordinator scope implementation pending).
+        Status: YET-65 ile HTTP-uç seviyesinde tamamlandı, bkz. tests/test_engagement_transitions.py
 
         Acceptance Criteria:
         - COORDINATOR access filtered by institution_id
