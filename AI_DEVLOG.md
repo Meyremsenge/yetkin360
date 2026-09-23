@@ -5,6 +5,49 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## YET-2.1 — Engagement modeli + migration + oluşturma ucu (2026-09-23)
+
+**Kaynak:** `obss_project/artifacts/engagement-model-olusturma-ucu/`
+
+### Bilinçli kararlar (kaynak: atdd.md Assumptions)
+- `docs/AUTHORIZATION.md`'de açık kalan "POST /engagements — engagement'ı kim
+  başlatabilir?" sorusu, kullanıcı onayıyla `STATE_MACHINE.md`/`API.md` lehine
+  çözüldü: hem `ORG:MEMBER` hem `TALENT` oluşturabilir.
+- `Engagement.kind` enum'u için `docs/DOMAIN.md` (4 değer: INTERNSHIP,
+  CAPSTONE, SHORT_PROJECT, PART_TIME) esas alındı; `docs/DATABASE.md`'nin
+  eski 3-değerli CHECK kısıtı (kullanıcı onayıyla) buna göre düzeltildi.
+
+### Kabul edilen riskler (kaynak: atdd.md/plan.md Risks)
+- `POST /engagements` için MVP'de rate limiting yok — 1.6'daki
+  `/auth/forgot-password` kararıyla tutarlı, Faz 5.2/5.6'ya bırakıldı.
+- `scoped_engagements()` bu görevle ilk kez yazıldı — `docs/AUTHORIZATION.md`
+  §2'de tanımı vardı ama kod tarafında hiç yoktu.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, red_team.json)
+- code-copilot'un ilk teslimi 3 gerçek hata içeriyordu: (1) `kind` alanı düz
+  `str` idi, geçersiz değer Pydantic'i geçip yakalanmamış `IntegrityError`
+  olarak sızıyordu (500, AC-2 kırığı) — `Literal[...]` ile düzeltildi;
+  (2) asla çalışmayan bir `elif` dalı (ölü kod); (3) **kritik güvenlik
+  açığı** — `principal.kind` TALENT/ORG_MEMBER/ORG_ADMIN dışındaysa (ör.
+  "USER", "COORDINATOR") hiçbir sahiplik kontrolü uygulanmıyordu, herhangi
+  bir authenticated kullanıcı herhangi bir organizasyon adına engagement
+  açabiliyordu (default-allow, default-deny yerine). Fonksiyon başına
+  default-deny kontrolü eklenerek kapatıldı.
+- test-copilot'un yazdığı fixture'larda da 2 hata bulundu: `Organization`/
+  `Institution` fixture'ları var olmayan model alanları (`slug`,
+  `visibility`, `logo_url`, `website`) kullanıyordu; `user_org_member_charlie`
+  fixture'ında gerçek bir `OrganizationMember` satırı eksikti, bu yüzden
+  AC-S2 testi (Charlie'nin yetkisiz org'a erişememesi) yanlış senaryoyu test
+  ediyordu — Charlie hiçbir org'a üye olmadığı için "USER" kind'ine düşüp
+  yukarıdaki güvenlik açığını hiç fark etmiyordu.
+- `red-team`, `scoped_engagements()`'in COORDINATOR/INST_ADMIN dalının hiç
+  pozitif test edilmediğini (boş sonuç da testi geçiyordu) buldu — testlere
+  gerçek seed veri + pozitif assertion eklenerek kapatıldı. Ayrıca UUID parse
+  hatasının her zaman "Talent bulunamadı" mesajına düşmesi (organization_id/
+  institution_id formatı bozuksa da) ve engagement.py'de gereksiz bir manuel
+  `session.rollback()` (get_session zaten yapıyor, çift-rollback riski)
+  bulundu — ikisi de düzeltildi.
+
 ## YET-14 — Frontend: talent profil + yetkinlik beyanı ekranı (2026-09-22)
 
 **Kaynak:** `obss_project/artifacts/yet-14-talent-profil-yetkinlik/`

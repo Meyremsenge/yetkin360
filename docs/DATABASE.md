@@ -159,7 +159,7 @@ engagements
   organization_id uuid NOT NULL REFERENCES organizations(id)
   institution_id uuid REFERENCES institutions(id)
   supervisor_user_id uuid REFERENCES users(id)   -- kurumdaki sorumlu
-  kind text NOT NULL CHECK (kind IN ('INTERNSHIP','PROJECT','PART_TIME'))
+  kind text NOT NULL CHECK (kind IN ('INTERNSHIP','CAPSTONE','SHORT_PROJECT','PART_TIME'))
   title text NOT NULL
   status text NOT NULL DEFAULT 'DRAFT'
       CHECK (status IN ('DRAFT','PENDING_APPROVAL','REJECTED','ACTIVE',

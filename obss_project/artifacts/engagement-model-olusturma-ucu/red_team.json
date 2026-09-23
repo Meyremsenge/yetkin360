@@ -1,0 +1,47 @@
+{
+  "task": "engagement-model-olusturma-ucu",
+  "reviewed_at": "2026-09-23T00:00:00Z",
+  "summary": "Engagement create ucu genel olarak sağlam: 404-not-403 kuralı, default-deny, PII/confidential sızıntı önlemi ve tek-transaction audit kaydı doğru uygulanmış. İki gerçek bulgu var: pozitif tenant-isolation testlerinin eksikliği gerçek bir boşluk (özellikle COORDINATOR/institution_ids alanı hiç egzersiz edilmemiş) ve UUID parse ValueError'ının organization_id/institution_id formatı için de yanıltıcı 'Talent bulunamadı' mesajı üretmesi küçük ama gerçek bir correctness/UX kusuru.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "test-gap",
+      "file": "backend/tests/authorization/test_matrix.py",
+      "issue": "test_engagement_access_org_member_read_own_org ve test_coordinator_scope_filtering hiçbir engagement seed etmeden çalışıyor; for-loop assertion boş listede de geçer. scoped_engagements()'in COORDINATOR/INST_ADMIN dalı (institution_ids ile filtreleme) hiçbir zaman fiilen egzersiz edilmiyor.",
+      "better_approach": "İki teste en az 1 org_a'ya ve 1 org_b'ye (coordinator testinde institution_a/institution_b) ait engagement satırı seed edip, dönen kümenin non-empty olduğunu ve doğru kiracıya ait en az bir kayıt içerdiğini assert edin.",
+      "reason": "atdd.md AC-S1/AC-S2 ve test_diff.md'de bizzat 'red-team'e taşınan not' olarak işaretlenmiş; scoped_engagements() ilk kez yazılan bir fonksiyon (plan.md Risks) ve CI yeşil olsa da tenant-isolation'ın pozitif yönü kanıtlanmamış."
+    },
+    {
+      "severity": "low",
+      "category": "correctness",
+      "file": "backend/app/services/engagement.py",
+      "issue": "talent_uuid/org_uuid/inst_uuid tek bir try/except ValueError bloğunda parse ediliyor, hangisi bozuksa fark etmeksizin TalentNotFoundError('Invalid talent_id or organization_id format') fırlatılıyor — geçersiz formatlı organization_id/institution_id gönderen istemciye de 'Talent bulunamadı' dönüyor.",
+      "better_approach": "Her alanı ayrı parse edip hangi alan hatalıysa ona uygun exception fırlatın, ya da format hataları için ayrı bir 422 InvalidRequestError tanımlayın.",
+      "reason": "Yanıltıcı hata mesajı debug sürecinde yanlış yöne sevk eder; atdd.md'nin Davranış Sözleşmesi tablosunda format hatası ayrı bir satır olarak yok — spesifikasyon boşluğu yanlış anlamla dolduruşmuş."
+    },
+    {
+      "severity": "low",
+      "category": "reliability",
+      "file": "backend/app/services/engagement.py",
+      "issue": "IntegrityError yakalanınca elle session.rollback() çağrılıp ardından yeniden raise ediliyor — get_session zaten exception-üzerinde-rollback yapıyor, elle rollback + yeniden raise kombinasyonu şu an zararsız ama gelecekte audit_event flush'ı bu bloğun altına taşınırsa çift-rollback riski taşır.",
+      "better_approach": "Servis katmanında elle session.rollback() çağırmayın, sadece exception'ı yeniden fırlatıp rollback sorumluluğunu get_session'a bırakın.",
+      "reason": "atdd.md 'Rollback Beklentisi' bölümü tam olarak bu deseni (ara flush + manuel rollback + farklı koşulda raise) kaçınılması gereken desen olarak tanımlıyor."
+    }
+  ],
+  "strengths": [
+    "kind alanı Literal[...] ile CHECK kümesiyle birebir eşleştirilmiş, title min_length=1 — AC-2 doğru kapatılmış.",
+    "default-deny kontrolü (TALENT/ORG_MEMBER/ORG_ADMIN dışı roller 404) fonksiyonun en başında — code_diff.md'deki kritik default-allow açığı gerçekten kapatılmış.",
+    "institution mismatch hatası 'kurum yok' ve 'kurum eşleşmiyor' durumlarında aynı jenerik mesajı döndürüyor — AC-S3 doğru uygulanmış.",
+    "audit_event metadata'sına title/description hiç konulmamış — AC-S4 doğru uygulanmış.",
+    "CHECK kısıtları DB seviyesinde tanımlanmış, CLAUDE.md 'kısıtlar veritabanında olur' kuralına uyulmuş."
+  ],
+  "risks": [
+    "scoped_engagements()'in COORDINATOR/INST_ADMIN dalı hiçbir testte pozitif egzersiz edilmemiş — ileride bir coordinator dashboard ucu buna güvenip yanlış/boş sonuç alabilir.",
+    "UUID format hatası her zaman TalentNotFoundError'a düşüyor, davranış belgelenmemiş."
+  ],
+  "caveman_review": {"complexity": "low", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {"atdd_satisfied": true, "tests_passed": true, "no_critical_findings": true, "scope_respected": true, "caveman_satisfied": true, "security_acceptable": true, "maintainability_acceptable": true, "no_blocking_risks": true},
+  "verdict": "approve-with-changes",
+  "post_fix_note": "2026-09-23: Üç bulgu da düzeltildi — (1) test_matrix.py'ye pozitif tenant-isolation assertion'ları eklendi (org_a/org_b ve institution_a/institution_b seed edilerek), (2) UUID parse hatası artık alan bazlı doğru exception'a (TalentNotFoundError/OrganizationNotFoundError/InstitutionMismatchError) düşüyor, (3) engagement.py'deki gereksiz manuel session.rollback() kaldırıldı. Doğrulama: ruff check (All checks passed!), pytest -q tam paket (362 passed, 4 skipped)."
+}

@@ -60,15 +60,15 @@ Hedef: kimlik + kiracılık + yetkilendirme çekirdeği ayakta, profil ve skill 
       > (b) outbox worker `process_batch` batch'i tek `FOR UPDATE` ile baştan
       > kilitliyor, SMTP süresince sıradaki satırların kilidi de tutuluyor.
       > Faz 5.2/5.6 kapsamına alınabilir.
-- [ ] 1.7 User + Talent profili: `GET /me`, `PATCH /talents/me` @be1
-- [ ] 1.8 Institution + koordinatör rolü + öğrenci bağı @be1
-- [ ] 1.9 Organization + üyelik + domain doğrulama (T2) @be1
-- [ ] 1.10 Skill taksonomisi (~150 skill) seed + arama ucu @be1
-- [ ] 1.11 Talent yetkinlik beyanı: skill ekle/listele/çıkar @be1
-- [ ] 1.12 Frontend kabuk: layout, oturum yönetimi, korumalı rota, hata sınırı @fe
-- [ ] 1.13 Frontend: kayıt, giriş, e-posta doğrulama, şifre sıfırlama ekranları @fe
-- [ ] 1.14 Frontend: talent profil + yetkinlik beyanı ekranı @fe
-- [ ] 1.15 Faz 1 kapanış: `pytest tests/authorization` tamamı yeşil @all
+- [x] 1.7 User + Talent profili: `GET /me`, `PATCH /talents/me` @be1
+- [x] 1.8 Institution + koordinatör rolü + öğrenci bağı @be1
+- [x] 1.9 Organization + üyelik + domain doğrulama (T2) @be1
+- [x] 1.10 Skill taksonomisi (~150 skill) seed + arama ucu @be1
+- [x] 1.11 Talent yetkinlik beyanı: skill ekle/listele/çıkar @be1
+- [x] 1.12 Frontend kabuk: layout, oturum yönetimi, korumalı rota, hata sınırı @fe
+- [x] 1.13 Frontend: kayıt, giriş, e-posta doğrulama, şifre sıfırlama ekranları @fe
+- [x] 1.14 Frontend: talent profil + yetkinlik beyanı ekranı @fe
+- [x] 1.15 Faz 1 kapanış: `pytest tests/authorization` tamamı yeşil @all
 
 ---
 
