@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_session
 from app.core.config import settings
 from app.core.deps import get_current_user as core_get_current_user
-from app.models import User
+from app.models import TalentProfile, User
 from app.main import app
 
 
@@ -77,3 +77,52 @@ def client(request, session):
 
     # Cleanup
     app.dependency_overrides.clear()
+
+
+# ============================================================================
+# Talent profile fixtures (shared with authorization tests)
+# ============================================================================
+
+
+@pytest.fixture
+def user_talent_a(session):
+    """User who owns talent profile A."""
+    user = User(email="talent-a@example.com", password_hash="hash_talent_a")
+    session.add(user)
+    session.flush()
+    return user
+
+
+@pytest.fixture
+def user_talent_b(session):
+    """User who owns talent profile B."""
+    user = User(email="talent-b@example.com", password_hash="hash_talent_b")
+    session.add(user)
+    session.flush()
+    return user
+
+
+@pytest.fixture
+def talent_a(session, user_talent_a):
+    """Talent profile A (belongs to user_talent_a)."""
+    profile = TalentProfile(
+        user_id=user_talent_a.id,
+        full_name="Test Talent A",
+        visibility="PRIVATE"
+    )
+    session.add(profile)
+    session.flush()
+    return profile
+
+
+@pytest.fixture
+def talent_b(session, user_talent_b):
+    """Talent profile B (belongs to user_talent_b)."""
+    profile = TalentProfile(
+        user_id=user_talent_b.id,
+        full_name="Test Talent B",
+        visibility="PRIVATE"
+    )
+    session.add(profile)
+    session.flush()
+    return profile
