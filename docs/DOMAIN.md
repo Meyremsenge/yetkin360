@@ -257,7 +257,7 @@ Durumlar, geçişler ve her geçişin ön koşulu → [STATE_MACHINE.md](STATE_M
 EngagementTask
   id, engagement_id
   title, description (nullable)
-  status (TODO | IN_PROGRESS | DONE)
+  status (PLANNED | IN_PROGRESS | DONE)
   due_at (nullable), completed_at (nullable)
   created_at, updated_at
   -- skill bağı: task_skills (n──n)

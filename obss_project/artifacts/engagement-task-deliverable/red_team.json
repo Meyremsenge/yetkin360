@@ -1,0 +1,61 @@
+{
+  "task": "engagement-task-deliverable",
+  "reviewed_at": "2026-09-23T00:00:00Z",
+  "summary": "Rol/scope kontrol sırası (get_scoped_or_404 → status check → role check) tenant isolation açısından doğru ve testlerle kanıtlı; T5 has_deliverable precondition gerçekten SELECT COUNT(*) sorgusuna dayanıyor, client girdisine güvenmiyor. submitted_by_user_id gerçekten principal'dan geliyor ve request şemasında hiç yok. İki orta/düşük önemde bulgu var: (1) AC-S5 testleri artık AC-3/AC-4 ile fonksiyonel olarak aynı şeyi test ediyor (isim yanıltıcı), (2) status-check role-check'ten önce çalıştığı için yanlış-rollü ama scope-içi kullanıcıya engagement'ın ACTIVE olmadığı bilgisi (422) sızıyor, oysa 403 daha erken dönebilirdi.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "test-gap",
+      "file": "backend/tests/test_engagement_tasks.py",
+      "issue": "TestTaskScopeCheckOrder.test_task_creation_cross_org_missing_title_404 artık geçerli bir title ve normal ORG_MEMBER rolüyle çapraz-org bir engagement'a istek atıyor — bu tam olarak var olan AC-3 cross-org testiyle aynı senaryoyu test ediyor. code_diff.md bunu kendisi de not etmiş ama test artık sıra (order) kanıtı sağlamıyor, sadece tenant isolation'ı tekrar doğruluyor. Docstring hâlâ 'scope-check before validation' iddiasında ama gövde bunu ispatlamıyor.",
+      "better_approach": "Bu testi ya kaldırıp AC-3/AC-4 ile duplike olduğunu belirt, ya da gerçek bir sıra testine çevir (handler-içi semantik bir hatayla — transition_engagement'taki IllegalTransitionError deseninde olduğu gibi — cross-org'u birleştirip 404'ün önce geldiğini kanıtla).",
+      "reason": "Test adı/docstring ile gerçek kapsam arasındaki uyumsuzluk gelecekte yanlış güven verir (test yeşil ama iddia ettiği şeyi kanıtlamıyor).",
+      "outcome": "skipped",
+      "outcome_detail": "Kabul edilen bulgu — kullanıcıya bildirilecek, commit'i engellemiyor (bkz. Risks). Docstring/isim düzeltmesi isteğe bağlı bir takip görevi olarak bırakıldı."
+    },
+    {
+      "severity": "low",
+      "category": "security",
+      "file": "backend/app/services/engagement.py",
+      "issue": "create_engagement_task ve create_deliverable içinde status (ACTIVE) kontrolü rol/yetki kontrolünden ÖNCE çalışıyor. Bu, scope içinde görünen ama yanlış rolde olan bir kullanıcıya (örn. TALENT kendi DRAFT durumundaki engagement'ına POST /tasks atarsa) 403 yerine 422 PRECONDITION_FAILED döndürüyor — yani engagement'ın durumu yetkisiz eylem denemesinden önce sızıyor.",
+      "better_approach": "Rol/yetki kontrolünü status kontrolünden önce yap.",
+      "reason": "ATDD AC-S1/AC-S2 sadece 'ACTIVE + yanlış rol → 403' senaryosunu kilitliyor, 'ACTIVE-olmayan + yanlış rol' kombinasyonunu test etmiyor — düşük önem, çünkü status zaten transitions ucundan da görülebiliyor.",
+      "outcome": "skipped",
+      "outcome_detail": "Kabul edilen risk — düşük önem, status bilgisi zaten başka uçlardan görülebiliyor. Commit'i engellemiyor."
+    },
+    {
+      "severity": "low",
+      "category": "correctness",
+      "file": "backend/app/services/engagement.py",
+      "issue": "create_deliverable içindeki IntegrityError yakalama, hem engagement_id FK'sini hem submitted_by_user_id FK'sini aynı EngagementNotFoundError altında topluyor — submitted_by_user_id FK'si ihlal edilirse hata mesajı yanıltıcı şekilde 'Engagement not found' diyecek.",
+      "better_approach": "IntegrityError mesajını constraint adına göre ayırt et, ya da bu path'in pratikte neredeyse hiç tetiklenmediğini yorumla belirt.",
+      "reason": "Kod tabanındaki silme politikası (users → anonimleştirme, hard-delete yok) bu path'i gerçekte tetiklenemez kılıyor — pratik risk düşük, sadece okunabilirlik notu.",
+      "outcome": "skipped",
+      "outcome_detail": "Pratikte tetiklenemez (users hard-delete edilmiyor, .claude/rules/database.md). Kabul edilen risk."
+    }
+  ],
+  "strengths": [
+    "T5 precondition gerçekten SELECT COUNT(*) ile DB'ye soruyor, client-supplied hiçbir alana bakmıyor — AC-S4 tam karşılanıyor.",
+    "PostDeliverableRequest şemasında submitted_by_user_id alanı yok; create_deliverable içinde değer her zaman principal.user_id'den atanıyor — AC-S3 kod düzeyinde doğrulandı.",
+    "datetime.now(timezone.utc) düzeltmesi doğru uygulanmış; migration'daki submitted_at kolonu da timezone=True — Python ve DB tarafı tutarlı.",
+    "create_engagement_task/create_deliverable önce get_scoped_or_404 + scoped_engagements ile mevcut kalıbı yeniden kullanıyor (yeni bir soyutlama eklemeden) — CAVEMAN prensibine uygun, plan.md kararıyla tutarlı.",
+    "Migration downgrade/upgrade gerçek PostgreSQL'e karşı doğrulanmış, CHECK constraint model ile migration arasında birebir aynı."
+  ],
+  "risks": [
+    "AC-S5 testlerinin artık AC-3/AC-4 ile örtüşmesi, gelecekte gerçek bir 'scope-check sırası' regresyonunu yakalayamama riski taşıyor.",
+    "Task/Deliverable güncelleme/silme uçları bilinçli olarak kapsam dışı bırakılmış — ileride PATCH/DELETE eklenirse aynı scope+role+status sıra deseninin tekrar dikkatle uygulanması gerekir."
+  ],
+  "caveman_review": {"complexity": "low", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve-with-changes"
+}

@@ -1,12 +1,13 @@
 """Engagement service: core business logic for work engagements."""
 
 import uuid
+from datetime import datetime, timezone
 from typing import Callable, TypedDict
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import Engagement, Organization, TalentProfile
+from app.models import Deliverable, EngagementTask, Engagement, Organization, TalentProfile
 from app.services.authorization import Principal, get_scoped_or_404, scoped_engagements
 from app.services.audit import log_audit_event
 from app.services.outbox import enqueue
@@ -251,7 +252,7 @@ def transition_engagement(
     if engagement.version != version:
         raise VersionConflictError("Version conflict: engagement has been modified since retrieval")
 
-    # Transition table (4 valid transitions)
+    # Transition table (5 valid transitions)
     # Each entry: from_status -> to_status -> (allowed_roles, preconditions, authorization check)
     transition_table: dict[tuple[str, str], TransitionSpec] = {
         ("DRAFT", "PENDING_APPROVAL"): {
@@ -282,6 +283,13 @@ def transition_engagement(
                 (principal.kind == "COORDINATOR" and engagement.institution_id in principal.institution_ids)
             ),
         },
+        ("ACTIVE", "PENDING_EVALUATION"): {
+            "preconditions": ["has_deliverable"],
+            "can_transition": lambda: (
+                (principal.kind in ("ORG_MEMBER", "ORG_ADMIN") and engagement.organization_id in principal.org_ids) or
+                (principal.kind == "COORDINATOR" and engagement.institution_id in principal.institution_ids)
+            ),
+        },
     }
 
     # Check: is this transition defined? (AC-5)
@@ -298,6 +306,15 @@ def transition_engagement(
         elif precondition == "reason_not_empty":
             if not reason or reason.strip() == "":
                 raise PreconditionFailedError("reason is required for this transition")
+        elif precondition == "has_deliverable":
+            # Real database query to verify at least one Deliverable exists (AC-S4: client input ignored)
+            count = session.execute(
+                select(func.count()).select_from(Deliverable).where(
+                    Deliverable.engagement_id == engagement.id
+                )
+            ).scalar()
+            if count == 0:
+                raise PreconditionFailedError("En az bir deliverable gerekli.")
 
     # Check: authorization (AC-8, AC-S3)
     if not transition_spec["can_transition"]():
@@ -359,3 +376,179 @@ def transition_engagement(
         )
 
     return engagement
+
+
+def create_engagement_task(
+    session: Session,
+    principal: Principal,
+    engagement_id: str,
+    title: str,
+    description: str | None = None,
+    due_at: datetime | None = None,
+) -> EngagementTask:
+    """
+    Create a new task within an engagement.
+
+    PLAN 2.4 (AC-1): POST /engagements/{id}/tasks.
+
+    Args:
+        session: Database session
+        principal: Authorization context
+        engagement_id: UUID of engagement (string format)
+        title: Task title
+        description: Optional task description
+        due_at: Optional due date
+
+    Returns:
+        Created EngagementTask object
+
+    Raises:
+        EngagementNotFoundError: Engagement not found or not accessible
+        PreconditionFailedError: Engagement not ACTIVE
+        TransitionForbiddenError: Principal not authorized (e.g., TALENT trying to create task)
+    """
+    # Parse UUID
+    try:
+        engagement_uuid = uuid.UUID(engagement_id)
+    except ValueError:
+        raise EngagementNotFoundError(f"Invalid engagement_id format: {engagement_id}")
+
+    # Fetch engagement scoped to principal
+    engagement = get_scoped_or_404(
+        scoped_engagements(session, principal).where(Engagement.id == engagement_uuid),
+        session
+    )
+    if engagement is None:
+        raise EngagementNotFoundError(f"Engagement {engagement_id} not found")
+
+    # AC-5: Only ACTIVE engagements can receive tasks
+    if engagement.status != "ACTIVE":
+        raise PreconditionFailedError("Task can only be created on ACTIVE engagements")
+
+    # AC-S1: TALENT cannot create tasks (even on their own engagement)
+    if principal.kind == "TALENT":
+        raise TransitionForbiddenError("Talent cannot create tasks")
+
+    # AC-1: Only COORDINATOR/ORG_MEMBER/ORG_ADMIN can create tasks
+    if principal.kind not in ("COORDINATOR", "ORG_MEMBER", "ORG_ADMIN"):
+        raise TransitionForbiddenError("Not authorized to create tasks")
+
+    # Create task
+    task = EngagementTask(
+        engagement_id=engagement_uuid,
+        title=title,
+        description=description,
+        status="PLANNED",
+        due_at=due_at,
+    )
+    session.add(task)
+    try:
+        session.flush()
+    except IntegrityError as e:
+        if "fk_" in str(e).lower() or "foreign key" in str(e).lower():
+            raise EngagementNotFoundError("Engagement not found")
+        raise
+
+    # Log audit event
+    log_audit_event(
+        session=session,
+        actor_user_id=principal.user_id,
+        actor_ip=None,
+        action="TASK_CREATED",
+        subject_type="task",
+        subject_id=task.id,
+        result="SUCCESS",
+        metadata={
+            "engagement_id": str(engagement_uuid),
+            "title": title,
+        },
+    )
+
+    return task
+
+
+def create_deliverable(
+    session: Session,
+    principal: Principal,
+    engagement_id: str,
+    title: str,
+    description: str | None = None,
+) -> Deliverable:
+    """
+    Create a new deliverable (evidence submission) within an engagement.
+
+    PLAN 2.4 (AC-2): POST /engagements/{id}/deliverables.
+
+    Args:
+        session: Database session
+        principal: Authorization context
+        engagement_id: UUID of engagement (string format)
+        title: Deliverable title
+        description: Optional deliverable description
+
+    Returns:
+        Created Deliverable object
+
+    Raises:
+        EngagementNotFoundError: Engagement not found or not accessible
+        PreconditionFailedError: Engagement not ACTIVE
+        TransitionForbiddenError: Principal not authorized (e.g., ORG_MEMBER trying to submit)
+    """
+    # Parse UUID
+    try:
+        engagement_uuid = uuid.UUID(engagement_id)
+    except ValueError:
+        raise EngagementNotFoundError(f"Invalid engagement_id format: {engagement_id}")
+
+    # Fetch engagement scoped to principal
+    engagement = get_scoped_or_404(
+        scoped_engagements(session, principal).where(Engagement.id == engagement_uuid),
+        session
+    )
+    if engagement is None:
+        raise EngagementNotFoundError(f"Engagement {engagement_id} not found")
+
+    # AC-5: Only ACTIVE engagements can receive deliverables
+    if engagement.status != "ACTIVE":
+        raise PreconditionFailedError("Deliverable can only be submitted on ACTIVE engagements")
+
+    # AC-S2: Only TALENT can submit deliverables
+    if principal.kind != "TALENT":
+        raise TransitionForbiddenError("Only talent can submit deliverables")
+
+    # AC-2: TALENT must be the one the engagement refers to
+    if principal.talent_id != engagement.talent_id:
+        raise EngagementNotFoundError(f"Engagement {engagement_id} not found")
+
+    # Create deliverable with principal's user_id (AC-S3: never from request body)
+    deliverable = Deliverable(
+        engagement_id=engagement_uuid,
+        title=title,
+        description=description,
+        submitted_by_user_id=principal.user_id,
+        submitted_at=datetime.now(timezone.utc),
+    )
+    session.add(deliverable)
+    try:
+        session.flush()
+    except IntegrityError as e:
+        if "fk_" in str(e).lower() or "foreign key" in str(e).lower():
+            raise EngagementNotFoundError("Engagement not found")
+        raise
+
+    # Log audit event
+    log_audit_event(
+        session=session,
+        actor_user_id=principal.user_id,
+        actor_ip=None,
+        action="DELIVERABLE_SUBMITTED",
+        subject_type="deliverable",
+        subject_id=deliverable.id,
+        result="SUCCESS",
+        metadata={
+            "engagement_id": str(engagement_uuid),
+            "title": title,
+        },
+    )
+
+    return deliverable

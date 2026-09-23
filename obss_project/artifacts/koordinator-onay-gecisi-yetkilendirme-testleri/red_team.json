@@ -1,0 +1,57 @@
+{
+  "task": "koordinator-onay-gecisi-yetkilendirme-testleri",
+  "reviewed_at": "2026-09-23T00:00:00Z",
+  "summary": "Test-only değişiklik; implementasyon dokunulmamış. Testler genel olarak sağlam ve HTTP-uç seviyesinde IDOR/scope davranışını doğruluyor, ancak AC-4/AC-S3 için işaretlenen fixture sapması gerçek bir test-gap: test şu an ORG_ADMIN kind'ının org_admin_ids kontrolünü hiç tetiklemiyor, bunun yerine daha zayıf bir ORG_MEMBER senaryosunu doğruluyor. Ayrıca deps.py'deki tekil-kind önceliklendirmesi (institution_admin_ids > institution_ids > org_admin_ids > org_ids) nedeniyle COORDINATOR + ORG_ADMIN çakışan kullanıcılarda ORG_ADMIN dalı asla test edilemiyor bile — bu mimari kısıt henüz hiçbir testte belgelenmemiş.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "test-gap",
+      "file": "backend/tests/test_engagement_transitions.py",
+      "issue": "TestOrgAdminScopeVsAdminMismatch::test_org_member_not_admin_vs_active_engagement_403 testinde `evan_member_of_org_b` fixture'ı `org_admin_evan` (organization_a ADMIN üyeliği) fixture'ını zincire dahil etmiyor. Sonuç: Evan'ın tek üyeliği organization_b'de role=MEMBER, dolayısıyla deps.py'deki kind hesaplaması principal.kind='ORG_MEMBER' üretiyor (ORG_ADMIN değil). engagement.py:278-284'teki `(principal.kind == 'ORG_ADMIN' and engagement.organization_id in principal.org_admin_ids)` dalı bu testte HİÇ çalıştırılmıyor — 403 sonucu aslında satır 261/281'deki ORG_MEMBER'ın action-check listesinde (COORDINATOR/ORG_ADMIN) yer almamasından geliyor, org_admin_ids karşılaştırmasından değil.",
+      "better_approach": "Fixture zincirine `org_admin_evan` (organization_a ADMIN) eklenmeli, böylece principal.kind='ORG_ADMIN' olur (org_admin_ids=[organization_a] nonempty, institution_ids boş kalmalı) ve org_admin_ids=[organization_a] iken organization_b'ye ait engagement hedeflenerek satır 281'deki `engagement.organization_id in principal.org_admin_ids` == False dalı gerçekten tetiklenmeli.",
+      "reason": "atdd.md AC-4/AC-S3 açıkça 'org_ids⊃org_admin_ids' (bir kurumda admin, diğerinde salt üye — AYNI principal) senaryosunu hedefliyor; Sorular ve Cevaplar bölümünde bu ayrım özellikle vurgulanmış ('kod okunarak düzeltildi'). Mevcut test bu ayrımı DEĞİL, çok daha basit 'salt üye asla admin değil' durumunu kanıtlıyor. Sonuç kodu (403) tesadüfen doğru ama gerçek riski (org_admin_ids vs org_ids karışıklığı, elevation-of-privilege) kanıtlamıyor — coverage %100 iddiası bu noktada gerçekte tam değil.",
+      "outcome": "fixed",
+      "outcome_detail": "test-copilot Haiku alt-ajanı `evan_member_of_org_b` fixture imzasına `org_admin_evan` bağımlılığı ekledi — Evan artık organization_a'da GERÇEKTEN ADMIN, organization_b'de sade MEMBER (org_admin_ids=[organization_a], org_ids⊃org_admin_ids). Kod okumasıyla teyit edildi: principal.kind hesaplaması artık ORG_ADMIN dalına giriyor, 403 sonucu gerçekten `engagement.organization_id in principal.org_admin_ids == False` karşılaştırmasından geliyor. Test tekrar koşuldu: 25/25 geçti (backend/.venv/Scripts/python.exe -m pytest tests/test_engagement_transitions.py -q)."
+    },
+    {
+      "severity": "low",
+      "category": "architecture",
+      "file": "backend/app/api/deps.py",
+      "issue": "get_current_principal, kind'ı institution_admin_ids > institution_ids > org_admin_ids > org_ids öncelik sırasıyla TEK bir değere indirgiyor (çoklu-rol yok). Bu nedenle bir kullanıcı hem bir organizasyonda ADMIN hem bir kurumda COORDINATOR/üye ise, kind daima COORDINATOR/INST_ADMIN olur ve ORG_ADMIN dalı (engagement.py:278-284) o principal için ASLA çalışmaz — org üyeliği tamamen görünmez hale gelir.",
+      "better_approach": "Bu görevin kapsamı dışı (kod değişmiyor), ama en azından bir yorum/test notu ile bu sınırlama belgelenmeli.",
+      "reason": "Şu an hiçbir testte bu davranış doğrulanmıyor/belgelenmiyor; ileride biri 'neden ORG_ADMIN olan kullanıcı organizasyon işlemi yapamıyor' diye bug raporu açabilir çünkü kök neden (tek-kind önceliklendirmesi) kod okumadan anlaşılmıyor."
+    },
+    {
+      "severity": "low",
+      "category": "readability",
+      "file": "backend/tests/test_engagement_transitions.py",
+      "issue": "Dosya başlığındaki docstring hâlâ testlerin kırmızı/import-error olduğunu ima eden eski bir not içerebilir; bu artık doğru değil (testler PASS, implementasyon PLAN 2.2'de tamamlandı).",
+      "better_approach": "Docstring güncellenip testlerin yeşil olduğu, implementasyonun PLAN 2.2'de tamamlandığı belirtilebilir.",
+      "reason": "Yanıltıcı doküman — repo açık kaynak olacağı için (CLAUDE.md 'Açık kaynak' bölümü) jüri/katkıda bulunan biri bu ifadeyi okuyup testlerin hâlâ kırmızı olduğunu sanabilir."
+    }
+  ],
+  "strengths": [
+    "AC-2/AC-3/AC-5 (COORDINATOR çapraz-kurum) 404 ve response body'de institution/talent adı sızmadığını ayrıca doğruluyor — atdd.md AC-S1/AC-S2'nin 'varlık sızıntısı olmamalı' kriterine tam uyuyor.",
+    "test_transition_cross_institution_coordinator_invalid_to_status_404 kontrol sırasının (scope-check önce, illegal-transition sonra) doğru olduğunu somut biçimde kanıtlıyor — FOOBAR gibi geçersiz to_status ile 422 değil 404 döndüğünü doğrulayarak AC-3/AC-S2'yi gerçek anlamda test ediyor.",
+    "TestExtraFieldsIgnored request body enjeksiyonuyla scope genişletilemeyeceğini doğru şekilde kanıtlıyor, AC-8/AC-S4 için yeterli.",
+    "test_matrix.py'de sadece docstring değişmiş, mantık dokunulmamış — CLAUDE.md 'Var olan dosyayı değiştirmeden önce ne değişeceğini söyle' kuralına uygun, minimal diff."
+  ],
+  "risks": [
+    "AC-4/AC-S3'ün 'coverage %100' iddiası gerçek ORG_ADMIN org_admin_ids-vs-org_ids ayrımını kanıtlamadığı için, ileride engagement.py:281'deki satır yanlışlıkla principal.org_ids ile değiştirilse (regresyon), mevcut test paketi bunu YAKALAMAZ.",
+    "AC-S6 (authz-test skill ile tam parametrik matris) bu turda hiç çalıştırılmadı — verify_report.md bunu ayrı adım olarak PENDING bırakmış; kullanıcı bunu bilerek kabul etmeli."
+  ],
+  "caveman_review": {"complexity": "low", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve",
+  "post_fix_note": "Medium severity test-gap (findings[0]) test-copilot tarafından düzeltildi ve doğrulandı (bkz. outcome/outcome_detail). Kalan 2 low-severity bulgu (deps.py tek-kind önceliklendirmesinin belgelenmemesi, eski docstring notu) commit'i engellemiyor — kullanıcı isterse ayrı bir görevde ele alınabilir."
+}

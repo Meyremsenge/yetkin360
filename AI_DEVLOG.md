@@ -347,3 +347,86 @@ yakalanmamıştı). Bu görev o boşluğu kapattı.
   orkestratör tarafından **yanlış** bulundu — `plan.md`'de gerçek kullanıcı
   yetkisiyle zaten onaylanmıştı, kapatıldı (subagent'ların bazen kendi
   bağlamlarında eksik bilgiyle yanlış bulgu üretebileceğine dair bir örnek).
+
+## YET-65 — [PLAN 2.3] Koordinatör onayı geçişi + yetkilendirme testleri (2026-09-23)
+
+**Kaynak:** `obss_project/artifacts/koordinator-onay-gecisi-yetkilendirme-testleri/`
+
+### Bağlam (kaynak: atdd.md)
+İmplementasyon (`transition_engagement`, `scoped_engagements`) PLAN 2.2'de
+zaten doğru yazılmıştı — bu görev klasik red→green değil, docs/AUTHORIZATION.md
+§5.1 A5 ve §5.5 E1-E6'nın COORDINATOR/ORG_ADMIN çapraz-kurum/çapraz-org
+senaryolarını HTTP-uç seviyesinde kapatan bir test-tamamlama göreviydi
+(`tests/authorization/test_matrix.py`'deki YET-7 pending placeholder'ları).
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorun (kaynak: code_diff.md, red_team.json)
+- **`red-team` incelemesi ilk turda medium-severity bir test-gap buldu:**
+  `TestOrgAdminScopeVsAdminMismatch` testindeki `evan_member_of_org_b`
+  fixture'ı `org_admin_evan` (organization_a'daki ADMIN üyeliği) fixture'ını
+  zincire dahil etmiyordu — sonuçta Evan'ın principal.kind'ı `ORG_MEMBER`
+  çıkıyordu (`ORG_ADMIN` değil), test 403 sonucunu doğru ama **yanlış kod
+  yolundan** (basit "üye zaten yetkisiz" reddi) kanıtlıyordu; asıl hedeflenen
+  `org_ids⊃org_admin_ids` (aynı principal bir kurumda admin, başka kurumda
+  sade üye) senaryosu hiç tetiklenmiyordu. Fixture zincirine `org_admin_evan`
+  bağımlılığı eklenerek düzeltildi, kod okumasıyla (principal.kind artık
+  gerçekten `ORG_ADMIN`) teyit edildi, testler tekrar yeşil geçti.
+  **Ders:** "kaynak görünür ama eylem yasak → 403" testleri yazarken,
+  principal'ın GERÇEKTEN doğru `kind`'a düştüğünü (sadece sonuç kodunu değil,
+  hangi yetki dalının tetiklendiğini) fixture seviyesinde doğrulamak gerekir
+  — aksi halde test yanlış nedenle yeşil kalıp gerçek bir regresyonu (ör.
+  `org_admin_ids` yerine yanlışlıkla `org_ids` kullanılması) yakalamaz.
+
+### Kabul edilen riskler (kaynak: atdd.md Risks)
+- MCP_DOCKER (Saga sunucusu) bu görev boyunca bağlı kalmadı — `saga_task_id`
+  `null` bırakıldı, Saga senkronizasyonu bağlantı düzeldiğinde manuel yapılmalı.
+- `POST /engagements/{id}/transitions` ucuna özel rate limit yok — düşük
+  hacimli iç-kullanıcı ucu olduğu için kabul edilen risk, ayrı görev gerektirir.
+- `AC-S6` (authz-test skill ile tam parametrik IDOR matrisi, YET-77'nin
+  istediği) bu pipeline turunda tetiklenmedi — `verify_report.md`'de PENDING
+  olarak not edildi, ayrı bir adımda ele alınabilir.
+
+## YET-66 — [PLAN 2.4] Task + Deliverable (2026-09-23)
+
+**Kaynak:** `obss_project/artifacts/engagement-task-deliverable/`
+
+### Bilinçli kararlar (kaynak: atdd.md Assumptions/Kapsam Dışı, plan.md Migration Required)
+- `Deliverable.evidence_ids[]` bağlantısı ve `Evidence` modeli bu görevde
+  KURULMADI — Evidence backend'de henüz yok (PLAN 2.5/2.6), D11 kuralı
+  ("en az 1 Evidence bağlı olmalı") 2.6'da eklenecek.
+- `task_skills` (n-n) tablosu bu görevde HİÇ oluşturulmadı — Jira alt görev
+  açıklamalarında iş mantığı geçmiyordu, spekülatif şema CAVEMAN ilkesine
+  aykırı; ihtiyaç doğduğunda ayrı bir migration'da eklenecek.
+- `EngagementTask.status` değer kümesi `PLANNED/IN_PROGRESS/DONE` olarak
+  netleştirildi — `docs/DOMAIN.md` §3.8'de önceden `TODO/IN_PROGRESS/DONE`
+  yazıyordu (Jira/PLAN.md ile tutarsızdı), bu görevde doküman güncellendi.
+- Migration için kullanıcıdan açık onay alındı (CLAUDE.md kuralı) —
+  `engagement_tasks`/`deliverables` tabloları, `task_skills` YOK.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, red_team.json)
+- **AC-S5 test tasarım hatası (kod değil, test):** İki test "eksik zorunlu
+  alan (`title`) → scope-check önce çalışır, 404 döner" senaryosunu
+  kanıtlamaya çalışıyordu, ama FastAPI/Pydantic zorunlu bir alanı
+  (`min_length=1`) route handler'ı hiç çalıştırmadan framework seviyesinde
+  422 ile reddediyor — bu senaryo eksik-alan durumunda teknik olarak test
+  EDİLEMEZ. Kullanıcı onayıyla payload "geçerli ama çapraz-tenant" bir
+  title'a çevrildi. **Ders:** "scope-check validation'dan önce çalışsın" AC'leri
+  yalnız handler-içi semantik kontrollerle (geçersiz enum string'i gibi,
+  YET-65'teki `to_status=FOOBAR` deseni) anlamlı — framework-seviyeli zorunlu-alan
+  422'leriyle değil. `red-team` incelemesi ayrıca bu testlerin artık AC-3/AC-4
+  ile fonksiyonel olarak örtüştüğünü (gerçek bir sıra-regresyonunu
+  yakalayamayacağını) buldu — kabul edilen risk olarak bırakıldı, isteğe
+  bağlı bir takip görevinde docstring/isim netleştirilebilir.
+- **Naive `datetime.now()` (kod bulgusu):** `create_deliverable()`'daki
+  `submitted_at=datetime.now()` saf yerel saat kullanıyordu —
+  `.claude/rules/database.md`'nin "timestamptz, UTC, yerel saat varsayımı
+  yasak" kuralını ihlal ediyordu, mevcut `TimestampMixin` deseniyle
+  (`func.now()`, DB-side UTC-aware) tutarsızdı. `datetime.now(timezone.utc)`
+  ile düzeltildi.
+- **`red-team`'in bulduğu kabul edilen düşük riskler:** (1) status (ACTIVE)
+  kontrolü rol kontrolünden önce çalışıyor — yanlış rollü ama scope-içi bir
+  kullanıcıya engagement'ın ACTIVE olmadığı bilgisi (422) sızabiliyor, 403
+  daha erken dönebilirdi (düşük önem, status başka uçlardan da görülebiliyor).
+  (2) `create_deliverable()`'daki `IntegrityError` yakalaması engagement_id
+  ve submitted_by_user_id FK ihlallerini aynı `EngagementNotFoundError`
+  altında topluyor — pratikte tetiklenemez (users hard-delete edilmiyor,
+  anonimleştiriliyor), sadece okunabilirlik notu.
