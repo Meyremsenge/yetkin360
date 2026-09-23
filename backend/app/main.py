@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.auth import router as auth_router
+from app.api.evidence import router as evidence_router
 from app.api.institutions import router as institutions_router
 from app.api.organizations import router as organizations_router
 from app.api.skills import router as skills_router
@@ -19,6 +20,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(evidence_router)
 app.include_router(institutions_router)
 app.include_router(organizations_router)
 app.include_router(skills_router)
