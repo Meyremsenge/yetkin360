@@ -10,6 +10,7 @@ from app.api.institutions import router as institutions_router
 from app.api.me import router as me_router
 from app.api.organizations import router as organizations_router
 from app.api.skills import router as skills_router
+from app.api.skill_signals import router as skill_signals_router
 from app.api.talent_skills import router as talent_skills_router
 from app.core.config import settings
 
@@ -30,6 +31,7 @@ app.include_router(institutions_router)
 app.include_router(me_router)
 app.include_router(organizations_router)
 app.include_router(skills_router)
+app.include_router(skill_signals_router)
 app.include_router(talent_skills_router)
 
 

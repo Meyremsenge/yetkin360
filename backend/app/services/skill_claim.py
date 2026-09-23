@@ -4,7 +4,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import Skill, SkillClaim
+from app.models import Skill, SkillClaim, SkillSignal
 from app.services.authorization import Principal, scoped_skill_claims
 
 
@@ -102,6 +102,20 @@ def add_skill_claim(
         raise SkillAlreadyClaimedError(
             f"Skill {skill_id} already claimed by talent {principal.talent_id}"
         )
+
+    # Create skill signal in same transaction (YET-104 AC-1)
+    signal = SkillSignal(
+        talent_id=principal.talent_id,
+        skill_id=skill_uuid,
+        source_type="SELF_CLAIM",
+        source_id=claim.id,
+        strength="NONE",
+        attested_by_org_id=None,
+        occurred_at=claim.created_at,
+        superseded_by_id=None,
+    )
+    session.add(signal)
+    session.flush()
 
     return claim
 

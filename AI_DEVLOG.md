@@ -481,3 +481,40 @@ senaryolarını HTTP-uç seviyesinde kapatan bir test-tamamlama göreviydi
   ve submitted_by_user_id FK ihlallerini aynı `EngagementNotFoundError`
   altında topluyor — pratikte tetiklenemez (users hard-delete edilmiyor,
   anonimleştiriliyor), sadece okunabilirlik notu.
+
+## YET-104 — SkillSignal: SELF_CLAIM türetme + GET /talents/me/signals (2026-09-24)
+
+**Kaynak:** `obss_project/artifacts/skillsignal-self-claim-uretimi/`
+
+### Bilinçli kararlar (kaynak: atdd.md/plan.md)
+- Bu görev, [PLAN 2.9] SkillSignal türetme'nin (YET-71, Meyrem'e atanmış,
+  yalnız `source_type=ATTESTATION` kapsamlı) **bağımsız dilimi** — sadece
+  `source_type=SELF_CLAIM`. `DELIVERABLE`/`TASK`/`EVALUATION`/`ATTESTATION`
+  kaynakları bilinçli olarak kapsam dışı bırakıldı (task_skills bağlantısı
+  yok, Meyrem'in 2.6/2.7/2.8 işine bağımlı).
+- `superseded_by_id` bu turda hep `NULL` — tek kaynak SELF_CLAIM olduğu
+  için supersede edilecek bir şey yok, gerçek mantık ATTESTATION geldiğinde
+  eklenecek.
+- Migration'a `.claude/rules/database.md`'nin "kritik" dediği
+  `(talent_id, skill_id, occurred_at DESC)` bileşik index'i eklendi
+  (append-only immutability trigger de `audit_events` deseninden kopyalandı).
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, red_team.json)
+- **Sahte regresyon:** İlk `code-copilot` koşumunda 15 `test_outbox_*`
+  testi kırmızı çıktı — kök neden kod DEĞİLDİ, bu oturumdaki daha önceki
+  bir MANUEL sunucu doğrulamasından (gerçek `curl` ile kayıt/login/evidence-
+  upload testi) kalan 1 satırlık `outbox` tablosu kirliliğiydi;
+  `test_outbox_service.py` filtre olmadan `scalar_one_or_none()` sorgusu
+  attığı için paylaşılan dev DB'deki fazladan satırla çakışıp
+  `MultipleResultsFound` fırlatıyordu. Kirli veri temizlendi, tam paket
+  tekrar koşuldu: 523 passed, 0 failed. **Ders:** bu projede `outbox`/auth
+  testleri paylaşılan dev DB'ye karşı transaction-izole DEĞİL (engagement
+  testlerinin aksine) — manuel canlı doğrulama (curl/uvicorn) sonrası test
+  koşumundan önce DB'nin temizlendiğinden emin olunmalı.
+- `red-team` (yanlış şemada döndü, elle doğru şemaya çevrildi — bkz.
+  red_team.json `schema_note`) migration'da eksik bir kritik index buldu
+  (`(talent_id, skill_id, occurred_at DESC)`, database.md kuralı) — eklendi,
+  downgrade/upgrade tekrar doğrulandı.
+- `mypy` tip uyumsuzluğu (servis ham `dict` döndürüyordu, Pydantic model
+  bekleniyordu) ve test dosyalarında 3 lint hatası (kullanılmayan import/
+  değişken) minimal dispatch'lerle düzeltildi.

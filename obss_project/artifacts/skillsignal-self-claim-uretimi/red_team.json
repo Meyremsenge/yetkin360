@@ -1,0 +1,63 @@
+{
+  "task": "skillsignal-self-claim-uretimi",
+  "reviewed_at": "2026-09-23T00:00:00Z",
+  "schema_note": "obss-red-team subagent'ı ilk yanıtında kendi varsayılan OBSS şemasında döndü (security_findings/alternative_approach/approved_points/overall_assessment), açık talimata rağmen. Orkestratör (Sonnet 5) bu içeriği aşağıdaki standart red-team şemasına elle çevirdi — beklenmedik bir durum, postmortem'in yakalayabilmesi için not düşüldü.",
+  "summary": "Güvenlik/yetkilendirme açısından sağlam: scoped_skill_signals() gerçek scope izolasyonu sağlıyor, IDOR/varlık sızıntısı yok, add_skill_claim()'in iki-flush atomicliği doğrulandı, immutability trigger audit_events deseniyle birebir aynı. Tek somut eksik — .claude/rules/database.md'nin açıkça 'kritik' olarak listelediği (talent_id, skill_id, occurred_at DESC) bileşik index'in migration'da eksik olması — bulundu ve düzeltildi (test-copilot/code-copilot turu gerekmeden doğrudan migration'a eklendi, testler tekrar doğrulandı).",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "correctness",
+      "file": "backend/alembic/versions/53299629ffe0_add_skill_signals_table_and_.py",
+      "issue": ".claude/rules/database.md'nin kritik index olarak listelediği (talent_id, skill_id, occurred_at DESC) bileşik index migration'a eklenmemişti.",
+      "better_approach": "op.create_index('ix_skill_signals_talent_skill_occurred', 'skill_signals', ['talent_id', 'skill_id', sa.text('occurred_at DESC')]) eklenmeli, downgrade'de drop_index ile geri alınmalı.",
+      "reason": "database.md dosyası bu index'i açıkça 'kritik' olarak listeliyor: '(talent_id, skill_id, occurred_at DESC) — profil sayfası'. Migration bu kuralı atlamıştı; MVP hacminde acil sorun yaratmaz ama proje kuralı ihlaliydi.",
+      "outcome": "fixed",
+      "outcome_detail": "Index migration'a eklendi (upgrade'de create_index, downgrade'de drop_index if_exists=True), alembic downgrade -1 + upgrade head ile gerçek DB'ye karşı doğrulandı, tam test paketi tekrar koşuldu: 523 passed, 0 failed."
+    },
+    {
+      "severity": "low",
+      "category": "performance",
+      "file": "backend/app/services/skill_signal.py",
+      "issue": "list_skill_signals() her skill grubu için ayrı bir SELECT çalıştırıyor (N+1 deseni) — tek bir JOIN sorgusuyla (SkillSignal join Skill) tüm veri bir seferde çekilebilirdi.",
+      "better_approach": "SkillSignal ve Skill'i tek bir JOIN sorgusuyla çekip Python tarafında grupla.",
+      "reason": "Düşük hacimli MVP'de kritik değil (bir talent'ın en fazla birkaç düzine skill claim'i olur), ama ölçeklenebilirlik açısından tercih edilecek yön bu — kabul edilen risk, bu turda düzeltilmedi.",
+      "outcome": "skipped",
+      "outcome_detail": "MVP hacminde performans etkisi yok, kabul edilen risk olarak bırakıldı."
+    },
+    {
+      "severity": "low",
+      "category": "readability",
+      "file": "backend/app/services/skill_signal.py",
+      "issue": "skill_id filtresi geçersiz UUID formatında sessizce boş liste döndürüyor (ValueError yakalanıp []) — bu AC-6/AC-S1 ile tutarlı ama dokümante edilmemiş bir davranış.",
+      "better_approach": "Kod içi bir yorumla bu kasıtlı tasarım kararını (varlık sızıntısını önlemek için 422 yerine 200+boş) açıklamak.",
+      "reason": "Güvenlik açısından doğru (varlık sızıntısı yok) ama gelecekte biri 'bug' sanıp değiştirebilir — düşük öncelik.",
+      "outcome": "skipped",
+      "outcome_detail": "Davranış doğru ve atdd.md ile tutarlı, kabul edilen risk."
+    }
+  ],
+  "strengths": [
+    "scoped_skill_signals() scoped_skill_claims() ile birebir aynı deseni izliyor: principal.talent_id None ise boş sonuç seti, talent_id request'ten değil principal'dan okunuyor — AC-S2 karşılanıyor.",
+    "skill_id filtresi scope'u BYPASS ETMİYOR — scoped_query'nin (principal.talent_id filtreli) üzerine .where() ile ekleniyor, ayrı/scope'suz bir select yok. AC-S1 gerçekten karşılanıyor, IDOR yok.",
+    "add_skill_claim() içindeki iki-flush deseni gerçekten atomic: get_session()'ın except bloğu rollback() çağırıyor, SkillSignal flush'ında IntegrityError olursa SkillClaim de rollback olur — kısmi başarı senaryosu üretilemez.",
+    "Migration'daki immutability trigger audit_events deseniyle birebir aynı: fonksiyon/trigger adlandırma şeması, BEFORE UPDATE OR DELETE kapsamı, downgrade sırası doğrulandı.",
+    "list_skill_signals()'ta attested_by SELF_CLAIM için her zaman gerçek null dönüyor (boş obje değil) — API.md/atdd.md varsayımıyla tutarlı.",
+    "'Sahte regresyon' (outbox test kirliliği) gerçekten kod dışı bir sorun olarak doğrulandı — SkillSignal INSERT'i outbox tablosuna dokunmuyor, implementasyonda gizli bir yan etki yok."
+  ],
+  "risks": [
+    "N+1 sorgu deseni (kabul edilen risk, MVP hacminde) — hacim artarsa tek JOIN'e geçirilmeli.",
+    "outbox/auth testlerinin paylaşılan dev DB'ye karşı transaction-izole olmaması (bu görevin kapsamı dışı, ayrı bir test-altyapısı iyileştirmesi gerektirebilir)."
+  ],
+  "caveman_review": {"complexity": "low", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve"
+}
