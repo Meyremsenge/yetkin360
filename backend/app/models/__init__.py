@@ -15,6 +15,7 @@ from app.models.institution_link_request import InstitutionLinkRequest
 from app.models.outbox import Outbox
 from app.models.skill import Skill
 from app.models.skill_claim import SkillClaim
+from app.models.task_deliverable import Deliverable, EngagementTask
 
 __all__ = [
     "Base",
@@ -28,6 +29,8 @@ __all__ = [
     "Skill",
     "SkillClaim",
     "Engagement",
+    "EngagementTask",
+    "Deliverable",
     "AuditEvent",
     "RefreshToken",
     "EmailVerificationToken",

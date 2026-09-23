@@ -384,3 +384,49 @@ senaryolarını HTTP-uç seviyesinde kapatan bir test-tamamlama göreviydi
 - `AC-S6` (authz-test skill ile tam parametrik IDOR matrisi, YET-77'nin
   istediği) bu pipeline turunda tetiklenmedi — `verify_report.md`'de PENDING
   olarak not edildi, ayrı bir adımda ele alınabilir.
+
+## YET-66 — [PLAN 2.4] Task + Deliverable (2026-09-23)
+
+**Kaynak:** `obss_project/artifacts/engagement-task-deliverable/`
+
+### Bilinçli kararlar (kaynak: atdd.md Assumptions/Kapsam Dışı, plan.md Migration Required)
+- `Deliverable.evidence_ids[]` bağlantısı ve `Evidence` modeli bu görevde
+  KURULMADI — Evidence backend'de henüz yok (PLAN 2.5/2.6), D11 kuralı
+  ("en az 1 Evidence bağlı olmalı") 2.6'da eklenecek.
+- `task_skills` (n-n) tablosu bu görevde HİÇ oluşturulmadı — Jira alt görev
+  açıklamalarında iş mantığı geçmiyordu, spekülatif şema CAVEMAN ilkesine
+  aykırı; ihtiyaç doğduğunda ayrı bir migration'da eklenecek.
+- `EngagementTask.status` değer kümesi `PLANNED/IN_PROGRESS/DONE` olarak
+  netleştirildi — `docs/DOMAIN.md` §3.8'de önceden `TODO/IN_PROGRESS/DONE`
+  yazıyordu (Jira/PLAN.md ile tutarsızdı), bu görevde doküman güncellendi.
+- Migration için kullanıcıdan açık onay alındı (CLAUDE.md kuralı) —
+  `engagement_tasks`/`deliverables` tabloları, `task_skills` YOK.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, red_team.json)
+- **AC-S5 test tasarım hatası (kod değil, test):** İki test "eksik zorunlu
+  alan (`title`) → scope-check önce çalışır, 404 döner" senaryosunu
+  kanıtlamaya çalışıyordu, ama FastAPI/Pydantic zorunlu bir alanı
+  (`min_length=1`) route handler'ı hiç çalıştırmadan framework seviyesinde
+  422 ile reddediyor — bu senaryo eksik-alan durumunda teknik olarak test
+  EDİLEMEZ. Kullanıcı onayıyla payload "geçerli ama çapraz-tenant" bir
+  title'a çevrildi. **Ders:** "scope-check validation'dan önce çalışsın" AC'leri
+  yalnız handler-içi semantik kontrollerle (geçersiz enum string'i gibi,
+  YET-65'teki `to_status=FOOBAR` deseni) anlamlı — framework-seviyeli zorunlu-alan
+  422'leriyle değil. `red-team` incelemesi ayrıca bu testlerin artık AC-3/AC-4
+  ile fonksiyonel olarak örtüştüğünü (gerçek bir sıra-regresyonunu
+  yakalayamayacağını) buldu — kabul edilen risk olarak bırakıldı, isteğe
+  bağlı bir takip görevinde docstring/isim netleştirilebilir.
+- **Naive `datetime.now()` (kod bulgusu):** `create_deliverable()`'daki
+  `submitted_at=datetime.now()` saf yerel saat kullanıyordu —
+  `.claude/rules/database.md`'nin "timestamptz, UTC, yerel saat varsayımı
+  yasak" kuralını ihlal ediyordu, mevcut `TimestampMixin` deseniyle
+  (`func.now()`, DB-side UTC-aware) tutarsızdı. `datetime.now(timezone.utc)`
+  ile düzeltildi.
+- **`red-team`'in bulduğu kabul edilen düşük riskler:** (1) status (ACTIVE)
+  kontrolü rol kontrolünden önce çalışıyor — yanlış rollü ama scope-içi bir
+  kullanıcıya engagement'ın ACTIVE olmadığı bilgisi (422) sızabiliyor, 403
+  daha erken dönebilirdi (düşük önem, status başka uçlardan da görülebiliyor).
+  (2) `create_deliverable()`'daki `IntegrityError` yakalaması engagement_id
+  ve submitted_by_user_id FK ihlallerini aynı `EngagementNotFoundError`
+  altında topluyor — pratikte tetiklenemez (users hard-delete edilmiyor,
+  anonimleştiriliyor), sadece okunabilirlik notu.
