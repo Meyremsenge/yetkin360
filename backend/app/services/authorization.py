@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
-from app.models import Engagement, Institution, Organization, SkillClaim, TalentProfile, User
+from app.models import Engagement, Institution, Organization, SkillClaim, SkillSignal, TalentProfile, User
 
 
 @dataclass
@@ -149,6 +149,26 @@ def scoped_skill_claims(session: Session, principal: Principal) -> Select:
         return select(SkillClaim).where(SkillClaim.talent_id == principal.talent_id)
     # All other kinds: no skill claims in scope
     return select(SkillClaim).where(SkillClaim.id.in_([]))
+
+
+def scoped_skill_signals(session: Session, principal: Principal) -> Select:
+    """
+    Return a SQLAlchemy Select query filtered to skill signals in principal's scope.
+
+    Args:
+      - session: SQLAlchemy Session
+      - principal: Principal object
+
+    Returns:
+      - sqlalchemy.sql.Select: Query returning SkillSignal rows in principal's scope
+
+    Implements AC-S1, AC-S2 (YET-104): only returns signals for authenticated talent,
+    prevents cross-talent access via skill_id filtering.
+    """
+    if principal.talent_id is not None:
+        return select(SkillSignal).where(SkillSignal.talent_id == principal.talent_id)
+    # All other kinds: no skill signals in scope
+    return select(SkillSignal).where(SkillSignal.id.in_([]))
 
 
 def scoped_engagements(session: Session, principal: Principal) -> Select:
