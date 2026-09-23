@@ -77,11 +77,11 @@ Hedef: kimlik + kiracılık + yetkilendirme çekirdeği ayakta, profil ve skill 
 Hedef: zincirin kendisi. Engagement açılır, çıktı yüklenir, değerlendirilir,
 attestation + verified experience + skill signal üretilir.
 
-- [ ] 2.1 Engagement modeli + migration + oluşturma ucu @be1
-- [ ] 2.2 Durum makinesi: tek `POST /engagements/{id}/transitions` ucu @be1
-- [ ] 2.3 Koordinatör onayı geçişi + yetkilendirme testleri @be1
-- [ ] 2.4 Task + Deliverable @be1
-- [ ] 2.5 Dosya yükleme altyapısı: imzalı URL, magic-byte, `{uuid}.{ext}` @be2
+- [x] 2.1 Engagement modeli + migration + oluşturma ucu @be1
+- [x] 2.2 Durum makinesi: tek `POST /engagements/{id}/transitions` ucu @be1
+- [x] 2.3 Koordinatör onayı geçişi + yetkilendirme testleri @be1
+- [x] 2.4 Task + Deliverable @be1
+- [x] 2.5 Dosya yükleme altyapısı: imzalı URL, magic-byte, `{uuid}.{ext}` @be2
 - [ ] 2.6 Evidence kaydı + indirme izni (sahiplik URL'den çıkar) @be2
 - [ ] 2.7 Değerlendirme formu şeması (yetkinlik + davranış + `NOT_OBSERVED`) @be2
 - [ ] 2.8 Attestation + VerifiedExperience üretimi (tek transaction) @be2
