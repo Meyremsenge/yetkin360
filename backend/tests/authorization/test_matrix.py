@@ -460,13 +460,97 @@ class TestFutureResourcesPlaceholders:
     YET-9 (Attestation/VerifiedExperience).
     """
 
-    def test_engagement_access_org_member_read_own_org(self):
+    def test_engagement_access_org_member_read_own_org(self, session, org_a, org_b):
         """
-        AC-4: Placeholder for docs/AUTHORIZATION.md §5.1 A5 (org member read Org A engagement).
+        AC-4: docs/AUTHORIZATION.md §5.1 A5 (org member read Org A engagement).
 
         Status: YET-7 (Engagement model + can()/scoped_*() implementation pending).
+
+        Acceptance Criteria:
+        - ORG:MEMBER of Organization A can read engagements belonging to Organization A
+        - ORG:MEMBER cannot read engagements of Organization B (tenant isolation)
         """
-        pytest.skip("YET-7 pending: Engagement model and scoped_engagements() not yet implemented")
+        from app.models import User, TalentProfile, Engagement
+        from app.services.authorization import scoped_engagements
+
+        # Seed test data: engagement in org_a and org_b
+        # User and TalentProfile for org_a engagement
+        user_a = User(email="talent-org-a@example.com", password_hash="hash_a")
+        session.add(user_a)
+        session.flush()
+
+        talent_a = TalentProfile(
+            user_id=user_a.id,
+            full_name="Test Talent A",
+            visibility="PRIVATE"
+        )
+        session.add(talent_a)
+        session.flush()
+
+        # Engagement in org_a
+        engagement_org_a = Engagement(
+            talent_id=talent_a.id,
+            organization_id=org_a.id,
+            kind="INTERNSHIP",
+            title="Engagement in Org A",
+            status="ACTIVE"
+        )
+        session.add(engagement_org_a)
+        session.flush()
+
+        # User and TalentProfile for org_b engagement
+        user_b = User(email="talent-org-b@example.com", password_hash="hash_b")
+        session.add(user_b)
+        session.flush()
+
+        talent_b = TalentProfile(
+            user_id=user_b.id,
+            full_name="Test Talent B",
+            visibility="PRIVATE"
+        )
+        session.add(talent_b)
+        session.flush()
+
+        # Engagement in org_b
+        engagement_org_b = Engagement(
+            talent_id=talent_b.id,
+            organization_id=org_b.id,
+            kind="CAPSTONE",
+            title="Engagement in Org B",
+            status="ACTIVE"
+        )
+        session.add(engagement_org_b)
+        session.flush()
+
+        # Principal who is a member of Organization A only
+        principal = Principal(
+            user_id="550e8400-e29b-41d4-a716-446655440010",
+            kind="ORG_MEMBER",
+            talent_id=None,
+            org_ids=[org_a.id],
+            org_admin_ids=[],
+            institution_ids=[],
+            is_platform_admin=False,
+            is_suspended=False,
+        )
+
+        # Get scoped query for engagements
+        scoped_select = scoped_engagements(session, principal)
+
+        # Execute query and get all engagements visible to this principal
+        engagements = session.execute(scoped_select).scalars().all()
+
+        # Positive assertions: at least one engagement from org_a
+        assert len(engagements) >= 1, "Principal should see at least one engagement from org_a"
+        assert any(e.organization_id == org_a.id for e in engagements), \
+            "Engagement from org_a should be returned to principal"
+
+        # Negative assertions: all returned engagements must belong to org_a (tenant isolation)
+        assert all(e.organization_id == org_a.id for e in engagements), \
+            "Engagements from org_b should NOT be visible to org_a member"
+        for engagement in engagements:
+            assert engagement.organization_id == org_a.id, \
+                f"Engagement {engagement.id} belongs to {engagement.organization_id}, not {org_a.id}"
 
     def test_evidence_access_tenant_isolation(self):
         """
@@ -492,13 +576,125 @@ class TestFutureResourcesPlaceholders:
         """
         pytest.skip("YET-9 pending: Attestation model and self-attestation validation not yet implemented")
 
-    def test_coordinator_scope_filtering(self):
+    def test_coordinator_scope_filtering(self, session):
         """
-        AC-4: Placeholder for docs/AUTHORIZATION.md §5.5 E1-E6 (coordinator institution-scoped access).
+        AC-4: docs/AUTHORIZATION.md §5.5 E1-E6 (coordinator institution-scoped access).
 
         Status: YET-7 (Engagement + coordinator scope implementation pending).
+
+        Acceptance Criteria:
+        - COORDINATOR access filtered by institution_id
+        - COORDINATOR sees only engagements belonging to their institution
+        - Cross-institution access filtered out (tenant isolation via institution)
         """
-        pytest.skip("YET-7 pending: Engagement + scoped_engagements() for COORDINATOR kind not yet implemented")
+        from app.models import User, TalentProfile, Organization, Institution, Engagement
+        from app.services.authorization import scoped_engagements
+
+        # Create institutions
+        institution_a = Institution(
+            name="Test Institution A",
+            domain="testinsta.example.com",
+            verification_level="T1",
+            status="ACTIVE"
+        )
+        session.add(institution_a)
+        session.flush()
+
+        institution_b = Institution(
+            name="Test Institution B",
+            domain="testinstb.example.com",
+            verification_level="T1",
+            status="ACTIVE"
+        )
+        session.add(institution_b)
+        session.flush()
+
+        # Create a generic organization for engagements
+        org = Organization(
+            name="Test Organization",
+            legal_id="ORG-TEST-001",
+            status="ACTIVE"
+        )
+        session.add(org)
+        session.flush()
+
+        # Seed engagement in institution_a
+        user_inst_a = User(email="talent-inst-a@example.com", password_hash="hash_inst_a")
+        session.add(user_inst_a)
+        session.flush()
+
+        talent_inst_a = TalentProfile(
+            user_id=user_inst_a.id,
+            full_name="Test Talent Institution A",
+            visibility="PRIVATE"
+        )
+        session.add(talent_inst_a)
+        session.flush()
+
+        engagement_inst_a = Engagement(
+            talent_id=talent_inst_a.id,
+            organization_id=org.id,
+            institution_id=institution_a.id,
+            kind="INTERNSHIP",
+            title="Engagement at Institution A",
+            status="ACTIVE"
+        )
+        session.add(engagement_inst_a)
+        session.flush()
+
+        # Seed engagement in institution_b
+        user_inst_b = User(email="talent-inst-b@example.com", password_hash="hash_inst_b")
+        session.add(user_inst_b)
+        session.flush()
+
+        talent_inst_b = TalentProfile(
+            user_id=user_inst_b.id,
+            full_name="Test Talent Institution B",
+            visibility="PRIVATE"
+        )
+        session.add(talent_inst_b)
+        session.flush()
+
+        engagement_inst_b = Engagement(
+            talent_id=talent_inst_b.id,
+            organization_id=org.id,
+            institution_id=institution_b.id,
+            kind="CAPSTONE",
+            title="Engagement at Institution B",
+            status="ACTIVE"
+        )
+        session.add(engagement_inst_b)
+        session.flush()
+
+        # Principal who is a coordinator for institution A
+        principal = Principal(
+            user_id="550e8400-e29b-41d4-a716-446655440020",
+            kind="COORDINATOR",
+            talent_id=None,
+            org_ids=[],
+            org_admin_ids=[],
+            institution_ids=[institution_a.id],
+            is_platform_admin=False,
+            is_suspended=False,
+        )
+
+        # Get scoped query for engagements
+        scoped_select = scoped_engagements(session, principal)
+
+        # Execute query and get all engagements visible to this coordinator
+        engagements = session.execute(scoped_select).scalars().all()
+
+        # Positive assertions: at least one engagement from institution_a
+        assert len(engagements) >= 1, "COORDINATOR should see at least one engagement from institution_a"
+        assert any(e.institution_id == institution_a.id for e in engagements), \
+            "Engagement from institution_a should be returned to COORDINATOR"
+
+        # Negative assertions: all returned engagements must belong to institution_a (coordinator scope)
+        assert all(e.institution_id == institution_a.id for e in engagements), \
+            "Engagements from institution_b should NOT be visible to coordinator of institution_a"
+        for engagement in engagements:
+            assert engagement.institution_id == institution_a.id, \
+                f"Engagement {engagement.id} belongs to {engagement.institution_id}, not {institution_a.id}"
 
     def test_anonymous_public_profile_access(self):
         """

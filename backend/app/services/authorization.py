@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
-from app.models import Institution, Organization, SkillClaim, TalentProfile, User
+from app.models import Engagement, Institution, Organization, SkillClaim, TalentProfile, User
 
 
 @dataclass
@@ -149,6 +149,34 @@ def scoped_skill_claims(session: Session, principal: Principal) -> Select:
         return select(SkillClaim).where(SkillClaim.talent_id == principal.talent_id)
     # All other kinds: no skill claims in scope
     return select(SkillClaim).where(SkillClaim.id.in_([]))
+
+
+def scoped_engagements(session: Session, principal: Principal) -> Select:
+    """
+    Return a SQLAlchemy Select query filtered to engagements in principal's scope.
+
+    Args:
+      - session: SQLAlchemy Session
+      - principal: Principal object
+
+    Returns:
+      - sqlalchemy.sql.Select: Query returning Engagement rows in principal's scope
+
+    Implements AC-2, AC-S2 (tenant isolation for engagements).
+    Scoping rules per AUTHORIZATION.md §5:
+    - TALENT: can see engagements where talent_id == principal.talent_id
+    - ORG_MEMBER/ORG_ADMIN: can see engagements where organization_id in principal.org_ids
+    - COORDINATOR/INST_ADMIN: can see engagements where institution_id in principal.institution_ids
+    - All others: no engagements in scope (empty result)
+    """
+    if principal.kind == "TALENT" and principal.talent_id is not None:
+        return select(Engagement).where(Engagement.talent_id == principal.talent_id)
+    elif principal.kind in ("ORG_MEMBER", "ORG_ADMIN"):
+        return select(Engagement).where(Engagement.organization_id.in_(principal.org_ids))
+    elif principal.kind in ("COORDINATOR", "INST_ADMIN"):
+        return select(Engagement).where(Engagement.institution_id.in_(principal.institution_ids))
+    # All other kinds: no engagements in scope
+    return select(Engagement).where(Engagement.id.in_([]))
 
 
 def get_scoped_or_404(scoped_select: Select, session: Session):

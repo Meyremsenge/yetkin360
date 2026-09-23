@@ -5,6 +5,99 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## YET-2.2 — Durum makinesi: POST /engagements/{id}/transitions (2026-09-23)
+
+**Kaynak:** `obss_project/artifacts/engagement-durum-makinesi-transitions-ucu/`
+
+### Bilinçli kararlar (kaynak: atdd.md Assumptions, plan.md)
+- Kapsam T1/T2/T3/T6 ile sınırlandı (kullanıcı onayıyla) — T4 (koordinatörsüz
+  DRAFT→ACTIVE) STATE_MACHINE.md'nin kendi açık sorusu, MVP'de gerçeklenmiyor;
+  T5/T7/T8/T9/T10 Deliverable/Evaluation/VerifiedExperience/Attestation
+  henüz yok (PLAN 2.4, 2.7, 2.8, 2.9).
+- T1'in `institution_id` ön koşulu: transition isteğine `institution_id`
+  eklenmiyor (API.md şeması bunu içermiyor) — engagement zaten oluşturma
+  sırasında `institution_id` dolu olmalı, NULL ise T1 hiç yapılamaz (bir
+  kilitlenme değil, T4'ün kasıtlı olarak kapsam dışı bırakılmasının doğal
+  sonucu).
+- Optimistic locking için ORM `session.add()+flush()` deseni YERİNE ham
+  `UPDATE ... WHERE status=... AND version=...` + `rowcount` kontrolü
+  kullanıldı (plan.md'de kod keşfinde bulunan risk: ORM deseni race
+  condition'a karşı korumasız).
+
+### Kabul edilen riskler (kaynak: atdd.md Risks)
+- Rate limiting yok — diğer uçlarla tutarlı, MVP kapsamı.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, red_team.json)
+- test-copilot'un ilk teslimi var olmayan bir model (`InstitutionCoordinator`)
+  import etmişti — `ImportError` ile tüm test dosyasını kırıyordu. Gerçek
+  model `InstitutionMember(role="COORDINATOR")` ile değiştirildi.
+- code-copilot'un ilk teslimi 2 gerçek hata içeriyordu: response şemasında
+  `updated_at` alanı eksikti; `transition_table` dict'i (karışık tipli
+  değerler: list + callable) mypy'de "object not iterable/callable" hatası
+  veriyordu — `TransitionSpec` TypedDict ile düzeltildi.
+- Test dosyasında 6 fixture hatası bulundu: 5 test fonksiyonu üyelik satırı
+  olmayan `User`-only fixture'ları (`user_inst_coord_diana`/
+  `user_org_admin_evan`) istiyordu, gerçek üyelik satırını oluşturan
+  (`inst_coord_diana`/`org_admin_evan`) fixture'ları HİÇ istemiyordu — bu
+  yüzden principal.kind "COORDINATOR"/"ORG_ADMIN" yerine "USER" oluyor,
+  testler 404 alıyordu. 1 testte de yanlış kullanıcı-engagement eşleşmesi
+  vardı. Düzeltildi.
+- `red-team`, **kritik bir yetkilendirme genişlemesi** buldu: T2/T3/T6
+  kodunda `principal.kind in ("COORDINATOR", "INST_ADMIN")` kontrolü vardı
+  — atdd.md'nin persona tanımı INST_ADMIN'i hiç T2/T3 aktörü olarak
+  saymıyordu, üstelik yanlış scope listesiyle kontrol ediliyordu
+  (`institution_ids` — genel ilişki listesi — yerine `institution_admin_ids`
+  olmalıydı, `can()`'daki admin_update deseniyle tutarsızdı). INST_ADMIN
+  T2/T3/T6'dan tamamen kaldırıldı.
+- `red-team`, T3/T6'nın zorunlu `reason` alanının hiçbir yerde kalıcı
+  saklanmadığını buldu (ne engagement satırında bir kolon vardı, ne
+  audit/outbox'a bilinçli olarak konuluyordu) — kullanıcı onayıyla yeni bir
+  migration (`engagements.reason`) eklenip T3/T6 başarılı olduğunda kalıcı
+  yazılması sağlandı (AC-15 olarak atdd.md'ye eklendi).
+
+## YET-2.1 — Engagement modeli + migration + oluşturma ucu (2026-09-23)
+
+**Kaynak:** `obss_project/artifacts/engagement-model-olusturma-ucu/`
+
+### Bilinçli kararlar (kaynak: atdd.md Assumptions)
+- `docs/AUTHORIZATION.md`'de açık kalan "POST /engagements — engagement'ı kim
+  başlatabilir?" sorusu, kullanıcı onayıyla `STATE_MACHINE.md`/`API.md` lehine
+  çözüldü: hem `ORG:MEMBER` hem `TALENT` oluşturabilir.
+- `Engagement.kind` enum'u için `docs/DOMAIN.md` (4 değer: INTERNSHIP,
+  CAPSTONE, SHORT_PROJECT, PART_TIME) esas alındı; `docs/DATABASE.md`'nin
+  eski 3-değerli CHECK kısıtı (kullanıcı onayıyla) buna göre düzeltildi.
+
+### Kabul edilen riskler (kaynak: atdd.md/plan.md Risks)
+- `POST /engagements` için MVP'de rate limiting yok — 1.6'daki
+  `/auth/forgot-password` kararıyla tutarlı, Faz 5.2/5.6'ya bırakıldı.
+- `scoped_engagements()` bu görevle ilk kez yazıldı — `docs/AUTHORIZATION.md`
+  §2'de tanımı vardı ama kod tarafında hiç yoktu.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, red_team.json)
+- code-copilot'un ilk teslimi 3 gerçek hata içeriyordu: (1) `kind` alanı düz
+  `str` idi, geçersiz değer Pydantic'i geçip yakalanmamış `IntegrityError`
+  olarak sızıyordu (500, AC-2 kırığı) — `Literal[...]` ile düzeltildi;
+  (2) asla çalışmayan bir `elif` dalı (ölü kod); (3) **kritik güvenlik
+  açığı** — `principal.kind` TALENT/ORG_MEMBER/ORG_ADMIN dışındaysa (ör.
+  "USER", "COORDINATOR") hiçbir sahiplik kontrolü uygulanmıyordu, herhangi
+  bir authenticated kullanıcı herhangi bir organizasyon adına engagement
+  açabiliyordu (default-allow, default-deny yerine). Fonksiyon başına
+  default-deny kontrolü eklenerek kapatıldı.
+- test-copilot'un yazdığı fixture'larda da 2 hata bulundu: `Organization`/
+  `Institution` fixture'ları var olmayan model alanları (`slug`,
+  `visibility`, `logo_url`, `website`) kullanıyordu; `user_org_member_charlie`
+  fixture'ında gerçek bir `OrganizationMember` satırı eksikti, bu yüzden
+  AC-S2 testi (Charlie'nin yetkisiz org'a erişememesi) yanlış senaryoyu test
+  ediyordu — Charlie hiçbir org'a üye olmadığı için "USER" kind'ine düşüp
+  yukarıdaki güvenlik açığını hiç fark etmiyordu.
+- `red-team`, `scoped_engagements()`'in COORDINATOR/INST_ADMIN dalının hiç
+  pozitif test edilmediğini (boş sonuç da testi geçiyordu) buldu — testlere
+  gerçek seed veri + pozitif assertion eklenerek kapatıldı. Ayrıca UUID parse
+  hatasının her zaman "Talent bulunamadı" mesajına düşmesi (organization_id/
+  institution_id formatı bozuksa da) ve engagement.py'de gereksiz bir manuel
+  `session.rollback()` (get_session zaten yapıyor, çift-rollback riski)
+  bulundu — ikisi de düzeltildi.
+
 ## YET-14 — Frontend: talent profil + yetkinlik beyanı ekranı (2026-09-22)
 
 **Kaynak:** `obss_project/artifacts/yet-14-talent-profil-yetkinlik/`
