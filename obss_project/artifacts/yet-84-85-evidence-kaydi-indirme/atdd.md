@@ -1,6 +1,6 @@
 ---
 task_slug: yet-84-85-evidence-kaydi-indirme
-jira_id: null
+jira_id: YET-68, YET-84, YET-85
 saga_task_id: null
 priority: critical
 threat_model: done
