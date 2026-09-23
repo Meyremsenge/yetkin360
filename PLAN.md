@@ -81,8 +81,22 @@ attestation + verified experience + skill signal üretilir.
 - [ ] 2.2 Durum makinesi: tek `POST /engagements/{id}/transitions` ucu @be1
 - [ ] 2.3 Koordinatör onayı geçişi + yetkilendirme testleri @be1
 - [ ] 2.4 Task + Deliverable @be1
-- [ ] 2.5 Dosya yükleme altyapısı: imzalı URL, magic-byte, `{uuid}.{ext}` @be2
-- [ ] 2.6 Evidence kaydı + indirme izni (sahiplik URL'den çıkar) @be2
+- [x] 2.5 Dosya yükleme altyapısı: imzalı URL, magic-byte, `{uuid}.{ext}` @be2
+      > Kapsam daraltıldı (final analiz §18): gerçek magic-byte/byte-level MIME
+      > doğrulama ve virüs taraması bu maddede YAPILMADI — worker + outbox
+      > akışına (asenkron) bırakıldı, madde 2.6 kapsamına dahil edilmeli veya
+      > yeni bir madde (2.6b) açılmalı. Bu maddede yapılan: presigned URL/POST
+      > üretimi, content-type header allowlist, boyut sınırı (10MB,
+      > content-length-range ile gerçekten zorlanıyor), `{uuid}.{ext}` object_key.
+      > Detay: `obss_project/artifacts/yet-82-83-evidence-upload-url/`.
+- [x] 2.6 Evidence kaydı + indirme izni (sahiplik URL'den çıkar) @be2
+      > `POST /evidence` (kayıt oluşturma, scan_status=PENDING, outbox+audit
+      > tek transaction) ve `GET /evidence/{id}/download-url` (sahiplik
+      > kontrollü, 300sn TTL, scan_status=CLEAN zorunlu) eklendi. `evidence`
+      > tablosu migration'ı uygulandı. `deliverable_id` bu maddeden tamamen
+      > çıkarıldı (deliverables/engagements tabloları henüz yok — 2.4
+      > tamamlanınca ayrı migration+endpoint güncellemesiyle eklenecek).
+      > Detay: `obss_project/artifacts/yet-84-85-evidence-kaydi-indirme/`.
 - [ ] 2.7 Değerlendirme formu şeması (yetkinlik + davranış + `NOT_OBSERVED`) @be2
 - [ ] 2.8 Attestation + VerifiedExperience üretimi (tek transaction) @be2
 - [ ] 2.9 SkillSignal türetme + `GET /talents/me/signals` @be2

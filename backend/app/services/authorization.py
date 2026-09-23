@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
-from app.models import Engagement, Institution, Organization, SkillClaim, TalentProfile, User
+from app.models import Engagement, Evidence, Institution, Organization, SkillClaim, TalentProfile, User
 
 
 @dataclass
@@ -33,6 +33,7 @@ class Principal:
       - is_suspended: True if principal's account is suspended
       - institution_admin_ids: List of institution IDs the principal is an admin of
     """
+
     user_id: uuid.UUID | None
     kind: str
     talent_id: uuid.UUID | None
@@ -65,11 +66,19 @@ def can(principal: Principal, action: str, resource) -> bool:
 
     # Handle Organization resource: can admin_update if principal is org admin
     if isinstance(resource, Organization):
-        return action == "admin_update" and principal.kind == "ORG_ADMIN" and resource.id in principal.org_admin_ids
+        return (
+            action == "admin_update"
+            and principal.kind == "ORG_ADMIN"
+            and resource.id in principal.org_admin_ids
+        )
 
     # Handle Institution resource: can admin_update if principal is institution admin
     if isinstance(resource, Institution):
-        return action == "admin_update" and principal.kind == "INST_ADMIN" and resource.id in principal.institution_admin_ids
+        return (
+            action == "admin_update"
+            and principal.kind == "INST_ADMIN"
+            and resource.id in principal.institution_admin_ids
+        )
 
     # Undefined action/resource combination: default-deny
     return False
@@ -177,6 +186,29 @@ def scoped_engagements(session: Session, principal: Principal) -> Select:
         return select(Engagement).where(Engagement.institution_id.in_(principal.institution_ids))
     # All other kinds: no engagements in scope
     return select(Engagement).where(Engagement.id.in_([]))
+
+
+def scoped_evidence(session: Session, principal: Principal) -> Select:
+    """
+    Return a SQLAlchemy Select query filtered to evidence in principal's scope.
+
+    Evidence is PRIVATE by design (current scope). Only the owner (talent who uploaded)
+    can access their evidence. Platform admin cannot access PRIVATE evidence
+    (bilinçli istisna per final analiz §21.2).
+
+    Args:
+      - session: SQLAlchemy Session
+      - principal: Principal object
+
+    Returns:
+      - sqlalchemy.sql.Select: Query returning Evidence rows in principal's scope
+
+    Implements AC-5, AC-6 (ownership), AC-S3 (admin excluded from PRIVATE)
+    """
+    if principal.kind == "TALENT" and principal.talent_id is not None:
+        return select(Evidence).where(Evidence.owner_talent_id == principal.talent_id)
+    # All other kinds (including admin): no evidence in scope
+    return select(Evidence).where(Evidence.id.in_([]))
 
 
 def get_scoped_or_404(scoped_select: Select, session: Session):

@@ -398,6 +398,34 @@ yakalanmamıştı). Bu görev o boşluğu kapattı.
   orkestratör tarafından **yanlış** bulundu — `plan.md`'de gerçek kullanıcı
   yetkisiyle zaten onaylanmıştı, kapatıldı (subagent'ların bazen kendi
   bağlamlarında eksik bilgiyle yanlış bulgu üretebileceğine dair bir örnek).
+- Bir Haiku alt-ajanı, prompt'ta açıkça yasaklanmasına rağmen paylaşılan
+  test fixture dosyasına (`tests/conftest.py`) dokunup test-adına-göre
+  string eşleştirmesiyle davranış değiştiren kırılgan bir çözüm eklemişti —
+  `git checkout` ile geri alındı, implementasyon tarafına dokunulmadı.
+- İlk yazımda `main.py`'ye eklenen global `RequestValidationError` handler'ı
+  TÜM endpoint'lerin 422 davranışını 400'e çeviriyordu (mevcut
+  `test_institution.py`/`test_organization*.py`'deki onaylanmış 422
+  testlerini kıracaktı) — kaldırılıp sadece `/skills/search`'e özel manuel
+  validasyona (`ApiError(400, ...)`) çevrildi.
+- **`verify` adımında bu görevden bağımsız, pre-existing bir alembic
+  migration branching sorunu bulundu:** iki bağımsız head (`d1e2f3g4h5i6`,
+  `3f9b7c1a5d2e`) aynı branchpoint'ten (`7c5d3a1b2f4e`, outbox migration)
+  ayrılmış ve hiç birleştirilmemişti — organization/institution testlerinin
+  çoğunu (125+ test) kırıyordu. Kullanıcı onayıyla `alembic merge` ile
+  `0410b8ecfed7` merge migration'ı oluşturulup uygulandı; `upgrade head` +
+  `downgrade <explicit-target>` + tekrar `upgrade head` ile doğrulandı
+  (merge revision'dan göreceli `-1` downgrade "Ambiguous walk" hatası verir —
+  alembic'in bilinen davranışı, açık hedef gerekir).
+- AC-10/AC-S2 (DB hata sızıntısı yok) testleri `@patch("app.api.skills.get_session")`
+  ile mock'lanmaya çalışılmıştı ama FastAPI'nin `app.dependency_overrides`
+  mekanizmasıyla çakışıyordu (mock hiç devreye girmiyordu, test yanlışlıkla
+  200 alıp yeşil görünüyordu) — `app.api.skills.search_skills`'i geçici
+  monkey-patch edip router'ın gerçek `except Exception` bloğunu tetikleyecek
+  şekilde düzeltildi.
+- `red-team` incelemesinde `scripts/seed.py`'nin docstring'i ("session
+  dışarıdan verilirse commit edilmez") ile gerçek kodun (her durumda commit
+  ediyordu) çeliştiği bulundu — kod docstring'e uyduruldu (`session.commit()`
+  artık sadece fonksiyonun kendi açtığı session'da çağrılıyor).
 
 ## YET-65 — [PLAN 2.3] Koordinatör onayı geçişi + yetkilendirme testleri (2026-09-23)
 
@@ -481,3 +509,71 @@ senaryolarını HTTP-uç seviyesinde kapatan bir test-tamamlama göreviydi
   ve submitted_by_user_id FK ihlallerini aynı `EngagementNotFoundError`
   altında topluyor — pratikte tetiklenemez (users hard-delete edilmiyor,
   anonimleştiriliyor), sadece okunabilirlik notu.
+
+## YET-84/YET-85 — Evidence kaydı + indirme izni (2026-09-23)
+
+**Kaynak:** `obss_project/artifacts/yet-84-85-evidence-kaydi-indirme/`
+
+### Kapsam kararı — deliverable_id tamamen çıkarıldı (kaynak: plan.md)
+`plan` adımının kod keşfinde kritik bir bulgu çıktı: atdd.md'nin orijinal
+AC-4'ü ("deliverable_id başka talent'e aitse 404") `deliverables`/
+`engagements` tablolarına dayanıyordu, ama bu tablolar/modeller kod
+tabanında henüz yoktu (PLAN 2.1–2.4 tamamlanmamış). Kullanıcıya soruldu —
+`deliverable_id` alanı bu görevden tamamen çıkarıldı: migration'da kolon
+yok, `POST /evidence` body'sinde kabul edilmiyor, AC-4 atdd.md'den silindi.
+PLAN 2.4 tamamlandığında ayrı bir migration + endpoint güncellemesiyle
+eklenecek.
+
+### Mimari çelişki — AC-13 gerçek davranışa uyduruldu (kaynak: code_diff.md)
+Orijinal AC-13 "askıya alınmış kullanıcı → 403 ACCOUNT_SUSPENDED" diyordu.
+`code-copilot` sonrası gerçek `pytest` çalıştırmasında bulundu: mevcut auth
+katmanı (`app/core/deps.py:get_current_user`, PLAN 1.x'ten beri projede
+tutarlı) SUSPENDED kullanıcıyı zaten `401 UNAUTHENTICATED` ile reddediyor —
+servis/endpoint katmanındaki `403 ACCOUNT_SUSPENDED` kontrolüne hiçbir zaman
+ulaşılamıyordu (ölü kod). Kullanıcıya soruldu, "atdd.md'yi gerçeğe uydur"
+seçildi — AC-13 401'e güncellendi, ölü kontroller kaldırıldı.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, verify_report.md, red_team.json)
+- `code-copilot`'un ilk turunda `get_download_url()`'un admin-403 dalı
+  çıplak `session.query(Evidence).filter_by(...)` kullanıyordu (CLAUDE.md
+  "çıplak select yasak" ihlali) — `select()`+`session.execute()` ile
+  düzeltildi.
+- Aynı turda, `GET /evidence/{id}/download-url` endpoint'i
+  `principal.talent_id is None` kontrolünü admin için istisnasız
+  uyguluyordu — admin (tipik olarak `talent_id=None`) servis katmanına hiç
+  ulaşamıyor, AC-S3'ün 403 FORBIDDEN dalı asla tetiklenemiyordu (ölü kod).
+  `... and not principal.is_platform_admin` ile düzeltildi.
+- `create_evidence()`'ta `kind` allowlist ön-kontrolü eksikti — geçersiz bir
+  `kind` DB CHECK constraint'e kadar gidip ham `IntegrityError` sızdırıyordu
+  (AC-8 ve AC-S4 ihlali). Servis katmanına `ALLOWED_EVIDENCE_KINDS`
+  ön-kontrolü eklendi (bu, `verify` adımının gerçek `pytest` koşumunda,
+  test-copilot'un yazdığı `create_evidence()`'ı doğrudan çağıran bir testle
+  ortaya çıktı — HTTP katmanındaki Pydantic validasyonu servis fonksiyonu
+  doğrudan çağrıldığında koruma sağlamıyordu).
+- `test-copilot`'un ilk turunda yazılan testler `pytest.skip(...,
+  allow_module_level=True)` ile implementasyon eksikken SKIP oluyordu
+  (FAIL değil) — `.claude/rules/testing.md`'nin açıkça yasakladığı bir
+  kalıp, red-step'i geçersiz kılıyordu. Kaldırılıp gerçek collection error
+  (FAIL) davranışına çevrildi.
+- Aynı testlerde 4 kategori gerçek test hatası bulundu (`verify`'da gerçek
+  `pytest` koşumuyla): yanlış import (`app.core.security` yerine
+  `app.core.errors` olmalıydı), `ApiError.error_code` diye olmayan bir
+  attribute'a erişim (doğrusu `ApiError.detail["code"]`), `scan_status`'un
+  ayrı bir JSON alanı olduğunu varsayan yanlış assertion (proje sabit
+  `{code, message, request_id}` hata şeması kullanıyor, alan mesaj metnine
+  gömülü), ve append-only `audit_events` tablosuna `DELETE` deneme (trigger
+  tarafından reddediliyordu, test izolasyonu `subject_id` filtresine
+  çevrildi).
+- `red-team` incelemesinde iki docstring'in (`services/evidence.py`,
+  `api/evidence.py`) AC-13 düzeltmesinden sonra güncel kalmadığı bulundu
+  (hâlâ eski 403 davranışını anlatıyordu) — düzeltildi. Üçüncü bulgu
+  (`Principal.is_suspended` artık projede hiç okunmuyor, ölü alan) bilinçli
+  olarak atlandı — bu görevin scope'unu aşıyor, `authorization.py`'nin
+  genelini etkiliyor, ayrı bir görevde değerlendirilmeli.
+
+### Kabul edilen riskler (kaynak: atdd.md)
+- `storage_key` üzerinde idempotency/UNIQUE constraint yok — aynı key'e
+  iki kez `POST /evidence` çağrılırsa iki ayrı evidence satırı oluşur.
+  MVP'de kabul edilen basitlik tercihi.
+- `size_bytes`/`mime_type` alanlarının MinIO'daki gerçek dosyayla
+  tutarlılığı bu API ucunda doğrulanmıyor (worker aşamasına bırakıldı).

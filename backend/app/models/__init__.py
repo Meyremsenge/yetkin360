@@ -3,6 +3,7 @@ from app.models.auth import RefreshToken
 from app.models.base import Base
 from app.models.email_tokens import EmailVerificationToken, PasswordResetToken
 from app.models.engagement import Engagement
+from app.models.evidence import Evidence
 from app.models.identity import (
     Institution,
     InstitutionMember,
@@ -36,4 +37,5 @@ __all__ = [
     "EmailVerificationToken",
     "PasswordResetToken",
     "Outbox",
+    "Evidence",
 ]

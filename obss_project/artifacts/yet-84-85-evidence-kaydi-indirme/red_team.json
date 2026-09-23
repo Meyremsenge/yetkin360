@@ -1,0 +1,66 @@
+{
+  "task": "yet-84-85-evidence-kaydi-indirme",
+  "reviewed_at": "2026-09-23T19:37:08Z",
+  "summary": "Implementasyon atdd.md'nin 19 AC'sini (AC-4 hariç, kullanıcı kararıyla kapsam dışı) karşılıyor, 55/55 test geçiyor, tam authz paketi ve tam proje testleri regresyon göstermiyor, security-scan PASS. 2 düşük önemli docstring bulgusu kullanıcı isteğiyle düzeltildi ve bağımsız doğrulandı (ruff temiz, 55 test hâlâ PASS). 1 orta önemli bulgu (Principal.is_suspended artık kullanılmayan alan) bilinçli olarak atlandı — bu görevin scope'unu aşıyor, authorization.py'nin genelini etkiliyor.",
+  "findings": [
+    {
+      "severity": "low",
+      "category": "readability",
+      "file": "backend/app/services/evidence.py",
+      "issue": "create_evidence() docstring'i (satır 57) hâlâ 'ApiError(403, \"ACCOUNT_SUSPENDED\") if principal is suspended' diyor, ama bu kontrol AC-13 düzeltme turunda kaldırıldı (SUSPENDED kullanıcı artık auth katmanında 401 ile duruyor, servise hiç ulaşmıyor). Docstring gerçek davranışla çelişiyor.",
+      "better_approach": "Docstring'den bu satırı kaldır veya '401 handled by auth layer before reaching this function' notuyla güncelle.",
+      "reason": "atdd.md AC-13'ün güncel hali (401, kullanıcı onaylı düzeltme) ile docstring tutarsız — yanıltıcı dokümantasyon, gelecekte birinin yanlış varsayımla kod yazmasına yol açabilir.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "low",
+      "category": "readability",
+      "file": "backend/app/api/evidence.py",
+      "issue": "Her iki endpoint'in (create_evidence_record satır 206, get_evidence_download_url satır 270-271) docstring'i hâlâ '403 Account Suspended: User account is suspended (AC-13)' listeliyor. Gerçek davranış: SUSPENDED kullanıcı auth katmanında (get_current_user) zaten 401 UNAUTHENTICATED ile reddediliyor, bu endpoint'lere hiç ulaşmıyor.",
+      "better_approach": "Docstring'lerdeki '403 Account Suspended (AC-13)' satırlarını '401 Unauthorized: ... (includes suspended accounts, rejected at auth layer)' ile değiştir.",
+      "reason": "AC-13, code-copilot sonrası gerçek test çalıştırmasında bulunan bir mimari çelişki nedeniyle kullanıcı onayıyla 401'e güncellendi (bkz. code_diff.md) — ama bu iki docstring güncellenmedi, kod ile dokümantasyon arasında tutarsızlık var.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "medium",
+      "category": "maintainability",
+      "file": "backend/app/services/authorization.py",
+      "issue": "Principal.is_suspended alanı (satır 44) hesaplanıyor (app/api/deps.py:65) ama artık hiçbir yerde okunmuyor — grep ile projede sıfır kullanım. Bu görevin önceki turlarında (AC-13 düzeltmesi) evidence.py ve api/evidence.py'deki is_suspended kontrolleri kaldırıldığında, Principal'ın bu alanı kullanılmaz hale geldi.",
+      "better_approach": "Bu görevin scope'u dışında (Principal dataclass PLAN 2.x'ten beri var, başka modüllerde kullanılıyor olabilir) — kaldırılması önerilmiyor, ama bir sonraki ilgili görevde (veya postmortem'de) not edilmeli: alan artık evidence akışında anlamsız, projenin geri kalanında da kullanılmıyorsa CAVEMAN ilkesi gereği (ölü alan) temizlenmesi değerlendirilmeli.",
+      "reason": "Ölü kod/alan — bu görevin kendi dosyalarında yaratmadı ama bu görevin düzeltmeleri sonucu authorization.py genelinde is_suspended artık anlamsız bir alan haline geldi. Kritik değil, scope dışı bir dosyada (authorization.py, sadece scoped_evidence() eklentisi bu göreve ait) kapsamlı bir temizlik gerektirir.",
+      "outcome": "skipped"
+    }
+  ],
+  "strengths": [
+    "Davranış Sözleşmesi tablosunun her satırı (happy path, girdi geçersiz, kaynak yok, yetkisiz erişim, dış bağımlılık hatası) kodda karşılığını buluyor; 'kısmi başarı' ve 'hiçbir şey yapılamadı' satırları atdd.md'de gerekçeli olarak 'uygulanmaz' işaretlenmiş ve bu gerekçe (tek transaction atomiklik) kodda doğrulanabilir (evidence+outbox+audit aynı session.flush/commit akışında).",
+    "Boş sonuç ↔ hata ayrımı temiz: get_download_url() önce scoped_evidence() ile sahiplik kontrolü yapıyor, scan_status kontrolüne SADECE sahip geçtikten sonra ulaşılıyor (AC-S2 testle doğrulanmış: talent A, CLEAN olan talent B'nin evidence'ı için bile scan_status bilgisi görmeden 404 alıyor).",
+    "İki bağımsız review turunda (code-copilot review + bu tur) çıplak sorgu (session.query) bulunup select()+session.execute() ile düzeltildi — CLAUDE.md'nin merkezi yetkilendirme kuralına artık tam uyumlu.",
+    "kind allowlist ön-kontrolü servis katmanına eklenerek ham DB IntegrityError sızıntısı önlendi (AC-S4 ile tutarlı, info disclosure riski kapatıldı).",
+    "Test kapsaması geniş: 55 test (unit+authorization), tam authz paketi 125 test, tüm proje 414 test — hepsi PASS, regresyon yok."
+  ],
+  "risks": [
+    "deliverable_id alanı bu görevden tamamen çıkarıldı (kullanıcı kararı, plan.md aşamasında) — evidence kayıtları şu an hiçbir deliverable'a bağlanamıyor. Bu kabul edilmiş bir kapsam kısıtlaması, ama PLAN 2.4 (deliverables tablosu) tamamlanana kadar evidence'lar 'serbest duran' kayıtlar olarak kalacak. Riskin kendisi atdd.md'de zaten dokümante edilmiş.",
+    "content_hash worker'a bırakıldığı için (NULL, bu görevde hesaplanmıyor) worker implementasyonu (ayrı PLAN maddesi) tamamlanmadan evidence kayıtları hash doğrulaması olmadan 'PENDING' durumda kalmaya devam edecek — bu bir blocker değil ama worker görevinin önceliği bu yüzden yüksek olmalı."
+  ],
+  "caveman_review": {
+    "complexity": "low",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve-with-changes"
+}
