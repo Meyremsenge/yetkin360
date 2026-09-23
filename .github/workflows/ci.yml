@@ -31,6 +31,11 @@ jobs:
       # CI-only throwaway value. Never used outside this ephemeral runner.
       SECRET_KEY: ci_only_not_a_real_secret_ci_only_not_a_real_secret_64ch
       COOKIE_SECURE: "false"
+      # CI-only throwaway values — no real MinIO/S3 in CI, alembic/pytest just
+      # need Settings() to construct. Never used outside this ephemeral runner.
+      S3_ENDPOINT_URL: http://localhost:9010
+      S3_ACCESS_KEY: ci_only_not_a_real_key
+      S3_SECRET_KEY: ci_only_not_a_real_secret
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
