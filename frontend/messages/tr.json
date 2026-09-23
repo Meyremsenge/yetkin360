@@ -88,5 +88,50 @@
     "skillAddedMessage": "Yetkinlik eklendi.",
     "skillRemovedMessage": "Yetkinlik kaldırıldı.",
     "claimedLevel": "Seviye"
+  },
+  "calismalar": {
+    "listTitle": "Çalışmalarım",
+    "loadError": "Çalışmalar yüklenemedi.",
+    "emptyMessage": "Henüz bir çalışmanız yok.",
+    "detailBackLink": "Çalışmalara dön",
+    "detailLoadError": "Çalışma yüklenemedi.",
+    "detailNotFound": "Çalışma bulunamadı.",
+    "statusLabel": "Durum",
+    "organizationLabel": "Kuruluş",
+    "updatedAtLabel": "Güncellenme",
+    "tasksTitle": "Görevler",
+    "emptyTasksMessage": "Henüz görev eklenmemiş.",
+    "deliverablesTitle": "Çıktılar",
+    "emptyDeliverablesMessage": "Henüz çıktı yüklenmemiş.",
+    "reasonLabel": "Gerekçe",
+    "reasonRequiredError": "Bu işlem için gerekçe girilmesi zorunludur.",
+    "transitionSubmitButton": "Uygula",
+    "transitionSubmittingButton": "Uygulanıyor...",
+    "transitionSuccessMessage": "Durum güncellendi.",
+    "transitionConflictError": "Kayıt başka bir işlemle değişti, güncel durum yeniden yüklendi.",
+    "transitionForbiddenError": "Bu işlemi yapma yetkiniz yok.",
+    "transitionIllegalError": "Bu durumda bu işlem yapılamaz, güncel durum yeniden yüklendi.",
+    "kind": {
+      "INTERNSHIP": "Staj",
+      "CAPSTONE": "Bitirme Projesi",
+      "SHORT_PROJECT": "Kısa Proje",
+      "PART_TIME": "Yarı Zamanlı"
+    },
+    "status": {
+      "DRAFT": "Taslak",
+      "PENDING_APPROVAL": "Onay Bekliyor",
+      "ACTIVE": "Aktif",
+      "REJECTED": "Reddedildi",
+      "CANCELLED": "İptal Edildi",
+      "PENDING_EVALUATION": "Değerlendirme Bekliyor"
+    },
+    "transitionAction": {
+      "DRAFT": "Taslak",
+      "PENDING_APPROVAL": "Onaya Gönder",
+      "ACTIVE": "Onayla ve Aktifleştir",
+      "REJECTED": "Reddet",
+      "CANCELLED": "İptal Et",
+      "PENDING_EVALUATION": "Değerlendirmeye Gönder"
+    }
   }
 }
