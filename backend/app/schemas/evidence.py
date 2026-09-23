@@ -47,7 +47,7 @@ class EvidenceUploadUrlResponse(BaseModel):
 
 class EvidenceCreateRequest(BaseModel):
     """
-    AC-1: Request body for POST /evidence.
+    AC-1, AC-4: Request body for POST /evidence.
 
     After client uploads file to MinIO using presigned URL, talent submits
     this request to register the evidence record on the platform.
@@ -57,6 +57,7 @@ class EvidenceCreateRequest(BaseModel):
         kind: Evidence type (REPOSITORY, DOCUMENT, IMAGE, LINK, CERTIFICATE).
         mime_type: MIME type (must match what was uploaded).
         size_bytes: File size in bytes (must match what was uploaded).
+        deliverable_id: Optional UUID of related Deliverable (AC-4: ownership checked via Deliverable→Engagement→talent_id).
 
     Note:
         - provenance: Always SELF_UPLOADED (not set by client).
@@ -69,11 +70,12 @@ class EvidenceCreateRequest(BaseModel):
     kind: str = Field(pattern="^(REPOSITORY|DOCUMENT|IMAGE|LINK|CERTIFICATE)$")
     mime_type: str
     size_bytes: int = Field(ge=0)
+    deliverable_id: uuid.UUID | None = None
 
 
 class EvidenceResponse(BaseModel):
     """
-    AC-1: Response for evidence creation and download URL endpoints.
+    AC-1, AC-4: Response for evidence creation and download URL endpoints.
 
     Fields:
         id: Evidence record UUID.
@@ -85,6 +87,7 @@ class EvidenceResponse(BaseModel):
         size_bytes: File size.
         scan_status: PENDING, CLEAN, INFECTED, or FAILED.
         visibility: Always PRIVATE.
+        deliverable_id: Optional related Deliverable UUID.
         created_at: Timestamp when evidence was registered.
     """
 
@@ -97,6 +100,7 @@ class EvidenceResponse(BaseModel):
     size_bytes: int
     scan_status: str
     visibility: str
+    deliverable_id: uuid.UUID | None
     created_at: datetime
 
 

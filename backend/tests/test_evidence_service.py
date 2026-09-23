@@ -23,8 +23,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from botocore.exceptions import EndpointConnectionError, ConnectTimeoutError
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 
 # NOTE: These imports will fail during red phase (TDD) and cause collection error (FAILED).
 # This is expected and correct — tests must show red (FAILED), not SKIP.
@@ -34,10 +32,13 @@ from app.core.errors import ApiError
 from app.models.evidence import Evidence
 from app.models.outbox import Outbox
 from app.models.audit import AuditEvent
+from app.models.task_deliverable import Deliverable
+from app.models.engagement import Engagement
+from app.models.identity import Organization
 from app.services.evidence import create_evidence, get_download_url
 from app.services.storage import generate_presigned_get_url
 from app.services.authorization import Principal, scoped_evidence
-from app.schemas.evidence import EvidenceCreateRequest, EvidenceResponse, EvidenceDownloadUrlResponse
+from app.schemas.evidence import EvidenceResponse, EvidenceDownloadUrlResponse
 
 
 # ============================================================================
@@ -717,3 +718,181 @@ class TestScopedEvidenceAuthorization:
 
         # Admin should see empty result (PRIVATE evidence excluded)
         assert len(results) == 0
+
+
+# ============================================================================
+# AC-4: Deliverable Ownership Validation
+# ============================================================================
+
+
+class TestDeliverableOwnership:
+    """AC-4: deliverable_id ownership chain check (Deliverable→Engagement→talent_id)."""
+
+    def test_create_evidence_with_valid_deliverable_ownership(
+        self, session, user_talent_a, talent_a
+    ):
+        """
+        AC-4: Evidence created with deliverable_id of owned deliverable succeeds,
+        and deliverable_id is stored in response.
+        """
+        # Create organization
+        org = Organization(
+            name="Test Org",
+            domain="testorg.example.com",
+            legal_id="ORG-TEST-001",
+            verification_level="T1",
+            status="ACTIVE",
+        )
+        session.add(org)
+        session.flush()
+
+        # Create engagement for talent_a
+        engagement = Engagement(
+            talent_id=talent_a.id,
+            organization_id=org.id,
+            kind="INTERNSHIP",
+            title="Test Engagement",
+            status="ACTIVE",
+        )
+        session.add(engagement)
+        session.flush()
+
+        # Create deliverable for this engagement
+        from datetime import datetime, timezone
+        deliverable = Deliverable(
+            engagement_id=engagement.id,
+            title="Test Deliverable",
+            description="Test description",
+            submitted_by_user_id=user_talent_a.id,
+            submitted_at=datetime.now(timezone.utc),
+        )
+        session.add(deliverable)
+        session.flush()
+
+        principal = Principal(
+            user_id=user_talent_a.id,
+            kind="TALENT",
+            talent_id=talent_a.id,
+            org_ids=[],
+            org_admin_ids=[],
+            institution_ids=[],
+            is_platform_admin=False,
+            is_suspended=False,
+        )
+
+        storage_key = f"evidence/{talent_a.id}/test-uuid.pdf"
+        response = create_evidence(
+            session=session,
+            principal=principal,
+            storage_key=storage_key,
+            kind="DOCUMENT",
+            mime_type="application/pdf",
+            size_bytes=1024,
+            deliverable_id=deliverable.id,
+        )
+
+        assert response.deliverable_id == deliverable.id
+        # Verify DB record
+        evidence = session.query(Evidence).filter_by(id=response.id).first()
+        assert evidence.deliverable_id == deliverable.id
+
+    def test_create_evidence_with_unowned_deliverable_raises_404(
+        self, session, user_talent_a, talent_a, user_talent_b, talent_b
+    ):
+        """
+        AC-4: Evidence creation with deliverable_id from another talent's engagement
+        returns 404 NOT_FOUND (not 422 or 403).
+        """
+        # Create organization
+        org_b = Organization(
+            name="Test Org B",
+            domain="testorgb.example.com",
+            legal_id="ORG-TEST-B-001",
+            verification_level="T1",
+            status="ACTIVE",
+        )
+        session.add(org_b)
+        session.flush()
+
+        # Create engagement for talent_b
+        engagement_b = Engagement(
+            talent_id=talent_b.id,
+            organization_id=org_b.id,
+            kind="INTERNSHIP",
+            title="Test Engagement B",
+            status="ACTIVE",
+        )
+        session.add(engagement_b)
+        session.flush()
+
+        # Create deliverable for talent_b's engagement
+        from datetime import datetime, timezone
+        deliverable_b = Deliverable(
+            engagement_id=engagement_b.id,
+            title="Test Deliverable B",
+            description="Test description",
+            submitted_by_user_id=user_talent_b.id,
+            submitted_at=datetime.now(timezone.utc),
+        )
+        session.add(deliverable_b)
+        session.flush()
+
+        principal = Principal(
+            user_id=user_talent_a.id,
+            kind="TALENT",
+            talent_id=talent_a.id,
+            org_ids=[],
+            org_admin_ids=[],
+            institution_ids=[],
+            is_platform_admin=False,
+            is_suspended=False,
+        )
+
+        storage_key = f"evidence/{talent_a.id}/test-uuid.pdf"
+        with pytest.raises(ApiError) as exc_info:
+            create_evidence(
+                session=session,
+                principal=principal,
+                storage_key=storage_key,
+                kind="DOCUMENT",
+                mime_type="application/pdf",
+                size_bytes=1024,
+                deliverable_id=deliverable_b.id,
+            )
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail["code"] == "NOT_FOUND"
+
+    def test_create_evidence_with_nonexistent_deliverable_raises_404(
+        self, session, user_talent_a, talent_a
+    ):
+        """
+        AC-4: Evidence creation with non-existent deliverable_id returns 404 NOT_FOUND.
+        """
+        fake_deliverable_id = uuid.uuid4()
+
+        principal = Principal(
+            user_id=user_talent_a.id,
+            kind="TALENT",
+            talent_id=talent_a.id,
+            org_ids=[],
+            org_admin_ids=[],
+            institution_ids=[],
+            is_platform_admin=False,
+            is_suspended=False,
+        )
+
+        storage_key = f"evidence/{talent_a.id}/test-uuid.pdf"
+        with pytest.raises(ApiError) as exc_info:
+            create_evidence(
+                session=session,
+                principal=principal,
+                storage_key=storage_key,
+                kind="DOCUMENT",
+                mime_type="application/pdf",
+                size_bytes=1024,
+                deliverable_id=fake_deliverable_id,
+            )
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail["code"] == "NOT_FOUND"

@@ -25,7 +25,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 from botocore.exceptions import EndpointConnectionError
 from fastapi.testclient import TestClient
-from sqlalchemy import select
 
 from app.api.deps import get_session
 from app.core.security import encode_access_token
@@ -37,6 +36,9 @@ from app.models import User
 # Once app.models.evidence, app.services.evidence, and app.services.authorization
 # are implemented, these imports will resolve and tests will run normally.
 from app.models.evidence import Evidence
+from app.models.task_deliverable import Deliverable
+from app.models.engagement import Engagement
+from app.models.identity import Organization
 from app.services.evidence import create_evidence
 from app.services.authorization import Principal
 
@@ -766,3 +768,75 @@ class TestRateLimit:
             # 11th download should be rate-limited
             response = client_with_auth.get(f"/evidence/{evidences[10]}/download-url")
             assert response.status_code == 429
+
+
+# ============================================================================
+# AC-4: Deliverable Ownership Validation (Authorization)
+# ============================================================================
+
+
+class TestDeliverableOwnershipAuthorization:
+    """
+    AC-4: POST /evidence with deliverable_id checks ownership chain
+    (Deliverable→Engagement→talent_id). Mismatch → 404 (not 403).
+    """
+
+    def test_post_evidence_with_unowned_deliverable_returns_404(
+        self, session, user_talent_a, talent_a, user_talent_b, talent_b, client_with_auth
+    ):
+        """
+        AC-4: Talent A tries to create evidence linked to deliverable from
+        Talent B's engagement → 404 Not Found (not 403 Forbidden).
+        """
+        from datetime import datetime, timezone
+
+        # Create organization for talent_b's engagement
+        org_b = Organization(
+            name="Org B",
+            domain="orgb.example.com",
+            legal_id="ORG-B-001",
+            verification_level="T1",
+            status="ACTIVE",
+        )
+        session.add(org_b)
+        session.flush()
+
+        # Create engagement for talent_b
+        engagement_b = Engagement(
+            talent_id=talent_b.id,
+            organization_id=org_b.id,
+            kind="INTERNSHIP",
+            title="Talent B Engagement",
+            status="ACTIVE",
+        )
+        session.add(engagement_b)
+        session.flush()
+
+        deliverable_b = Deliverable(
+            engagement_id=engagement_b.id,
+            title="Talent B Deliverable",
+            description="Test",
+            submitted_by_user_id=user_talent_b.id,
+            submitted_at=datetime.now(timezone.utc),
+        )
+        session.add(deliverable_b)
+        session.flush()
+
+        # Now talent_a tries to create evidence with deliverable_b.id
+        set_auth_cookies(client_with_auth, user_talent_a)
+        response = client_with_auth.post(
+            "/evidence",
+            json={
+                "storage_key": f"evidence/{talent_a.id}/test-uuid.pdf",
+                "kind": "DOCUMENT",
+                "mime_type": "application/pdf",
+                "size_bytes": 1024,
+                "deliverable_id": str(deliverable_b.id),
+            },
+            headers={"X-CSRF-Token": "test-csrf-token"},
+        )
+
+        # Should get 404, not 403 or 201
+        assert response.status_code == 404
+        body = response.json()
+        assert body.get("code") == "NOT_FOUND"

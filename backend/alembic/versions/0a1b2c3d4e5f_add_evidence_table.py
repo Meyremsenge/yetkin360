@@ -1,7 +1,7 @@
 """Add evidence table for file-based proof uploads
 
 Revision ID: 0a1b2c3d4e5f
-Revises: 0410b8ecfed7
+Revises: i0j1k2l3m4n5
 Create Date: 2026-09-23 10:00:00.000000
 
 """
@@ -14,7 +14,7 @@ from sqlalchemy.dialects import postgresql
 
 # Revision ID and dependencies
 revision: str = "0a1b2c3d4e5f"
-down_revision: Union[str, None] = "0410b8ecfed7"
+down_revision: Union[str, None] = "i0j1k2l3m4n5"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

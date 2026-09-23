@@ -80,6 +80,11 @@ class Evidence(Base, TimestampMixin):
         ForeignKey("talent_profiles.id", ondelete="CASCADE"), nullable=False
     )
 
+    # Foreign key: related deliverable (optional, AC-4)
+    deliverable_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("deliverables.id"), nullable=True
+    )
+
     # Evidence metadata
     kind: Mapped[str] = mapped_column(String(50), nullable=False)
     provenance: Mapped[str] = mapped_column(String(50), nullable=False, default="SELF_UPLOADED")

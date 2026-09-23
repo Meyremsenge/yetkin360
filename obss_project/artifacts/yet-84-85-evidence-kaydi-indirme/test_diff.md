@@ -44,7 +44,7 @@ Beklenen red-step davranışı doğrulandı: testler **FAIL/ERROR** olarak rapor
 | AC-S6 | `TestDownloadAudit.test_get_download_url_writes_audit_event` | test_evidence_service.py |
 | AC-S7 | `TestEvidenceCreation.test_create_evidence_writes_audit_event` | test_evidence_service.py |
 
-AC-4 (deliverable_id) kapsam dışı bırakıldığı için (bkz. atdd.md) test yazılmadı — doğru.
+AC-4 (deliverable_id) — v2'de geri eklendi (bkz. atdd.md Mimari Sapma Notu). `TestDeliverableOwnership` (test_evidence_service.py, 3 test) ve 1 authorization testi (test_evidence_record_download.py) eklendi: sahiplik zinciri (Deliverable→Engagement→talent_id) başarı/404 senaryoları.
 
 ## Varsayımlar (Haiku alt-ajanından, henüz yazılmamış imzalar hakkında)
 - `create_evidence(session, principal, storage_key, kind, mime_type, size_bytes)` → `EvidenceResponse`

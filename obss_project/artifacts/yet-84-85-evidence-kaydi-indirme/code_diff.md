@@ -57,5 +57,31 @@ pytest -q (tüm paket, regresyon kontrolü)
 - Ölü kod bulundu ve temizlendi (2 kez: admin dalı öncesi çıplak sorgu, sonra storage.py/evidence.py hata yakalama tekrarı).
 - Mevcut kod kalıpları (PLAN 2.5: `ApiError`, `validate_content_type` benzeri ön-kontrol, `scoped_*` kalıbı) takip edildi.
 
+## v2 — deliverable_id eklenmesi (git senkron düzeltmesi sonrası, 2026-09-23)
+
+**Neden:** İlk commit (`f6c98f0`), `main`'in çok eski bir noktasından dallanmıştı (arkadaşın PLAN 2.1/2.4 çalışması henüz merge edilmemişken). Kod güncel `main` üzerine taşınırken (cherry-pick), `main`'de `Deliverable`/`Engagement` modellerinin gerçekten mevcut olduğu görüldü — önceki "deliverable_id kapsam dışı" kararı geçersiz hale geldi. Kullanıcı onayıyla `deliverable_id` eklendi.
+
+**Değişen/Yeni:**
+- `backend/app/models/evidence.py` — `deliverable_id` kolonu (nullable FK → `deliverables.id`, `ondelete="SET NULL"`)
+- `backend/alembic/versions/1a2b3c4d5e6f_add_evidence_deliverable_id.py` — yeni migration, `down_revision="0a1b2c3d4e5f"`
+- `backend/app/schemas/evidence.py` — `EvidenceCreateRequest`/`EvidenceResponse`'e `deliverable_id` eklendi
+- `backend/app/services/evidence.py` — `create_evidence()`'a sahiplik zinciri kontrolü eklendi: `select(Deliverable, Engagement).join(...)`, eşleşmezse `404 NOT_FOUND` (çıplak sorgu yok, `select()`+`session.execute()` kullanıldı — bağımsız doğrulandı)
+- `backend/app/api/evidence.py` — docstring güncellendi
+- `backend/tests/test_evidence_service.py` — `TestDeliverableOwnership` sınıfı, 3 yeni test
+- `backend/tests/authorization/test_evidence_record_download.py` — 1 yeni authorization testi
+
+**Git senkron düzeltmesi (ayrı bir konu, kodla ilgisiz):**
+- Eski migration'ın `down_revision`'ı (`0410b8ecfed7`) artık `main`'de mevcut değildi (arada PLAN 2.1/2.2/2.4/YET-9 migration'ları eklenmiş) — gerçek head'e (`i0j1k2l3m4n5`) güncellendi.
+- Yerel geliştirme veritabanı (Docker, sadece bu makinede) tutarsız bir ara durumdaydı (`alembic_version` yanlış revizyonu işaret ediyordu, bazı tablolar hiç oluşmamıştı) — kullanıcı onayıyla şema DROP edilip `alembic upgrade head` ile sıfırdan kuruldu. Bu SADECE yerel test verisini etkiledi, gerçek/paylaşılan veri değildi.
+
+**Doğrulama (bağımsız):**
+```
+alembic upgrade head / downgrade -1 / upgrade head → temiz
+pytest tests/test_evidence_service.py tests/authorization/test_evidence_record_download.py -q → 59 passed
+pytest -q (tüm proje, arkadaşın PLAN 2.1/2.2/2.4/YET-9 kodu dahil) → 568 passed, 4 skipped, 0 failed
+ruff check + ruff format --check → temiz (1 format farkı bulunup düzeltildi)
+security-scan → PASS (1 yeni yanlış pozitif — migration revizyon ID'si — incelenip baseline'a kabul edildi)
+```
+
 ## Sonraki Adım
-Implementasyon yeşil ve bağımsız doğrulandı. Sonraki pipeline adımı: `verify` (kalan kalite kapitleri: lint/typecheck/authz-test tam paket/security-scan vb.).
+Implementasyon yeşil ve bağımsız doğrulandı (deliverable_id dahil). Sonraki pipeline adımı: `red-team` (bu turun incelemesi) → `commit`.

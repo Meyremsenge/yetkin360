@@ -168,11 +168,12 @@ def create_evidence_record(
     _csrf: None = Depends(require_csrf),
 ) -> EvidenceResponse:
     """
-    AC-1 through AC-S7: Register an evidence file and enqueue scanning.
+    AC-1 through AC-S7, AC-4: Register an evidence file and enqueue scanning.
 
     After client uploads file to MinIO using presigned URL from POST /evidence/upload-url,
     talent submits this request to create the evidence record on the platform.
-    Validates storage_key ownership, enqueues scanning via outbox, logs audit event.
+    Validates storage_key ownership, checks deliverable ownership (if provided),
+    enqueues scanning via outbox, logs audit event.
 
     POST /evidence
     Content-Type: application/json
@@ -182,7 +183,8 @@ def create_evidence_record(
             "storage_key": "evidence/{talent_id}/{uuid}.{ext}",  (required)
             "kind": "DOCUMENT",                                   (allowlist: REPOSITORY, DOCUMENT, IMAGE, LINK, CERTIFICATE)
             "mime_type": "application/pdf",                       (required)
-            "size_bytes": 2048                                    (required)
+            "size_bytes": 2048,                                   (required)
+            "deliverable_id": "<optional-uuid>"                   (optional; AC-4: ownership chain check)
         }
 
     Returns:
@@ -196,6 +198,7 @@ def create_evidence_record(
             "size_bytes": 2048,
             "scan_status": "PENDING",
             "visibility": "PRIVATE",
+            "deliverable_id": "<optional-uuid or null>",
             "created_at": "2026-09-23T..."
         }
 
@@ -203,6 +206,7 @@ def create_evidence_record(
         401 Unauthorized: No valid auth token, or suspended account (AC-2, AC-13 — suspended users are rejected at the auth layer before reaching this endpoint)
         403 CSRF Failed: CSRF token mismatch or missing
         403 Talent Profile Required: User has no talent profile (AC-12)
+        404 Not Found: deliverable_id provided but doesn't belong to principal's engagements (AC-4)
         422 Unprocessable Entity:
             - INVALID_STORAGE_KEY: storage_key prefix doesn't match principal.talent_id (AC-3, AC-S1)
             - (Pydantic validation errors for kind, mime_type, size_bytes)
@@ -214,6 +218,7 @@ def create_evidence_record(
         AC-1: Writes outbox message (evidence.scan_requested) in same transaction
         AC-2: Unauthenticated → 401
         AC-3: Invalid storage_key prefix → 422 INVALID_STORAGE_KEY (elevation defense)
+        AC-4: deliverable_id ownership check (Deliverable→Engagement→talent_id), 404 if mismatch
         AC-8: kind must be in allowlist (Pydantic CHECK constraint)
         AC-12: No talent profile → 403 TALENT_PROFILE_REQUIRED
         AC-13: Suspended account → 401 (rejected at auth layer, see app/core/deps.py:get_current_user)
@@ -238,6 +243,7 @@ def create_evidence_record(
         kind=request_body.kind,
         mime_type=request_body.mime_type,
         size_bytes=request_body.size_bytes,
+        deliverable_id=request_body.deliverable_id,
     )
 
     # Commit transaction in endpoint layer

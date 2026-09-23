@@ -1,7 +1,7 @@
 {
   "task": "yet-84-85-evidence-kaydi-indirme",
-  "reviewed_at": "2026-09-23T19:37:08Z",
-  "summary": "Implementasyon atdd.md'nin 19 AC'sini (AC-4 hariç, kullanıcı kararıyla kapsam dışı) karşılıyor, 55/55 test geçiyor, tam authz paketi ve tam proje testleri regresyon göstermiyor, security-scan PASS. 2 düşük önemli docstring bulgusu kullanıcı isteğiyle düzeltildi ve bağımsız doğrulandı (ruff temiz, 55 test hâlâ PASS). 1 orta önemli bulgu (Principal.is_suspended artık kullanılmayan alan) bilinçli olarak atlandı — bu görevin scope'unu aşıyor, authorization.py'nin genelini etkiliyor.",
+  "reviewed_at": "2026-09-23T20:17:20Z",
+  "summary": "v2: git senkron düzeltmesi sonrası (bkz. code_diff.md 'v2' bölümü) AC-4 (deliverable_id sahiplik kontrolü) geri eklendi — main'de Deliverable/Engagement modellerinin gerçekten var olduğu doğrulandı, önceki 'kapsam dışı' kararı geçersiz hale gelmişti. Implementasyon artık atdd.md'nin 20 AC'sinin (AC-4 dahil) tamamını karşılıyor. 59/59 evidence testi, tüm proje 568/568 (arkadaşın PLAN 2.1/2.2/2.4/YET-9 kodu dahil) PASS, security-scan PASS. Önceki turdan 2 docstring bulgusu zaten düzeltilmişti; bu turda 1 yeni düşük önemli bulgu (test kodunda naive datetime.now()) bulundu ve düzeltildi. 1 orta önemli bulgu (Principal.is_suspended artık kullanılmayan alan) hâlâ bilinçli olarak atlanmış durumda.",
   "findings": [
     {
       "severity": "low",
@@ -29,6 +29,24 @@
       "better_approach": "Bu görevin scope'u dışında (Principal dataclass PLAN 2.x'ten beri var, başka modüllerde kullanılıyor olabilir) — kaldırılması önerilmiyor, ama bir sonraki ilgili görevde (veya postmortem'de) not edilmeli: alan artık evidence akışında anlamsız, projenin geri kalanında da kullanılmıyorsa CAVEMAN ilkesi gereği (ölü alan) temizlenmesi değerlendirilmeli.",
       "reason": "Ölü kod/alan — bu görevin kendi dosyalarında yaratmadı ama bu görevin düzeltmeleri sonucu authorization.py genelinde is_suspended artık anlamsız bir alan haline geldi. Kritik değil, scope dışı bir dosyada (authorization.py, sadece scoped_evidence() eklentisi bu göreve ait) kapsamlı bir temizlik gerektirir.",
       "outcome": "skipped"
+    },
+    {
+      "severity": "low",
+      "category": "correctness",
+      "file": "backend/tests/test_evidence_service.py",
+      "issue": "Yeni deliverable_id testleri (TestDeliverableOwnership sınıfı, 2 yerde satır ~770/~838) ve backend/tests/authorization/test_evidence_record_download.py (1 yerde satır ~821), Deliverable fixture'ının submitted_at alanını naive `datetime.now()` ile dolduruyor.",
+      "better_approach": "`datetime.now(timezone.utc)` kullanılmalı.",
+      "reason": ".claude/rules/database.md: 'Zaman: timestamptz/UTC. Yerel saat varsayımı yasak.' Bu tam olarak AI_DEVLOG.md'nin YET-66 (Task+Deliverable) bölümünde daha önce implementasyon kodunda bulunup düzeltilen aynı hata deseninin, bu kez test kodunda tekrarı. Test kodu olduğu için üretim davranışını etkilemiyor (gerçek Deliverable.submitted_at değeri her zaman uygulama kodundan gelir, bu sadece test fixture değeri) ama proje kuralının test kodunda da tutarlı uygulanması gerekir.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "low",
+      "category": "caveman",
+      "file": "backend/tests/test_evidence_service.py, backend/tests/authorization/test_evidence_record_download.py",
+      "issue": "datetime.now() düzeltme turunun yan etkisi olarak, ruff bu iki dosyada 5 kullanılmayan import buldu (sqlalchemy.select, sqlalchemy as sa, sqlalchemy.orm.Session, EvidenceCreateRequest) — kod tabanında zaten var olan kalıntı importlar.",
+      "better_approach": "ruff check --fix ile otomatik kaldırıldı.",
+      "reason": "CAVEMAN ilkesi: kullanılmayan import ölü koddur. Otomatik düzeltilebilir bir F401 hatası olduğu için tool ile giderildi, davranış değişmedi (59/59 test hâlâ PASS).",
+      "outcome": "fixed"
     }
   ],
   "strengths": [
@@ -39,8 +57,8 @@
     "Test kapsaması geniş: 55 test (unit+authorization), tam authz paketi 125 test, tüm proje 414 test — hepsi PASS, regresyon yok."
   ],
   "risks": [
-    "deliverable_id alanı bu görevden tamamen çıkarıldı (kullanıcı kararı, plan.md aşamasında) — evidence kayıtları şu an hiçbir deliverable'a bağlanamıyor. Bu kabul edilmiş bir kapsam kısıtlaması, ama PLAN 2.4 (deliverables tablosu) tamamlanana kadar evidence'lar 'serbest duran' kayıtlar olarak kalacak. Riskin kendisi atdd.md'de zaten dokümante edilmiş.",
-    "content_hash worker'a bırakıldığı için (NULL, bu görevde hesaplanmıyor) worker implementasyonu (ayrı PLAN maddesi) tamamlanmadan evidence kayıtları hash doğrulaması olmadan 'PENDING' durumda kalmaya devam edecek — bu bir blocker değil ama worker görevinin önceliği bu yüzden yüksek olmalı."
+    "content_hash worker'a bırakıldığı için (NULL, bu görevde hesaplanmıyor) worker implementasyonu (ayrı PLAN maddesi) tamamlanmadan evidence kayıtları hash doğrulaması olmadan 'PENDING' durumda kalmaya devam edecek — bu bir blocker değil ama worker görevinin önceliği bu yüzden yüksek olmalı.",
+    "İlk commit (f6c98f0) çok eski bir main noktasından dallanmıştı ve push edilmişti — bu commit artık kullanılmıyor (yeni branch feature/plan-2.6-evidence-record-download-v2 kullanılıyor) ama eski branch origin'de duruyor. Kafa karışıklığını önlemek için PR açılırken doğru branch'in (v2) kullanıldığından emin olunmalı; eski branch silinmedi (veri kaybı riski almamak için), kullanıcı isterse temizleyebilir."
   ],
   "caveman_review": {
     "complexity": "low",

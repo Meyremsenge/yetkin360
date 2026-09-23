@@ -20,10 +20,12 @@ affected_modules:
   - services/authorization.py (yeni scoped_evidence() eklenecek)
   - schemas/evidence.py
   - core/config.py (indirme TTL sabiti)
-  - migrations/ (yeni alembic revizyonu, down_revision=0410b8ecfed7)
+  - migrations/ (yeni alembic revizyonu, down_revision=i0j1k2l3m4n5 — 054f934 sonrası güncel head)
+  - migrations/ (ek revizyon: evidence.deliverable_id kolonu)
   - tests/test_evidence_service.py
   - tests/authorization/test_evidence_record_download.py
   - services/audit.py (mevcut log_audit_event() kullanılacak, değiştirilmeyecek)
+  - models/task_deliverable.py (mevcut Deliverable modeli, sadece okunacak/FK referans edilecek)
 ---
 
 # ATDD — yet-84-85-evidence-kaydi-indirme
@@ -43,14 +45,16 @@ I want MinIO'ya yüklediğim dosyayı platforma kanıt olarak kaydetmek ve daha 
 So that beyanımı destekleyen kanıtlar zincire dahil olsun ve başkaları tarafından erişilemesin
 
 ## MİMARİ SAPMA NOTU
-Yok — final analiz §18 akışı (API → evidence kaydı → outbox → worker tarar) ve §21.2 authorization matrisi (404/403 ayrımı) birebir uygulanıyor, sapma tespit edilmedi.
+Final analiz §18/§21.2'ye sapma yok. Ancak **bu görevin git geçmişinde önemli bir düzeltme oldu:**
+
+İlk turda (`plan` adımı) `deliverables`/`engagements` tabloları kod tabanında bulunamamıştı (PLAN 2.1/2.4 henüz merge edilmemişti), bu yüzden `deliverable_id` tamamen kapsam dışı bırakılmıştı ve ilk commit (`f6c98f0`) bu haliyle push edildi. Sonrasında kullanıcı, bu commit'in **çok eski bir `main`'den** (arkadaş tarafından PLAN 2.1/2.4 merge edilmeden önceki bir noktadan) dallandığını fark etti. Kod, güncel `main` üzerine doğru şekilde taşındı (cherry-pick + conflict çözümü) ve `main`'de `Deliverable`/`Engagement` modellerinin **gerçekten var olduğu** doğrulandı — kullanıcı onayıyla `deliverable_id` geri eklendi (bu doküman güncellemesi). Detay: `code_diff.md`'nin "v2 — deliverable_id eklenmesi" bölümü.
 
 ## Acceptance Criteria (Given-When-Then, önceliklendirilmiş)
 
 1. [Critical] Given kimlik doğrulanmış talent kullanıcı (kendi `storage_key`'i ile MinIO'ya dosyayı zaten yükledi), When `POST /evidence` isteğini geçerli `{storage_key, kind, mime_type, size_bytes}` ile gönderir, Then `201 Created` + evidence response şeması (`id, owner_talent_id, kind, provenance=SELF_UPLOADED, storage_key, mime_type, size_bytes, scan_status=PENDING, visibility=PRIVATE, created_at`) döner; aynı transaction içinde `outbox` tablosuna `evidence.scan_requested` topic'iyle bir satır yazılır (payload: `{evidence_id, storage_key, bucket}`).
 2. [Critical] Given kimlik doğrulanmamış istek, When `POST /evidence` veya `GET /evidence/{id}/download-url` çağrılır, Then `401 Unauthorized` döner.
 3. [Critical] Given `storage_key` alanı `evidence/{principal.talent_id}/...` prefix'iyle başlamıyor (başka bir talent'in prefix'i veya keyfi bir string), When `POST /evidence` çağrılır, Then `422 Unprocessable Entity` + `{error_code: "INVALID_STORAGE_KEY"}` döner (elevation defense — bkz. AC-S1).
-4. ~~[Critical] deliverable_id sahiplik kontrolü~~ — **KAPSAM DIŞI** (bkz. Kapsam Dışı bölümü: `deliverables`/`engagements` tabloları henüz kod tabanında yok — `plan` adımında tespit edildi, kullanıcı onayıyla bu görevden tamamen çıkarıldı; `deliverable_id` alanı bu POST body'sinde YOK).
+4. [Critical] Given `deliverable_id` verilmiş ama bu deliverable'ın bağlı olduğu engagement, çağıran talent'e ait değil (başka bir talent'in engagement'ı), When `POST /evidence` çağrılır, Then `404 Not Found` döner (kaynağın varlığı sızdırılmaz — CLAUDE.md 404 kuralı). Sahiplik zinciri: `Evidence.deliverable_id → Deliverable.id → Deliverable.engagement_id → Engagement.talent_id == principal.talent_id`. **(GERİ EKLENDİ — bkz. Mimari Sapma Notu: `main`'de PLAN 2.4 tamamlanmış, `Deliverable`/`Engagement` modelleri artık gerçekten var, önceki "kapsam dışı" kararı geçersiz hale geldi.)**
 5. [Critical] Given evidence kaydı sahibi talent A, When A kendi evidence'ı için `GET /evidence/{id}/download-url` çağırır ve `scan_status=CLEAN`, Then `200 OK` + `{download_url, expires_in: 300}` döner.
 6. [Critical] Given evidence talent B'ye ait ve `visibility=PRIVATE`, When talent A (B değil) `GET /evidence/{id}/download-url` çağırır, Then `404 Not Found` döner (403 değil — CLAUDE.md).
 7. [Critical] Given evidence `scan_status` `PENDING`, `INFECTED` veya `FAILED`, When sahibi `GET /evidence/{id}/download-url` çağırır, Then `409 Conflict` + `{error_code: "SCAN_NOT_CLEAN", scan_status: "<mevcut durum>"}` döner (dosya indirilemez — CLAUDE.md: "Tarama bitmeden indirilemez").
@@ -78,6 +82,7 @@ AC-S7. [Medium] Given talent A kendi evidence'ı için `POST /evidence` çağır
 | 2 | Girdi geçersiz (`storage_key` prefix uyuşmuyor) | `422` + `{error_code: "INVALID_STORAGE_KEY"}` | Yok | "Geçersiz kanıt referansı" | AC-3, AC-S1 |
 | 2b | Girdi geçersiz (`kind` allowlist dışı) | `422` (Pydantic) | Yok | Alan altı hata | AC-8 |
 | 3 | Kaynak yok (evidence id bulunamadı VEYA başkasına ait PRIVATE) | `404 Not Found` | Yok | "Bulunamadı" | AC-6, AC-9 |
+| 3b | Kaynak yok (deliverable_id verilmiş ama başka talent'in engagement'ına ait) | `404 Not Found` | Yok | "Bulunamadı" | AC-4 |
 | 4 | Yetkisiz erişim (talent profili yok) | `403` + `{error_code: "TALENT_PROFILE_REQUIRED"}` | Yok | "Bu işlem için talent profili gerekli" | AC-12 |
 | 4b | Yetkisiz erişim (admin, PRIVATE evidence) | `403 Forbidden` | Yok | "Erişim reddedildi" | AC-S3 |
 | 5 | Dış bağımlılık hatası (MinIO erişilemez) | `503` + `{error_code: "STORAGE_UNAVAILABLE"}` | Yok (transaction rollback, DB'ye yazılmaz) | "Şu an kullanılamıyor, tekrar deneyin" | AC-11 |
@@ -105,7 +110,6 @@ Görsel/UI kriteri: Yok (saf backend API ucu, frontend entegrasyonu kapsam dış
 Diğer ölçülebilir kriterler: Authorization test matrisi (§21.2) bu iki uç için eksiksiz olmalı — `pytest tests/authorization -q` tamamı geçmeli.
 
 ## Kapsam Dışı
-- **`deliverable_id` alanı ve sahiplik kontrolü — bu görevden tamamen çıkarıldı** (`plan` adımında tespit edildi: `deliverables`/`engagements` tabloları/modelleri PLAN 2.1-2.4 henüz tamamlanmadığı için kod tabanında yok; kullanıcı onayıyla karar verildi). `evidence` tablosu migration'ında `deliverable_id` kolonu YOK, `POST /evidence` body'sinde de kabul edilmiyor. PLAN 2.4 tamamlandığında ayrı bir migration (`ALTER TABLE evidence ADD COLUMN deliverable_id ...`) + endpoint güncellemesiyle eklenecek.
 - Gerçek magic-byte/byte-level MIME doğrulama ve virüs (ClamAV) taraması — worker'ın işi (ayrı PLAN maddesi).
 - `evidence_skills` ilişkilendirmesi — ayrı bir PLAN maddesi olabilir.
 - Çoklu dosya yükleme.

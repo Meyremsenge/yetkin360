@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.errors import ApiError
-from app.models import Evidence, Outbox
+from app.models import Evidence, Outbox, Deliverable, Engagement
 from app.schemas.evidence import EvidenceResponse, EvidenceDownloadUrlResponse
 from app.services.authorization import Principal, scoped_evidence, get_scoped_or_404
 from app.services.audit import log_audit_event
@@ -33,12 +33,13 @@ def create_evidence(
     kind: str,
     mime_type: str,
     size_bytes: int,
+    deliverable_id: uuid.UUID | None = None,
 ) -> EvidenceResponse:
     """
-    AC-1, AC-S1, AC-S7: Create an evidence record and enqueue scanning.
+    AC-1, AC-S1, AC-S7, AC-4: Create an evidence record and enqueue scanning.
 
-    Validates storage_key prefix (elevation defense), creates evidence record,
-    writes outbox message for worker scanning, and logs audit event.
+    Validates storage_key prefix (elevation defense), checks deliverable ownership (AC-4),
+    creates evidence record, writes outbox message for worker scanning, and logs audit event.
     All writes within a single transaction (atomic).
 
     Args:
@@ -48,6 +49,7 @@ def create_evidence(
         kind: Evidence type (REPOSITORY/DOCUMENT/IMAGE/LINK/CERTIFICATE)
         mime_type: File MIME type
         size_bytes: File size in bytes
+        deliverable_id: Optional UUID of related Deliverable (AC-4: ownership chain check)
 
     Returns:
         EvidenceResponse: Created evidence record
@@ -55,6 +57,7 @@ def create_evidence(
     Raises:
         ApiError(422, "INVALID_STORAGE_KEY") if storage_key prefix doesn't match principal.talent_id
         ApiError(403, "TALENT_PROFILE_REQUIRED") if principal.talent_id is None
+        ApiError(404, "NOT_FOUND") if deliverable_id provided but ownership check fails (AC-4)
     """
     # Authorization checks (same order as PLAN 2.5 upload-url for consistency)
     if principal.talent_id is None:
@@ -73,6 +76,17 @@ def create_evidence(
     if kind not in ALLOWED_EVIDENCE_KINDS:
         raise ApiError(422, "INVALID_KIND", "Geçersiz kanıt türü.")
 
+    # AC-4: Validate deliverable ownership (if provided)
+    if deliverable_id is not None:
+        stmt = (
+            select(Deliverable, Engagement)
+            .join(Engagement, Deliverable.engagement_id == Engagement.id)
+            .where(Deliverable.id == deliverable_id)
+        )
+        result = session.execute(stmt).first()
+        if result is None or result[1].talent_id != principal.talent_id:
+            raise ApiError(404, "NOT_FOUND", "Kanıt bulunamadı.")
+
     # AC-1: Create evidence record
     evidence = Evidence(
         owner_talent_id=principal.talent_id,
@@ -83,6 +97,7 @@ def create_evidence(
         storage_key=storage_key,
         mime_type=mime_type,
         size_bytes=size_bytes,
+        deliverable_id=deliverable_id,
     )
     session.add(evidence)
     session.flush()  # Generate ID for outbox reference
@@ -120,6 +135,7 @@ def create_evidence(
         size_bytes=evidence.size_bytes,
         scan_status=evidence.scan_status,
         visibility=evidence.visibility,
+        deliverable_id=evidence.deliverable_id,
         created_at=evidence.created_at,
     )
 

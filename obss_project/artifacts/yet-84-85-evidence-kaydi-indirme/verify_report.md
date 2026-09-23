@@ -44,5 +44,12 @@ test_diff.md'nin kapsama matrisiyle birebir — 19 AC (AC-1,2,3,5-13, AC-S1–S7
 - Mimari çelişki (AC-13, suspended-account davranışı) kullanıcı onayıyla çözüldü, atdd.md güncellendi.
 - Gate 10 (security-scan) kullanıcı onayıyla kuruldu ve PASS verdi — bilinen sızmış sır imzası veya SAST bulgusu yok. `python_deps`/`node_deps` gate'leri N/A (proje `pyproject.toml`/`requirements.txt` formatında bağımlılık manifestine sahip değil — bu, ayrı bir bulgu olarak `security-scan`'in genel repo taramasında not edilebilir, bu görevin dosyalarıyla sınırlı değil). Not: `.secrets.baseline` dosyası değişti (1 yeni kabul edilmiş girdi, incelendi: alembic revizyon ID'si, sır değil) — commit'e dahil edilmeli.
 
+## v2 doğrulaması (deliverable_id eklendikten sonra, git senkron düzeltmesi sonrası)
+- `alembic upgrade head` / `downgrade -1` / tekrar `upgrade head` → temiz (yeni migration `1a2b3c4d5e6f`, `down_revision=0a1b2c3d4e5f`)
+- `pytest tests/test_evidence_service.py tests/authorization/test_evidence_record_download.py -q` → **59 passed, 0 failed**
+- `pytest -q` (tüm proje, arkadaşın PLAN 2.1/2.2/2.4/YET-9 kodu dahil) → **568 passed, 4 skipped, 0 failed**
+- `ruff check` + `ruff format --check` → temiz (1 format farkı ve 5 kullanılmayan import bulunup düzeltildi, bağımsız doğrulandı)
+- `security-scan` → PASS (1 yeni yanlış pozitif — yeni migration'ın kendi revizyon ID'si — incelenip baseline'a kabul edildi)
+
 ## Sonraki Adım
-Zorunlu gate'lerin tamamı (1,2,4,5,6,10) PASS. Sonraki pipeline adımı: `refactor` (opsiyonel, kod zaten CAVEMAN incelemesinden geçti) veya doğrudan `red-team`.
+Zorunlu gate'lerin tamamı (1,2,4,5,6,10) PASS — v2 (deliverable_id) dahil. Sonraki pipeline adımı: `red-team` (bu tur) → `commit`.
