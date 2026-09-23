@@ -85,7 +85,11 @@ attestation + verified experience + skill signal üretilir.
 - [ ] 2.6 Evidence kaydı + indirme izni (sahiplik URL'den çıkar) @be2
 - [ ] 2.7 Değerlendirme formu şeması (yetkinlik + davranış + `NOT_OBSERVED`) @be2
 - [ ] 2.8 Attestation + VerifiedExperience üretimi (tek transaction) @be2
-- [ ] 2.9 SkillSignal türetme + `GET /talents/me/signals` @be2
+- [~] 2.9 SkillSignal türetme + `GET /talents/me/signals` @be2
+      > SELF_CLAIM dilimi bitti (YET-104, `obss_project/artifacts/skillsignal-self-claim-uretimi/`) —
+      > model, migration, `GET /talents/me/signals` ucu, append-only trigger hepsi mainde.
+      > DELIVERABLE/TASK/EVALUATION/ATTESTATION kaynakları hâlâ açık (YET-71, @be2/Meyrem,
+      > 2.6/2.7/2.8'e bağımlı).
 - [ ] 2.10 Attestation iptali (`revoke`) — append-only istisnası @be2
 - [ ] 2.11 Frontend: engagement listesi + detay + durum geçiş aksiyonları @fe
 - [ ] 2.12 Frontend: çıktı yükleme (imzalı URL akışı, ilerleme, hata) @fe
