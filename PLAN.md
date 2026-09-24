@@ -120,6 +120,7 @@ attestation + verified experience + skill signal üretilir.
       > 403/404 ayrımı), race-safe (WHERE revoked_at IS NULL).
       > Detay: `obss_project/artifacts/yet-72-attestation-revoke/`.
 - [ ] 2.11 Frontend: engagement listesi + detay + durum geçiş aksiyonları @fe
+- [x] 2.11 Frontend: engagement listesi + detay + durum geçiş aksiyonları @fe
 - [ ] 2.12 Frontend: çıktı yükleme (imzalı URL akışı, ilerleme, hata) @fe
 - [ ] 2.13 Frontend: değerlendirme formu (kurum tarafı) @fe
 - [ ] 2.14 Faz 2 kapanış: uçtan uca duman testi (kayıt → attestation → signal) @all
