@@ -17,6 +17,7 @@ from app.models.institution_link_request import InstitutionLinkRequest
 from app.models.outbox import Outbox
 from app.models.skill import Skill
 from app.models.skill_claim import SkillClaim
+from app.models.skill_signal import SkillSignal
 from app.models.task_deliverable import Deliverable, EngagementTask
 
 __all__ = [
@@ -30,6 +31,7 @@ __all__ = [
     "OrganizationMember",
     "Skill",
     "SkillClaim",
+    "SkillSignal",
     "Engagement",
     "EngagementTask",
     "Deliverable",
