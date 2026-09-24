@@ -1,0 +1,46 @@
+{
+  "task": "yet-72-attestation-revoke",
+  "reviewed_at": "2026-09-24T00:00:00Z",
+  "summary": "revoke_attestation() akışı doğru ve güvenli: engagement-scope üzerinden 403/404 ayrımı davranışsal olarak sağlam, trigger'lar sadece izin verilen alanlara izin veriyor, race condition ve PII sızıntısı korumaları doğru. İki küçük bulgu (ölü kod, belgelenmemiş bare select) düzeltildi.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "security",
+      "file": "backend/app/services/attestation.py",
+      "issue": "revoke_attestation() içindeki ilk sorgu çıplak select(Attestation) — CLAUDE.md kuralını harfiyen ihlal ediyor, davranışsal sızıntı yok (her iki dal aynı 404'e düşüyor) ama belgelenmemiş.",
+      "better_approach": "Satırın üstüne neden güvenli olduğunu açıklayan bir yorum eklendi.",
+      "reason": "İleride biri bu satırı örnek alıp gerçek bir sızıntıya yol açabilirdi; yorum bu riski azaltıyor.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "low",
+      "category": "caveman",
+      "file": "backend/app/services/authorization.py",
+      "issue": "scoped_attestations() tanımlanmış ama hiç kullanılmıyordu (ölü kod, gölge yetkilendirme mantığı riski).",
+      "better_approach": "Fonksiyon silindi.",
+      "reason": "revoke_attestation() zaten scoped_engagements() + attestor kontrolü kullanıyor; kullanılmayan ikinci bir yetkilendirme yolu tutarsızlık riski taşıyordu.",
+      "outcome": "fixed"
+    }
+  ],
+  "strengths": [
+    "attestations_before_update_delete() trigger fonksiyonu her kolonu tek tek IS DISTINCT FROM ile karşılaştırıp sadece revoked_at/revoke_reason değişimine izin veriyor — DB seviyesinde append-only istisnası eksiksiz.",
+    "skill_signals trigger güncellemesi set-once mantığını doğru kodluyor (NULL->değer geçişine izin, değer->başka değer geçişini engelliyor), downgrade() orijinal trigger'a doğru geri dönüyor.",
+    "UPDATE ... WHERE revoked_at IS NULL + rowcount==0 kontrolü ile race-condition güvenliği doğru kurulmuş, test ile doğrulanmış.",
+    "AC-2/AC-3 403 vs 404 ayrımı doğru sırada (önce engagement scope→404, sonra attestor kontrolü→403) — kaynağın varlığı scope dışına sızdırılmıyor.",
+    "revoke_reason metni audit_events metadata'sına yazılmıyor — PII/hassas metin log sızıntısı önlenmiş."
+  ],
+  "risks": [],
+  "caveman_review": {"complexity": "low", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve"
+}

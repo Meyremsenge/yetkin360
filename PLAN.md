@@ -107,13 +107,26 @@ attestation + verified experience + skill signal üretilir.
       > (Attestation+VerifiedExperience+SkillSignal+AuditEvent+Outbox), T8 rol kontrolü
       > (institution_id'ye göre COORDINATOR/ORG_ADMIN).
       > Detay: `obss_project/artifacts/yet-70-attestation-verified-experience-uretimi/`.
-- [~] 2.9 SkillSignal türetme + `GET /talents/me/signals` @be2
-      > SELF_CLAIM dilimi bitti (YET-104, `obss_project/artifacts/skillsignal-self-claim-uretimi/`) —
-      > model, migration, `GET /talents/me/signals` ucu, append-only trigger hepsi mainde.
-      > DELIVERABLE/TASK/EVALUATION/ATTESTATION kaynakları hâlâ açık (YET-71, @be2/Meyrem,
-      > 2.6/2.7/2.8'e bağımlı).
-- [ ] 2.10 Attestation iptali (`revoke`) — append-only istisnası @be2
+- [x] 2.9 SkillSignal türetme + `GET /talents/me/signals` @be2
+      > YET-71 tamamlandı. SELF_CLAIM (YET-104) + ATTESTATION (YET-70) sonrası
+      > kalan DELIVERABLE/TASK/EVALUATION kaynakları eklendi — yeni migration
+      > (deliverables.skill_id, engagement_tasks.skill_id), strength hiyerarşisi
+      > karara bağlandı (SELF_CLAIM<TASK<DELIVERABLE<EVALUATION/ATTESTATION).
+      > Detay: `obss_project/artifacts/yet-71-skillsignal-turetme-tam-kapsam/`.
+- [x] 2.10 Attestation iptali (`revoke`) — append-only istisnası @be2
+      > YET-72 tamamlandı. POST /attestations/{id}/revoke — revoked_at/revoke_reason
+      > (append-only'nin tek istisnası, yeni DB trigger'ı ile), tombstone SkillSignal
+      > + superseded_by_id, sadece attestor iptal edebilir (engagement-scope üzerinden
+      > 403/404 ayrımı), race-safe (WHERE revoked_at IS NULL).
+      > Detay: `obss_project/artifacts/yet-72-attestation-revoke/`.
 - [x] 2.11 Frontend: engagement listesi + detay + durum geçiş aksiyonları @fe
+      > main'den (#18). NOT: bu ekran, 2.9 hâlâ [~] iken ve
+      > POST /engagements/{id}/evaluation backend'de yokken yazıldı — mock
+      > (localStorage) tabanlı bir evaluation submission içeriyor
+      > (bkz. dosya başındaki "KAPSAM DIŞI" notları). Backend artık (YET-69/70)
+      > gerçek uçla hazır — bu ekranın mock'tan gerçek apiFetch'e bağlanması
+      > AYRI bir takip maddesi (2.11'in kendisi "bitti" sayılmamalı, mock→gerçek
+      > geçişi doğrulanmadan).
 - [ ] 2.12 Frontend: çıktı yükleme (imzalı URL akışı, ilerleme, hata) @fe
 - [ ] 2.13 Frontend: değerlendirme formu (kurum tarafı) @fe
 - [ ] 2.14 Faz 2 kapanış: uçtan uca duman testi (kayıt → attestation → signal) @all

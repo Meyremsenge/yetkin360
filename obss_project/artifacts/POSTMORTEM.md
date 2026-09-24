@@ -4,6 +4,70 @@ Görevler arası tekrar eden kalıpları takip eder. Üzerine eklenir, silinmez.
 
 ---
 
+## Koşum 3 — 2026-09-25
+
+**Görev sayısı:** 24 (biriken: 5 — `yet-69-degerlendirme-formu-semasi`,
+`yet-70-attestation-verified-experience-uretimi`,
+`yet-71-skillsignal-turetme-tam-kapsam`, `yet-72-attestation-revoke`
++ bir önceki koşumdan sonra tamamlanan görevlerden biri)
+**Toplam bulgu:** 87
+
+### Kategori dağılımı (kaç görevde tekrarladı)
+| Kategori | Bulgu | Farklı görev |
+|---|---|---|
+| correctness | 19 | 16 |
+| test-gap | 15 | 13 |
+| reliability | 13 | 13 |
+| security | 10 | 8 |
+| architecture | 8 | 7 |
+| maintainability | 6 | 5 |
+| readability | 5 | 4 |
+
+### Şiddet
+critical: 4, high: 9, medium: 28, low: 46
+
+### Sıcak dosyalar (2+ farklı görevde bulgu alan)
+- `backend/app/services/engagement.py` — 8 bulgu / 3 görev
+- `backend/app/services/authorization.py` — 4 bulgu / 4 görev
+- `backend/tests/authorization/test_matrix.py` — 4 bulgu / 2 görev
+
+### Bu koşumda (yet-69..72) canlı gözlemlenen somut tekrarlar
+1. **Migration başlık hatası 2 kez (yet-70, yet-71):** yet-70'te `revision`/
+   `down_revision` modül değişkenleri hiç tanımlanmamıştı (sadece docstring'de
+   vardı); yet-71'de `down_revision` yanlış (eski, zaten merge edilmiş) bir
+   revizyona işaret ediyordu. İkisi de `alembic upgrade head` çalıştırılana
+   kadar fark edilmedi — code-copilot alt-ajanı kendi yazdığı migration'ı hiç
+   doğrulamadan "tamamlandı" raporladı.
+2. **İsim çakışması/gölgeleme 1 kez ama ciddi (yet-71):** `engagements.py`'de
+   iki farklı modülden aynı isimle (`InvalidSkillError`) import — biri
+   diğerini sessizce gölgeledi, yanlış except bloğu yanlış exception'ı
+   yakalıyordu (422 yerine 500'e yol açardı). `ruff`'ın F811 kuralı bunu
+   yakaladı ama SADECE verify adımında `ruff check .` çalıştırıldığı için —
+   code-copilot kendi yazdığı dosyayı lint etmemişti.
+3. **Test-copilot'un `session.expunge_all()` yanlış kullanımı 2 kez (yet-71
+   GET-signals testi, yet-72'de 26 satır):** Projenin gerçek konvansiyonu
+   (client/session aynı SQLAlchemy session'ı paylaşır) hiç `expunge_all()`
+   kullanmıyor, ama test-copilot alt-ajanları bunu "güvenlik" amaçlı ekleyip
+   `DetachedInstanceError`'a yol açtı.
+
+### Önerilen somut eylemler
+1. **`code-copilot` skill'inin dispatch prompt şablonuna ekle:** "Migration
+   dosyası yazdıysan, rapor vermeden ÖNCE kendi Bash aracınla `alembic heads`
+   çalıştır — TEK head dönmeli ve senin yazdığın revision olmalı. Ayrıca
+   `ruff check <değiştirdiğin/oluşturduğun dosyalar>` çalıştır, sıfır hata
+   olmalı. İkisi de geçmeden 'tamamlandı' raporu verme." (Gerekçe: migration
+   başlık hatası 2/4 son görevde tekrarladı, isim çakışması verify'a kadar
+   fark edilmedi — ikisi de alt-ajanın kendi ürettiği dosyayı çalıştırmadan
+   rapor vermesinden kaynaklanıyor, ucuz bir self-check ile yakalanabilirdi.)
+2. **`test-copilot` skill'inin dispatch prompt şablonuna ekle:** "`session.
+   expunge_all()`/`session.expire_all()` KULLANMA — bu projede `client` ve
+   `session` fixture'ları AYNI SQLAlchemy session'ı paylaşır (conftest.py),
+   expunge etmek nesneleri detach eder ve `DetachedInstanceError`'a yol açar.
+   İhtiyacın olan güncel veriyi `session.refresh(obj)` ile veya doğrudan
+   yeniden sorgu ile al." (Gerekçe: 2 görevde, toplam 27+ satırda tekrarladı.)
+
+---
+
 ## Koşum 1 — 2026-09-22
 
 **Görev sayısı:** 7 (`yet-1-ilk-migration`, `yet-2-yetkilendirme-cekirdegi`,

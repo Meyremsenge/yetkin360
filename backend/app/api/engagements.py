@@ -39,6 +39,7 @@ from app.schemas.evaluation import (
 )
 
 router = APIRouter(prefix="/engagements", tags=["engagements"])
+attestations_router = APIRouter(prefix="/attestations", tags=["attestations"])
 
 
 # ============================================================================
@@ -864,4 +865,123 @@ def post_engagement_attestation(
         claim_type=attestation.claim_type,
         requested_claim_type=attestation.requested_claim_type,
         downgrade_reasons=attestation.downgrade_reasons if attestation.downgrade_reasons else [],
+    )
+
+
+# ============================================================================
+# Attestation Revoke Route (PLAN 2.10 — YET-72)
+# ============================================================================
+
+
+class RevokeAttestationRequest(BaseModel):
+    """Request schema for POST /attestations/{id}/revoke."""
+
+    revoke_reason: str = Field(..., min_length=1, description="Reason for revoking attestation")
+
+    class Config:
+        from_attributes = True
+
+
+class RevokeAttestationResponse(BaseModel):
+    """Response schema for POST /attestations/{id}/revoke (200)."""
+
+    id: str
+    revoked_at: datetime
+    revoke_reason: str
+
+    class Config:
+        from_attributes = True
+
+
+@attestations_router.post("/{attestation_id}/revoke", response_model=RevokeAttestationResponse, status_code=200)
+def revoke_attestation_endpoint(
+    attestation_id: str,
+    payload: RevokeAttestationRequest,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> RevokeAttestationResponse:
+    """
+    PLAN 2.10 (YET-72): Revoke an attestation (set revoked_at and revoke_reason).
+
+    Implements AC-1 through AC-8, AC-S1 through AC-S3.
+    Single transaction: Attestation update + tombstone SkillSignal + superseded_by_id update + AuditEvent.
+
+    Returns:
+        200 + Attestation object (with revoked_at and revoke_reason)
+
+    Errors:
+        - 404 NOT_FOUND: Attestation not found or not accessible
+        - 403 FORBIDDEN: Principal is not the attestor
+        - 409 ALREADY_REVOKED: Attestation already revoked
+        - 422 UNPROCESSABLE_ENTITY: Missing/empty revoke_reason
+        - 401 UNAUTHORIZED: Unauthenticated
+
+    Security:
+        - AC-2: Only attestor can revoke → 403 if not attestor
+        - AC-3: Scope check (out-of-scope → 404)
+        - AC-S1: revoke_reason METNİ audit metadata'ya yazılmaz
+        - AC-S2: Race condition handled via UPDATE WHERE revoked_at IS NULL
+        - AC-S3: DB trigger prevents other field updates
+    """
+    from app.services.attestation import (
+        AttestationNotFoundError,
+        RevokeForbiddenError,
+        AttestationAlreadyRevokedError,
+        revoke_attestation,
+    )
+
+    if principal.user_id is None:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "code": "UNAUTHORIZED",
+                "message": "Kimlik doğrulama gerekli.",
+                "request_id": None,
+            },
+        )
+
+    try:
+        attestation = revoke_attestation(
+            session=session,
+            principal=principal,
+            attestation_id=attestation_id,
+            revoke_reason=payload.revoke_reason,
+        )
+    except AttestationNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "NOT_FOUND",
+                "message": "Attestation bulunamadı.",
+                "request_id": None,
+            },
+        )
+    except RevokeForbiddenError:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "FORBIDDEN",
+                "message": "Bu tanıklığı sadece yapan kişi geri çekebilir.",
+                "request_id": None,
+            },
+        )
+    except AttestationAlreadyRevokedError:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "ALREADY_REVOKED",
+                "message": "Bu tanıklık zaten geri çekilmiş.",
+                "request_id": None,
+            },
+        )
+
+    # Commit transaction
+    session.commit()
+
+    assert attestation.revoked_at is not None
+    assert attestation.revoke_reason is not None
+    return RevokeAttestationResponse(
+        id=str(attestation.id),
+        revoked_at=attestation.revoked_at,
+        revoke_reason=attestation.revoke_reason,
     )

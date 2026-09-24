@@ -144,3 +144,20 @@ bağımlılık/migration/kurulum adımlarını **birebir aktarır**.
 - `POST /engagements/{id}/tasks` ve `POST /engagements/{id}/deliverables`
   uçlarına opsiyonel `skill_id` alanı eklendi — verilirse ilgili
   `source_type` (TASK/DELIVERABLE) ile `SkillSignal` üretir.
+
+## YET-72 — Attestation iptali (revoke)
+
+**Kaynak:** `obss_project/artifacts/yet-72-attestation-revoke/plan.md`
+
+- Yeni migration: `l3m4n5o6p7q8_add_attestations_immutability_and_revoke_exception`
+  — (1) `attestations` tablosuna yeni immutability trigger (`revoked_at`/
+  `revoke_reason` istisnasıyla), (2) `skill_signals` trigger'ına
+  `superseded_by_id` set-once istisnası (`down_revision = k2l3m4n5o6p7`).
+  Uygulamak için:
+  ```bash
+  cd backend
+  alembic upgrade head
+  ```
+- Yeni endpoint: `POST /attestations/{id}/revoke` (ayrı bir `attestations_router`,
+  `prefix="/attestations"`) — sadece tanıklığı yapan kişi iptal edebilir,
+  `revoke_reason` zorunlu.
