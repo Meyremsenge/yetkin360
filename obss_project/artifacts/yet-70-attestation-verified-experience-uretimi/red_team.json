@@ -1,0 +1,47 @@
+{
+  "task": "yet-70-attestation-verified-experience-uretimi",
+  "reviewed_at": "2026-09-24T00:00:00Z",
+  "summary": "Önceki turun tek HIGH bulgusu (T8 rol sınırlamasının hiç uygulanmamış olması) backend/app/services/attestation.py içinde doğru şekilde kapatılmış; Principal alan adları authorization.py ile birebir eşleşiyor ve 2 yeni negatif test doğru senaryoları hedefliyor. Verdict approve olarak güncellendi.",
+  "findings": [
+    {
+      "severity": "high",
+      "category": "security",
+      "file": "backend/app/services/attestation.py",
+      "issue": "create_attestation() sadece TALENT'ı reddediyordu; STATE_MACHINE.md T8'in öngördüğü institution_id NOT NULL → COORDINATOR / institution_id NULL → ORG_ADMIN rol sınırlaması uygulanmamıştı (BOLA riski: yanlış rolden ORG_MEMBER/INST_ADMIN kullanıcılar T8'i tetikleyebiliyordu).",
+      "better_approach": "scoped_engagements() sonrası ayrı bir rol-uygunluk kontrolü ekle: institution_id NOT NULL ise principal.kind==COORDINATOR ve institution_id principal.institution_ids içinde; institution_id NULL ise principal.kind==ORG_ADMIN ve organization_id principal.org_admin_ids içinde, aksi halde EngagementNotFoundError (404).",
+      "reason": "attestation.py:205-216 satırlarında tam olarak bu mantık uygulanmış; Principal.org_admin_ids ve Principal.institution_ids alan adları authorization.py:41-42 ile birebir eşleşiyor, yanlış attribute adı veya tip hatası yok. 404 dönülmesi de security.md kuralına (yetkisiz erişimde 403 değil 404) uygun.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "medium",
+      "category": "test-gap",
+      "file": "backend/tests/test_attestation_authorization.py",
+      "issue": "Aynı kiracı içi rol-genişletme (ORG_MEMBER non-admin, INST_ADMIN non-coordinator) için negatif test yoktu.",
+      "better_approach": "İki yeni negatif test ekle.",
+      "reason": "İki yeni test (test_attestation_org_member_non_admin_forbidden_404, test_attestation_inst_admin_non_coordinator_forbidden_404) eklendi ve PASS.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "medium",
+      "category": "correctness",
+      "file": "backend/app/services/attestation.py",
+      "issue": "_check_competence_preconditions() kriter 4 docstring'i rol kontrolünün create_attestation()'da doğrulandığını iddia ediyordu ama bu asla doğrulanmıyordu.",
+      "better_approach": "Rol kontrolünü gerçekten ekle.",
+      "reason": "Rol kontrolü artık gerçekten uygulanıyor, docstring iddiası artık doğru.",
+      "outcome": "fixed"
+    }
+  ],
+  "strengths": [
+    "Rol kontrolü tenant-isolation kontrolünden (scoped_engagements) ayrı bir katman olarak eklenmiş, ikisi karışmıyor — okunabilirlik iyi.",
+    "TALENT için 403 (S6 istisnası), rol-uygun-olmayan diğer roller için 404 ayrımı doğru şekilde korunmuş — kaynağın var olup olmadığını sızdırmayan tutarlı bir semantik.",
+    "İki yeni negatif test tam olarak önceki turda eksik kalan senaryoları hedefliyor ve yan etkisiz olduğunu (Attestation/VerifiedExperience yazılmadı, version değişmedi) doğruluyor.",
+    "attestor_user_id principal'dan alınıyor, request body'den değil (AC-S1) — tampering'e karşı doğru tasarım.",
+    "Self-attestation hem servis katmanında hem CHECK constraint'te çift savunmalı.",
+    "Optimistic locking ve tek transaction içinde Attestation+VerifiedExperience+SkillSignal+AuditEvent+Outbox oluşturma, append-only ve outbox kurallarına uygun."
+  ],
+  "risks": [],
+  "caveman_review": {"complexity": "low", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {"atdd_satisfied": true, "tests_passed": true, "no_critical_findings": true, "scope_respected": true, "caveman_satisfied": true, "security_acceptable": true, "maintainability_acceptable": true, "no_blocking_risks": true},
+  "verdict": "approve"
+}

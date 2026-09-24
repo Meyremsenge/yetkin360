@@ -60,3 +60,87 @@ bağımlılık/migration/kurulum adımlarını **birebir aktarır**.
 - Yeni endpoint: `POST /evidence/upload-url` — kimlik doğrulanmış talent
   kullanıcılar için MinIO presigned POST üretir (content-type allowlist:
   pdf/jpeg/png/docx, boyut sınırı 10MB, rate limit 10 istek/dakika).
+
+## YET-10 — Skill taksonomisi seed + arama
+
+**Kaynak:** `obss_project/artifacts/skill-taksonomisi-seed-arama/plan.md`
+
+- Yeni migration: `0410b8ecfed7_merge_organization_domain_verification_` —
+  boş bir merge migration, iki bağımsız alembic head'i (`d1e2f3g4h5i6` ve
+  `3f9b7c1a5d2e`) birleştirir (şema değişikliği yok, sadece zincir
+  tamamlanıyor — bkz. `AI_DEVLOG.md` YET-10 bölümü). Uygulamak için:
+  ```bash
+  cd backend
+  alembic upgrade head
+  ```
+- Yeni CLI komutu: `python -m scripts.seed` — ~150 kayıtlık skill taksonomisini
+  idempotent olarak (`ON CONFLICT (slug) DO NOTHING`) veritabanına ekler.
+  **Production'da çalıştırılmaz** — sadece dev/test ortamı ve ilk kurulum
+  (bootstrap) için. Tekrar çalıştırmak güvenlidir (idempotent).
+  ```bash
+  cd backend
+  python -m scripts.seed
+  ```
+- Yeni endpoint: `GET /skills/search?q=&limit=&offset=` — authenticated
+  kullanıcılar için skill taksonomisinde arama (global referans veri, kiracı
+  filtresi yok).
+
+## YET-84/YET-85 — Evidence kaydı + indirme izni
+
+**Kaynak:** `obss_project/artifacts/yet-84-85-evidence-kaydi-indirme/plan.md`
+
+- Yeni migration: `0a1b2c3d4e5f_add_evidence_table` — `evidence` tablosunu
+  ilk kez oluşturur (final analiz §12.2 şeması, `deliverable_id` kolonu
+  HARİÇ — bkz. AI_DEVLOG.md). `down_revision = 0410b8ecfed7`. Uygulamak
+  için:
+  ```bash
+  cd backend
+  alembic upgrade head
+  ```
+- Yeni env değişkeni: `EVIDENCE_DOWNLOAD_URL_TTL_SECONDS` (opsiyonel,
+  default `300`) — `app/core/config.py`'de sabit, indirme presigned URL'inin
+  ömrü (upload'daki 900sn'den kasıtlı olarak farklı).
+- Yeni endpoint'ler: `POST /evidence` (evidence kaydı oluşturma,
+  `scan_status=PENDING` ile başlar, aynı transaction'da `outbox`'a
+  `evidence.scan_requested` yazılır) ve `GET /evidence/{id}/download-url`
+  (sahiplik kontrollü, sadece `scan_status=CLEAN` ise 5 dakikalık imzalı
+  URL döner).
+- **Araç kurulumu (bu makineye özel, proje bağımlılığı değil):**
+  `~/.claude/security-tools/venv` bu görev sırasında ilk kez kuruldu
+  (bandit, detect-secrets, pip-audit) — `verify`/`security-scan` skill'inin
+  gate 10'unu çalıştırabilmek için. Yeni bir makinede tekrar kurulum
+  gerekir:
+  ```bash
+  python -m venv ~/.claude/security-tools/venv
+  ~/.claude/security-tools/venv/Scripts/python.exe -m pip install bandit detect-secrets pip-audit
+  ```
+
+## YET-70 — Attestation + VerifiedExperience üretimi
+
+**Kaynak:** `obss_project/artifacts/yet-70-attestation-verified-experience-uretimi/plan.md`
+
+- Yeni migration: `f8g9h0i1j2k3_add_attestations_and_verified_experiences`
+  — `attestations` ve `verified_experiences` tablolarını ilk kez oluşturur
+  (`down_revision = ee96f63a4231`). Uygulamak için:
+  ```bash
+  cd backend
+  alembic upgrade head
+  ```
+- Yeni endpoint: `POST /engagements/{id}/attestations` — T8 (EVALUATED→VERIFIED)
+  geçişini tetikler, opsiyonel `skill_id` alanı verilirse `SkillSignal`
+  üretir.
+
+## YET-71 — SkillSignal türetme tam kapsam
+
+**Kaynak:** `obss_project/artifacts/yet-71-skillsignal-turetme-tam-kapsam/plan.md`
+
+- Yeni migration: `k2l3m4n5o6p7_add_skill_id_to_tasks_and_deliverables` —
+  `engagement_tasks.skill_id`, `deliverables.skill_id` (nullable FK →
+  `skills.id`) ekler (`down_revision = f8g9h0i1j2k3`). Uygulamak için:
+  ```bash
+  cd backend
+  alembic upgrade head
+  ```
+- `POST /engagements/{id}/tasks` ve `POST /engagements/{id}/deliverables`
+  uçlarına opsiyonel `skill_id` alanı eklendi — verilirse ilgili
+  `source_type` (TASK/DELIVERABLE) ile `SkillSignal` üretir.

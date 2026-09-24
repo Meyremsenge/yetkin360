@@ -26,6 +26,7 @@ Status: Tests are RED (expected) — implementation not yet available.
 """
 
 import pytest
+from uuid import uuid4
 
 from app.models import (
     User,
@@ -35,6 +36,7 @@ from app.models import (
     Engagement,
     OrganizationMember,
     InstitutionMember,
+    Skill,
 )
 
 # Import will fail until Deliverable model is implemented
@@ -42,6 +44,12 @@ try:
     from app.models import Deliverable
 except ImportError:
     Deliverable = None
+
+# Import SkillSignal model for YET-71 tests
+try:
+    from app.models import SkillSignal
+except ImportError:
+    SkillSignal = None
 
 
 # ============================================================================
@@ -902,3 +910,158 @@ class TestDeliverableResponseSchema:
         assert "code" in error_obj, "Error response must have 'code' field"
         assert "message" in error_obj, "Error response must have 'message' field"
         assert "request_id" in error_obj, "Error response must have 'request_id' field"
+
+
+# ============================================================================
+# YET-71: SkillSignal Türetme — DELIVERABLE source_type
+# ============================================================================
+
+
+@pytest.fixture
+def skill_react_deliv(session):
+    """Test skill: React for YET-71 deliverable tests."""
+    skill = Skill(
+        slug="react-deliv",
+        name_tr="React",
+        name_en="React",
+        category="FRAMEWORK",
+    )
+    session.add(skill)
+    session.flush()
+    return skill
+
+
+@pytest.fixture
+def skill_invalid_id_deliv():
+    """Non-existent skill UUID for invalid skill_id tests."""
+    return str(uuid4())
+
+
+class TestDeliverableSkillSignalCreation:
+    """
+    YET-71 AC-2: DELIVERABLE + skill_id → SkillSignal(DELIVERABLE, MODERATE) üretilir.
+    Davranış Sözleşmesi Satır 2.
+    """
+
+    def test_deliverable_with_skill_id_creates_skill_signal_201(
+        self, client, session, user_talent_alice_deliv, talent_alice_deliv,
+        engagement_active_alice_deliv, skill_react_deliv
+    ):
+        """
+        AC-2 + YET-71: Alice (TALENT) submit ediyor deliverable skill_id ile → 201, SkillSignal(DELIVERABLE, MODERATE) yazılır.
+
+        Davranış Sözleşmesi:
+        - Status code: 201
+        - SkillSignal DB'de yazılır: source_type=DELIVERABLE, strength=MODERATE, skill_id=<verilen>
+        - signal.talent_id = engagement.talent_id (Alice)
+        - signal.occurred_at = deliverable.submitted_at
+        """
+        payload = {
+            "title": "React component library",
+            "description": "Completed React components",
+            "skill_id": str(skill_react_deliv.id),
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_active_alice_deliv.id}/deliverables",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_talent_alice_deliv.id)},
+        )
+
+        assert response.status_code == 201, f"Expected 201, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        deliv_id = data.get("id")
+        assert data.get("skill_id") == str(skill_react_deliv.id)
+
+        # DB verification: SkillSignal yazıldı
+        if SkillSignal:
+            signal = session.query(SkillSignal).filter_by(
+                source_type="DELIVERABLE",
+                source_id=deliv_id,
+                skill_id=skill_react_deliv.id
+            ).first()
+
+            assert signal is not None, "SkillSignal not created for DELIVERABLE with skill_id"
+            assert signal.strength == "MODERATE", f"Expected MODERATE, got {signal.strength}"
+            assert signal.talent_id == engagement_active_alice_deliv.talent_id
+
+
+class TestDeliverableSkillIdNone:
+    """
+    YET-71 AC-6: DELIVERABLE skill_id None → SkillSignal yazılmaz (sessiz atlama).
+    Davranış Sözleşmesi Satır 4.
+    """
+
+    def test_deliverable_without_skill_id_no_signal_201(
+        self, client, session, user_talent_alice_deliv, talent_alice_deliv, engagement_active_alice_deliv
+    ):
+        """
+        AC-6 + YET-71: Alice submit ediyor deliverable skill_id olmadan → 201, SkillSignal yazılmaz.
+
+        Davranış Sözleşmesi:
+        - Status code: 201 (başarı, değişmez)
+        - response.skill_id = null
+        - DB'de SkillSignal yok (sessiz atlama, hata değil)
+        """
+        payload = {
+            "title": "Generic deliverable",
+            "description": "No skill associated",
+            # skill_id intentionally omitted
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_active_alice_deliv.id}/deliverables",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_talent_alice_deliv.id)},
+        )
+
+        assert response.status_code == 201, f"Expected 201, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        deliv_id = data.get("id")
+        assert data.get("skill_id") is None
+
+        # DB verification: SkillSignal yok
+        if SkillSignal:
+            signal_count = session.query(SkillSignal).filter_by(source_type="DELIVERABLE", source_id=deliv_id).count()
+            assert signal_count == 0, "SkillSignal must not be created when skill_id is None"
+
+
+class TestDeliverableInvalidSkillId:
+    """
+    YET-71 AC-7: Geçersiz skill_id → 422.
+    Davranış Sözleşmesi Satır 6.
+    """
+
+    def test_deliverable_with_invalid_skill_id_422(
+        self, client, session, user_talent_alice_deliv, talent_alice_deliv,
+        engagement_active_alice_deliv, skill_invalid_id_deliv
+    ):
+        """
+        AC-7 + YET-71: Alice skill_id ile gönderiyor, ama skill_id geçersiz → 422.
+
+        Davranış Sözleşmesi:
+        - Status code: 422 Unprocessable Entity
+        - Error code: INVALID_REQUEST (exact match)
+        - Hiçbir yazma yok (deliverable, SkillSignal)
+        """
+        payload = {
+            "title": "Deliverable with invalid skill",
+            "description": "This should fail",
+            "skill_id": skill_invalid_id_deliv,  # Non-existent UUID
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_active_alice_deliv.id}/deliverables",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_talent_alice_deliv.id)},
+        )
+
+        assert response.status_code == 422, f"Expected 422, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        error_obj = data.get("detail") if "detail" in data else data
+
+        assert error_obj.get("code") == "INVALID_REQUEST", \
+            f"Expected INVALID_REQUEST, got {error_obj.get('code')}"

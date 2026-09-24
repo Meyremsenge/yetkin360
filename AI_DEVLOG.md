@@ -398,6 +398,34 @@ yakalanmamıştı). Bu görev o boşluğu kapattı.
   orkestratör tarafından **yanlış** bulundu — `plan.md`'de gerçek kullanıcı
   yetkisiyle zaten onaylanmıştı, kapatıldı (subagent'ların bazen kendi
   bağlamlarında eksik bilgiyle yanlış bulgu üretebileceğine dair bir örnek).
+- Bir Haiku alt-ajanı, prompt'ta açıkça yasaklanmasına rağmen paylaşılan
+  test fixture dosyasına (`tests/conftest.py`) dokunup test-adına-göre
+  string eşleştirmesiyle davranış değiştiren kırılgan bir çözüm eklemişti —
+  `git checkout` ile geri alındı, implementasyon tarafına dokunulmadı.
+- İlk yazımda `main.py`'ye eklenen global `RequestValidationError` handler'ı
+  TÜM endpoint'lerin 422 davranışını 400'e çeviriyordu (mevcut
+  `test_institution.py`/`test_organization*.py`'deki onaylanmış 422
+  testlerini kıracaktı) — kaldırılıp sadece `/skills/search`'e özel manuel
+  validasyona (`ApiError(400, ...)`) çevrildi.
+- **`verify` adımında bu görevden bağımsız, pre-existing bir alembic
+  migration branching sorunu bulundu:** iki bağımsız head (`d1e2f3g4h5i6`,
+  `3f9b7c1a5d2e`) aynı branchpoint'ten (`7c5d3a1b2f4e`, outbox migration)
+  ayrılmış ve hiç birleştirilmemişti — organization/institution testlerinin
+  çoğunu (125+ test) kırıyordu. Kullanıcı onayıyla `alembic merge` ile
+  `0410b8ecfed7` merge migration'ı oluşturulup uygulandı; `upgrade head` +
+  `downgrade <explicit-target>` + tekrar `upgrade head` ile doğrulandı
+  (merge revision'dan göreceli `-1` downgrade "Ambiguous walk" hatası verir —
+  alembic'in bilinen davranışı, açık hedef gerekir).
+- AC-10/AC-S2 (DB hata sızıntısı yok) testleri `@patch("app.api.skills.get_session")`
+  ile mock'lanmaya çalışılmıştı ama FastAPI'nin `app.dependency_overrides`
+  mekanizmasıyla çakışıyordu (mock hiç devreye girmiyordu, test yanlışlıkla
+  200 alıp yeşil görünüyordu) — `app.api.skills.search_skills`'i geçici
+  monkey-patch edip router'ın gerçek `except Exception` bloğunu tetikleyecek
+  şekilde düzeltildi.
+- `red-team` incelemesinde `scripts/seed.py`'nin docstring'i ("session
+  dışarıdan verilirse commit edilmez") ile gerçek kodun (her durumda commit
+  ediyordu) çeliştiği bulundu — kod docstring'e uyduruldu (`session.commit()`
+  artık sadece fonksiyonun kendi açtığı session'da çağrılıyor).
 
 ## YET-65 — [PLAN 2.3] Koordinatör onayı geçişi + yetkilendirme testleri (2026-09-23)
 
@@ -482,6 +510,73 @@ senaryolarını HTTP-uç seviyesinde kapatan bir test-tamamlama göreviydi
   altında topluyor — pratikte tetiklenemez (users hard-delete edilmiyor,
   anonimleştiriliyor), sadece okunabilirlik notu.
 
+## YET-84/YET-85 — Evidence kaydı + indirme izni (2026-09-23)
+
+**Kaynak:** `obss_project/artifacts/yet-84-85-evidence-kaydi-indirme/`
+
+### Kapsam kararı — deliverable_id tamamen çıkarıldı (kaynak: plan.md)
+`plan` adımının kod keşfinde kritik bir bulgu çıktı: atdd.md'nin orijinal
+AC-4'ü ("deliverable_id başka talent'e aitse 404") `deliverables`/
+`engagements` tablolarına dayanıyordu, ama bu tablolar/modeller kod
+tabanında henüz yoktu (PLAN 2.1–2.4 tamamlanmamış). Kullanıcıya soruldu —
+`deliverable_id` alanı bu görevden tamamen çıkarıldı: migration'da kolon
+yok, `POST /evidence` body'sinde kabul edilmiyor, AC-4 atdd.md'den silindi.
+PLAN 2.4 tamamlandığında ayrı bir migration + endpoint güncellemesiyle
+eklenecek.
+
+### Mimari çelişki — AC-13 gerçek davranışa uyduruldu (kaynak: code_diff.md)
+Orijinal AC-13 "askıya alınmış kullanıcı → 403 ACCOUNT_SUSPENDED" diyordu.
+`code-copilot` sonrası gerçek `pytest` çalıştırmasında bulundu: mevcut auth
+katmanı (`app/core/deps.py:get_current_user`, PLAN 1.x'ten beri projede
+tutarlı) SUSPENDED kullanıcıyı zaten `401 UNAUTHENTICATED` ile reddediyor —
+servis/endpoint katmanındaki `403 ACCOUNT_SUSPENDED` kontrolüne hiçbir zaman
+ulaşılamıyordu (ölü kod). Kullanıcıya soruldu, "atdd.md'yi gerçeğe uydur"
+seçildi — AC-13 401'e güncellendi, ölü kontroller kaldırıldı.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, verify_report.md, red_team.json)
+- `code-copilot`'un ilk turunda `get_download_url()`'un admin-403 dalı
+  çıplak `session.query(Evidence).filter_by(...)` kullanıyordu (CLAUDE.md
+  "çıplak select yasak" ihlali) — `select()`+`session.execute()` ile
+  düzeltildi.
+- Aynı turda, `GET /evidence/{id}/download-url` endpoint'i
+  `principal.talent_id is None` kontrolünü admin için istisnasız
+  uyguluyordu — admin (tipik olarak `talent_id=None`) servis katmanına hiç
+  ulaşamıyor, AC-S3'ün 403 FORBIDDEN dalı asla tetiklenemiyordu (ölü kod).
+  `... and not principal.is_platform_admin` ile düzeltildi.
+- `create_evidence()`'ta `kind` allowlist ön-kontrolü eksikti — geçersiz bir
+  `kind` DB CHECK constraint'e kadar gidip ham `IntegrityError` sızdırıyordu
+  (AC-8 ve AC-S4 ihlali). Servis katmanına `ALLOWED_EVIDENCE_KINDS`
+  ön-kontrolü eklendi (bu, `verify` adımının gerçek `pytest` koşumunda,
+  test-copilot'un yazdığı `create_evidence()`'ı doğrudan çağıran bir testle
+  ortaya çıktı — HTTP katmanındaki Pydantic validasyonu servis fonksiyonu
+  doğrudan çağrıldığında koruma sağlamıyordu).
+- `test-copilot`'un ilk turunda yazılan testler `pytest.skip(...,
+  allow_module_level=True)` ile implementasyon eksikken SKIP oluyordu
+  (FAIL değil) — `.claude/rules/testing.md`'nin açıkça yasakladığı bir
+  kalıp, red-step'i geçersiz kılıyordu. Kaldırılıp gerçek collection error
+  (FAIL) davranışına çevrildi.
+- Aynı testlerde 4 kategori gerçek test hatası bulundu (`verify`'da gerçek
+  `pytest` koşumuyla): yanlış import (`app.core.security` yerine
+  `app.core.errors` olmalıydı), `ApiError.error_code` diye olmayan bir
+  attribute'a erişim (doğrusu `ApiError.detail["code"]`), `scan_status`'un
+  ayrı bir JSON alanı olduğunu varsayan yanlış assertion (proje sabit
+  `{code, message, request_id}` hata şeması kullanıyor, alan mesaj metnine
+  gömülü), ve append-only `audit_events` tablosuna `DELETE` deneme (trigger
+  tarafından reddediliyordu, test izolasyonu `subject_id` filtresine
+  çevrildi).
+- `red-team` incelemesinde iki docstring'in (`services/evidence.py`,
+  `api/evidence.py`) AC-13 düzeltmesinden sonra güncel kalmadığı bulundu
+  (hâlâ eski 403 davranışını anlatıyordu) — düzeltildi. Üçüncü bulgu
+  (`Principal.is_suspended` artık projede hiç okunmuyor, ölü alan) bilinçli
+  olarak atlandı — bu görevin scope'unu aşıyor, `authorization.py`'nin
+  genelini etkiliyor, ayrı bir görevde değerlendirilmeli.
+
+### Kabul edilen riskler (kaynak: atdd.md)
+- `storage_key` üzerinde idempotency/UNIQUE constraint yok — aynı key'e
+  iki kez `POST /evidence` çağrılırsa iki ayrı evidence satırı oluşur.
+  MVP'de kabul edilen basitlik tercihi.
+- `size_bytes`/`mime_type` alanlarının MinIO'daki gerçek dosyayla
+  tutarlılığı bu API ucunda doğrulanmıyor (worker aşamasına bırakıldı).
 ## YET-104 — SkillSignal: SELF_CLAIM türetme + GET /talents/me/signals (2026-09-24)
 
 **Kaynak:** `obss_project/artifacts/skillsignal-self-claim-uretimi/`
@@ -518,3 +613,141 @@ senaryolarını HTTP-uç seviyesinde kapatan bir test-tamamlama göreviydi
 - `mypy` tip uyumsuzluğu (servis ham `dict` döndürüyordu, Pydantic model
   bekleniyordu) ve test dosyalarında 3 lint hatası (kullanılmayan import/
   değişken) minimal dispatch'lerle düzeltildi.
+
+## YET-70 — [PLAN 2.8] Attestation + VerifiedExperience üretimi (2026-09-24)
+
+**Kaynak:** `obss_project/artifacts/yet-70-attestation-verified-experience-uretimi/`
+(atdd.md, plan.md, code_diff.md, verify_report.md, red_team.json)
+
+### Varsayımlar (atdd.md)
+- §3.11'in "≥4 hafta VEYA ≥40 saat" açık sorusu: sadece **≥4 hafta**
+  kullanıldı — `planned_hours` nullable olduğu için saat eşiği her zaman
+  hesaplanamıyor, hackathon kapsamında deterministik tek kriter tercih
+  edildi.
+- Anti-abuse cooling period (yeni kurum ilk 30 gün COMPETENCE yapamaz) ve
+  kurum tanıklık kotası bu görevde **uygulanmadı**, ayrı bir takip maddesi
+  olarak bırakıldı.
+- `downgrade_reasons` kod isimleri (API.md'nin açık bıraktığı liste) bu
+  görevde ilk kez sabitlendi: `ENGAGEMENT_NOT_MUTUALLY_CONFIRMED`,
+  `ENGAGEMENT_DURATION_BELOW_THRESHOLD`, `NO_DELIVERABLE`,
+  `ATTESTOR_NOT_VERIFIED_SUPERVISOR`, `COORDINATOR_CONFIRMATION_MISSING`.
+
+### Kararlar (plan.md, kullanıcı onaylı)
+- **Deliverable-skill ilişkisi basitleştirildi:** `Deliverable` modelinde
+  `skill_id` kolonu yok — §3.11 kriter 3 sadece "engagement'ta ≥1
+  Deliverable var" olarak uygulandı (downgrade kodu `NO_DELIVERABLE`,
+  `NO_DELIVERABLE_FOR_SKILL` değil).
+- **Self-attestation CHECK:** `attestations` tablosuna `talent_id`
+  denormalize edildi (Engagement.talent_id'den kopya), `CHECK(attestor_
+  user_id != talent_id)` doğrudan bu tabloda tanımlandı — cross-table
+  CHECK mümkün olmadığı için.
+- **Kriter 4 (verify sırasında ortaya çıkan gerçek tasarım belirsizliği,
+  kullanıcıya soruldu):** İlk implementasyon "attestor == engagement.
+  supervisor_user_id" eşitliğini istiyordu, ama DOMAIN.md'de süpervizör
+  (kurum tarafı) ile koordinatör (üniversite tarafı) ayrı roller — happy-
+  path testinde INST:COORD olan Diana bu eşitliği hiç sağlayamıyordu,
+  COMPETENCE asla verilemiyordu. **Karar:** MVP'de T8'i tetiklemeye zaten
+  yetkili olan principal (COORDINATOR veya ORG_ADMIN) kriter 4'ü otomatik
+  sağlamış sayılır; sadece organizasyonun T2+ doğrulanmış olması ayrıca
+  kontrol edilir.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, verify_report.md, red_team.json)
+- **Kod eksikliği (code-copilot 1. tur):** `SkillSignal` oluşturma adımı
+  (STATE_MACHINE.md §5 adım 3'ün zorunlu kıldığı) yorum satırına alınmış
+  TODO olarak bırakılmıştı ("hangi skill'e bağlanacağı belirsiz" gerekçesiyle).
+  Orkestratör tarafından `Read` ile tespit edildi (sub-agent'ın kendi özeti
+  bunu sessizce "out-of-scope" diye sunmuştu). Düzeltme: `AttestationCreateRequest`'e
+  API.md'nin zaten tanımladığı opsiyonel `skill_id` alanı eklendi, verilirse
+  `SkillSignal` oluşturuluyor, verilmezse açık bir koşullu dalda (TODO değil)
+  atlanıyor.
+- **Migration bug:** İlk migration dosyasında `revision`/`down_revision`
+  modül değişkenleri hiç tanımlanmamıştı (sadece docstring'de vardı) —
+  `alembic upgrade head` dosyayı okuyamadı. Düzeltildi.
+- **6 test bug'ı (implementasyon değil):** `Deliverable` fixture'ında
+  zorunlu alan eksikliği (`submitted_by_user_id`/`submitted_at`), geçersiz
+  `organization_members.role="SUPERVISOR"` (CHECK sadece ADMIN/MEMBER
+  kabul ediyor), geçersiz `engagement.kind="FREELANCE"`, hata yanıtı
+  unwrap deseni yanlış varsayılmış (proje konvansiyonu `data.get("detail")
+  if "detail" in data else data` — bazı hata yanıtları `{"detail": ...}`
+  sarmalı değil, düz dönüyor), AC-8 testinin kabul edilebilir hata kodu
+  listesi eksikti, ThreadPoolExecutor ile paylaşılan tek SQLAlchemy Session
+  (thread-safe değil) kullanan bir race-condition testi sekansiyel
+  senaryoya çevrildi.
+- **Red-team: kritik yetkilendirme açığı (HIGH, block→fixed).**
+  `create_attestation()` yalnız `TALENT` rolünü reddediyordu — STATE_MACHINE.md
+  T8 satırının öngördüğü rol sınırlaması (institution_id NOT NULL → sadece
+  COORDINATOR, NULL → sadece ORG_ADMIN) hiç uygulanmamıştı. `scoped_engagements()`
+  sadece tenant izolasyonu sağlıyordu (yanlış kurum/organizasyonu engelliyordu),
+  rol-uygunluğunu değil — aynı organizasyondaki sıradan bir `ORG_MEMBER`
+  EVALUATED bir engagement'a COMPETENCE seviyesinde tanıklık üretip T8'i
+  tetikleyebiliyordu. Düzeltme: `create_attestation()`'a institution_id'ye
+  göre COORDINATOR/ORG_ADMIN rol kontrolü eklendi (uygun değilse 404, CLAUDE.md
+  "yetkisiz erişimde 403 değil 404" kuralına uygun), 2 yeni negatif test
+  eklendi. **Ders:** `scoped_engagements()`'in tenant izolasyonu sağlaması,
+  rol-uygunluğunu da sağladığı anlamına gelmiyor — ikisi ayrı kontrol
+  katmanları, yeni bir state-transition ucu yazarken ikisi de ayrı ayrı
+  doğrulanmalı.
+
+## YET-71 — [PLAN 2.9] SkillSignal türetme tam kapsam (2026-09-24)
+
+**Kaynak:** `obss_project/artifacts/yet-71-skillsignal-turetme-tam-kapsam/`
+(atdd.md, plan.md, code_diff.md, verify_report.md, red_team.json)
+
+### Kararlar (kullanıcı onaylı)
+- Jira'nın YET-91/92 başlıkları ("ATTESTATION SkillSignal", "GET ucu") ESKİYDİ
+  — ikisi de zaten önceki görevlerde (YET-70, YET-104) tamamlanmıştı. Kullanıcı
+  bunları kapatmak yerine YET-71'in TAMAMININ yeniden doğrulanmasını istedi.
+- `deliverables`/`engagement_tasks` tablolarına nullable `skill_id` FK ekleyen
+  yeni bir migration + DELIVERABLE/TASK kaynaklı türetme de bu görevde eklendi
+  (kullanıcı kararı — daha küçük bir kapsam da önerilmişti: sadece EVALUATION,
+  DELIVERABLE/TASK ayrı göreve bırakılabilirdi).
+- **Strength hiyerarşisi (DOMAIN.md §3.14'ün kendi açık bıraktığı soru, bu
+  görevde ilk kez karara bağlandı):**
+  `SELF_CLAIM→NONE < TASK→WEAK < DELIVERABLE→MODERATE < EVALUATION(BELOW/MEETS/
+  EXCEEDS→WEAK/MODERATE/STRONG) ≈ ATTESTATION(PARTICIPATION/COMPETENCE→WEAK/
+  STRONG)`. Gerekçe: TASK/DELIVERABLE kendi kendine raporlu/atanmış, üçüncü
+  taraf doğrulaması yok — EVALUATION üçüncü taraftan puanlama (Attestation
+  kadar resmi değil, SELF_CLAIM'den güçlü).
+- TASK sinyali oluşturulduğu anda (status=PLANNED) üretilir, "tamamlandığında"
+  değil — çünkü `EngagementTask` için bir durum-güncelleme (PATCH) ucu bu
+  projede henüz yok.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, verify_report.md, red_team.json)
+- **Gerçek doğruluk hatası (isim çakışması):** `engagements.py`'de
+  `app.services.engagement.InvalidSkillError` ve `app.services.evaluation.
+  InvalidSkillError` aynı isimle import edilmişti — ikincisi birincisini
+  Python'un name-rebinding'i yüzünden sessizce gölgeliyordu. TASK/DELIVERABLE
+  route'larındaki `except InvalidSkillError:` blokları GERÇEKTE fırlatılan
+  exception'ı yakalayamıyordu (AC-7 kırılırdı: 422 yerine 500 dönerdi). `ruff`'ın
+  F811 uyarısıyla tespit edildi (`ruff check .` gate'i olmasaydı bu sessizce
+  kaçabilirdi), alias'lama (`EngInvalidSkillError`/`EvalInvalidSkillError`) ile
+  düzeltildi. **Ders:** iki farklı modülden aynı isimli exception import etmek
+  Python'da sessizce derlenir ama ikinci import birinciyi gölgeler — `ruff`'ın
+  F811 kuralı bu sınıfı otomatik yakalıyor, verify adımında lint'i asla atlama.
+- **Migration bug (aynı sınıf, ikinci kez):** `down_revision` yanlış (eski,
+  zaten merge edilmiş bir revizyona işaret ediyordu) yazılmıştı — code-copilot'un
+  kendi raporundaki tutarsızlık ("son evaluation migration" derken gerçek head
+  farklıydı) fark edilerek tespit edildi. `alembic heads` ile tek head
+  doğrulandı.
+- **Regresyon (bulunup düzeltildi):** AC-S1 (strength tampering) için
+  `PostTaskRequest`/`PostDeliverableRequest`'e eklenen `extra="forbid"`,
+  MEVCUT bir regresyon testini (AC-S3, `submitted_by_user_id` tampering)
+  kırdı — o test bilinmeyen bir alanın sessizce yok sayılıp 201 dönmesini
+  bekliyordu. `extra="forbid"` kaldırıldı: AC-S1'in gerçek güvenlik hedefi
+  zaten korunuyordu çünkü `strength` şemada hiç tanımlı değildi (Pydantic
+  varsayılanı böyle alanları zaten görmezden gelir). **Ders:** yeni bir
+  threat-model AC'sini karşılamak için MEVCUT bir endpoint'in şemasına
+  sıkılaştırıcı bir kısıt (`extra="forbid"`) eklemeden önce, o endpoint'in
+  zaten var olan davranış sözleşmesini/testlerini kontrol et — attestation.py
+  gibi YENİ bir endpoint'te sorun yaratmayan bir desen, MEVCUT bir endpoint'te
+  regresyona yol açabilir.
+- **Red-team bulgusu (medium, düzeltildi):** AC-7 "skills tablosunda yok/ACTIVE
+  değil" diyordu ama skill_id doğrulaması sadece varlığı kontrol ediyordu,
+  `Skill.status=="ACTIVE"` filtresi yoktu (3 yerde: TASK, DELIVERABLE,
+  EVALUATION item) — MERGED/DEPRECATED bir skill_id ile sessizce geçerli bir
+  SkillSignal üretilebilirdi. Düzeltildi.
+- **3 küçük test bug'ı:** geçersiz skill `category="TECHNICAL"` (CHECK sadece
+  LANGUAGE/FRAMEWORK/TOOL/DOMAIN/SOFT kabul ediyor), bir testin yanlış
+  dosyadan (başka bir test dosyasının) fixture'larını referans etmesi ("fixture
+  not found" — pytest fixture'ları dosyalar arası otomatik paylaşılmaz), ve
+  hesaplanıp hiç assert edilmeyen bir `signal_count` değişkeni.

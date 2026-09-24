@@ -38,14 +38,15 @@ class Settings(BaseSettings):
     email_from: str = "noreply@yetkin360.local"
     email_from_name: str = "Yetkin360"
 
-    # S3/MinIO — PLAN 2.5 (YET-82, YET-83)
+    # S3/MinIO — PLAN 2.5 (YET-82, YET-83), PLAN 2.6 (YET-84, YET-85)
     s3_endpoint_url: str
     s3_access_key: str
     s3_secret_key: str
     s3_bucket: str = "yetkin360-evidence"
     s3_region: str = "us-east-1"
     s3_use_ssl: bool = False
-    s3_presigned_url_ttl_seconds: int = 900
+    s3_presigned_url_ttl_seconds: int = 900  # Upload TTL: 15 minutes
+    evidence_download_url_ttl_seconds: int = 300  # Download TTL: 5 minutes
     evidence_max_size_bytes: int = 10485760
 
 

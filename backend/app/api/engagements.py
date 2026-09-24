@@ -18,10 +18,24 @@ from app.services.engagement import (
     PreconditionFailedError,
     TransitionForbiddenError,
     VersionConflictError,
+    InvalidSkillError as EngInvalidSkillError,
     create_engagement,
     transition_engagement,
     create_engagement_task,
     create_deliverable,
+)
+from app.services.evaluation import (
+    EngagementNotFoundError as EvalEngagementNotFoundError,
+    IllegalTransitionError as EvalIllegalTransitionError,
+    TransitionForbiddenError as EvalTransitionForbiddenError,
+    DuplicateEvaluationError,
+    InvalidSkillError as EvalInvalidSkillError,
+    create_evaluation,
+)
+from app.schemas.evaluation import (
+    EvaluationCreate,
+    EvaluationResponse,
+    EvaluationItemResponse,
 )
 
 router = APIRouter(prefix="/engagements", tags=["engagements"])
@@ -82,6 +96,7 @@ class PostTaskRequest(BaseModel):
     title: str = Field(..., min_length=1, description="Task title")
     description: str | None = Field(None, description="Optional task description")
     due_at: datetime | None = Field(None, description="Optional due date")
+    skill_id: str | None = Field(None, description="Optional UUID of skill for SkillSignal generation")
 
     class Config:
         from_attributes = True
@@ -92,6 +107,7 @@ class PostTaskResponse(BaseModel):
 
     id: str
     engagement_id: str
+    skill_id: str | None = None
     title: str
     description: str | None = None
     status: str
@@ -109,6 +125,7 @@ class PostDeliverableRequest(BaseModel):
 
     title: str = Field(..., min_length=1, description="Deliverable title")
     description: str | None = Field(None, description="Optional deliverable description")
+    skill_id: str | None = Field(None, description="Optional UUID of skill for SkillSignal generation")
 
     class Config:
         from_attributes = True
@@ -119,6 +136,7 @@ class PostDeliverableResponse(BaseModel):
 
     id: str
     engagement_id: str
+    skill_id: str | None = None
     title: str
     description: str | None = None
     submitted_by_user_id: str
@@ -396,6 +414,7 @@ def post_engagement_tasks(
             title=payload.title,
             description=payload.description,
             due_at=payload.due_at,
+            skill_id=payload.skill_id,
         )
     except EngagementNotFoundError:
         raise HTTPException(
@@ -424,6 +443,15 @@ def post_engagement_tasks(
                 "request_id": None,
             },
         )
+    except EngInvalidSkillError:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "INVALID_REQUEST",
+                "message": "Geçersiz skill_id.",
+                "request_id": None,
+            },
+        )
 
     # Commit transaction
     session.commit()
@@ -431,6 +459,7 @@ def post_engagement_tasks(
     return PostTaskResponse(
         id=str(task.id),
         engagement_id=str(task.engagement_id),
+        skill_id=str(task.skill_id) if task.skill_id else None,
         title=task.title,
         description=task.description,
         status=task.status,
@@ -487,6 +516,7 @@ def post_engagement_deliverables(
             engagement_id=engagement_id,
             title=payload.title,
             description=payload.description,
+            skill_id=payload.skill_id,
         )
     except EngagementNotFoundError:
         raise HTTPException(
@@ -515,6 +545,15 @@ def post_engagement_deliverables(
                 "request_id": None,
             },
         )
+    except EngInvalidSkillError:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "INVALID_REQUEST",
+                "message": "Geçersiz skill_id.",
+                "request_id": None,
+            },
+        )
 
     # Commit transaction
     session.commit()
@@ -522,10 +561,307 @@ def post_engagement_deliverables(
     return PostDeliverableResponse(
         id=str(deliverable.id),
         engagement_id=str(deliverable.engagement_id),
+        skill_id=str(deliverable.skill_id) if deliverable.skill_id else None,
         title=deliverable.title,
         description=deliverable.description,
         submitted_by_user_id=str(deliverable.submitted_by_user_id),
         submitted_at=deliverable.submitted_at,
         created_at=deliverable.created_at,
         updated_at=deliverable.updated_at,
+    )
+
+
+# ============================================================================
+# PLAN 2.7: POST /engagements/{id}/evaluation (Evaluation Form Submission)
+# ============================================================================
+
+
+@router.post("/{engagement_id}/evaluation", response_model=EvaluationResponse, status_code=201)
+def post_engagement_evaluation(
+    engagement_id: str,
+    payload: EvaluationCreate,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> EvaluationResponse:
+    """
+    PLAN 2.7 (YET-69, YET-86, YET-87): Submit a structured evaluation form on an engagement.
+
+    Implements AC-1 through AC-9, AC-S1 through AC-S3.
+
+    Returns:
+        201 + evaluation object (private_note NEVER included in response).
+
+    Errors:
+        - 404 NOT_FOUND: Engagement not found or not accessible
+        - 403 FORBIDDEN: Principal authorized but not allowed to evaluate (direction/role mismatch, AC-S3)
+        - 409 CONFLICT: Engagement not in PENDING_EVALUATION, or duplicate evaluation (UNIQUE violation)
+        - 422 UNPROCESSABLE_ENTITY: Invalid items[], criterion missing/empty, invalid skill_id, etc.
+        - 401: Unauthenticated
+
+    Security:
+        - AC-S1: private_note NEVER appears in response JSON
+        - AC-S2: evaluator_user_id always from principal (never from request body)
+        - AC-S3: direction must match principal's role (TALENT→TALENT_TO_ORG only, ORG_MEMBER→ORG_TO_TALENT only)
+        - AC-5: Scope check (out-of-scope → 404, in-scope but wrong role → 403)
+    """
+    if principal.user_id is None:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "code": "UNAUTHORIZED",
+                "message": "Kimlik doğrulama gerekli.",
+                "request_id": None,
+            },
+        )
+
+    try:
+        # Build items list from request (convert skill_id UUID to string for service layer)
+        items = []
+        for item in payload.items:
+            items.append({
+                "criterion": item.criterion,
+                "skill_id": str(item.skill_id) if item.skill_id else None,
+                "rating": item.rating,
+                "comment": item.comment,
+            })
+
+        evaluation = create_evaluation(
+            session=session,
+            principal=principal,
+            engagement_id=engagement_id,
+            direction=payload.direction,
+            items=items,
+            private_note=payload.private_note,
+        )
+    except EvalEngagementNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "NOT_FOUND",
+                "message": "Engagement bulunamadı.",
+                "request_id": None,
+            },
+        )
+    except EvalIllegalTransitionError:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "CONFLICT",
+                "message": "Engagement bu durumda değerlendirilemiyor.",
+                "request_id": None,
+            },
+        )
+    except EvalTransitionForbiddenError:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "FORBIDDEN",
+                "message": "Bu yönde değerlendirme yapma yetkiniz yok.",
+                "request_id": None,
+            },
+        )
+    except DuplicateEvaluationError:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "CONFLICT",
+                "message": "Bu yönde zaten değerlendirme gönderilmiş.",
+                "request_id": None,
+            },
+        )
+    except EvalInvalidSkillError:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "INVALID_REQUEST",
+                "message": "Geçersiz skill_id.",
+                "request_id": None,
+            },
+        )
+
+    # Commit transaction
+    session.commit()
+
+    # Build response (query evaluation items from DB to ensure fresh data)
+    # Refresh to get related items
+    session.refresh(evaluation)
+
+    # Load evaluation_items relationship
+    evaluation_items_response = []
+    for db_item in evaluation.evaluation_items:
+        evaluation_items_response.append(
+            EvaluationItemResponse(
+                id=str(db_item.id),
+                criterion=db_item.criterion,
+                skill_id=str(db_item.skill_id) if db_item.skill_id else None,
+                rating=db_item.rating,
+                comment=db_item.comment,
+            )
+        )
+
+    return EvaluationResponse(
+        id=str(evaluation.id),
+        engagement_id=str(evaluation.engagement_id),
+        direction=evaluation.direction,
+        items=evaluation_items_response,
+        submitted_at=evaluation.submitted_at,
+        # CRITICAL: private_note is NOT included in response
+    )
+
+
+# ============================================================================
+# Attestation Route (PLAN 2.8 — YET-70)
+# ============================================================================
+
+
+class AttestationCreateRequest(BaseModel):
+    """Request schema for POST /engagements/{id}/attestations."""
+
+    claim_type: Literal["PARTICIPATION", "CONTRIBUTION", "COMPETENCE", "CONDUCT"] = Field(
+        ..., description="Requested claim type"
+    )
+    version: int = Field(..., description="Current engagement version (optimistic locking)")
+    skill_id: str | None = Field(None, description="Optional UUID of skill for SkillSignal creation")
+
+    class Config:
+        from_attributes = True
+        extra = "forbid"  # Reject unknown fields (AC-S4: no tampering with downgrade logic)
+
+
+class AttestationResponse(BaseModel):
+    """Response schema for POST /engagements/{id}/attestations (201)."""
+
+    id: str
+    claim_type: str
+    requested_claim_type: str
+    downgrade_reasons: list[str]
+
+    class Config:
+        from_attributes = True
+
+
+@router.post("/{engagement_id}/attestations", response_model=AttestationResponse, status_code=201)
+def post_engagement_attestation(
+    engagement_id: str,
+    payload: AttestationCreateRequest,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> AttestationResponse:
+    """
+    PLAN 2.8 (YET-70, YET-88, YET-89, YET-90): Submit attestation (tanıklık) on EVALUATED engagement.
+
+    Implements T8 transition (EVALUATED → VERIFIED) with COMPETENCE precondition checking (DOMAIN.md §3.11).
+    Triggers single transaction: Attestation + VerifiedExperience + SkillSignal + AuditEvent + Outbox + Engagement.status update.
+
+    AC-1 through AC-9, AC-S1 through AC-S5.
+
+    Returns:
+        201 + Attestation object (claim_type after downgrade logic, downgrade_reasons list)
+
+    Errors:
+        - 404 NOT_FOUND: Engagement not found or not accessible
+        - 403 FORBIDDEN: Principal (TALENT) cannot attest (S6 exception)
+        - 409 CONFLICT: Engagement not EVALUATED, version mismatch, already attested, self-attestation
+        - 422 UNPROCESSABLE_ENTITY: Invalid claim_type or request body
+        - 401 UNAUTHORIZED: Unauthenticated
+
+    Security:
+        - AC-S1: claim_type from request, downgrade_reasons computed server-side (no request-body tampering)
+        - AC-S2: Engagement fetched via scoped_engagements() (cross-tenant 404)
+        - AC-S3: Self-attestation check (attestor_user_id != talent_id)
+        - AC-S4: Pydantic extra="forbid" rejects unknown fields
+        - AC-S5: DB-level optimistic locking prevents race conditions
+    """
+    from app.services.attestation import (
+        EngagementNotFoundError as AttEngagementNotFoundError,
+        IllegalTransitionError as AttIllegalTransitionError,
+        TransitionForbiddenError as AttTransitionForbiddenError,
+        SelfAttestationError,
+        AttestationAlreadyExistsError,
+        VersionMismatchError,
+        create_attestation,
+    )
+
+    if principal.user_id is None:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "code": "UNAUTHORIZED",
+                "message": "Kimlik doğrulama gerekli.",
+                "request_id": None,
+            },
+        )
+
+    try:
+        attestation, verified_exp = create_attestation(
+            session=session,
+            principal=principal,
+            engagement_id=engagement_id,
+            requested_claim_type=payload.claim_type,
+            version=payload.version,
+            skill_id=payload.skill_id,
+        )
+    except AttEngagementNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "NOT_FOUND",
+                "message": "Engagement bulunamadı veya erişilemez.",
+                "request_id": None,
+            },
+        )
+    except AttTransitionForbiddenError:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "FORBIDDEN",
+                "message": "Bu işlem için yetkiniz yok.",
+                "request_id": None,
+            },
+        )
+    except AttIllegalTransitionError:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "INVALID_STATE_TRANSITION",
+                "message": "Engagement bu durumda tanıklanmak için uygun değildir.",
+                "request_id": None,
+            },
+        )
+    except VersionMismatchError:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "CONFLICT",
+                "message": "Sürüm uyumsuzluğu (eşzamanlı güncelleme).",
+                "request_id": None,
+            },
+        )
+    except SelfAttestationError:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "SELF_ATTESTATION_FORBIDDEN",
+                "message": "Kendi deneyiminize tanıklık yapamazsınız.",
+                "request_id": None,
+            },
+        )
+    except AttestationAlreadyExistsError:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "ATTESTATION_ALREADY_EXISTS",
+                "message": "Bu engagement için zaten tanıklık gönderilmiş.",
+                "request_id": None,
+            },
+        )
+
+    # Commit transaction
+    session.commit()
+
+    return AttestationResponse(
+        id=str(attestation.id),
+        claim_type=attestation.claim_type,
+        requested_claim_type=attestation.requested_claim_type,
+        downgrade_reasons=attestation.downgrade_reasons if attestation.downgrade_reasons else [],
     )

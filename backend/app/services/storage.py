@@ -8,8 +8,10 @@ allowlist, file size validation, rate limiting, and error handling.
 import time
 
 import boto3
+from botocore.exceptions import ConnectTimeoutError, EndpointConnectionError
 
 from app.core.config import settings
+from app.core.errors import ApiError
 
 
 # Content-type allowlist (AC-3)
@@ -209,3 +211,52 @@ def generate_presigned_post(
     )
 
     return presigned_post
+
+
+def generate_presigned_get_url(
+    bucket: str,
+    object_key: str,
+    ttl: int,
+) -> str:
+    """
+    AC-5, AC-10: Generate a presigned GET URL for evidence download.
+
+    Downloads must be short-lived (TTL = 300 seconds, 5 minutes) and require
+    ownership/scan_status validation at the endpoint layer (URL generation
+    does not substitute for authorization checks).
+
+    Args:
+        bucket: S3 bucket name
+        object_key: Object key (e.g., evidence/{talent_id}/{uuid}.{ext})
+        ttl: Time-to-live in seconds (typically 300 = 5 min)
+
+    Returns:
+        str: Presigned GET URL (HTTPS)
+
+    Raises:
+        ApiError(503, "STORAGE_UNAVAILABLE") if S3 unreachable or timeout
+    """
+    # Create S3 client configured for MinIO
+    s3_client = boto3.client(
+        "s3",
+        endpoint_url=settings.s3_endpoint_url,
+        aws_access_key_id=settings.s3_access_key,
+        aws_secret_access_key=settings.s3_secret_key,
+        region_name=settings.s3_region,
+    )
+
+    # Generate presigned GET URL with specified TTL
+    try:
+        presigned_url = s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": bucket, "Key": object_key},
+            ExpiresIn=ttl,
+        )
+    except (EndpointConnectionError, ConnectTimeoutError):
+        raise ApiError(
+            503,
+            "STORAGE_UNAVAILABLE",
+            "Dosya depolama servisi şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.",
+        )
+
+    return presigned_url

@@ -1,8 +1,11 @@
+from app.models.attestation import Attestation
 from app.models.audit import AuditEvent
 from app.models.auth import RefreshToken
 from app.models.base import Base
 from app.models.email_tokens import EmailVerificationToken, PasswordResetToken
 from app.models.engagement import Engagement
+from app.models.evaluation import Evaluation, EvaluationItem
+from app.models.evidence import Evidence
 from app.models.identity import (
     Institution,
     InstitutionMember,
@@ -17,6 +20,7 @@ from app.models.skill import Skill
 from app.models.skill_claim import SkillClaim
 from app.models.skill_signal import SkillSignal
 from app.models.task_deliverable import Deliverable, EngagementTask
+from app.models.verified_experience import VerifiedExperience
 
 __all__ = [
     "Base",
@@ -33,9 +37,14 @@ __all__ = [
     "Engagement",
     "EngagementTask",
     "Deliverable",
+    "Evaluation",
+    "EvaluationItem",
+    "Attestation",
+    "VerifiedExperience",
     "AuditEvent",
     "RefreshToken",
     "EmailVerificationToken",
     "PasswordResetToken",
     "Outbox",
+    "Evidence",
 ]

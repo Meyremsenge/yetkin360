@@ -22,6 +22,7 @@ Status: Tests are RED (expected) — implementation not yet available.
 """
 
 import pytest
+from uuid import uuid4
 
 from app.models import (
     User,
@@ -31,6 +32,7 @@ from app.models import (
     Engagement,
     OrganizationMember,
     InstitutionMember,
+    Skill,
 )
 
 # Import will fail until EngagementTask model is implemented
@@ -38,6 +40,12 @@ try:
     from app.models import EngagementTask
 except ImportError:
     EngagementTask = None
+
+# Import SkillSignal model for YET-71 tests
+try:
+    from app.models import SkillSignal
+except ImportError:
+    SkillSignal = None
 
 
 # ============================================================================
@@ -706,3 +714,214 @@ class TestTaskResponseSchema:
         assert "code" in error_obj, "Error response must have 'code' field"
         assert "message" in error_obj, "Error response must have 'message' field"
         assert "request_id" in error_obj, "Error response must have 'request_id' field"
+
+
+# ============================================================================
+# YET-71: SkillSignal Türetme — TASK source_type
+# ============================================================================
+
+
+@pytest.fixture
+def skill_python_task(session):
+    """Test skill: Python for YET-71 task tests."""
+    skill = Skill(
+        slug="python-task",
+        name_tr="Python",
+        name_en="Python",
+        category="LANGUAGE",
+    )
+    session.add(skill)
+    session.flush()
+    return skill
+
+
+@pytest.fixture
+def skill_invalid_id_task():
+    """Non-existent skill UUID for invalid skill_id tests."""
+    return str(uuid4())
+
+
+class TestTaskSkillSignalCreation:
+    """
+    YET-71 AC-1: TASK + skill_id → SkillSignal(TASK, WEAK) üretilir.
+    Davranış Sözleşmesi Satır 1.
+    """
+
+    def test_task_with_skill_id_creates_skill_signal_201(
+        self, client, session, user_org_member_charlie_task, org_member_charlie_task,
+        engagement_active_alice_task, skill_python_task
+    ):
+        """
+        AC-1 + YET-71: Charlie (ORG:MEMBER) oluşturur task skill_id ile → 201, SkillSignal(TASK, WEAK) yazılır.
+
+        Davranış Sözleşmesi:
+        - Status code: 201
+        - SkillSignal DB'de yazılır: source_type=TASK, strength=WEAK, skill_id=<verilen>
+        - signal.talent_id = engagement.talent_id (Alice)
+        - signal.occurred_at = task.created_at
+        """
+        payload = {
+            "title": "Task with skill tracking",
+            "description": "Python development task",
+            "skill_id": str(skill_python_task.id),
+            "due_at": None,
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_active_alice_task.id}/tasks",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_org_member_charlie_task.id)},
+        )
+
+        assert response.status_code == 201, f"Expected 201, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        task_id = data.get("id")
+        assert data.get("skill_id") == str(skill_python_task.id)
+
+        # DB verification: SkillSignal yazıldı
+        if SkillSignal:
+            signal = session.query(SkillSignal).filter_by(
+                source_type="TASK",
+                source_id=task_id,
+                skill_id=skill_python_task.id
+            ).first()
+
+            assert signal is not None, "SkillSignal not created for TASK with skill_id"
+            assert signal.strength == "WEAK", f"Expected WEAK, got {signal.strength}"
+            assert signal.talent_id == engagement_active_alice_task.talent_id
+
+
+class TestTaskSkillIdNone:
+    """
+    YET-71 AC-6: TASK skill_id None → SkillSignal yazılmaz (sessiz atlama).
+    Davranış Sözleşmesi Satır 4.
+    """
+
+    def test_task_without_skill_id_no_signal_201(
+        self, client, session, user_org_member_charlie_task, org_member_charlie_task, engagement_active_alice_task
+    ):
+        """
+        AC-6 + YET-71: Charlie oluşturur task skill_id olmadan → 201, SkillSignal yazılmaz.
+
+        Davranış Sözleşmesi:
+        - Status code: 201 (başarı, değişmez)
+        - response.skill_id = null
+        - DB'de SkillSignal yok (sessiz atlama, hata değil)
+        """
+        payload = {
+            "title": "Task without skill",
+            "description": "Generic task",
+            # skill_id intentionally omitted
+            "due_at": None,
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_active_alice_task.id}/tasks",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_org_member_charlie_task.id)},
+        )
+
+        assert response.status_code == 201, f"Expected 201, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        task_id = data.get("id")
+        assert data.get("skill_id") is None
+
+        # DB verification: SkillSignal yok
+        if SkillSignal:
+            signal_count = session.query(SkillSignal).filter_by(source_type="TASK", source_id=task_id).count()
+            assert signal_count == 0, "SkillSignal must not be created when skill_id is None"
+
+
+class TestTaskInvalidSkillId:
+    """
+    YET-71 AC-7: Geçersiz skill_id → 422.
+    Davranış Sözleşmesi Satır 6.
+    """
+
+    def test_task_with_invalid_skill_id_422(
+        self, client, session, user_org_member_charlie_task, org_member_charlie_task,
+        engagement_active_alice_task, skill_invalid_id_task
+    ):
+        """
+        AC-7 + YET-71: Charlie skill_id ile gönderiyor, ama skill_id geçersiz → 422.
+
+        Davranış Sözleşmesi:
+        - Status code: 422 Unprocessable Entity
+        - Error code: INVALID_REQUEST (exact match)
+        - Hiçbir yazma yok (task, SkillSignal)
+        """
+        payload = {
+            "title": "Task with invalid skill",
+            "description": "This should fail",
+            "skill_id": skill_invalid_id_task,  # Non-existent UUID
+            "due_at": None,
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_active_alice_task.id}/tasks",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_org_member_charlie_task.id)},
+        )
+
+        assert response.status_code == 422, f"Expected 422, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        error_obj = data.get("detail") if "detail" in data else data
+
+        assert error_obj.get("code") == "INVALID_REQUEST", \
+            f"Expected INVALID_REQUEST, got {error_obj.get('code')}"
+
+
+class TestTaskStrengthTampering:
+    """
+    YET-71 AC-S1: Tampering — strength manipülasyonu.
+    İstemci `strength` alanı gönderirse Pydantic kabul etmez.
+    """
+
+    def test_task_strength_field_tampering_ignored_201(
+        self, client, session, user_org_member_charlie_task, org_member_charlie_task,
+        engagement_active_alice_task, skill_python_task
+    ):
+        """
+        AC-S1 + YET-71: Charlie payload'a `strength: "STRONG"` ekliyor.
+        Alan tanımlı değilse görmezden gelinir, strength sunucu kuralına göre WEAK hesaplanır.
+
+        Davranış Sözleşmesi:
+        - Status code: 201
+        - SkillSignal.strength = WEAK (istemci alanı yoksayıldı)
+        """
+        payload = {
+            "title": "Task trying to fake strength",
+            "description": "Tampering attempt",
+            "skill_id": str(skill_python_task.id),
+            "strength": "STRONG",  # Tampering: trying to override strength
+            "due_at": None,
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_active_alice_task.id}/tasks",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_org_member_charlie_task.id)},
+        )
+
+        # Pydantic extra="forbid" ile reddedilirse 422, ignore edilirse 201
+        # İkisi de kabul edilebilir, ama başarısız olmalı veya strength yoksayılmalı
+        if response.status_code == 201:
+            # Verify SkillSignal strength is WEAK, not client's "STRONG"
+            data = response.json()
+            task_id = data.get("id")
+            if SkillSignal:
+                signal = session.query(SkillSignal).filter_by(
+                    source_type="TASK",
+                    source_id=task_id
+                ).first()
+                if signal:
+                    assert signal.strength == "WEAK", \
+                        f"Expected WEAK (sunucu), got {signal.strength} — tampering başarılı oldu!"
+        elif response.status_code == 422:
+            # Pydantic rejected extra field — this is fine
+            pass
+        else:
+            pytest.fail(f"Expected 201 or 422, got {response.status_code}: {response.text}")

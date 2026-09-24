@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import Deliverable, EngagementTask, Engagement, Organization, TalentProfile
+from app.models import Deliverable, EngagementTask, Engagement, Organization, TalentProfile, Skill, SkillSignal
 from app.services.authorization import Principal, get_scoped_or_404, scoped_engagements
 from app.services.audit import log_audit_event
 from app.services.outbox import enqueue
@@ -51,6 +51,16 @@ class TransitionForbiddenError(Exception):
 class VersionConflictError(Exception):
     """Raised when version from request does not match DB version (optimistic locking)."""
     pass
+
+
+class InvalidSkillError(Exception):
+    """Raised when skill_id does not exist in skills table or is not ACTIVE."""
+    pass
+
+
+# Strength constants for SkillSignal generation (YET-71)
+TASK_SIGNAL_STRENGTH = "WEAK"
+DELIVERABLE_SIGNAL_STRENGTH = "MODERATE"
 
 
 class TransitionSpec(TypedDict):
@@ -385,11 +395,13 @@ def create_engagement_task(
     title: str,
     description: str | None = None,
     due_at: datetime | None = None,
+    skill_id: str | None = None,
 ) -> EngagementTask:
     """
     Create a new task within an engagement.
 
     PLAN 2.4 (AC-1): POST /engagements/{id}/tasks.
+    PLAN 2.9 (YET-71): Optional skill_id triggers SkillSignal generation (AC-1, AC-6, AC-7).
 
     Args:
         session: Database session
@@ -398,6 +410,7 @@ def create_engagement_task(
         title: Task title
         description: Optional task description
         due_at: Optional due date
+        skill_id: Optional UUID of skill (string format) for SkillSignal generation
 
     Returns:
         Created EngagementTask object
@@ -406,6 +419,7 @@ def create_engagement_task(
         EngagementNotFoundError: Engagement not found or not accessible
         PreconditionFailedError: Engagement not ACTIVE
         TransitionForbiddenError: Principal not authorized (e.g., TALENT trying to create task)
+        InvalidSkillError: skill_id provided but does not exist or is not ACTIVE (AC-7)
     """
     # Parse UUID
     try:
@@ -433,9 +447,26 @@ def create_engagement_task(
     if principal.kind not in ("COORDINATOR", "ORG_MEMBER", "ORG_ADMIN"):
         raise TransitionForbiddenError("Not authorized to create tasks")
 
+    # AC-7: Validate skill_id BEFORE writing anything
+    skill_id_uuid = None
+    if skill_id:
+        try:
+            skill_id_uuid = uuid.UUID(skill_id)
+        except ValueError:
+            raise InvalidSkillError(f"Invalid skill_id format: {skill_id}")
+
+        # Verify skill exists and is ACTIVE in database (AC-7)
+        skill = session.execute(
+            select(Skill).where(Skill.id == skill_id_uuid, Skill.status == "ACTIVE")
+        ).scalar_one_or_none()
+
+        if skill is None:
+            raise InvalidSkillError(f"Skill {skill_id} not found or is not ACTIVE")
+
     # Create task
     task = EngagementTask(
         engagement_id=engagement_uuid,
+        skill_id=skill_id_uuid,
         title=title,
         description=description,
         status="PLANNED",
@@ -448,6 +479,21 @@ def create_engagement_task(
         if "fk_" in str(e).lower() or "foreign key" in str(e).lower():
             raise EngagementNotFoundError("Engagement not found")
         raise
+
+    # AC-1, AC-6: Generate SkillSignal if skill_id provided
+    if skill_id_uuid is not None:
+        signal = SkillSignal(
+            talent_id=engagement.talent_id,
+            skill_id=skill_id_uuid,
+            source_type="TASK",
+            source_id=task.id,
+            strength=TASK_SIGNAL_STRENGTH,
+            attested_by_org_id=None,
+            occurred_at=task.created_at,
+            superseded_by_id=None,
+        )
+        session.add(signal)
+        session.flush()
 
     # Log audit event
     log_audit_event(
@@ -473,11 +519,13 @@ def create_deliverable(
     engagement_id: str,
     title: str,
     description: str | None = None,
+    skill_id: str | None = None,
 ) -> Deliverable:
     """
     Create a new deliverable (evidence submission) within an engagement.
 
     PLAN 2.4 (AC-2): POST /engagements/{id}/deliverables.
+    PLAN 2.9 (YET-71): Optional skill_id triggers SkillSignal generation (AC-2, AC-6, AC-7).
 
     Args:
         session: Database session
@@ -485,6 +533,7 @@ def create_deliverable(
         engagement_id: UUID of engagement (string format)
         title: Deliverable title
         description: Optional deliverable description
+        skill_id: Optional UUID of skill (string format) for SkillSignal generation
 
     Returns:
         Created Deliverable object
@@ -493,6 +542,7 @@ def create_deliverable(
         EngagementNotFoundError: Engagement not found or not accessible
         PreconditionFailedError: Engagement not ACTIVE
         TransitionForbiddenError: Principal not authorized (e.g., ORG_MEMBER trying to submit)
+        InvalidSkillError: skill_id provided but does not exist or is not ACTIVE (AC-7)
     """
     # Parse UUID
     try:
@@ -520,13 +570,31 @@ def create_deliverable(
     if principal.talent_id != engagement.talent_id:
         raise EngagementNotFoundError(f"Engagement {engagement_id} not found")
 
+    # AC-7: Validate skill_id BEFORE writing anything
+    skill_id_uuid = None
+    if skill_id:
+        try:
+            skill_id_uuid = uuid.UUID(skill_id)
+        except ValueError:
+            raise InvalidSkillError(f"Invalid skill_id format: {skill_id}")
+
+        # Verify skill exists and is ACTIVE in database (AC-7)
+        skill = session.execute(
+            select(Skill).where(Skill.id == skill_id_uuid, Skill.status == "ACTIVE")
+        ).scalar_one_or_none()
+
+        if skill is None:
+            raise InvalidSkillError(f"Skill {skill_id} not found or is not ACTIVE")
+
     # Create deliverable with principal's user_id (AC-S3: never from request body)
+    submitted_at = datetime.now(timezone.utc)
     deliverable = Deliverable(
         engagement_id=engagement_uuid,
+        skill_id=skill_id_uuid,
         title=title,
         description=description,
         submitted_by_user_id=principal.user_id,
-        submitted_at=datetime.now(timezone.utc),
+        submitted_at=submitted_at,
     )
     session.add(deliverable)
     try:
@@ -535,6 +603,21 @@ def create_deliverable(
         if "fk_" in str(e).lower() or "foreign key" in str(e).lower():
             raise EngagementNotFoundError("Engagement not found")
         raise
+
+    # AC-2, AC-6: Generate SkillSignal if skill_id provided
+    if skill_id_uuid is not None:
+        signal = SkillSignal(
+            talent_id=engagement.talent_id,
+            skill_id=skill_id_uuid,
+            source_type="DELIVERABLE",
+            source_id=deliverable.id,
+            strength=DELIVERABLE_SIGNAL_STRENGTH,
+            attested_by_org_id=None,
+            occurred_at=deliverable.submitted_at,
+            superseded_by_id=None,
+        )
+        session.add(signal)
+        session.flush()
 
     # Log audit event
     log_audit_event(
