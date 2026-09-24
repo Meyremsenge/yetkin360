@@ -7,6 +7,7 @@ import { AppShell } from "@/components/app-shell";
 import { getEngagement } from "@/lib/api/engagements";
 import { ApiError } from "@/lib/api/errors";
 import { TransitionActions } from "./transition-actions";
+import { EvidenceUploadForm } from "./evidence-upload-form";
 import messages from "@/messages/tr.json";
 
 export default function CalismaDetayPage() {
@@ -104,6 +105,7 @@ export default function CalismaDetayPage() {
                       className="bg-white p-3 rounded-md border border-slate-200 text-sm"
                     >
                       {deliverable.title}
+                      <EvidenceUploadForm deliverableId={deliverable.id} />
                     </li>
                   ))}
                 </ul>
