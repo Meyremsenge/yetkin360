@@ -1,0 +1,30 @@
+{
+  "task": "yet-71-skillsignal-turetme-tam-kapsam",
+  "reviewed_at": "2026-09-24T00:00:00Z",
+  "summary": "SkillSignal türetme mantığı TASK/DELIVERABLE/EVALUATION için doğru ve tutarlı uygulanmış; strength hiyerarşisi kodda tutarlı, aynı transaction içinde yazılıyor. Tek medium bulgu (AC-7'nin ACTIVE-değil dalının eksik olması) düzeltildi, tam paket (643 passed) tekrar doğrulandı.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "correctness",
+      "file": "backend/app/services/engagement.py, backend/app/services/evaluation.py",
+      "issue": "AC-7 'skills tablosunda yok/ACTIVE değil' diyordu ama skill_id doğrulaması sadece varlığı kontrol ediyordu, Skill.status=='ACTIVE' kontrolü yoktu (3 yerde: TASK, DELIVERABLE, EVALUATION item).",
+      "better_approach": "select(Skill).where(Skill.id==X, Skill.status=='ACTIVE') filtresi eklendi.",
+      "reason": "MERGED/DEPRECATED bir skill_id ile sessizce geçerli bir SkillSignal üretilmesi taksonomi bütünlüğünü bozardı.",
+      "outcome": "fixed"
+    }
+  ],
+  "strengths": [
+    "Strength sabitleri (TASK=WEAK, DELIVERABLE=MODERATE, EVALUATION rating-eşlemeli, NOT_OBSERVED→sinyal yok) atdd.md'nin Assumptions bölümüyle birebir örtüşüyor.",
+    "AC-S1 tampering korumasının gerçek gerekçesi doğrulandı: strength alanı hiçbir request şemasında tanımlı değil, Pydantic bilinmeyen alanı sessizce atıyor — extra='forbid' olmadan da güvenlik sağlanıyor.",
+    "InvalidSkillError alias düzeltmesi (EngInvalidSkillError/EvalInvalidSkillError) doğru uygulanmış, name-shadowing riski ortadan kalkmış.",
+    "SkillSignal yazımı ana kayıtla aynı transaction içinde (flush sonrası, commit öncesi) — yarım kayıt riski yok.",
+    "skill_id doğrulaması yazma işleminden önce yapılıyor, geçersiz durumda hiçbir satır yazılmıyor."
+  ],
+  "risks": [
+    "Skill taksonomisi tenant-scoped değil (atdd.md'nin kendi kabul ettiği risk) — ek aksiyon gerekmiyor."
+  ],
+  "caveman_review": {"complexity": "low", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {"atdd_satisfied": true, "tests_passed": true, "no_critical_findings": true, "scope_respected": true, "caveman_satisfied": true, "security_acceptable": true, "maintainability_acceptable": true, "no_blocking_risks": true},
+  "verdict": "approve"
+}

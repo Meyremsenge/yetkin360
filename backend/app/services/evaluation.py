@@ -6,7 +6,7 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import Engagement, Skill, Evaluation, EvaluationItem
+from app.models import Engagement, Skill, Evaluation, EvaluationItem, SkillSignal
 from app.services.authorization import Principal, get_scoped_or_404, scoped_engagements
 from app.services.audit import log_audit_event
 
@@ -34,6 +34,15 @@ class DuplicateEvaluationError(Exception):
 class InvalidSkillError(Exception):
     """Raised when skill_id does not exist in skills table."""
     pass
+
+
+# Strength mapping for rating → strength (YET-71 AC-4)
+EVALUATION_RATING_TO_STRENGTH = {
+    "BELOW": "WEAK",
+    "MEETS": "MODERATE",
+    "EXCEEDS": "STRONG",
+    # NOT_OBSERVED: no signal generated (key omitted)
+}
 
 
 def create_evaluation(
@@ -123,7 +132,7 @@ def create_evaluation(
             "Not authorized to submit evaluations"
         )
 
-    # AC-8: Validate all skill_id's exist before writing anything
+    # AC-8: Validate all skill_id's exist and are ACTIVE before writing anything
     for item in items:
         if item.get("skill_id"):
             try:
@@ -132,11 +141,11 @@ def create_evaluation(
                 raise InvalidSkillError(f"Invalid skill_id format: {item['skill_id']}")
 
             skill = session.execute(
-                select(Skill).where(Skill.id == skill_uuid)
+                select(Skill).where(Skill.id == skill_uuid, Skill.status == "ACTIVE")
             ).scalar_one_or_none()
 
             if skill is None:
-                raise InvalidSkillError(f"Skill {item['skill_id']} not found")
+                raise InvalidSkillError(f"Skill {item['skill_id']} not found or is not ACTIVE")
 
     # Create Evaluation record
     # AC-S2: evaluator_user_id from principal, not from request body
@@ -160,6 +169,7 @@ def create_evaluation(
         raise
 
     # Create EvaluationItem records (all-or-nothing with Evaluation)
+    # YET-71 AC-3, AC-4, AC-5: Generate SkillSignal for each item (if skill_id and rating != NOT_OBSERVED)
     for item in items:
         skill_id = None
         if item.get("skill_id"):
@@ -176,6 +186,21 @@ def create_evaluation(
             comment=item.get("comment"),
         )
         session.add(evaluation_item)
+
+        # YET-71 AC-3/AC-4/AC-5: Create SkillSignal if skill_id present AND rating != NOT_OBSERVED
+        if skill_id is not None and item["rating"] in EVALUATION_RATING_TO_STRENGTH:
+            strength = EVALUATION_RATING_TO_STRENGTH[item["rating"]]
+            skill_signal = SkillSignal(
+                talent_id=engagement.talent_id,
+                skill_id=skill_id,
+                source_type="EVALUATION",
+                source_id=evaluation.id,
+                strength=strength,
+                attested_by_org_id=engagement.organization_id if principal.kind in ("ORG_MEMBER", "ORG_ADMIN") else None,
+                occurred_at=now,
+                superseded_by_id=None,
+            )
+            session.add(skill_signal)
 
     session.flush()
 

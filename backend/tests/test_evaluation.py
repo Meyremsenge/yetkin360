@@ -51,6 +51,12 @@ except ImportError:
     Evaluation = None
     EvaluationItem = None
 
+# Import SkillSignal model for YET-71 tests
+try:
+    from app.models import SkillSignal
+except ImportError:
+    SkillSignal = None
+
 
 # ============================================================================
 # Fixtures: Users, Talents, Organizations, Institutions, Engagements
@@ -1022,3 +1028,567 @@ class TestEvaluationResponseSchema:
         assert "code" in error_obj, "Error response must have 'code' field"
         assert "message" in error_obj, "Error response must have 'message' field"
         assert "request_id" in error_obj, "Error response must have 'request_id' field"
+
+
+# ============================================================================
+# YET-71: SkillSignal Türetme — EVALUATION source_type
+# ============================================================================
+
+
+class TestEvaluationSkillSignalCreation:
+    """
+    YET-71 AC-3: EVALUATION item MEETS → SkillSignal(EVALUATION, MODERATE) üretilir.
+    Davranış Sözleşmesi Satır 3.
+    """
+
+    def test_evaluation_meets_creates_skill_signal_201(
+        self, client, session, user_org_member_charlie_eval, org_member_charlie_eval,
+        engagement_pending_eval_alice_eval, skill_communication_eval
+    ):
+        """
+        AC-3 + YET-71: Charlie (ORG:MEMBER) submit ediyor evaluation, item rating=MEETS → 201, SkillSignal(EVALUATION, MODERATE) yazılır.
+
+        Davranış Sözleşmesi:
+        - Status code: 201
+        - SkillSignal DB'de yazılır: source_type=EVALUATION, strength=MODERATE, skill_id=<verilen>
+        - signal.talent_id = engagement.talent_id (Alice)
+        - signal.occurred_at = evaluation.submitted_at
+        """
+        payload = {
+            "direction": "ORG_TO_TALENT",
+            "items": [
+                {
+                    "criterion": "Communication",
+                    "skill_id": str(skill_communication_eval.id),
+                    "rating": "MEETS",
+                    "comment": "Good communication",
+                }
+            ],
+            "private_note": "Evaluation note",
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_pending_eval_alice_eval.id}/evaluation",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_org_member_charlie_eval.id)},
+        )
+
+        assert response.status_code == 201, f"Expected 201, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        eval_id = data.get("id")
+
+        # DB verification: SkillSignal yazıldı
+        if SkillSignal:
+            signal = session.query(SkillSignal).filter_by(
+                source_type="EVALUATION",
+                source_id=eval_id,
+                skill_id=skill_communication_eval.id
+            ).first()
+
+            assert signal is not None, "SkillSignal not created for EVALUATION item with MEETS rating"
+            assert signal.strength == "MODERATE", f"Expected MODERATE for MEETS, got {signal.strength}"
+            assert signal.talent_id == engagement_pending_eval_alice_eval.talent_id
+
+
+class TestEvaluationRatingStrengthMapping:
+    """
+    YET-71 AC-4: Rating eşlemesi — BELOW→WEAK, MEETS→MODERATE, EXCEEDS→STRONG, NOT_OBSERVED→skip.
+    Davranış Sözleşmesi Satır 3, 5.
+    """
+
+    def test_evaluation_below_creates_weak_signal_201(
+        self, client, session, user_org_member_charlie_eval, org_member_charlie_eval,
+        engagement_pending_eval_alice_eval, skill_communication_eval
+    ):
+        """
+        AC-4 + YET-71: Evaluation item rating=BELOW → SkillSignal strength=WEAK.
+        """
+        payload = {
+            "direction": "ORG_TO_TALENT",
+            "items": [
+                {
+                    "criterion": "Communication",
+                    "skill_id": str(skill_communication_eval.id),
+                    "rating": "BELOW",
+                    "comment": "Needs improvement",
+                }
+            ],
+            "private_note": "Note",
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_pending_eval_alice_eval.id}/evaluation",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_org_member_charlie_eval.id)},
+        )
+
+        assert response.status_code == 201
+
+        data = response.json()
+        eval_id = data.get("id")
+
+        if SkillSignal:
+            signal = session.query(SkillSignal).filter_by(
+                source_type="EVALUATION",
+                source_id=eval_id,
+                skill_id=skill_communication_eval.id
+            ).first()
+
+            assert signal is not None
+            assert signal.strength == "WEAK", f"Expected WEAK for BELOW, got {signal.strength}"
+
+    def test_evaluation_exceeds_creates_strong_signal_201(
+        self, client, session, user_org_member_charlie_eval, org_member_charlie_eval,
+        engagement_pending_eval_alice_eval, skill_time_management_eval
+    ):
+        """
+        AC-4 + YET-71: Evaluation item rating=EXCEEDS → SkillSignal strength=STRONG.
+        """
+        payload = {
+            "direction": "ORG_TO_TALENT",
+            "items": [
+                {
+                    "criterion": "Time Management",
+                    "skill_id": str(skill_time_management_eval.id),
+                    "rating": "EXCEEDS",
+                    "comment": "Outstanding time management",
+                }
+            ],
+            "private_note": "Note",
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_pending_eval_alice_eval.id}/evaluation",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_org_member_charlie_eval.id)},
+        )
+
+        assert response.status_code == 201
+
+        data = response.json()
+        eval_id = data.get("id")
+
+        if SkillSignal:
+            signal = session.query(SkillSignal).filter_by(
+                source_type="EVALUATION",
+                source_id=eval_id,
+                skill_id=skill_time_management_eval.id
+            ).first()
+
+            assert signal is not None
+            assert signal.strength == "STRONG", f"Expected STRONG for EXCEEDS, got {signal.strength}"
+
+    def test_evaluation_not_observed_no_signal_201(
+        self, client, session, user_org_member_charlie_eval, org_member_charlie_eval,
+        engagement_pending_eval_alice_eval
+    ):
+        """
+        AC-4 + YET-71: Evaluation item rating=NOT_OBSERVED → SkillSignal yazılmaz (sessiz atlama).
+        Davranış Sözleşmesi Satır 5.
+        """
+        payload = {
+            "direction": "ORG_TO_TALENT",
+            "items": [
+                {
+                    "criterion": "Some skill",
+                    "skill_id": None,
+                    "rating": "NOT_OBSERVED",
+                    # comment optional
+                }
+            ],
+            "private_note": "Note",
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_pending_eval_alice_eval.id}/evaluation",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_org_member_charlie_eval.id)},
+        )
+
+        assert response.status_code == 201
+
+        data = response.json()
+        eval_id = data.get("id")
+
+        # DB verification: SkillSignal yok (NOT_OBSERVED için)
+        if SkillSignal:
+            signal_count = session.query(SkillSignal).filter_by(
+                source_type="EVALUATION",
+                source_id=eval_id
+            ).count()
+            assert signal_count == 0, "SkillSignal must not be created for NOT_OBSERVED rating"
+
+
+class TestEvaluationMultipleItems:
+    """
+    YET-71 AC-5: Birden fazla EvaluationItem → her biri ayrı SkillSignal.
+    Davranış Sözleşmesi Satır 1-5 (aynı evaluation için multiple items).
+    """
+
+    def test_evaluation_multiple_items_creates_separate_signals_201(
+        self, client, session, user_org_member_charlie_eval, org_member_charlie_eval,
+        engagement_pending_eval_alice_eval, skill_communication_eval, skill_time_management_eval
+    ):
+        """
+        AC-5 + YET-71: Evaluation 2 item içeriyor (farklı skill_id'ler, farklı rating'ler).
+        Her item için ayrı SkillSignal üretilmeli.
+
+        Davranış Sözleşmesi:
+        - Status code: 201
+        - Evaluation.id = X
+        - SkillSignal 1: source_id=X, skill_id=communication, strength=MEETS→MODERATE
+        - SkillSignal 2: source_id=X, skill_id=time_management, strength=EXCEEDS→STRONG
+        """
+        payload = {
+            "direction": "ORG_TO_TALENT",
+            "items": [
+                {
+                    "criterion": "Communication",
+                    "skill_id": str(skill_communication_eval.id),
+                    "rating": "MEETS",
+                    "comment": "Good",
+                },
+                {
+                    "criterion": "Time Management",
+                    "skill_id": str(skill_time_management_eval.id),
+                    "rating": "EXCEEDS",
+                    "comment": "Excellent",
+                },
+            ],
+            "private_note": "Note",
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_pending_eval_alice_eval.id}/evaluation",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_org_member_charlie_eval.id)},
+        )
+
+        assert response.status_code == 201, f"Expected 201, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        eval_id = data.get("id")
+
+        # DB verification: 2 signals created
+        if SkillSignal:
+            signals = session.query(SkillSignal).filter_by(
+                source_type="EVALUATION",
+                source_id=eval_id
+            ).all()
+
+            assert len(signals) == 2, f"Expected 2 signals, got {len(signals)}"
+
+            # Signal 1: Communication MEETS → MODERATE
+            signal_comm = next(
+                (s for s in signals if s.skill_id == skill_communication_eval.id),
+                None
+            )
+            assert signal_comm is not None
+            assert signal_comm.strength == "MODERATE"
+
+            # Signal 2: Time Management EXCEEDS → STRONG
+            signal_time = next(
+                (s for s in signals if s.skill_id == skill_time_management_eval.id),
+                None
+            )
+            assert signal_time is not None
+            assert signal_time.strength == "STRONG"
+
+    def test_evaluation_mixed_items_partial_signal_creation_201(
+        self, client, session, user_org_member_charlie_eval, org_member_charlie_eval,
+        engagement_pending_eval_alice_eval, skill_communication_eval, skill_time_management_eval
+    ):
+        """
+        AC-5 + YET-71: Evaluation 3 item içeriyor:
+        1. Communication MEETS → SkillSignal(MODERATE) ✓
+        2. Time Management NOT_OBSERVED → SkillSignal YAZILMAZ ✗
+        3. Time Management (diğer) skill_id=None → SkillSignal YAZILMAZ ✗
+
+        Sonuç: Sadece 1 SkillSignal.
+        Davranış Sözleşmesi: Kısmi üretim kabul edilir, evaluation başarılı (201).
+        """
+        payload = {
+            "direction": "ORG_TO_TALENT",
+            "items": [
+                {
+                    "criterion": "Communication",
+                    "skill_id": str(skill_communication_eval.id),
+                    "rating": "MEETS",
+                    "comment": "Good",
+                },
+                {
+                    "criterion": "Time Management (not observed)",
+                    "skill_id": str(skill_time_management_eval.id),
+                    "rating": "NOT_OBSERVED",
+                    # comment optional
+                },
+                {
+                    "criterion": "Another criterion",
+                    "skill_id": None,
+                    "rating": "MEETS",
+                    "comment": "But no skill",
+                },
+            ],
+            "private_note": "Note",
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_pending_eval_alice_eval.id}/evaluation",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_org_member_charlie_eval.id)},
+        )
+
+        assert response.status_code == 201, f"Expected 201, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        eval_id = data.get("id")
+
+        # DB verification: only 1 signal (communication)
+        if SkillSignal:
+            signals = session.query(SkillSignal).filter_by(
+                source_type="EVALUATION",
+                source_id=eval_id
+            ).all()
+
+            assert len(signals) == 1, f"Expected 1 signal (partial), got {len(signals)}"
+            assert signals[0].skill_id == skill_communication_eval.id
+            assert signals[0].strength == "MODERATE"
+
+
+class TestEvaluationModelImport:
+    """Ensure Evaluation model can be imported for signal creation tests."""
+
+    def test_evaluation_model_available(self):
+        """Verify Evaluation model is available for YET-71 tests."""
+        assert Evaluation is not None, "Evaluation model must be implemented for YET-71 tests"
+        assert EvaluationItem is not None, "EvaluationItem model must be implemented for YET-71 tests"
+
+
+class TestEvaluationInvalidSkillIdInItem:
+    """
+    YET-71 AC-7: Evaluation item skill_id geçersiz → 422 (hiçbir item işlenmez, kısmi başarı yok).
+    """
+
+    def test_evaluation_invalid_skill_id_in_item_422(
+        self, client, session, user_org_member_charlie_eval, org_member_charlie_eval,
+        engagement_pending_eval_alice_eval, skill_communication_eval
+    ):
+        """
+        AC-7 + YET-71: Evaluation 2 item:
+        1. Communication (valid)
+        2. Time Management (invalid skill_id)
+
+        Result: 422, hiçbir item işlenmez (all-or-nothing transaction).
+        """
+        fake_skill_id = str(uuid4())
+
+        payload = {
+            "direction": "ORG_TO_TALENT",
+            "items": [
+                {
+                    "criterion": "Communication",
+                    "skill_id": str(skill_communication_eval.id),
+                    "rating": "MEETS",
+                    "comment": "Good",
+                },
+                {
+                    "criterion": "Time Management",
+                    "skill_id": fake_skill_id,  # Non-existent
+                    "rating": "MEETS",
+                    "comment": "Comment",
+                },
+            ],
+            "private_note": "Note",
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_pending_eval_alice_eval.id}/evaluation",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_org_member_charlie_eval.id)},
+        )
+
+        assert response.status_code == 422, f"Expected 422, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        error_obj = data.get("detail") if "detail" in data else data
+
+        assert error_obj.get("code") == "INVALID_REQUEST", \
+            f"Expected INVALID_REQUEST, got {error_obj.get('code')}"
+
+        # DB verification: evaluation ve hiçbir signal oluşturulmadı
+        if SkillSignal:
+            # Verify no evaluation created
+            eval_count = session.query(Evaluation).filter_by(
+                engagement_id=engagement_pending_eval_alice_eval.id
+            ).count()
+            assert eval_count == 0, "Evaluation must not be created on invalid skill_id"
+
+            signal_count = session.query(SkillSignal).filter_by(
+                source_type="EVALUATION"
+            ).count()
+            # İzole transaction'da: geçersiz skill_id nedeniyle evaluation ve signal de oluşmadı
+            assert signal_count == 0, "Geçersiz skill_id durumunda hiçbir SkillSignal oluşmamalı"
+
+
+# ============================================================================
+# YET-71 AC-8: Regresyon — Mevcut SELF_CLAIM/ATTESTATION/GET-ucu doğrulama
+# ============================================================================
+
+# NOT: AC-8 mevcut testlerin regresyon testidir. Bu bölüme yeni test yazılmaz.
+# Mevcut test suite'in (test_skill_claim.py, test_attestation.py, vb.)
+# hiçbir test kırılmadığını doğrula: `pytest tests/ -q`
+#
+# Kapsam: SELF_CLAIM, ATTESTATION, GET /talents/me/signals sinyalleri
+# bozulmadığını doğrulama. Yeni TASK/DELIVERABLE/EVALUATION sinyalleri
+# eklenirken, mevcut olanlar etkilenmemeli.
+
+
+# ============================================================================
+# YET-71 AC-9: GET /talents/me/signals — Çoklu source_type Desteği
+# ============================================================================
+
+
+class TestGetSignalsMultipleSourceTypes:
+    """
+    YET-71 AC-9: GET /talents/me/signals, bir skill için birden fazla source_type var.
+    Davranış Sözleşmesi Satır 7.
+
+    Senaryo: Talent Alice'in:
+    - Python skill'i için:
+      - TASK→WEAK sinyali (Charlie tarafından)
+      - EVALUATION→MODERATE sinyali (Charlie tarafından)
+    - GET /talents/me/signals çağrıldığında → 200, signals array'i her ikiyi de listeler
+    """
+
+    def test_get_signals_multiple_source_types_200(
+        self, client, session, user_org_member_charlie_eval, org_member_charlie_eval,
+        user_talent_alice_eval, talent_alice_eval, engagement_active_alice_eval,
+        skill_communication_eval
+    ):
+        """
+        AC-9 + YET-71: Alice'in profili için 2 source_type sinyal var:
+        1. TASK source (Charlie oluşturdu skill=Python)
+        2. EVALUATION source (Charlie oluşturdu skill=Communication)
+
+        Senaryo:
+        - Step 1: Charlie, engagement_active_alice_eval'a TASK oluşturur (skill=Python)
+                  → SkillSignal source_type=TASK oluşturulması beklenir
+        - Step 2: Charlie, yeni PENDING_EVALUATION engagement'a EVALUATION submit eder (skill=Communication)
+                  → SkillSignal source_type=EVALUATION oluşturulması beklenir
+        - Step 3: Alice /talents/me/signals çağırır
+                  → 200 OK, response'ta hem TASK hem EVALUATION source_type'ları bulunur
+
+        Hiçbir pytest.skip() yok — endpoint'ler var (PLAN 2.4 + 2.7, SELF_CLAIM dilimi tamamlandı).
+        Test fail ederse, signal üretimi henüz implement edilmemiş demektir (YET-71 hâlâ açık).
+        """
+        # Inline Python skill creation (not in fixture list)
+        from app.models.skill import Skill
+        skill_python_eval = Skill(
+            slug="python-eval-inline",
+            name_tr="Python",
+            name_en="Python",
+            category="LANGUAGE",
+        )
+        session.add(skill_python_eval)
+        session.flush()
+
+        # Step 1: Charlie creates TASK with Python skill on ACTIVE engagement
+        task_payload = {
+            "title": "Python development task",
+            "description": "Task for Python skill",
+            "skill_id": str(skill_python_eval.id),
+            "due_at": None,
+        }
+
+        task_response = client.post(
+            f"/engagements/{engagement_active_alice_eval.id}/tasks",
+            json=task_payload,
+            headers={"X-Debug-User-Id": str(user_org_member_charlie_eval.id)},
+        )
+
+        assert task_response.status_code == 201, \
+            f"TASK POST expected 201, got {task_response.status_code}: {task_response.text}"
+
+        # Step 2: Create a PENDING_EVALUATION engagement (inline, same org/inst as engagement_active_alice_eval)
+        # This engagement needs to be in PENDING_EVALUATION status for Charlie to submit evaluation
+        # We reuse the same organization and institution from engagement_active_alice_eval
+        engagement_pending_eval = Engagement(
+            talent_id=talent_alice_eval.id,
+            organization_id=engagement_active_alice_eval.organization_id,
+            institution_id=engagement_active_alice_eval.institution_id,
+            kind="INTERNSHIP",
+            title="Alice Pending Eval Project",
+            status="PENDING_EVALUATION",
+            version=3,
+        )
+        session.add(engagement_pending_eval)
+        session.flush()
+
+        # Step 2b: Charlie submits EVALUATION with Communication skill on PENDING_EVALUATION engagement
+        evaluation_payload = {
+            "direction": "ORG_TO_TALENT",
+            "items": [
+                {
+                    "criterion": "Communication",
+                    "skill_id": str(skill_communication_eval.id),
+                    "rating": "MEETS",
+                    "comment": "Good communication skills",
+                }
+            ],
+            "private_note": None,
+        }
+
+        evaluation_response = client.post(
+            f"/engagements/{engagement_pending_eval.id}/evaluation",
+            json=evaluation_payload,
+            headers={"X-Debug-User-Id": str(user_org_member_charlie_eval.id)},
+        )
+
+        assert evaluation_response.status_code == 201, \
+            f"EVALUATION POST expected 201, got {evaluation_response.status_code}: {evaluation_response.text}"
+
+        # Step 3: Query GET /talents/me/signals as Alice (TALENT principal)
+        get_signals_response = client.get(
+            "/talents/me/signals",
+            headers={"X-Debug-User-Id": str(user_talent_alice_eval.id)},
+        )
+
+        assert get_signals_response.status_code == 200, \
+            f"GET /talents/me/signals expected 200, got {get_signals_response.status_code}: {get_signals_response.text}"
+
+        data = get_signals_response.json()
+
+        # Verify response structure
+        assert "items" in data, "Response must contain 'items' array"
+        items = data.get("items", [])
+
+        # Step 4: Verify TASK source_type signal for Python skill
+        python_item = next(
+            (item for item in items if item.get("skill", {}).get("id") == str(skill_python_eval.id)),
+            None
+        )
+        assert python_item is not None, \
+            f"Python skill ({skill_python_eval.id}) not found in signals items"
+
+        python_signals = python_item.get("signals", [])
+        assert len(python_signals) > 0, "Python skill should have signals"
+
+        python_source_types = [s.get("source_type") for s in python_signals]
+        assert "TASK" in python_source_types, \
+            f"Python skill should have TASK source_type. Got: {python_source_types}"
+
+        # Step 5: Verify EVALUATION source_type signal for Communication skill
+        communication_item = next(
+            (item for item in items if item.get("skill", {}).get("id") == str(skill_communication_eval.id)),
+            None
+        )
+        assert communication_item is not None, \
+            f"Communication skill ({skill_communication_eval.id}) not found in signals items"
+
+        communication_signals = communication_item.get("signals", [])
+        assert len(communication_signals) > 0, "Communication skill should have signals"
+
+        communication_source_types = [s.get("source_type") for s in communication_signals]
+        assert "EVALUATION" in communication_source_types, \
+            f"Communication skill should have EVALUATION source_type. Got: {communication_source_types}"

@@ -687,3 +687,67 @@ seçildi — AC-13 401'e güncellendi, ölü kontroller kaldırıldı.
   rol-uygunluğunu da sağladığı anlamına gelmiyor — ikisi ayrı kontrol
   katmanları, yeni bir state-transition ucu yazarken ikisi de ayrı ayrı
   doğrulanmalı.
+
+## YET-71 — [PLAN 2.9] SkillSignal türetme tam kapsam (2026-09-24)
+
+**Kaynak:** `obss_project/artifacts/yet-71-skillsignal-turetme-tam-kapsam/`
+(atdd.md, plan.md, code_diff.md, verify_report.md, red_team.json)
+
+### Kararlar (kullanıcı onaylı)
+- Jira'nın YET-91/92 başlıkları ("ATTESTATION SkillSignal", "GET ucu") ESKİYDİ
+  — ikisi de zaten önceki görevlerde (YET-70, YET-104) tamamlanmıştı. Kullanıcı
+  bunları kapatmak yerine YET-71'in TAMAMININ yeniden doğrulanmasını istedi.
+- `deliverables`/`engagement_tasks` tablolarına nullable `skill_id` FK ekleyen
+  yeni bir migration + DELIVERABLE/TASK kaynaklı türetme de bu görevde eklendi
+  (kullanıcı kararı — daha küçük bir kapsam da önerilmişti: sadece EVALUATION,
+  DELIVERABLE/TASK ayrı göreve bırakılabilirdi).
+- **Strength hiyerarşisi (DOMAIN.md §3.14'ün kendi açık bıraktığı soru, bu
+  görevde ilk kez karara bağlandı):**
+  `SELF_CLAIM→NONE < TASK→WEAK < DELIVERABLE→MODERATE < EVALUATION(BELOW/MEETS/
+  EXCEEDS→WEAK/MODERATE/STRONG) ≈ ATTESTATION(PARTICIPATION/COMPETENCE→WEAK/
+  STRONG)`. Gerekçe: TASK/DELIVERABLE kendi kendine raporlu/atanmış, üçüncü
+  taraf doğrulaması yok — EVALUATION üçüncü taraftan puanlama (Attestation
+  kadar resmi değil, SELF_CLAIM'den güçlü).
+- TASK sinyali oluşturulduğu anda (status=PLANNED) üretilir, "tamamlandığında"
+  değil — çünkü `EngagementTask` için bir durum-güncelleme (PATCH) ucu bu
+  projede henüz yok.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, verify_report.md, red_team.json)
+- **Gerçek doğruluk hatası (isim çakışması):** `engagements.py`'de
+  `app.services.engagement.InvalidSkillError` ve `app.services.evaluation.
+  InvalidSkillError` aynı isimle import edilmişti — ikincisi birincisini
+  Python'un name-rebinding'i yüzünden sessizce gölgeliyordu. TASK/DELIVERABLE
+  route'larındaki `except InvalidSkillError:` blokları GERÇEKTE fırlatılan
+  exception'ı yakalayamıyordu (AC-7 kırılırdı: 422 yerine 500 dönerdi). `ruff`'ın
+  F811 uyarısıyla tespit edildi (`ruff check .` gate'i olmasaydı bu sessizce
+  kaçabilirdi), alias'lama (`EngInvalidSkillError`/`EvalInvalidSkillError`) ile
+  düzeltildi. **Ders:** iki farklı modülden aynı isimli exception import etmek
+  Python'da sessizce derlenir ama ikinci import birinciyi gölgeler — `ruff`'ın
+  F811 kuralı bu sınıfı otomatik yakalıyor, verify adımında lint'i asla atlama.
+- **Migration bug (aynı sınıf, ikinci kez):** `down_revision` yanlış (eski,
+  zaten merge edilmiş bir revizyona işaret ediyordu) yazılmıştı — code-copilot'un
+  kendi raporundaki tutarsızlık ("son evaluation migration" derken gerçek head
+  farklıydı) fark edilerek tespit edildi. `alembic heads` ile tek head
+  doğrulandı.
+- **Regresyon (bulunup düzeltildi):** AC-S1 (strength tampering) için
+  `PostTaskRequest`/`PostDeliverableRequest`'e eklenen `extra="forbid"`,
+  MEVCUT bir regresyon testini (AC-S3, `submitted_by_user_id` tampering)
+  kırdı — o test bilinmeyen bir alanın sessizce yok sayılıp 201 dönmesini
+  bekliyordu. `extra="forbid"` kaldırıldı: AC-S1'in gerçek güvenlik hedefi
+  zaten korunuyordu çünkü `strength` şemada hiç tanımlı değildi (Pydantic
+  varsayılanı böyle alanları zaten görmezden gelir). **Ders:** yeni bir
+  threat-model AC'sini karşılamak için MEVCUT bir endpoint'in şemasına
+  sıkılaştırıcı bir kısıt (`extra="forbid"`) eklemeden önce, o endpoint'in
+  zaten var olan davranış sözleşmesini/testlerini kontrol et — attestation.py
+  gibi YENİ bir endpoint'te sorun yaratmayan bir desen, MEVCUT bir endpoint'te
+  regresyona yol açabilir.
+- **Red-team bulgusu (medium, düzeltildi):** AC-7 "skills tablosunda yok/ACTIVE
+  değil" diyordu ama skill_id doğrulaması sadece varlığı kontrol ediyordu,
+  `Skill.status=="ACTIVE"` filtresi yoktu (3 yerde: TASK, DELIVERABLE,
+  EVALUATION item) — MERGED/DEPRECATED bir skill_id ile sessizce geçerli bir
+  SkillSignal üretilebilirdi. Düzeltildi.
+- **3 küçük test bug'ı:** geçersiz skill `category="TECHNICAL"` (CHECK sadece
+  LANGUAGE/FRAMEWORK/TOOL/DOMAIN/SOFT kabul ediyor), bir testin yanlış
+  dosyadan (başka bir test dosyasının) fixture'larını referans etmesi ("fixture
+  not found" — pytest fixture'ları dosyalar arası otomatik paylaşılmaz), ve
+  hesaplanıp hiç assert edilmeyen bir `signal_count` değişkeni.

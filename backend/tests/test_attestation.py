@@ -274,7 +274,7 @@ def skill_python_att(session):
         slug="python-att",
         name_tr="Python Programlama",
         name_en="Python Programming",
-        category="TECHNICAL",
+        category="LANGUAGE",
     )
     session.add(skill)
     session.flush()

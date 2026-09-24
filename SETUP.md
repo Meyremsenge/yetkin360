@@ -129,3 +129,18 @@ bağımlılık/migration/kurulum adımlarını **birebir aktarır**.
 - Yeni endpoint: `POST /engagements/{id}/attestations` — T8 (EVALUATED→VERIFIED)
   geçişini tetikler, opsiyonel `skill_id` alanı verilirse `SkillSignal`
   üretir.
+
+## YET-71 — SkillSignal türetme tam kapsam
+
+**Kaynak:** `obss_project/artifacts/yet-71-skillsignal-turetme-tam-kapsam/plan.md`
+
+- Yeni migration: `k2l3m4n5o6p7_add_skill_id_to_tasks_and_deliverables` —
+  `engagement_tasks.skill_id`, `deliverables.skill_id` (nullable FK →
+  `skills.id`) ekler (`down_revision = f8g9h0i1j2k3`). Uygulamak için:
+  ```bash
+  cd backend
+  alembic upgrade head
+  ```
+- `POST /engagements/{id}/tasks` ve `POST /engagements/{id}/deliverables`
+  uçlarına opsiyonel `skill_id` alanı eklendi — verilirse ilgili
+  `source_type` (TASK/DELIVERABLE) ile `SkillSignal` üretir.

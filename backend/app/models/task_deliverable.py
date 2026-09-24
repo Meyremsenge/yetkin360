@@ -20,6 +20,7 @@ class EngagementTask(Base, TimestampMixin):
 
     PLAN 2.4 (AC-1): Task creation endpoint POST /engagements/{id}/tasks.
     PLAN 2.3: T5 precondition references deliverables, not tasks.
+    PLAN 2.9 (YET-71): Task can be associated with a skill_id for SkillSignal generation.
     """
     __tablename__ = "engagement_tasks"
     __table_args__ = (
@@ -35,6 +36,9 @@ class EngagementTask(Base, TimestampMixin):
     engagement_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("engagements.id"), nullable=False
     )
+    skill_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("skills.id"), nullable=True
+    )
     title: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False, server_default="PLANNED")
@@ -48,6 +52,7 @@ class Deliverable(Base, TimestampMixin):
 
     PLAN 2.4 (AC-2): Deliverable submission endpoint POST /engagements/{id}/deliverables.
     PLAN 2.4 (AC-6/AC-7): T5 precondition requires at least 1 Deliverable.
+    PLAN 2.9 (YET-71): Deliverable can be associated with a skill_id for SkillSignal generation.
 
     Note: Evidence.id linking is deferred to PLAN 2.6 (out of scope for this task).
     """
@@ -58,6 +63,9 @@ class Deliverable(Base, TimestampMixin):
     )
     engagement_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("engagements.id"), nullable=False
+    )
+    skill_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("skills.id"), nullable=True
     )
     title: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str | None] = mapped_column(String, nullable=True)

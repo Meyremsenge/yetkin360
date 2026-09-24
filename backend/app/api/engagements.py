@@ -18,6 +18,7 @@ from app.services.engagement import (
     PreconditionFailedError,
     TransitionForbiddenError,
     VersionConflictError,
+    InvalidSkillError as EngInvalidSkillError,
     create_engagement,
     transition_engagement,
     create_engagement_task,
@@ -28,7 +29,7 @@ from app.services.evaluation import (
     IllegalTransitionError as EvalIllegalTransitionError,
     TransitionForbiddenError as EvalTransitionForbiddenError,
     DuplicateEvaluationError,
-    InvalidSkillError,
+    InvalidSkillError as EvalInvalidSkillError,
     create_evaluation,
 )
 from app.schemas.evaluation import (
@@ -95,6 +96,7 @@ class PostTaskRequest(BaseModel):
     title: str = Field(..., min_length=1, description="Task title")
     description: str | None = Field(None, description="Optional task description")
     due_at: datetime | None = Field(None, description="Optional due date")
+    skill_id: str | None = Field(None, description="Optional UUID of skill for SkillSignal generation")
 
     class Config:
         from_attributes = True
@@ -105,6 +107,7 @@ class PostTaskResponse(BaseModel):
 
     id: str
     engagement_id: str
+    skill_id: str | None = None
     title: str
     description: str | None = None
     status: str
@@ -122,6 +125,7 @@ class PostDeliverableRequest(BaseModel):
 
     title: str = Field(..., min_length=1, description="Deliverable title")
     description: str | None = Field(None, description="Optional deliverable description")
+    skill_id: str | None = Field(None, description="Optional UUID of skill for SkillSignal generation")
 
     class Config:
         from_attributes = True
@@ -132,6 +136,7 @@ class PostDeliverableResponse(BaseModel):
 
     id: str
     engagement_id: str
+    skill_id: str | None = None
     title: str
     description: str | None = None
     submitted_by_user_id: str
@@ -409,6 +414,7 @@ def post_engagement_tasks(
             title=payload.title,
             description=payload.description,
             due_at=payload.due_at,
+            skill_id=payload.skill_id,
         )
     except EngagementNotFoundError:
         raise HTTPException(
@@ -437,6 +443,15 @@ def post_engagement_tasks(
                 "request_id": None,
             },
         )
+    except EngInvalidSkillError:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "INVALID_REQUEST",
+                "message": "Geçersiz skill_id.",
+                "request_id": None,
+            },
+        )
 
     # Commit transaction
     session.commit()
@@ -444,6 +459,7 @@ def post_engagement_tasks(
     return PostTaskResponse(
         id=str(task.id),
         engagement_id=str(task.engagement_id),
+        skill_id=str(task.skill_id) if task.skill_id else None,
         title=task.title,
         description=task.description,
         status=task.status,
@@ -500,6 +516,7 @@ def post_engagement_deliverables(
             engagement_id=engagement_id,
             title=payload.title,
             description=payload.description,
+            skill_id=payload.skill_id,
         )
     except EngagementNotFoundError:
         raise HTTPException(
@@ -528,6 +545,15 @@ def post_engagement_deliverables(
                 "request_id": None,
             },
         )
+    except EngInvalidSkillError:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "INVALID_REQUEST",
+                "message": "Geçersiz skill_id.",
+                "request_id": None,
+            },
+        )
 
     # Commit transaction
     session.commit()
@@ -535,6 +561,7 @@ def post_engagement_deliverables(
     return PostDeliverableResponse(
         id=str(deliverable.id),
         engagement_id=str(deliverable.engagement_id),
+        skill_id=str(deliverable.skill_id) if deliverable.skill_id else None,
         title=deliverable.title,
         description=deliverable.description,
         submitted_by_user_id=str(deliverable.submitted_by_user_id),
@@ -642,7 +669,7 @@ def post_engagement_evaluation(
                 "request_id": None,
             },
         )
-    except InvalidSkillError:
+    except EvalInvalidSkillError:
         raise HTTPException(
             status_code=422,
             detail={
