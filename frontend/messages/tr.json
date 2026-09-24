@@ -132,6 +132,32 @@
       "REJECTED": "Reddet",
       "CANCELLED": "İptal Et",
       "PENDING_EVALUATION": "Değerlendirmeye Gönder"
-    }
+    },
+    "evaluationFormLink": "Değerlendirme Formu",
+    "evaluationSubmittedBadge": "Değerlendirme gönderildi"
+  },
+  "degerlendirme": {
+    "title": "Değerlendirme Formu",
+    "backLink": "Çalışmaya dön",
+    "criterionLabel": "Kriter",
+    "criterionPlaceholder": "Örn. Python kullanımı, Zamanında teslim",
+    "ratingLabel": "Değerlendirme",
+    "rating": {
+      "BELOW": "Beklentinin Altında",
+      "MEETS": "Beklentiyi Karşılıyor",
+      "EXCEEDS": "Beklentiyi Aşıyor",
+      "NOT_OBSERVED": "Gözlemlenmedi"
+    },
+    "commentLabel": "Yorum (opsiyonel)",
+    "addItemButton": "Kriter Ekle",
+    "removeItemButton": "Kaldır",
+    "privateNoteLabel": "Kurum içi not (opsiyonel)",
+    "privateNoteHint": "Bu not sadece kurumunuz içinde görünür, öğrenciye asla gösterilmez.",
+    "submitButton": "Değerlendirmeyi Gönder",
+    "submittingButton": "Gönderiliyor...",
+    "successMessage": "Değerlendirme gönderildi.",
+    "alreadySubmittedError": "Bu çalışma için değerlendirme zaten gönderilmiş.",
+    "invalidStatusError": "Bu çalışma şu anda değerlendirme aşamasında değil.",
+    "notEligibleMessage": "Bu çalışma değerlendirme aşamasında değil, form gösterilemiyor."
   }
 }

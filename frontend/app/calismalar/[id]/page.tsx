@@ -66,6 +66,17 @@ export default function CalismaDetayPage() {
               onSuccess={() => queryClient.invalidateQueries({ queryKey: ENGAGEMENT_QUERY_KEY })}
             />
 
+            {engagement.status === "PENDING_EVALUATION" && (
+              <div className="mb-6">
+                <Link
+                  href={`/calismalar/${engagement.id}/degerlendirme`}
+                  className="inline-block rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+                >
+                  {messages.calismalar.evaluationFormLink}
+                </Link>
+              </div>
+            )}
+
             <section className="mt-8">
               <h2 className="text-lg font-bold mb-3">{messages.calismalar.tasksTitle}</h2>
               {engagement.tasks.length === 0 ? (

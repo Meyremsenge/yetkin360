@@ -130,4 +130,29 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
       expect(container.textContent).toContain("Kontenjan dolduğu için reddedildi.");
     });
   });
+
+  it("PENDING_EVALUATION durumunda 'Değerlendirme Formu' linki gösterilir, ACTIVE'de gösterilmez", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce({
+      ...baseEngagement,
+      status: "PENDING_EVALUATION",
+    });
+
+    renderWithQueryClient(<CalismaDetayPage />);
+
+    await waitFor(() => {
+      const link = screen.getByText("Değerlendirme Formu").closest("a");
+      expect(link?.getAttribute("href")).toBe("/calismalar/eng-1/degerlendirme");
+    });
+  });
+
+  it("ACTIVE durumunda 'Değerlendirme Formu' linki gösterilmez", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce(baseEngagement); // status: ACTIVE
+
+    renderWithQueryClient(<CalismaDetayPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Yaz Kısa Projesi")).toBeTruthy();
+    });
+    expect(screen.queryByText("Değerlendirme Formu")).toBeNull();
+  });
 });
