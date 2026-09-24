@@ -380,3 +380,163 @@ def create_attestation(
 
     # Transaction is committed by caller (route layer)
     return attestation, verified_exp
+
+
+# ============================================================================
+# Attestation Revoke (PLAN 2.10 — YET-72)
+# ============================================================================
+
+
+class AttestationNotFoundError(Exception):
+    """Raised when attestation_id does not exist."""
+
+    pass
+
+
+class RevokeForbiddenError(Exception):
+    """Raised when principal is not the attestor."""
+
+    pass
+
+
+class AttestationAlreadyRevokedError(Exception):
+    """Raised when attestation has already been revoked (revoked_at IS NOT NULL)."""
+
+    pass
+
+
+def revoke_attestation(
+    session: Session,
+    principal: Principal,
+    attestation_id: str,
+    revoke_reason: str,
+) -> Attestation:
+    """
+    Revoke an attestation (set revoked_at and revoke_reason).
+
+    Implements PLAN 2.10 (YET-72): AC-1 through AC-8, AC-S1 through AC-S3.
+    Single transaction: Attestation update + tombstone SkillSignal + superseded_by_id update + AuditEvent.
+
+    Args:
+        session: Transactional database session
+        principal: Authorization context (authenticated user, must be attestor)
+        attestation_id: UUID of attestation (string format)
+        revoke_reason: Non-empty revocation reason (required by Pydantic, but safeguard here)
+
+    Returns:
+        Attestation object (refreshed with revoked_at and revoke_reason set)
+
+    Raises:
+        AttestationNotFoundError: Attestation not found (404)
+        RevokeForbiddenError: Principal is not the attestor (403)
+        AttestationAlreadyRevokedError: Attestation already revoked (409)
+    """
+    # Parse attestation_id
+    try:
+        attestation_uuid = uuid.UUID(attestation_id)
+    except ValueError:
+        raise AttestationNotFoundError(f"Invalid attestation_id format: {attestation_id}")
+
+    # Fetch attestation to get engagement_id (no scope filtering yet)
+    # Note: This bare select query fetches the attestation by attestation_uuid without scope
+    # filtering to extract engagement_id for subsequent scoped engagement lookup. The attestation
+    # object's internals (attestor_user_id, claim_type, etc.) are never exposed to scope-unauthorized
+    # users: the subsequent scoped_engagements() check below ensures that if the engagement is
+    # out-of-scope, an AttestationNotFoundError (404) is raised regardless. Both branches
+    # (attestation not found, OR engagement out-of-scope) result in the same 404, maintaining
+    # the AC-3 guarantee that scope boundary is opaque. This is a deliberate optimization:
+    # a single bare select to extract engagement_id, then one scoped engagement check, rather
+    # than a multi-table join.
+    attestation = session.execute(
+        select(Attestation).where(Attestation.id == attestation_uuid)
+    ).scalar_one_or_none()
+
+    if attestation is None:
+        # Attestation doesn't exist — return 404
+        raise AttestationNotFoundError(f"Attestation {attestation_id} not found")
+
+    # AC-3: Scope check via engagement (prevents cross-tenant access)
+    # Fetch engagement scoped to principal's scope
+    engagement = get_scoped_or_404(
+        scoped_engagements(session, principal).where(Engagement.id == attestation.engagement_id),
+        session
+    )
+
+    if engagement is None:
+        # Engagement out of scope (AC-3: cross-tenant, etc.) → return 404, don't reveal attestation exists
+        raise AttestationNotFoundError(f"Attestation {attestation_id} not found")
+
+    # AC-2: Check if principal is the attestor
+    # At this point, engagement is in scope, so if not attestor, return 403 (not 404)
+    if attestation.attestor_user_id != principal.user_id:
+        raise RevokeForbiddenError("Only the attestor can revoke this attestation")
+
+    # AC-5: Check if already revoked
+    if attestation.revoked_at is not None:
+        raise AttestationAlreadyRevokedError("Attestation has already been revoked")
+
+    # Revoke: set revoked_at and revoke_reason via UPDATE WHERE revoked_at IS NULL
+    now = datetime.now(timezone.utc)
+    updated_rows = session.execute(
+        update(Attestation)
+        .where(Attestation.id == attestation_uuid)
+        .where(Attestation.revoked_at.is_(None))
+        .values(revoked_at=now, revoke_reason=revoke_reason)
+    )
+
+    if updated_rows.rowcount == 0:
+        # Race condition: another revoke succeeded first, or attestation already revoked
+        raise AttestationAlreadyRevokedError("Attestation has already been revoked")
+
+    # Find and supersede related SkillSignals
+    skill_signals = session.execute(
+        select(SkillSignal).where(
+            SkillSignal.source_type == "ATTESTATION",
+            SkillSignal.source_id == attestation_uuid,
+            SkillSignal.superseded_by_id.is_(None),
+        )
+    ).scalars().all()
+
+    # For each signal, create tombstone and update superseded_by_id
+    tombstone_ids = {}
+    for signal in skill_signals:
+        # Create tombstone SkillSignal (strength=NONE)
+        tombstone = SkillSignal(
+            talent_id=signal.talent_id,
+            skill_id=signal.skill_id,
+            source_type="ATTESTATION",
+            source_id=attestation_uuid,
+            strength="NONE",
+            attested_by_org_id=None,
+            occurred_at=now,
+        )
+        session.add(tombstone)
+        session.flush()
+        tombstone_ids[signal.id] = tombstone.id
+
+    # Update old signals' superseded_by_id
+    for old_signal_id, new_tombstone_id in tombstone_ids.items():
+        session.execute(
+            update(SkillSignal)
+            .where(SkillSignal.id == old_signal_id)
+            .values(superseded_by_id=new_tombstone_id)
+        )
+
+    # Log audit event (AC-S1: revoke_reason METNİ metadata'ya YAZILMAZ)
+    log_audit_event(
+        session=session,
+        actor_user_id=principal.user_id,
+        actor_ip=None,
+        action="ATTESTATION_REVOKED",
+        subject_type="ATTESTATION",
+        subject_id=attestation.id,
+        result="SUCCESS",
+        metadata={
+            "engagement_id": str(attestation.engagement_id),
+            "attestor_user_id": str(attestation.attestor_user_id),
+        },
+    )
+
+    # Refresh attestation from DB and return
+    session.refresh(attestation)
+    return attestation

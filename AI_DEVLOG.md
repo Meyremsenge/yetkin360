@@ -751,3 +751,70 @@ seçildi — AC-13 401'e güncellendi, ölü kontroller kaldırıldı.
   dosyadan (başka bir test dosyasının) fixture'larını referans etmesi ("fixture
   not found" — pytest fixture'ları dosyalar arası otomatik paylaşılmaz), ve
   hesaplanıp hiç assert edilmeyen bir `signal_count` değişkeni.
+
+## YET-72 — [PLAN 2.10] Attestation iptali (revoke) (2026-09-24)
+
+**Kaynak:** `obss_project/artifacts/yet-72-attestation-revoke/`
+(atdd.md, plan.md, code_diff.md, verify_report.md, red_team.json)
+
+### Mimari çelişki ve karar (kullanıcıya soruldu, atdd öncesi)
+`skill_signals` tablosunda İSTİSNASIZ bir immutability trigger vardı (`BEFORE
+UPDATE OR DELETE`, her zaman exception fırlatır) — ama DOMAIN.md D12
+"Attestation geri çekilince ilgili SkillSignal `superseded` olur
+(`superseded_by_id` set edilir)" diyordu. Bu, mevcut şemayla teknik olarak
+İMKÂNSIZDI. **Karar:** yeni bir migration ile trigger'a `superseded_by_id`
+için set-once bir istisna eklendi (`attestations.revoked_at`/`revoke_reason`
+deseniyle aynı — CLAUDE.md'nin "tek istisna" listesine bu alan da eklenmiş
+oldu, bilinçli bir genişletme).
+
+Ayrıca `attestations` tablosunda o ana kadar HİÇ immutability trigger yoktu
+(YET-70'te eklenmemişti, sadece CHECK constraint'ler vardı) — bu görev
+`revoked_at`/`revoke_reason` istisnasıyla ilk kez ekledi.
+
+### Tombstone SkillSignal deseni (varsayım, kullanıcı onaylı)
+STATE_MACHINE.md/DOMAIN.md revoke'ta yeni bir SkillSignal oluşturulacağını
+açıkça söylemiyordu, sadece "superseded olur" diyordu. Yorum: `strength=NONE`
+ile bir "tombstone" SkillSignal oluşturulur, eski sinyal(ler) bu tombstone'a
+`superseded_by_id` ile işaret eder — `superseded_by_id`'nin anlamlı olması
+için gereken en tutarlı yorum.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, verify_report.md, red_team.json)
+- **Kritik güvenlik hatası (çıplak select + 403/404 bilgi sızıntısı):**
+  İlk implementasyon `revoke_attestation()` içinde `select(Attestation)`
+  çıplak kullanıyordu VE attestor OLMAYAN HERKESE (tamamen alakasız bir
+  kurum/organizasyondan biri dahil) `403` dönüyordu — CLAUDE.md'nin
+  "yetkisiz erişimde 404 dön, 403 değil (403 kaynağın varlığını sızdırır)"
+  kuralını ve atdd.md'nin kendi AC-3'ünü ihlal ediyordu: bir attestation
+  UUID'sini bilen HERKES, ona hiçbir ilişkisi olmasa bile, 403 alarak
+  kaydın var olduğunu öğrenebiliyordu. Orkestratör tarafından code-copilot
+  dispatch'inden hemen sonra, testleri çalıştırmadan ÖNCE kod okunarak
+  tespit edildi. Düzeltme: attestation'ın engagement'ı önce
+  `scoped_engagements()` ile kontrol ediliyor — scope dışıysa 404, scope
+  içinde ama attestor değilse 403. **Ders:** "sadece attestor X yapabilir"
+  gibi basit görünen bir yetki kuralı bile, kaynağın tenant/scope bağlamı
+  düşünülmeden uygulanırsa BOLA'ya (bilgi sızıntısı) dönüşebilir — "kim
+  yapabilir" ile "kim kaynağın var olduğunu bilebilir" ayrı sorulardır.
+- **Routing bug:** `POST /attestations/{id}/revoke` route'u yanlışlıkla
+  `prefix="/engagements"` olan router'a eklenmişti, gerçek path
+  `/engagements/attestations/{id}/revoke` oluyordu — API.md sözleşmesiyle
+  uyuşmuyordu. plan.md bu riski zaten öngörmüştü ("mevcut router prefix
+  kullanıyorsa yeni bir APIRouter gerekebilir") ama code-copilot bunu
+  atladı. Ayrı bir `attestations_router` (`prefix="/attestations"`)
+  oluşturulup `main.py`'de kaydedildi. **Ders:** plan.md'nin "dikkat et"
+  notları code-copilot'a dispatch prompt'unda AÇIKÇA tekrar edilmeli,
+  sadece dosyayı okumasına güvenmek yetmiyor.
+- **26 yerde `session.expunge_all()` test bug'ı:** Test-copilot'un yazdığı
+  testler, mevcut proje konvansiyonunda (client/session aynı SQLAlchemy
+  session'ı paylaşır, YET-70'ten beri hiç kullanılmayan bir desen) hiç
+  gerekmeyen `expunge_all()` çağrıları içeriyordu — bu, sonraki `.id`
+  erişimlerinde `DetachedInstanceError`'a yol açıyordu (13/15 test bu
+  yüzden fail etti). Tümü kaldırıldı.
+- **Docker Desktop kapanması:** Uzun oturum sırasında Docker Desktop
+  tamamen kapandı (DB bağlantısı koptu, testler `OperationalError` verdi).
+  Yeniden başlatılıp `docker compose up -d` ile DB ayağa kaldırıldı.
+  **Ders:** uzun süren (birden fazla görev süren) bir pipeline
+  oturumunda, `verify` adımında DB bağlantı hatası alınırsa önce "Docker
+  hâlâ çalışıyor mu" kontrolü yapılmalı, doğrudan kod hatası sanılmamalı.
+- **Ölü kod (red-team, düşük önem):** `scoped_attestations()` yazıldı ama
+  hiç kullanılmadı (`revoke_attestation()` bunun yerine
+  `scoped_engagements()` + manuel attestor kontrolü kullanıyordu) — silindi.
