@@ -19,7 +19,7 @@
  * sırasında gözlendi — iki sekmede aynı engagement'a çelişen geçişler ikisi de "başarılı" görünür).
  * localStorage aynı origin'deki tüm sekmelerce paylaşıldığı için versiyon çatışması (409) gerçekçi
  * şekilde test edilebiliyor. Sayfa sert yenilense (F5) DAHİ veri kalıcı — sıfırlamak için tarayıcı
- * konsolunda `localStorage.removeItem("yetkin360_mock_engagements_v1")` çalıştırıp sayfayı yenile.
+ * konsolunda `localStorage.removeItem("yetkin360_mock_engagements_v2")` çalıştırıp sayfayı yenile.
  *
  * SİLME NOKTASI: backend GET /engagements + GET /engagements/{id} eklendiğinde:
  *   1. USE_MOCK_LIST ve USE_MOCK_DETAIL'i false yap.
@@ -112,7 +112,11 @@ export function isReasonRequired(toStatus: EngagementStatus): boolean {
 const USE_MOCK_LIST = true; // TODO(backend): GET /engagements eklenince false yap, mock'u sil
 const USE_MOCK_DETAIL = true; // TODO(backend): GET /engagements/{id} eklenince false yap, mock'u sil
 
-const STORAGE_KEY = "yetkin360_mock_engagements_v1";
+// NOT: seedEngagements() değiştiğinde (yeni/silinen mock kayıt) bu versiyonu artır.
+// loadStore() anahtar VARSA yeniden tohumlamıyor — versiyon artışı olmadan
+// tarayıcıda kalıcı eski veri sessizce yeni seed'i maskeler (bkz. mock-eng-5 eklenirken
+// yaşanan "Çalışma bulunamadı" sorunu — manuel localStorage temizliği gerekti).
+const STORAGE_KEY = "yetkin360_mock_engagements_v2";
 
 function seedEngagements(): EngagementDetail[] {
   return [
@@ -184,6 +188,24 @@ function seedEngagements(): EngagementDetail[] {
       updated_at: "2026-09-05T09:00:00Z",
       tasks: [],
       deliverables: [],
+    },
+    {
+      id: "mock-eng-5",
+      title: "Kısa Süreli Tasarım Danışmanlığı",
+      kind: "SHORT_PROJECT",
+      status: "PENDING_EVALUATION",
+      organization_name: "Tasarım Atölyesi Ltd.",
+      talent_id: "mock-talent-1",
+      organization_id: "mock-org-5",
+      institution_id: "mock-inst-1",
+      reason: null,
+      version: 3,
+      created_at: "2026-08-20T09:00:00Z",
+      updated_at: "2026-09-20T11:00:00Z",
+      tasks: [{ id: "mock-task-3", title: "Arayüz tasarım gözden geçirmesi", status: "DONE" }],
+      deliverables: [
+        { id: "mock-del-2", title: "Tasarım sistemi dokümanı", submitted_at: "2026-09-19T16:00:00Z" },
+      ],
     },
   ];
 }
