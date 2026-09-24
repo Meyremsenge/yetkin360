@@ -20,7 +20,6 @@ Status: Tests are RED (expected) — implementation not yet available.
 """
 
 import pytest
-from uuid import uuid4
 
 from app.models import (
     User,
@@ -264,9 +263,10 @@ def engagement_pending_eval_bob_authz(session, talent_bob_authz, organization_b_
 def skill_communication_authz(session):
     """Test skill for authorization tests."""
     skill = Skill(
-        name="Communication",
-        description="Communication skills",
-        category="BEHAVIORAL",
+        slug="communication-authz-test",
+        name_tr="İletişim",
+        name_en="Communication",
+        category="SOFT",
     )
     session.add(skill)
     session.flush()
@@ -396,8 +396,6 @@ class TestEvaluationEvaluatorUserIdTampering:
         )
 
         assert response.status_code == 201, f"Expected 201, got {response.status_code}: {response.text}"
-
-        data = response.json()
 
         # In the response, evaluator should be Charlie (the principal)
         # If the schema includes an evaluator_user_id field, it must be Charlie's

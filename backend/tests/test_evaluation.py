@@ -289,12 +289,30 @@ def engagement_active_alice_eval(session, talent_alice_eval, organization_a_eval
 
 
 @pytest.fixture
+def engagement_evaluated_alice_eval(session, talent_alice_eval, organization_a_eval, institution_a_eval):
+    """EVALUATED engagement for Alice (for TALENT_TO_ORG evaluation acceptance test)."""
+    engagement = Engagement(
+        talent_id=talent_alice_eval.id,
+        organization_id=organization_a_eval.id,
+        institution_id=institution_a_eval.id,
+        kind="INTERNSHIP",
+        title="Alice Eval Test Project (Evaluated)",
+        status="EVALUATED",
+        version=3,
+    )
+    session.add(engagement)
+    session.flush()
+    return engagement
+
+
+@pytest.fixture
 def skill_communication_eval(session):
     """Test skill: Communication."""
     skill = Skill(
-        name="Communication",
-        description="Effective communication skills",
-        category="BEHAVIORAL",
+        slug="communication-eval",
+        name_tr="İletişim",
+        name_en="Communication",
+        category="SOFT",
     )
     session.add(skill)
     session.flush()
@@ -305,9 +323,10 @@ def skill_communication_eval(session):
 def skill_time_management_eval(session):
     """Test skill: Time Management."""
     skill = Skill(
-        name="Time Management",
-        description="Time management and prioritization",
-        category="BEHAVIORAL",
+        slug="time-management-eval",
+        name_tr="Zaman Yönetimi",
+        name_en="Time Management",
+        category="SOFT",
     )
     session.add(skill)
     session.flush()
@@ -757,7 +776,6 @@ class TestEvaluationDuplicate:
         )
 
         assert response1.status_code == 201, f"First POST failed: {response1.text}"
-        first_eval_id = response1.json().get("id")
 
         # Second POST with same combination — should fail
         payload2 = {
@@ -885,6 +903,47 @@ class TestEvaluationTalentToOrgDirection:
         session.refresh(engagement_pending_eval_alice_eval)
         assert engagement_pending_eval_alice_eval.status == "PENDING_EVALUATION", \
             f"Status should remain PENDING_EVALUATION, got {engagement_pending_eval_alice_eval.status}"
+
+    def test_evaluation_talent_to_org_when_evaluated_201(
+        self, client, session, user_talent_alice_eval, talent_alice_eval,
+        engagement_evaluated_alice_eval
+    ):
+        """
+        AC-9: Alice (TALENT) submits TALENT_TO_ORG evaluation on EVALUATED engagement → 201, status stays EVALUATED.
+
+        Acceptance Criteria:
+        - Status code: 201 Created
+        - Evaluation stored with direction=TALENT_TO_ORG
+        - engagement.status remains EVALUATED (not changed)
+        """
+        payload = {
+            "direction": "TALENT_TO_ORG",
+            "items": [
+                {
+                    "criterion": "Org Environment",
+                    "skill_id": None,
+                    "rating": "MEETS",
+                    "comment": "Good work environment",
+                }
+            ],
+            "private_note": "My private feedback",
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_evaluated_alice_eval.id}/evaluation",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_talent_alice_eval.id)},
+        )
+
+        assert response.status_code == 201, f"Expected 201, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        assert data.get("direction") == "TALENT_TO_ORG"
+
+        # DB verification: engagement.status unchanged
+        session.refresh(engagement_evaluated_alice_eval)
+        assert engagement_evaluated_alice_eval.status == "EVALUATED", \
+            f"Status should remain EVALUATED, got {engagement_evaluated_alice_eval.status}"
 
 
 # ============================================================================

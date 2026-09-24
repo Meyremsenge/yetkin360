@@ -35,7 +35,6 @@ from sqlalchemy import (
     CheckConstraint,
     UniqueConstraint,
     Index,
-    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

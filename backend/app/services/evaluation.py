@@ -2,11 +2,11 @@
 
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import func, select, update
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import Engagement, Skill, Evaluation, EvaluationItem, User
+from app.models import Engagement, Skill, Evaluation, EvaluationItem
 from app.services.authorization import Principal, get_scoped_or_404, scoped_engagements
 from app.services.audit import log_audit_event
 
@@ -88,11 +88,17 @@ def create_evaluation(
     if engagement is None:
         raise EngagementNotFoundError(f"Engagement {engagement_id} not found")
 
-    # AC-6: Check engagement status is PENDING_EVALUATION
-    if engagement.status != "PENDING_EVALUATION":
-        raise IllegalTransitionError(
-            f"Engagement must be PENDING_EVALUATION, got {engagement.status}"
-        )
+    # AC-6/AC-9: Check engagement status depends on direction
+    if direction == "ORG_TO_TALENT":
+        if engagement.status != "PENDING_EVALUATION":
+            raise IllegalTransitionError(
+                f"Engagement must be PENDING_EVALUATION for ORG_TO_TALENT, got {engagement.status}"
+            )
+    elif direction == "TALENT_TO_ORG":
+        if engagement.status not in ("PENDING_EVALUATION", "EVALUATED"):
+            raise IllegalTransitionError(
+                f"Engagement must be PENDING_EVALUATION or EVALUATED for TALENT_TO_ORG, got {engagement.status}"
+            )
 
     # AC-S3: Direction/role consistency check
     # TALENT can only POST TALENT_TO_ORG; ORG_MEMBER/ORG_ADMIN can only POST ORG_TO_TALENT
@@ -178,7 +184,10 @@ def create_evaluation(
         # Read current version and update in same transaction
         result = session.execute(
             update(Engagement)
-            .where(Engagement.id == engagement_uuid)
+            .where(
+                Engagement.id == engagement_uuid,
+                Engagement.status == "PENDING_EVALUATION",
+            )
             .values(
                 status="EVALUATED",
                 version=Engagement.version + 1,

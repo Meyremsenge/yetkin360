@@ -1,0 +1,71 @@
+{
+  "task": "yet-69-degerlendirme-formu-semasi",
+  "reviewed_at": "2026-09-24T00:00:00Z",
+  "summary": "AC-S1 (private_note asla response'a girmiyor) ve AC-S2 (evaluator_user_id principal'dan) doğru uygulanmış ve sağlam. İlk turda iki gerçek sorun bulundu: (1) AC-9'un 'engagement EVALUATED durumundayken de TALENT_TO_ORG kabul edilir' kuralı kodda uygulanmamıştı — düzeltildi; (2) T7 UPDATE'inde status guard'ı eksikti (race condition riski) — düzeltildi. İkisi de kod düzeltmesi + eksik test kapsaması eklenerek kapatıldı, tüm testler (608 tam paket) yeşil.",
+  "findings": [
+    {
+      "severity": "high",
+      "category": "correctness",
+      "file": "backend/app/services/evaluation.py",
+      "issue": "engagement.status != 'PENDING_EVALUATION' kontrolü direction'dan bağımsız, koşulsuz uygulanıyordu. atdd.md AC-9 açıkça diyor ki: TALENT_TO_ORG değerlendirmesi engagement PENDING_EVALUATION VEYA EVALUATED durumundayken kabul edilmeli (201). Org zaten ORG_TO_TALENT gönderip status EVALUATED'a geçtikten SONRA talent kendi TALENT_TO_ORG değerlendirmesini göndermeye çalışırsa 409 Conflict alıyordu.",
+      "better_approach": "Status kontrolünü direction'a göre dallandır: ORG_TO_TALENT için sadece PENDING_EVALUATION kabul et; TALENT_TO_ORG için hem PENDING_EVALUATION hem EVALUATED kabul et.",
+      "reason": "atdd.md AC-9 (satır 74) ve davranış sözleşmesi tablosu (satır 100) bu davranışı zorunlu kılıyor; mevcut testler bu senaryoyu hiç kapsamadığı için yeşil test bu kırık davranışı maskeliyordu.",
+      "outcome": "fixed",
+      "outcome_detail": "Status kontrolü direction'a göre dallandırıldı (ORG_TO_TALENT→PENDING_EVALUATION zorunlu, TALENT_TO_ORG→PENDING_EVALUATION veya EVALUATED kabul). Eksik test kapsaması da kapatıldı: yeni fixture (engagement_evaluated_alice_eval) + yeni test (test_evaluation_talent_to_org_when_evaluated_201) eklendi. pytest tests/test_evaluation.py tests/test_evaluation_authorization.py -q → 26 passed. Tam paket: 608 passed, 4 skipped."
+    },
+    {
+      "severity": "medium",
+      "category": "reliability",
+      "file": "backend/app/services/evaluation.py",
+      "issue": "T7 geçişi için yapılan UPDATE sadece Engagement.id == engagement_uuid filtresi kullanıyordu; services/engagement.py'deki transition_engagement() ise aynı UPDATE'e ayrıca Engagement.status == current_status guard'ı ekliyor ('defense-in-depth paranoia check'). evaluation.py'deki UPDATE bu status guard'ına sahip değildi — okuma ile UPDATE arasında (TOCTOU penceresi) başka bir transition (ör. ACTIVE→CANCELLED) araya girerse, evaluation.py sessizce status'u EVALUATED'a çevirip az önce yazılmış CANCELLED durumunu ezebilirdi.",
+      "better_approach": "UPDATE ifadesine Engagement.status == 'PENDING_EVALUATION' guard'ı ekle ve rowcount == 0 durumunda IllegalTransitionError fırlat (kod zaten rowcount==0 kontrolü yapıyordu, sadece WHERE'e guard eksikti).",
+      "reason": "transition_engagement()'ın neden bu guard'ı taşıdığını evaluation.py tekrarlamıyordu — iki path'in tutarlılığı bozuluyordu.",
+      "outcome": "fixed",
+      "outcome_detail": "UPDATE WHERE'ine Engagement.status == 'PENDING_EVALUATION' guard'ı eklendi, davranış (rowcount==0 → IllegalTransitionError) değişmedi. mypy/ruff/pytest tekrar doğrulandı, hepsi temiz."
+    },
+    {
+      "severity": "low",
+      "category": "architecture",
+      "file": "backend/app/services/evaluation.py",
+      "issue": "T7 geçişi transition_table'a değil evaluation.py içine gömülü; bu YET-88 dosya çakışmasını önlüyor ama transition_table artık engagement durum makinesinin TEK doğruluk kaynağı olmaktan çıktı — birisi ileride transition_table'ı okuyup 'PENDING_EVALUATION→EVALUATED geçişi yok' sonucuna varabilir (yanlış).",
+      "better_approach": "Kısa vadede mevcut karar (izolasyon) kabul edilebilir, ama transition_engagement()'ın docstring'ine T7'nin ayrı bir yerde (evaluation.py) uygulandığına dair bir not eklenmeli.",
+      "reason": "engagement.py:257 yorumu hâlâ '5 valid transitions' diyor ama T7 orada yok — kod okuyucusu için yanıltıcı, dokümantasyon eksikliği; kritik değil.",
+      "outcome": "skipped",
+      "outcome_detail": "Düşük öncelik, dokümantasyon notu — ayrı bir küçük takip görevi olarak bırakıldı, bu turda commit'i engellemiyor."
+    },
+    {
+      "severity": "low",
+      "category": "readability",
+      "file": "backend/app/services/evaluation.py",
+      "issue": "EvaluationItem oluşturulurken skill_id tekrar uuid.UUID(item['skill_id']) ile parse ediliyor ve olası ValueError 'pass' ile sessizce yutuluyor ('Already validated above' yorumu var). İki geçişli parse + sessiz except pattern'i gereksiz karmaşıklık.",
+      "better_approach": "İlk doğrulama döngüsünde parse edilen skill_uuid değerini saklayıp ikinci döngüde tekrar parse etmeden kullan.",
+      "reason": "Aynı veriyi iki kez parse etmek gereksiz risk/karmaşıklık taşıyor, ama fonksiyonel bir hata değil (ilk döngü zaten tüm skill_id'leri doğruluyor).",
+      "outcome": "skipped",
+      "outcome_detail": "Düşük öncelik, fonksiyonel hata değil — kabul edilen küçük kod kokusu."
+    }
+  ],
+  "strengths": [
+    "AC-S1 (private_note sızıntısı): EvaluationResponse Pydantic şeması private_note alanını hiç tanımlamıyor ve response açıkça alan-alan inşa ediliyor (ORM nesnesi doğrudan dönülmüyor) — CLAUDE.md'nin kuralına tam uyumlu, en kritik AC güvenilir şekilde karşılanmış.",
+    "AC-S2 (evaluator_user_id tamper koruması): EvaluationCreate şemasında evaluator_user_id alanı hiç yok, evaluator_user_id=principal.user_id olarak sabitlenmiş — body'den tamperlenemez.",
+    "Skill_id doğrulaması gerçekten transaction-atomic: tüm items önce doğrulanıyor, herhangi biri geçersizse hiçbir session.add() çağrılmadan InvalidSkillError fırlatılıyor (all-or-nothing korunmuş, AC-8).",
+    "Scope/404 mantığı get_scoped_or_404 + scoped_engagements üzerinden merkezi yetkilendirmeden geçiyor, çapraz-kurum erişimi mimari olarak engelleniyor.",
+    "2 merge migration üzerindeki import temizliği makul: henüz PR açılmamış, main'e merge edilmemiş bir WIP feature branch'te, revizyon kimlikleri değişmeden sadece kullanılmayan import satırları silinmiş — CLAUDE.md'nin 'uygulanmış migration'ı düzenleme' yasağı, davranışı değiştiren düzenlemeler içindir; salt lint temizliği bu kapsam dışında kalır.",
+    "İlk turda bulunan 2 gerçek sorun (AC-9 eksikliği, race condition guard'ı) düzeltildi VE eksik test kapsaması da kapatıldı — sadece kod değil, kanıt da eklendi."
+  ],
+  "risks": [
+    "T7'nin transition_table dışında izole edilmesi kısa vadede YET-88 çakışmasını önlüyor ama uzun vadede iki farklı 'engagement.status güncelleme yolu' arasındaki tutarsızlık büyüyebilir — bir takip görevi (dokümantasyon notu) önerilir, bu turda blocking değil."
+  ],
+  "caveman_review": {"complexity": "low", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve"
+}

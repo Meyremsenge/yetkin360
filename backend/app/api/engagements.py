@@ -661,14 +661,14 @@ def post_engagement_evaluation(
 
     # Load evaluation_items relationship
     evaluation_items_response = []
-    for item in evaluation.evaluation_items:
+    for db_item in evaluation.evaluation_items:
         evaluation_items_response.append(
             EvaluationItemResponse(
-                id=str(item.id),
-                criterion=item.criterion,
-                skill_id=str(item.skill_id) if item.skill_id else None,
-                rating=item.rating,
-                comment=item.comment,
+                id=str(db_item.id),
+                criterion=db_item.criterion,
+                skill_id=str(db_item.skill_id) if db_item.skill_id else None,
+                rating=db_item.rating,
+                comment=db_item.comment,
             )
         )
 
