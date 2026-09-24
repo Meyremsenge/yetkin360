@@ -113,7 +113,7 @@ attestation + verified experience + skill signal üretilir.
       > DELIVERABLE/TASK/EVALUATION/ATTESTATION kaynakları hâlâ açık (YET-71, @be2/Meyrem,
       > 2.6/2.7/2.8'e bağımlı).
 - [ ] 2.10 Attestation iptali (`revoke`) — append-only istisnası @be2
-- [ ] 2.11 Frontend: engagement listesi + detay + durum geçiş aksiyonları @fe
+- [x] 2.11 Frontend: engagement listesi + detay + durum geçiş aksiyonları @fe
 - [ ] 2.12 Frontend: çıktı yükleme (imzalı URL akışı, ilerleme, hata) @fe
 - [ ] 2.13 Frontend: değerlendirme formu (kurum tarafı) @fe
 - [ ] 2.14 Faz 2 kapanış: uçtan uca duman testi (kayıt → attestation → signal) @all
