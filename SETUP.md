@@ -114,3 +114,18 @@ bağımlılık/migration/kurulum adımlarını **birebir aktarır**.
   python -m venv ~/.claude/security-tools/venv
   ~/.claude/security-tools/venv/Scripts/python.exe -m pip install bandit detect-secrets pip-audit
   ```
+
+## YET-70 — Attestation + VerifiedExperience üretimi
+
+**Kaynak:** `obss_project/artifacts/yet-70-attestation-verified-experience-uretimi/plan.md`
+
+- Yeni migration: `f8g9h0i1j2k3_add_attestations_and_verified_experiences`
+  — `attestations` ve `verified_experiences` tablolarını ilk kez oluşturur
+  (`down_revision = ee96f63a4231`). Uygulamak için:
+  ```bash
+  cd backend
+  alembic upgrade head
+  ```
+- Yeni endpoint: `POST /engagements/{id}/attestations` — T8 (EVALUATED→VERIFIED)
+  geçişini tetikler, opsiyonel `skill_id` alanı verilirse `SkillSignal`
+  üretir.

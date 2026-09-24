@@ -97,8 +97,16 @@ attestation + verified experience + skill signal üretilir.
       > çıkarıldı (deliverables/engagements tabloları henüz yok — 2.4
       > tamamlanınca ayrı migration+endpoint güncellemesiyle eklenecek).
       > Detay: `obss_project/artifacts/yet-84-85-evidence-kaydi-indirme/`.
-- [ ] 2.7 Değerlendirme formu şeması (yetkinlik + davranış + `NOT_OBSERVED`) @be2
-- [ ] 2.8 Attestation + VerifiedExperience üretimi (tek transaction) @be2
+- [x] 2.7 Değerlendirme formu şeması (yetkinlik + davranış + `NOT_OBSERVED`) @be2
+      > YET-69 tamamlandı. Evaluation modeli + POST /engagements/{id}/evaluation,
+      > TALENT_TO_ORG/ORG_TO_TALENT yön bazlı durum kontrolü, race-safe transaction.
+      > Detay: `obss_project/artifacts/yet-69-degerlendirme-formu-semasi/`.
+- [x] 2.8 Attestation + VerifiedExperience üretimi (tek transaction) @be2
+      > YET-70 tamamlandı. Attestation + VerifiedExperience modelleri, §3.11 COMPETENCE
+      > ön koşulları (6 kriter, basitleştirilmiş Deliverable kontrolü), tek transaction
+      > (Attestation+VerifiedExperience+SkillSignal+AuditEvent+Outbox), T8 rol kontrolü
+      > (institution_id'ye göre COORDINATOR/ORG_ADMIN).
+      > Detay: `obss_project/artifacts/yet-70-attestation-verified-experience-uretimi/`.
 - [~] 2.9 SkillSignal türetme + `GET /talents/me/signals` @be2
       > SELF_CLAIM dilimi bitti (YET-104, `obss_project/artifacts/skillsignal-self-claim-uretimi/`) —
       > model, migration, `GET /talents/me/signals` ucu, append-only trigger hepsi mainde.

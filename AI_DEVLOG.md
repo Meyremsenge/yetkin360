@@ -613,3 +613,77 @@ seçildi — AC-13 401'e güncellendi, ölü kontroller kaldırıldı.
 - `mypy` tip uyumsuzluğu (servis ham `dict` döndürüyordu, Pydantic model
   bekleniyordu) ve test dosyalarında 3 lint hatası (kullanılmayan import/
   değişken) minimal dispatch'lerle düzeltildi.
+
+## YET-70 — [PLAN 2.8] Attestation + VerifiedExperience üretimi (2026-09-24)
+
+**Kaynak:** `obss_project/artifacts/yet-70-attestation-verified-experience-uretimi/`
+(atdd.md, plan.md, code_diff.md, verify_report.md, red_team.json)
+
+### Varsayımlar (atdd.md)
+- §3.11'in "≥4 hafta VEYA ≥40 saat" açık sorusu: sadece **≥4 hafta**
+  kullanıldı — `planned_hours` nullable olduğu için saat eşiği her zaman
+  hesaplanamıyor, hackathon kapsamında deterministik tek kriter tercih
+  edildi.
+- Anti-abuse cooling period (yeni kurum ilk 30 gün COMPETENCE yapamaz) ve
+  kurum tanıklık kotası bu görevde **uygulanmadı**, ayrı bir takip maddesi
+  olarak bırakıldı.
+- `downgrade_reasons` kod isimleri (API.md'nin açık bıraktığı liste) bu
+  görevde ilk kez sabitlendi: `ENGAGEMENT_NOT_MUTUALLY_CONFIRMED`,
+  `ENGAGEMENT_DURATION_BELOW_THRESHOLD`, `NO_DELIVERABLE`,
+  `ATTESTOR_NOT_VERIFIED_SUPERVISOR`, `COORDINATOR_CONFIRMATION_MISSING`.
+
+### Kararlar (plan.md, kullanıcı onaylı)
+- **Deliverable-skill ilişkisi basitleştirildi:** `Deliverable` modelinde
+  `skill_id` kolonu yok — §3.11 kriter 3 sadece "engagement'ta ≥1
+  Deliverable var" olarak uygulandı (downgrade kodu `NO_DELIVERABLE`,
+  `NO_DELIVERABLE_FOR_SKILL` değil).
+- **Self-attestation CHECK:** `attestations` tablosuna `talent_id`
+  denormalize edildi (Engagement.talent_id'den kopya), `CHECK(attestor_
+  user_id != talent_id)` doğrudan bu tabloda tanımlandı — cross-table
+  CHECK mümkün olmadığı için.
+- **Kriter 4 (verify sırasında ortaya çıkan gerçek tasarım belirsizliği,
+  kullanıcıya soruldu):** İlk implementasyon "attestor == engagement.
+  supervisor_user_id" eşitliğini istiyordu, ama DOMAIN.md'de süpervizör
+  (kurum tarafı) ile koordinatör (üniversite tarafı) ayrı roller — happy-
+  path testinde INST:COORD olan Diana bu eşitliği hiç sağlayamıyordu,
+  COMPETENCE asla verilemiyordu. **Karar:** MVP'de T8'i tetiklemeye zaten
+  yetkili olan principal (COORDINATOR veya ORG_ADMIN) kriter 4'ü otomatik
+  sağlamış sayılır; sadece organizasyonun T2+ doğrulanmış olması ayrıca
+  kontrol edilir.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, verify_report.md, red_team.json)
+- **Kod eksikliği (code-copilot 1. tur):** `SkillSignal` oluşturma adımı
+  (STATE_MACHINE.md §5 adım 3'ün zorunlu kıldığı) yorum satırına alınmış
+  TODO olarak bırakılmıştı ("hangi skill'e bağlanacağı belirsiz" gerekçesiyle).
+  Orkestratör tarafından `Read` ile tespit edildi (sub-agent'ın kendi özeti
+  bunu sessizce "out-of-scope" diye sunmuştu). Düzeltme: `AttestationCreateRequest`'e
+  API.md'nin zaten tanımladığı opsiyonel `skill_id` alanı eklendi, verilirse
+  `SkillSignal` oluşturuluyor, verilmezse açık bir koşullu dalda (TODO değil)
+  atlanıyor.
+- **Migration bug:** İlk migration dosyasında `revision`/`down_revision`
+  modül değişkenleri hiç tanımlanmamıştı (sadece docstring'de vardı) —
+  `alembic upgrade head` dosyayı okuyamadı. Düzeltildi.
+- **6 test bug'ı (implementasyon değil):** `Deliverable` fixture'ında
+  zorunlu alan eksikliği (`submitted_by_user_id`/`submitted_at`), geçersiz
+  `organization_members.role="SUPERVISOR"` (CHECK sadece ADMIN/MEMBER
+  kabul ediyor), geçersiz `engagement.kind="FREELANCE"`, hata yanıtı
+  unwrap deseni yanlış varsayılmış (proje konvansiyonu `data.get("detail")
+  if "detail" in data else data` — bazı hata yanıtları `{"detail": ...}`
+  sarmalı değil, düz dönüyor), AC-8 testinin kabul edilebilir hata kodu
+  listesi eksikti, ThreadPoolExecutor ile paylaşılan tek SQLAlchemy Session
+  (thread-safe değil) kullanan bir race-condition testi sekansiyel
+  senaryoya çevrildi.
+- **Red-team: kritik yetkilendirme açığı (HIGH, block→fixed).**
+  `create_attestation()` yalnız `TALENT` rolünü reddediyordu — STATE_MACHINE.md
+  T8 satırının öngördüğü rol sınırlaması (institution_id NOT NULL → sadece
+  COORDINATOR, NULL → sadece ORG_ADMIN) hiç uygulanmamıştı. `scoped_engagements()`
+  sadece tenant izolasyonu sağlıyordu (yanlış kurum/organizasyonu engelliyordu),
+  rol-uygunluğunu değil — aynı organizasyondaki sıradan bir `ORG_MEMBER`
+  EVALUATED bir engagement'a COMPETENCE seviyesinde tanıklık üretip T8'i
+  tetikleyebiliyordu. Düzeltme: `create_attestation()`'a institution_id'ye
+  göre COORDINATOR/ORG_ADMIN rol kontrolü eklendi (uygun değilse 404, CLAUDE.md
+  "yetkisiz erişimde 403 değil 404" kuralına uygun), 2 yeni negatif test
+  eklendi. **Ders:** `scoped_engagements()`'in tenant izolasyonu sağlaması,
+  rol-uygunluğunu da sağladığı anlamına gelmiyor — ikisi ayrı kontrol
+  katmanları, yeni bir state-transition ucu yazarken ikisi de ayrı ayrı
+  doğrulanmalı.

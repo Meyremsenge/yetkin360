@@ -680,3 +680,161 @@ def post_engagement_evaluation(
         submitted_at=evaluation.submitted_at,
         # CRITICAL: private_note is NOT included in response
     )
+
+
+# ============================================================================
+# Attestation Route (PLAN 2.8 — YET-70)
+# ============================================================================
+
+
+class AttestationCreateRequest(BaseModel):
+    """Request schema for POST /engagements/{id}/attestations."""
+
+    claim_type: Literal["PARTICIPATION", "CONTRIBUTION", "COMPETENCE", "CONDUCT"] = Field(
+        ..., description="Requested claim type"
+    )
+    version: int = Field(..., description="Current engagement version (optimistic locking)")
+    skill_id: str | None = Field(None, description="Optional UUID of skill for SkillSignal creation")
+
+    class Config:
+        from_attributes = True
+        extra = "forbid"  # Reject unknown fields (AC-S4: no tampering with downgrade logic)
+
+
+class AttestationResponse(BaseModel):
+    """Response schema for POST /engagements/{id}/attestations (201)."""
+
+    id: str
+    claim_type: str
+    requested_claim_type: str
+    downgrade_reasons: list[str]
+
+    class Config:
+        from_attributes = True
+
+
+@router.post("/{engagement_id}/attestations", response_model=AttestationResponse, status_code=201)
+def post_engagement_attestation(
+    engagement_id: str,
+    payload: AttestationCreateRequest,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> AttestationResponse:
+    """
+    PLAN 2.8 (YET-70, YET-88, YET-89, YET-90): Submit attestation (tanıklık) on EVALUATED engagement.
+
+    Implements T8 transition (EVALUATED → VERIFIED) with COMPETENCE precondition checking (DOMAIN.md §3.11).
+    Triggers single transaction: Attestation + VerifiedExperience + SkillSignal + AuditEvent + Outbox + Engagement.status update.
+
+    AC-1 through AC-9, AC-S1 through AC-S5.
+
+    Returns:
+        201 + Attestation object (claim_type after downgrade logic, downgrade_reasons list)
+
+    Errors:
+        - 404 NOT_FOUND: Engagement not found or not accessible
+        - 403 FORBIDDEN: Principal (TALENT) cannot attest (S6 exception)
+        - 409 CONFLICT: Engagement not EVALUATED, version mismatch, already attested, self-attestation
+        - 422 UNPROCESSABLE_ENTITY: Invalid claim_type or request body
+        - 401 UNAUTHORIZED: Unauthenticated
+
+    Security:
+        - AC-S1: claim_type from request, downgrade_reasons computed server-side (no request-body tampering)
+        - AC-S2: Engagement fetched via scoped_engagements() (cross-tenant 404)
+        - AC-S3: Self-attestation check (attestor_user_id != talent_id)
+        - AC-S4: Pydantic extra="forbid" rejects unknown fields
+        - AC-S5: DB-level optimistic locking prevents race conditions
+    """
+    from app.services.attestation import (
+        EngagementNotFoundError as AttEngagementNotFoundError,
+        IllegalTransitionError as AttIllegalTransitionError,
+        TransitionForbiddenError as AttTransitionForbiddenError,
+        SelfAttestationError,
+        AttestationAlreadyExistsError,
+        VersionMismatchError,
+        create_attestation,
+    )
+
+    if principal.user_id is None:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "code": "UNAUTHORIZED",
+                "message": "Kimlik doğrulama gerekli.",
+                "request_id": None,
+            },
+        )
+
+    try:
+        attestation, verified_exp = create_attestation(
+            session=session,
+            principal=principal,
+            engagement_id=engagement_id,
+            requested_claim_type=payload.claim_type,
+            version=payload.version,
+            skill_id=payload.skill_id,
+        )
+    except AttEngagementNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "NOT_FOUND",
+                "message": "Engagement bulunamadı veya erişilemez.",
+                "request_id": None,
+            },
+        )
+    except AttTransitionForbiddenError:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "FORBIDDEN",
+                "message": "Bu işlem için yetkiniz yok.",
+                "request_id": None,
+            },
+        )
+    except AttIllegalTransitionError:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "INVALID_STATE_TRANSITION",
+                "message": "Engagement bu durumda tanıklanmak için uygun değildir.",
+                "request_id": None,
+            },
+        )
+    except VersionMismatchError:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "CONFLICT",
+                "message": "Sürüm uyumsuzluğu (eşzamanlı güncelleme).",
+                "request_id": None,
+            },
+        )
+    except SelfAttestationError:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "SELF_ATTESTATION_FORBIDDEN",
+                "message": "Kendi deneyiminize tanıklık yapamazsınız.",
+                "request_id": None,
+            },
+        )
+    except AttestationAlreadyExistsError:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "ATTESTATION_ALREADY_EXISTS",
+                "message": "Bu engagement için zaten tanıklık gönderilmiş.",
+                "request_id": None,
+            },
+        )
+
+    # Commit transaction
+    session.commit()
+
+    return AttestationResponse(
+        id=str(attestation.id),
+        claim_type=attestation.claim_type,
+        requested_claim_type=attestation.requested_claim_type,
+        downgrade_reasons=attestation.downgrade_reasons if attestation.downgrade_reasons else [],
+    )
