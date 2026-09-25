@@ -50,7 +50,26 @@ zamanında buraya **aktarır** — yeniden yorumlamaz.
   taşındı (önceden çıplak `session.query()` idi — IDOR riski yoktu ama
   proje kuralının harfine aykırıydı).
 
-## YET-2.2 — Durum makinesi: POST /engagements/{id}/transitions (2026-09-23)
+## YET-106 (PLAN 3.2) — Public doğrulama linki GET /public/v/{token} (2026-09-25)
+
+**Kaynak:** `obss_project/artifacts/public-dogrulama-linki/`
+
+### Bilinçli kararlar (kaynak: plan.md Kararlar, kullanıcı onayı)
+- **`attestor_name` yerine `attestor_organization`** (`Organization.name`, `attestor_org_id` üzerinden) — `docs/API.md §2.9`'un örnek response'unda `attestor_name: "Mehmet K."` vardı ama gerçek şemada (`User` modeli) kişi adı için hiçbir alan yok, `Attestation`'da da attestor adını snapshot'layan bir kolon yok. Migration gerektiren daha büyük bir çözüm (User.display_name eklemek) yerine mevcut şemadan üretilebilen kurum adı tercih edildi.
+- **`verified_experiences.public_token` migration'ı** (nullable, String, UNIQUE + index) — `docs/DATABASE.md` bu kolonu zaten dokümante etmişti ama gerçek kodda yoktu. `alembic upgrade head` → `downgrade -1` → `upgrade head` ile doğrulandı.
+- **Token üretimi entegre edilmedi** — `generate_public_token()` (`secrets.token_urlsafe(32)`) yazıldı ama T8 attestation transition'a bağlanmadı; bu görevin kapsamı sadece doğrulama ucu, üretim akışı ayrı bir görev.
+
+### Kabul edilen riskler (kaynak: atdd.md Risks)
+- Rate limit yok — `docs/SECURITY.md`'nin kendi açık sorusu (final analizde karar verilmemiş), token'ın yüksek entropisi riski kısmen azaltıyor ama tam telafi etmiyor.
+- **F5/410 (iptal edilmiş doğrulama linki) mekanizması bu görevde uygulanmadı** — DB'de "revoke" durumunu temsil edecek hiçbir kolon yok (`docs/AUTHORIZATION.md`'nin F5 satırı doğru bir gelecek-durum sözleşmesi ama şu an gerçekleştirilemez). Sessizce atlanmadı, atdd.md'nin Kapsam Dışı/Unknowns bölümüne kayıtlı.
+- `public_token` backfill'i yapılmadı — mevcut (migration öncesi) `VerifiedExperience` kayıtları için doğrulama linki üretilmeyecek, sadece yeni kayıtlar (token üretimi entegre edildiğinde) token alacak.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, verify_report.md, red_team.json)
+- **`atdd.md`'nin kendi hatası (YET-105'ten farklı bir örnek):** İlk yazımda `docs/API.md`'nin örnek response'undaki `attestor_name` alanının gerçek şemada hiç kaynağı olmadığı fark edilmemişti — `plan` adımındaki kod keşfinde ortaya çıktı, kullanıcı onayıyla `attestor_organization`'a çevrildi.
+- test-copilot'un ilk teslimi 4 ayrı fixture bug'ı içeriyordu: (1) `Skill` fixture'ı zorunlu `slug` alanını vermiyordu (`NotNullViolation`, 14 test ERROR), (2) aynı `(engagement_id, attestor_user_id, subject_type)` ile 2 `Attestation` oluşturulmaya çalışılmış (`UNIQUE` ihlali), (3) bir fixture `org_verification`'ı kullanıyor ama parametre listesine eklenmemiş (`AttributeError`), (4) bir test yanlış alan adı (`role_snapshot`, response'ta `title`) arıyordu VE `or` ile gevşetilmişti (proje kuralı ihlali) — hepsi ayrı turlarda düzeltildi.
+- red-team incelemesi 2 medium bulgu buldu: `Attestation` sorgusu `scoped_*()` deseninde değildi (YET-105'teki aynı desen, `scoped_attestations_for_engagement()`'e taşındı) ve `PublicVerificationResponse.started_on: date` (non-nullable) modeldeki `date | None` ile uyuşmuyordu (gerçek NULL veride yakalanmamış `ValidationError`/500 riski — `date | None`'a düzeltildi, testte hiç tetiklenmemişti ama gerçek bug riskiydi).
+
+## YET-105 (PLAN 3.1) — Public profil ucu + visibility kuralları (2026-09-25)
 
 **Kaynak:** `obss_project/artifacts/engagement-durum-makinesi-transitions-ucu/`
 

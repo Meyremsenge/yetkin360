@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
-from app.models import Engagement, Evidence, Institution, Organization, SkillClaim, SkillSignal, TalentProfile, User, VerifiedExperience
+from app.models import Attestation, Engagement, Evidence, Institution, Organization, SkillClaim, SkillSignal, TalentProfile, User, VerifiedExperience
 
 
 @dataclass
@@ -294,3 +294,53 @@ def scoped_public_verified_experiences(session: Session, talent_id: uuid.UUID) -
     Implements AC-1, AC-5 (AC-S3) (public-profil-endpoint, YET-105)
     """
     return select(VerifiedExperience).where(VerifiedExperience.talent_id == talent_id)
+
+
+def scoped_public_verified_experience_by_token(session: Session, token: str) -> Select:
+    """
+    Return a SQLAlchemy Select query for a PUBLIC VerifiedExperience by public_token.
+
+    Auth-free endpoint: returns VerifiedExperience records that are:
+    - public_token matches the given token
+    - visibility='PUBLIC'
+
+    Single query with combined WHERE clause to avoid timing side-channel
+    (timing must not distinguish between nonexistent token and non-PUBLIC visibility).
+
+    Args:
+      - session: SQLAlchemy Session
+      - token: public_token value (string)
+
+    Returns:
+      - sqlalchemy.sql.Select: Query returning VerifiedExperience rows matching criteria
+        (typically 0 or 1 result, due to unique constraint on public_token)
+
+    Implements AC-1, AC-2, AC-3 (AC-S2), AC-6 (public-dogrulama-linki, YET-106)
+    """
+    return select(VerifiedExperience).where(
+        VerifiedExperience.public_token == token,
+        VerifiedExperience.visibility == "PUBLIC",
+    )
+
+
+def scoped_attestations_for_engagement(session: Session, engagement_id: uuid.UUID) -> Select:
+    """
+    Return a SQLAlchemy Select query for Attestation rows tied to an engagement.
+
+    Used only after the parent VerifiedExperience has been verified as
+    visibility='PUBLIC' via scoped_public_verified_experience_by_token() —
+    this function does not re-check visibility, only scopes by engagement_id.
+
+    Args:
+      - session: SQLAlchemy Session
+      - engagement_id: UUID of the (already-verified-PUBLIC) VerifiedExperience's engagement
+
+    Returns:
+      - sqlalchemy.sql.Select: Query returning Attestation rows with skill_id set, for this engagement
+
+    Implements AC-1, AC-5 (public-dogrulama-linki, YET-106)
+    """
+    return select(Attestation).where(
+        Attestation.engagement_id == engagement_id,
+        Attestation.skill_id.isnot(None),
+    )
