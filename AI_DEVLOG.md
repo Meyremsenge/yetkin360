@@ -5,6 +5,50 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## YET-107 (PLAN 3.3) — Koordinatör dashboard ucu (2026-09-26)
+
+**Kaynak:** `obss_project/artifacts/koordinator-dashboard-ucu/`
+
+### Kabul edilen riskler (kaynak: atdd.md Risks, plan.md Risks)
+- Sayfalama yok — kurum başına engagement sayısının MVP ölçeğinde küçük
+  kalacağı varsayımına dayanan bilinçli risk; büyürse V2'de sayfalama
+  eklenmeli.
+
+### Düzeltme (atdd.md/plan.md'nin kendi hatası — commit öncesi bulundu)
+`plan.md` "Migration Required? Evet — kullanıcı onayı gerekiyor" diyordu,
+`(institution_id, status)` ve partial `PENDING_EVALUATION` index'lerinin
+eksik olduğunu varsaymıştı. Gerçekte bu iki index **zaten YET-2.1'de**
+(`backend/alembic/versions/g8h9i0j1k2l3_add_engagements_table.py`,
+`ix_engagements_institution_status` + `ix_engagements_status_pending_evaluation`)
+oluşturulmuş — yeni migration gerekmedi, dashboard sorguları mevcut
+index'leri doğrudan kullanıyor. `plan.md`'nin kod keşfi bu dosyayı
+görmemişti; bir sonraki plan adımında mevcut migration'ları da tarayan bir
+kontrol eklenmesi faydalı olabilir.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, red_team.json, dynamic_pentest.json)
+- **code-copilot'un ilk implementasyonu** iki sorguda çıplak
+  `select(Engagement)` kullanmıştı — CLAUDE.md'nin "çıplak select(Model)
+  yasak" kuralını ihlal ediyordu (institution scope zaten önceden
+  doğrulandığı için pratikte güvenliydi, ama proje kuralına aykırıydı).
+  `scoped_engagements()` üzerine kuruldu.
+- **red-team** 404 gövdesinin atdd.md'nin `{"code":"NOT_FOUND",...}`
+  şemasını değil düz string döndürdüğünü buldu (401'deki desenle
+  tutarsızdı) — düzeltildi.
+- **dynamic-pentest** (gerçek DB'ye karşı, doğrudan fonksiyon çağrısıyla)
+  `get_coordinator_dashboard`'un `principal.user_id`'yi hiç kontrol
+  etmediğini kanıtladı — tek katmanlı savunma (route/`get_current_principal`'a
+  bağımlı), defense-in-depth ilkesine aykırıydı. Şu an pratikte
+  sömürülemez (route zaten 401 üretiyor) ama tek-nokta-arıza riski taşıyordu
+  — servis fonksiyonunun başına ikinci bir kontrol eklendi.
+- **Ortam notu (kod değil, süreç):** Bu makinedeki paylaşılan `hermes-agent`
+  venv'inde `psycopg_binary` C-uzantısı bozuktu (`ImportError: cannot
+  import name Deque`), `pip install --force-reinstall` denendi ama
+  düzelmedi ve üstüne başka araçlarla (aider-chat, mcp, langchain-openai)
+  sürüm çakışması yarattı. Gerçek test koşusu projenin KENDİ
+  `backend/.venv`'i ile yapıldı — paylaşılan agent venv'i bu tür
+  görevler için güvenilir değil, sonraki görevlerde önce proje-lokal
+  venv aranmalı.
+
 ## YET-105 (PLAN 3.1) — Public profil ucu + visibility kuralları (2026-09-25)
 
 **Kaynak:** `obss_project/artifacts/public-profil-endpoint/`

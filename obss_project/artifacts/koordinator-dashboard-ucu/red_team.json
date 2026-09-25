@@ -1,0 +1,57 @@
+{
+  "task": "koordinator-dashboard-ucu",
+  "reviewed_at": "2026-09-26T00:00:00Z",
+  "summary": "Yetkilendirme sırası doğru (rol kontrolü -> institution_ids kontrolü -> scoped_institutions ile defense-in-depth), scoped_engagements çıplak select yerine gerçekten kullanılıyor, ValueError mesajları response'a sızmıyor. [GÜNCELLEME] İlk incelemede pytest INCONCLUSIVE'di; sonrasında projenin kendi venv'i (backend/.venv) ile gerçek koşu yapıldı: 28/28 PASS + tüm tests/authorization paketi 171 passed/4 skipped, tests_passed=true olarak güncellendi. 3 bulgu da (404 body şeması, ölü kod yorumu, etkisiz test assert'i) düzeltildi (outcome:fixed). Ayrıca dynamic-pentest AC-S4'te gerçek bir defense-in-depth eksikliği buldu, o da düzeltildi.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "correctness",
+      "file": "backend/app/api/institutions.py",
+      "issue": "atdd.md Davranış Sözleşmesi tablosu 404 için `{\"code\":\"NOT_FOUND\",\"message\":\"Institution bulunamadı.\"}` gövdesi öngörüyor; gerçek implementasyon `raise HTTPException(status_code=404, detail=\"Institution not found\")` — düz İngilizce string, code alanı yok.",
+      "better_approach": "401 satırındaki pattern'i tekrar kullan: `detail={\"code\": \"NOT_FOUND\", \"message\": \"Kurum bulunamadı.\"}`",
+      "reason": "Aynı dosyada 401 için zaten code+Türkçe mesaj şeması kullanılmış — 404 için tutarsızlık var. Testler code alanını zorunlu kontrol etmiyor o yüzden kırılmaz, ama sözleşme dokümanıyla kod arasında sessiz bir sapma var.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "low",
+      "category": "reliability",
+      "file": "backend/app/services/engagement.py",
+      "issue": "UUID format hatası için try/except ValueError bloğu var ama route zaten `institution_id: uuid.UUID` tip anotasyonuyla FastAPI path validasyonundan geçirdiği için bu branch'e pratikte hiç girilmiyor (savunma amaçlı fazlalık).",
+      "better_approach": "Try/except'i kaldır ya da yorumla 'defense-in-depth, normalde FastAPI tarafından yakalanır' diye belirt.",
+      "reason": "Küçük netlik notu, davranışı bozmuyor.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "low",
+      "category": "test-gap",
+      "file": "backend/tests/test_institution_authorization.py",
+      "issue": "test_coordinator_different_institution_404_no_leak testinde B kurumunun response'ta sızıp sızmadığını kontrol eden bir döngü var ama içi boş/etkisiz — gerçek sızıntı testi sadece status code ve institution_id alanına dayanıyor.",
+      "better_approach": "404 durumunda response body'nin generic olduğunu doğrulayan somut bir assert ekle (ör. `assert \"pending_approval\" not in response_body`).",
+      "reason": "testing.md kuralı: assert gevşetilmez; etkisiz kontrol gerçek bir doğrulama yapmıyor.",
+      "outcome": "fixed"
+    }
+  ],
+  "strengths": [
+    "Yetki kontrolü sırası doğru — önce rol kontrolü (AC-S2), sonra tenant kontrolü (AC-S1), ikisi de aynı 404'e düşüyor, rol/kurum ayrımı response'a sızmıyor.",
+    "code_diff.md'nin iddia ettiği düzeltme gerçek: iki sorgu da scoped_engagements() üzerine kurulu, çıplak select(Engagement) yok.",
+    "scoped_engagements institution_id filtresini principal'dan kuruyor, istemciden gelen hiçbir alana güvenmiyor (AC-7/AC-S3).",
+    "Happy-path testi sayaç/liste/alan setini TAM EŞLEŞME ile kontrol ediyor."
+  ],
+  "risks": [
+    "Gerçek pytest koşusu bu makinede INCONCLUSIVE (psycopg_binary C-uzantısı sorunu) — kullanıcının kendi ortamında/CI'de gerçek koşu şart.",
+    "Sayfalama yok, mevcut kod sorgularında LIMIT yok — atdd.md'de zaten kabul edilmiş risk."
+  ],
+  "caveman_review": {"complexity": "low", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve-with-changes"
+}
