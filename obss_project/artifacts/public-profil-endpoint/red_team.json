@@ -1,0 +1,63 @@
+{
+  "task": "public-profil-endpoint",
+  "reviewed_at": "2026-09-25T00:00:00Z",
+  "summary": "Uygulama atdd.md'nin kritik güvenlik sözleşmesini (enumeration koruması, ApiError zarfı, PII sızıntısı yasağı, granüler visibility filtresi) doğru karşılıyor ve testler bunu gerçek DB üzerinden kanıtlıyor. Ancak response şemasına atdd.md'de tanımsız bir 'visibility' alanı sızmış ve verified_experiences sorgusu scoped_*() deseninden ayrılan çıplak bir query kullanıyor — ikisi de düzeltilebilir ama commit'i bloklayacak kadar kritik değil.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "scope",
+      "file": "backend/app/api/public.py",
+      "issue": "PublicVerifiedExperienceResponse şemasına atdd.md Davranış Sözleşmesi satır 1'de (ve plan.md'de) tanımlı olmayan bir `visibility` alanı eklenmiş. atdd.md'nin beklediği alan seti: id, organization_name_snapshot, role_snapshot, started_on_snapshot, ended_on_snapshot, claim_type, created_at — 7 alan, visibility yok. Testler de (test_public_profile.py satır 337, 736-785) bu fazla alanı sözleşme kabul edip doğrulamış; yani sapma test yazılırken de fark edilmemiş, spesifikasyona geri uydurulmamış.",
+      "better_approach": "PublicVerifiedExperienceResponse'dan `visibility` alanını çıkar (filtreleme zaten sadece PUBLIC kayıtları döndürdüğü için alan her zaman sabit 'PUBLIC' değerini taşıyor, bilgi değeri sıfır) veya bilinçli bir kapsam genişletmesiyse atdd.md güncellenip onaylanmalı.",
+      "reason": "Yayınlanan response şemasının yazılı sözleşmeden (atdd.md) sessizce sapması — CLAUDE.md 'Mimari kararlar verilmiştir, sessizce sapma; not düş ve sor' ilkesine aykırı. Zararı düşük (sabit/redundant değer, PII değil) ama şema sürüklenmesi ilerleyen entegrasyonlarda (frontend /p/[slug]) belirsizlik yaratır."
+    },
+    {
+      "severity": "low",
+      "category": "architecture",
+      "file": "backend/app/api/public.py",
+      "issue": "VerifiedExperience sorgusu `session.query(VerifiedExperience).filter(VerifiedExperience.talent_id == talent_profile.id).all()` şeklinde — CLAUDE.md 'çıplak select(Model) yasak' kuralına harfi harfine aykırı; scoped_*() deseninde değil.",
+      "better_approach": "authorization.py'ye `scoped_public_verified_experiences(session, talent_id)` gibi küçük bir scoped fonksiyon eklenip oradan çağrılmalı; ya da en azından bu satırın neden istisna olduğu (talent zaten scoped_public_talent_profile ile PUBLIC doğrulandı, VerifiedExperience için ayrıca visibility filtresi zaten filter_public_experiences ile uygulanıyor) kod içi yorumla açıkça gerekçelendirilmeli.",
+      "reason": "Gerçek bir güvenlik açığı değil — sorgu, talent_id zaten scoped_public_talent_profile ile doğrulandıktan sonra çalışıyor ve dönen satırlar ayrıca filter_public_experiences ile PUBLIC'e filtreleniyor, dolayısıyla IDOR/BOLA riski yok. Ama kural harfi harfine ihlal ediliyor ve gelecekte biri bu satırı örnek alıp gerçekten scope'suz bir sorgu yazabilir — pattern tutarlılığı için düzeltilmeli, engelleyici değil."
+    },
+    {
+      "severity": "low",
+      "category": "readability",
+      "file": "backend/app/api/public.py",
+      "issue": "Docstring'de 'Returns (404): {\"detail\": \"Not found\"}' yazıyor ama gerçek kod ApiError zarfı (`code`/`message`/`request_id`) döndürüyor — atdd.md'nin 2026-09-25 verify revizyonuyla düzeltilen kısma docstring güncellenmemiş, belge/kod arasında tutarsızlık.",
+      "better_approach": "Docstring'i gerçek ApiError zarfıyla eşleştir.",
+      "reason": "Yanıltıcı dokümantasyon — ileride bu docstring'e bakan biri yanlış varsayımla test/entegrasyon yazabilir."
+    }
+  ],
+  "strengths": [
+    "scoped_public_talent_profile() tek sorguda visibility='PUBLIC' AND public_slug==slug AND deleted_at IS NULL filtresini birleştirmiş — atdd.md Risks bölümündeki timing side-channel azaltma notuna (iki ayrı sorgu değil, tek WHERE) tam uyumlu.",
+    "Enumeration koruması gerçek DB ile 4 farklı senaryoda (nonexistent/PRIVATE/INSTITUTION/ORGANIZATIONS) code/message eşitliği üzerinden test edilmiş (test_public_profile_authz.py satır 356-401) — mock kullanılmamış, atdd.md Test Strategy'ye uygun.",
+    "PII/dahili alan sızıntısı testleri response_keys == {'talent_id','display_name','verified_experiences'} tam eşitliğiyle doğrulanmış (satır 452-459), gevşek/kısmi assert değil.",
+    "attestations/skill_signals'ın response'ta hiç yer almaması hem doğrudan (response'ta anahtar yok) hem de kapsam-dışı kararına (plan.md Kararlar madde 3) sadık şekilde uygulanmış ve ayrı testle (test_public_talent_no_attestations_skill_signals) doğrulanmış."
+  ],
+  "risks": [
+    "PublicVerifiedExperienceResponse'daki fazladan 'visibility' alanı frontend (/p/[slug], YET-112) tarafında sözleşme olarak kullanılmaya başlarsa, ileride bu alan kaldırılmak istendiğinde kırıcı değişiklik olur — şimdi düzeltilmezse borç birikir.",
+    "Rate-limit/anti-scraping ve timing side-channel atdd.md'de 'kabul edilen risk' olarak işaretli, kod bu konuda ek bir şey yapmıyor (beklenen) — MVP kapsamında kabul edilebilir ama gelecekte production öncesi ele alınmalı."
+  ],
+  "caveman_review": {
+    "complexity": "low",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": false,
+    "scope_expansion": true
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": false,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve-with-changes",
+  "post_fix_note": "2026-09-25 — kullanıcı 'devam düzelt' dedi, 3 finding de düzeltildi: fazladan `visibility` alanı kaldırıldı (scope_expansion artık geçersiz), VerifiedExperience sorgusu scoped_public_verified_experiences()'e taşındı, docstring güncellendi. Düzeltme sonrası tekrar doğrulama: ruff+mypy+pytest tam paket (689 passed, 4 skipped) hepsi PASS. scope_respected fiilen artık true — orijinal red-team koşumunun ham çıktısı değiştirilmedi, bu not eklendi (bkz. verify_report.md 'Red-team Sonrası Düzeltme Turu')."
+}

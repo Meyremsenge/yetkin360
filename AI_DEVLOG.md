@@ -5,6 +5,51 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## YET-105 (PLAN 3.1) — Public profil ucu + visibility kuralları (2026-09-25)
+
+**Kaynak:** `obss_project/artifacts/public-profil-endpoint/`
+
+### Bilinçli kararlar (kaynak: plan.md Kararlar, kullanıcı yetkisiyle Sonnet 5 low alt-ajanı)
+- Route slug tabanlı: `GET /public/talents/{slug}` — atdd.md'nin ilk varsaydığı
+  `GET /talents/{id}/public-profile` (UUID) yanlıştı; `talent_profiles.public_slug`
+  alanı zaten şemada var, frontend planı (`/p/[slug]`, YET-112) bunu bekliyor,
+  internal UUID'yi dışa sızdırmamak proje pratiğine daha uygun.
+- Visibility 4 seviyeli (`PRIVATE|INSTITUTION|ORGANIZATIONS|PUBLIC`), atdd.md'nin
+  ilk varsaydığı ikili değil — bu auth-free uç SADECE `PUBLIC`'i gösterir,
+  INSTITUTION/ORGANIZATIONS seviyesi ayrı, kimlik doğrulamalı uçlara ait
+  (3.3 koordinatör, 3.5 kurum dashboard).
+- Response'ta sadece `verified_experiences` (visibility=PUBLIC filtreli) —
+  `attestations`/`skill_signals` kendi visibility alanına sahip değil ve
+  verified_experience'a doğrudan FK'leri yok, güvenli/tutarlı bir gösterim
+  kuralı türetilemedi, MVP'de kapsam dışı bırakıldı.
+
+### Kabul edilen riskler (kaynak: atdd.md Risks)
+- Rate limit/anti-scraping yok — MVP/hackathon kapsamında bilinçli olarak
+  dışarıda bırakıldı, Faz 3 sonrası veya production öncesi ele alınmalı.
+- Timing side-channel — "var olmayan" ile "PUBLIC olmayan" 404'lerin DB'de
+  farklı sürede dönme ihtimali teorik bir enumeration kanalı oluşturabilir;
+  otomatik testte güvenilir ölçülemediği için AC'ye dönüştürülmedi. Kod
+  tarafında tek sorguda (`scoped_public_talent_profile`) visibility+slug
+  kontrolü birleştirilerek azaltıldı.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: verify_report.md, red_team.json)
+- **atdd.md'nin kendi hatası:** hata gövdesi `{"detail": "Not found"}`
+  varsayılmıştı; proje `docs/API.md §1.4` + `app/core/errors.py::ApiError`
+  ile belgelenmiş, zorunlu bir `{code, message, request_id}` zarfı
+  kullanıyor. `verify`'da 8 test bu yüzden FAIL etti, atdd.md düzeltilip
+  testler/implementasyon buna göre yeniden yazıldı.
+- code-copilot'un ilk teslimi `started_on_snapshot`/`ended_on_snapshot`
+  alanlarını `str|None` tipiyle tanımlamıştı ama model alanı `date|None` —
+  gerçek tarih değeri olan kayıtlarda Pydantic `ValidationError` fırlatıyordu
+  (9 test FAIL). code-copilot bunu kendi ilk teslimde risk olarak flagged
+  etmişti, ikinci turda `date|None`'a düzeltildi.
+- red-team incelemesi `PublicVerifiedExperienceResponse`'a atdd.md'de tanımsız
+  fazladan bir `visibility` alanı sızdığını buldu (sabit "PUBLIC" değeri,
+  bilgi değeri yok) — kaldırıldı. Aynı turda `VerifiedExperience` sorgusu
+  merkezi `scoped_*()` desenine (`scoped_public_verified_experiences`)
+  taşındı (önceden çıplak `session.query()` idi — IDOR riski yoktu ama
+  proje kuralının harfine aykırıydı).
+
 ## YET-2.2 — Durum makinesi: POST /engagements/{id}/transitions (2026-09-23)
 
 **Kaynak:** `obss_project/artifacts/engagement-durum-makinesi-transitions-ucu/`

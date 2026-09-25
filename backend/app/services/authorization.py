@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
-from app.models import Engagement, Evidence, Institution, Organization, SkillClaim, SkillSignal, TalentProfile, User
+from app.models import Engagement, Evidence, Institution, Organization, SkillClaim, SkillSignal, TalentProfile, User, VerifiedExperience
 
 
 @dataclass
@@ -245,3 +245,52 @@ def get_scoped_or_404(scoped_select: Select, session: Session):
     Implements AC-5, AC-S4 (no distinction between out-of-scope and nonexistent).
     """
     return session.execute(scoped_select).scalars().first()
+
+
+def scoped_public_talent_profile(session: Session, slug: str) -> Select:
+    """
+    Return a SQLAlchemy Select query for a PUBLIC talent profile by slug.
+
+    Auth-free endpoint: returns TalentProfile records that are:
+    - visibility='PUBLIC'
+    - public_slug matches the given slug
+    - deleted_at IS NULL
+
+    Single query with combined WHERE clause to avoid timing side-channel
+    (both nonexistent slug and non-PUBLIC visibility return identical 404).
+
+    Args:
+      - session: SQLAlchemy Session
+      - slug: public_slug value (string)
+
+    Returns:
+      - sqlalchemy.sql.Select: Query returning TalentProfile rows matching criteria
+        (typically 0 or 1 result, due to unique constraint on public_slug)
+
+    Implements AC-1, AC-2, AC-3 (AC-S1), AC-6 (public-profil-endpoint, YET-105)
+    """
+    return select(TalentProfile).where(
+        TalentProfile.public_slug == slug,
+        TalentProfile.visibility == "PUBLIC",
+        TalentProfile.deleted_at.is_(None),
+    )
+
+
+def scoped_public_verified_experiences(session: Session, talent_id: uuid.UUID) -> Select:
+    """
+    Return a SQLAlchemy Select query for a talent's VerifiedExperience rows.
+
+    Used only after the talent itself has been verified as visibility='PUBLIC'
+    via scoped_public_talent_profile() — this function does not re-check talent
+    visibility, only scopes by talent_id.
+
+    Args:
+      - session: SQLAlchemy Session
+      - talent_id: UUID of the (already-verified-PUBLIC) talent profile
+
+    Returns:
+      - sqlalchemy.sql.Select: Query returning VerifiedExperience rows for this talent
+
+    Implements AC-1, AC-5 (AC-S3) (public-profil-endpoint, YET-105)
+    """
+    return select(VerifiedExperience).where(VerifiedExperience.talent_id == talent_id)
