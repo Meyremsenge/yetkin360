@@ -1,0 +1,75 @@
+{
+  "task": "public-dogrulama-linki",
+  "reviewed_at": "2026-09-25T00:00:00Z",
+  "summary": "Uygulama atdd.md ile büyük ölçüde uyumlu; enumeration koruması ve PII sızıntısı önleme doğru uygulanmış. En kritik gerçek bulgu: attested_skills sorgusu merkezi yetkilendirme desenini bypass ediyor ve şu an zararsız olsa da CLAUDE.md kuralını harfiyen ihlal ediyor — mimari borç olarak düzeltilmeli. Test placeholder'ları (AC-S1 token entropisi, AC-7 DB hatası) 'test edilmedi' anlamına geliyor, verify_report bunu dürüstçe işaretlemiş ama commit öncesi en azından entropi testi gerçek bir assert'e dönüştürülmeli.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "architecture",
+      "file": "backend/app/api/public.py",
+      "issue": "get_public_verification içinde `select(Attestation).where(Attestation.engagement_id == ve.engagement_id, ...)` çıplak SQLAlchemy sorgusu — CLAUDE.md 'Tüm veri erişimi merkezî yetkilendirmeden geçer: can() ve scoped_*(). Çıplak select(Model) yasak' kuralını ihlal ediyor. Şu an istismar edilebilir değil çünkü ve.engagement_id zaten scoped_public_verified_experience_by_token ile PUBLIC olarak doğrulanmış bir kaydın alanı — engagement_id kullanıcı girdisinden değil, DB'den geliyor. Ama kural 'harfi' değil 'iş mantığı merkezileştirme' amaçlı: gelecekte biri bu deseni kopyalayıp kullanıcı-kontrollü bir ID ile çağırırsa IDOR riski doğar.",
+      "better_approach": "authorization.py'ye `scoped_attestations_for_engagement(session, engagement_id)` fonksiyonu ekleyip public.py'de onu çağır — YET-105'te aynı pattern (naked VerifiedExperience query) red-team'de flag'lenip düzeltilmiş, burada da aynı düzeltme yapılmalı.",
+      "reason": "Proje kuralı istisnasız 'çıplak select(Model) yasak' diyor; code_diff.md bunu zaten kendisi 'blocking değil' diye not düşmüş ama CLAUDE.md ihlali objektif olarak var, red-team round'unda düzeltilmesi bekleniyor (nitekim YET-105 emsali de böyle düzeltilmiş)."
+    },
+    {
+      "severity": "medium",
+      "category": "correctness",
+      "file": "backend/app/api/public.py",
+      "issue": "PublicVerificationResponse.started_on: date (non-nullable) ama VerifiedExperience.started_on_snapshot: date | None (nullable, backend/app/models/verified_experience.py:74). Gerçek üretim verisinde started_on_snapshot NULL olan bir kayıt PUBLIC yapılırsa Pydantic ValidationError fırlatır → 500 döner (yakalanmamış exception), müşteriye stack trace sızma riski oluşur (AC-7'nin istediği kontrollü 500 zarfı yerine).",
+      "better_approach": "started_on: date | None yap (response şemasını modele uydur) veya ApiError ile explicit kontrol ekle (`if ve.started_on_snapshot is None: raise ApiError(500,...)`). Ayrıca genel bir exception handler/middleware ile Pydantic ValidationError'ların 500+ApiError zarfına çevrildiğini doğrulamak gerekir.",
+      "reason": "Test fixture'ları hep dolu veriyle test edildiği için bu koşumda tetiklenmedi (verify_report.md) ama gerçek veri boşluğunda AC-7'nin öngördüğü kontrollü hata davranışı yerine handling edilmemiş bir ValidationError olur — bu bir test-gap değil, potansiyel bir runtime bug."
+    },
+    {
+      "severity": "low",
+      "category": "test-gap",
+      "file": "backend/tests/authorization/test_public_verification_authz.py",
+      "issue": "TestSecurityMatrixRow6TokenEntropy.test_token_entropy_placeholder_ac_s1 sadece `pass` içeriyor (satır 802-817) — AC-S1'i hiçbir şey doğrulamıyor, ama PASS olarak sayılıyor (41 passed sayısına dahil). generate_public_token() zaten yazılmış ve import edilebilir durumda (backend/app/services/verified_experience.py) olmasına rağmen test onu hiç çağırmıyor.",
+      "better_approach": "3 satırlık gerçek bir assert ekle: `from app.services.verified_experience import generate_public_token; token = generate_public_token(); assert len(token) >= 22`.",
+      "reason": "atdd.md AC-4/AC-S1'i threat-model kökenli bir güvenlik AC'si olarak işaretlemiş; fonksiyon zaten var ve çağrılabilir durumda olduğu halde test edilmemiş olması, 'yazıldı ama doğrulanmadı' durumudur — düşük risk ama commit öncesi kolayca kapatılabilir bir boşluk."
+    },
+    {
+      "severity": "low",
+      "category": "readability",
+      "file": "backend/app/api/public.py",
+      "issue": "`from app.models import Engagement` fonksiyon içinde (satır 181), diğer modeller (Attestation, Organization, Skill, TalentProfile) dosya başında import edilmişken tutarsız.",
+      "better_approach": "Top-level import listesine ekle: `from app.models import Attestation, Engagement, Organization, Skill, TalentProfile`.",
+      "reason": "Fonksiyonel bir dairesel-import zorunluluğu yok görünüyor; kod stilinde tutarlılık için düzeltilebilir, blocking değil."
+    }
+  ],
+  "strengths": [
+    "scoped_public_verified_experience_by_token tek WHERE'de public_token+visibility='PUBLIC' birleştiriyor — timing side-channel/enumeration'a karşı YET-105'teki doğru desenle tutarlı, AC-S2 gerçekten sağlanmış.",
+    "Token bulunamadı VE visibility != PUBLIC durumları aynı ApiError(404, VERIFICATION_NOT_FOUND, 'Kayıt bulunamadı') zarfını dönüyor — atdd.md Davranış Sözleşmesi satır 2/3 birebir karşılanmış, enumeration testleri bunu doğruluyor.",
+    "plan.md Kararlar madde 1 doğru uygulanmış: attestor_organization (Organization.name, attestor_org_id üzerinden) — attestor_name/kişi adı hiçbir yerde kullanılmıyor.",
+    "generate_public_token() secrets.token_urlsafe(32) kullanıyor — 256-bit entropi AC-S1'in 128-bit minimumunu fazlasıyla aşıyor.",
+    "PublicVerificationResponse şemasında dahili/PII alanlar yok — sadece atdd.md'nin izin verdiği 9 alan response'ta mevcut, AC-5/AC-S4 doğru karşılanmış.",
+    "Migration nullable/unique/String olarak eklenmiş, upgrade→downgrade→upgrade doğrulanmış — CLAUDE.md migration kuralına uygun."
+  ],
+  "risks": [
+    "session.get(X,id) is None → 500 deseni gerçek bir DB-down/network-hatası senaryosunu değil sadece 'FK bozuk' senaryosunu kapsıyor; asıl AC-7 (DB bağlantı hatası → 500 + zarf) hâlâ doğrulanmamış.",
+    "public_token backfill'i kapsam dışı bırakılmış (atdd.md Risks, Kararlar'da kayıtlı) — mevcut VerifiedExperience kayıtları için doğrulama linki üretilmeyecek, bilinen ve kabul edilmiş bir üretim boşluğu.",
+    "Rate-limit yok (atdd.md'de kabul edilen risk) — token entropisi yüksek olduğu için düşük öncelikli DoS/brute-force riski var ama tam telafi edilmiyor."
+  ],
+  "caveman_review": {
+    "complexity": "low",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve-with-changes",
+  "notes": "F5/410 (revoked token) mekanizması sessizce eksik bırakılmamış — atdd.md hem 'Kapsam Dışı' hem 'Unknowns' bölümünde açıkça DB'de bu durumu temsil edecek mekanizma olmadığını belirtiyor, gelecek görev olarak işaretli — scope violation DEĞİL.",
+  "post_fix_note": "2026-09-25 — kullanıcı 'devam' dedi, 4 finding de düzeltildi: (1) Attestation naked-select scoped_attestations_for_engagement()'e taşındı, (2) started_on tipi date|None yapıldı (model ile uyumlu), (3) Engagement importu top-level'a taşındı, (4) AC-S1 entropi placeholder testi gerçek assertion'a çevrildi. Düzeltme sonrası tekrar doğrulama: ruff+mypy+pytest tam paket (730 passed, 4 skipped) hepsi PASS. maintainability_acceptable fiilen artık true — orijinal red-team koşumunun ham çıktısı değiştirilmedi, bu not eklendi (bkz. verify_report.md 'Red-team Sonrası Düzeltme Turu')."
+}
