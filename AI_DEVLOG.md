@@ -5,6 +5,20 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## YET-115 (PLAN 3.11) — Seed verisi: 20 öğrenci, 5 kurum, 15 tamamlanmış engagement (2026-09-27)
+
+**Kaynak:** `obss_project/artifacts/seed-verisi-ogrenci-kurum-engagement/`
+
+### Bilinçli kararlar (kaynak: atdd.md, plan.md)
+- "15 tamamlanmış engagement" = `status='VERIFIED'` (zincirin son durumu) olarak varsayıldı — kullanıcı onayı alınmadı ama proje genelinde "tamamlanmış"ın başka bir anlamı yok (kaynak: atdd.md Assumptions).
+- Test kullanıcıları için sabit bir şifre (`"SeedTest123!"`) kullanıldı — CLAUDE.md'nin ".env okunmaz, sır sabitleri koda yazılmaz" kuralı GERÇEK sırlar için geçerli, bu sentetik test kullanıcıları için sabit bir şifre bir "sır" değildir (dev-ortamda, herkese açık repo'da, gerçek hiçbir hesaba karşılık gelmiyor) — `security-scan` bunu false-positive olarak teyit etti (kaynak: atdd.md Assumptions, verify_report.md gate 10).
+- E-posta önek konvansiyonu (`ogrenciN@seed.local` / `kurumN-admin@seed.local` / `orgN-admin@seed.local`) — `register_user()`'ın her kullanıcı için otomatik bir `TalentProfile` oluşturması nedeniyle "20 öğrenci" sayımının ham `TalentProfile` tablo sayımıyla YANLIŞ olacağı test-copilot adımında bulundu, bu konvansiyonla çözüldü (kaynak: plan.md Kararlar).
+- VERIFIED durumuna doğrudan `UPDATE` ile değil, gerçek servis fonksiyon zinciriyle (`create_engagement` → `transition_engagement` ×3 → `create_evaluation` → `create_attestation`) ulaşıldı — append-only tablolara elle INSERT/UPDATE CLAUDE.md'de yasak (kaynak: atdd.md AC-3).
+
+### Gerçek zorluk/bug (kaynak: red_team.json)
+- Red-team incelemesi, `seed_engagements()` döngüsündeki genel `try/except Exception: continue` bloğunun bir engagement oluşturma hatasını SESSİZCE yutup script'in yine de "N inserted" diyerek başarı iddia ettiğini buldu — bu, atdd.md'nin AC-4 "tüm seed işlemi tek transaction, ya hep ya hiç" sözleşmesini bozuyordu (hata `__main__`'deki rollback mekanizmasına hiç ulaşmıyordu). Ayrıca institution-link hata yolunda `talent.institution_id`'nin servis katmanı (audit/onay akışı) atlanarak elle set edildiği bulundu. **Ders:** bir döngü içinde "hata olursa bir sonrakine geç" deseni, tek-transaction/rollback garantisi veren bir script'te YANLIŞTIR — kısmi/sessiz başarısızlık, "ya hep ya hiç" sözleşmesiyle doğrudan çelişir; genel `except Exception` yerine sadece beklenen/idempotent durumun spesifik exception sınıfı yakalanmalı, gerçek hatalar üst seviyeye yükseltilmeli.
+- İki test-copilot turunda 2 ayrı zayıf-test bug'ı bulundu: (1) `AuditEvent.engagement_id` diye bir alan yokken teste yazılmıştı (doğrusu `subject_type`/`subject_id`); (2) bir rollback testi kendi tanımladığı mock fonksiyonu çağırıp kendi `session.rollback()`'ini test ediyordu, gerçek implementasyonu hiç kanıtlamıyordu. **Ders:** `unittest.mock.patch` hedefi her zaman "kullanıldığı yer" olmalı ("kullanıldığı yer" = import edenin kendi namespace'i), "tanımlandığı yer" değil — bu proje boyunca (koordinator-dashboard-frontend görevinde de benzer bir mock-hedef hatası bulunmuştu) tekrar eden bir hata kalıbı.
+
 ## YET-113 (PLAN 3.9) — Frontend: koordinatör dashboard (2026-09-26)
 
 **Kaynak:** `obss_project/artifacts/koordinator-dashboard-frontend/`
