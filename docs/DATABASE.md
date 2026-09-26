@@ -54,6 +54,7 @@ users
   email_verified_at timestamptz
   status text NOT NULL DEFAULT 'ACTIVE'
       CHECK (status IN ('PENDING','ACTIVE','SUSPENDED','DELETED'))
+  is_platform_admin boolean NOT NULL DEFAULT false  -- yalnız seed/manuel atama, self-servis uç yok
   failed_login_count int NOT NULL DEFAULT 0
   locked_until timestamptz
   deleted_at timestamptz
