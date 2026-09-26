@@ -5,6 +5,21 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## YET-113 (PLAN 3.9) — Frontend: koordinatör dashboard (2026-09-26)
+
+**Kaynak:** `obss_project/artifacts/koordinator-dashboard-frontend/`
+
+### Bilinçli kararlar (kaynak: atdd.md, plan.md)
+- Nav linki bilinçli olarak EKLENMEDİ — proje çapında hiçbir nav bileşeni yok (`frontend-pipeline` Discover adımında tespit edildi); tek paylaşılan authenticated-sayfa sarmalayıcısı olan `AppShell`'e dokunmak geniş bir blast-radius riski taşırdı, YET-113'ün kapsamı sadece dashboard sayfası (kaynak: plan.md Kararlar).
+- `institution_id` route param'dan (`/kurum/[id]/panel`) okunuyor, `/me`'den otomatik türetilmiyor — backend zaten path'ten alıp kendi scope'unda 404 kontrolü yapıyor, URL paylaşılabilir kalıyor (kaynak: plan.md Kararlar).
+- `GET /me`'nin `institutions` alanı rol döndürmüyor, MVP'de kullanıcının tek kuruma üye olduğu varsayıldı — çoklu kurum durumunda hangi `institution_id`'nin gösterileceği netleşmedi (kaynak: atdd.md Risks/Unknowns).
+
+### Gerçek zorluk/bug (kaynak: red_team.json + code_diff.md)
+- Red-team incelemesi, dashboard sorgusunun kendi 401'inde fırlayan `SessionExpiredError`'ın sayfa içinde ayrı ele alınmadığını buldu — `AppShell` yalnız kendi `/me` session sorgusunun 401'ini dinliyor, bu sayfanın bağımsız dashboard sorgusunun 401'i hiç yakalanmıyordu; kullanıcı `/giris`'e yönlendirilmek yerine jenerik "Bir hata oluştu" mesajı görüyordu. **Ders:** bir sayfa kendi API çağrısını yapıyorsa (paylaşılan `AppShell`'in session sorgusundan bağımsız), o çağrının kendi 401/`SessionExpiredError` senaryosu ayrıca ele alınmalı — paylaşılan bir üst bileşenin auth-guard'ı, alt bileşenin kendi sorgusundaki oturum hatasını otomatik yakalamaz.
+
+### Bilinen sınırlama (kaynak: verify_report.md)
+- Gerçek bir COORDINATOR/INST_ADMIN hesabıyla uçtan uca (gerçek backend + gerçek veri) görsel doğrulama yapılamadı — PLAN 3.11 (seed verisi: kurum/koordinatör hesabı) henüz tamamlanmadı. Auth-guard smoke testi (kimliksiz erişim → doğru `/giris` yönlendirmesi) yapıldı, tam happy-path render doğrulaması PLAN 3.11 sonrası ayrı bir turda önerilir.
+
 ## YET-112 (PLAN 3.8) — Public profil `/p/[slug]` + doğrulama `/v/[token]` sayfaları (2026-09-26)
 
 **Kaynak:** `obss_project/artifacts/public-profil-ve-dogrulama-sayfalari/`
