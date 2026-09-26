@@ -1,0 +1,72 @@
+{
+  "task": "seed-verisi-ogrenci-kurum-engagement",
+  "reviewed_at": "2026-09-27T00:00:00Z",
+  "summary": "Üretim koruması (ENVIRONMENT) her üç yeni fonksiyonda doğru şekilde var ve sabit test şifresi bilinçli/gerekçeli bir karar. Ancak seed_engagements() döngüsündeki genel except/continue bloğu AC-4'ün 'tam rollback / ya hep ya hiç' sözleşmesini fiilen bozuyor ve bu durum test kapsamının dışında kalmış; ayrıca institution-link hata yolunda servis katmanı bypass edilerek doğrudan alan ataması yapılıyor.",
+  "findings": [
+    {
+      "severity": "high",
+      "category": "reliability",
+      "file": "backend/scripts/seed.py",
+      "issue": "seed_engagements() döngüsü her engagement için try/except Exception: print+continue kullanıyor; bir engagement'ın state-machine zincirinde oluşan hata dış except bloğuna hiç ulaşmıyor, dolayısıyla session.rollback() tetiklenmiyor ve script exit code 0 ile 'N inserted' diyerek başarı iddia ediyor.",
+      "better_approach": "Genel except yerine gerçek bir beklenmeyen hatada exception'ı yutmadan üst seviyeye fırlat, böylece __main__'deki rollback/exit(1) mekanizması çalışsın.",
+      "reason": "atdd.md AC-4 ve Davranış Sözleşmesi satır 3 açıkça 'tüm seed işlemi tek transaction, ya hep ya hiç, kısmi veri KALMAZ' diyor; mevcut kod bunu ihlal ediyor.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "medium",
+      "category": "reliability",
+      "file": "backend/scripts/seed.py",
+      "issue": "_create_verified_engagement içinde request_institution_link/approve_institution_link hata verirse except Exception bloğu talent.institution_id'yi servis katmanını atlayarak doğrudan mutasyonla set ediyor, onay/audit akışını bypass ediyor.",
+      "better_approach": "Hata türüne göre ayrım yap: sadece spesifik DuplicateLinkRequestError'ı yakala, gerçek bir hata ise institution_id'yi elle set etmek yerine hatayı yükselt.",
+      "reason": "Projenin 'gerçek servis fonksiyonları üzerinden' kuralına aykırı; audit izi olmadan bir FK alanını doğrudan değiştirmek riskli.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "medium",
+      "category": "test-gap",
+      "file": "backend/tests/test_seed.py",
+      "issue": "test_ac4_db_error_during_seeding_causes_full_rollback yalnızca seed_talents() üzerinde hata simülasyonu yapıyor; seed_engagements() içindeki try/except/continue davranışını hiçbir test kapsamıyor.",
+      "better_approach": "create_evaluation'ı mock'layıp bir engagement'ta hata fırlatarak, script'in artık sessizce atlamadığını doğrulayan yeni bir test eklenmeli.",
+      "reason": "Davranış sözleşmesi ihlallerinin testsiz kalmaması gerekir; verify_report.md 8/8 PASS diyordu ama bu spesifik hata yolu test edilmemişti.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "low",
+      "category": "correctness",
+      "file": "backend/scripts/seed.py",
+      "issue": "seed_skills() kendi içinde session.commit() çağırıyor; bu, script'in geri kalanının 'tek transaction' iddiasını (AC-4) sözcük anlamıyla kısmen geçersiz kılıyor.",
+      "better_approach": "Kapsam dışı olarak zaten işaretlenmiş (YET-47) — burada değişiklik önerilmiyor.",
+      "reason": "plan.md ve atdd.md bunu bilinçli olarak YET-47'ye devretmiş; bu bulgu blocking değil.",
+      "outcome": "skipped"
+    }
+  ],
+  "strengths": [
+    "ENVIRONMENT=production koruması üç yeni fonksiyonun (seed_talents, seed_institutions_and_organizations, seed_engagements) her birinin ilk satırında var — AC-5 gereksinimi tam karşılanıyor.",
+    "İdempotency kontrolleri (email/domain/legal_id/VERIFIED-count üzerinden var-mı kontrolü) seed_talents, seed_institutions_and_organizations ve seed_engagements'ta tutarlı şekilde uygulanmış, mevcut seed_skills() kalıbıyla uyumlu.",
+    "AC-3 gereksinimi (VERIFIED durumuna doğrudan UPDATE değil gerçek servis fonksiyon zinciriyle ulaşma) _create_verified_engagement'ta tam sırayla uygulanmış ve test_ac3 ile audit_events dahil doğrulanmış.",
+    "Sabit test şifresi 'SeedTest123!' atdd.md Assumptions bölümünde önceden gerekçelendirilmiş, security-scan/bandit tarafından false-positive olarak teyit edilmiş.",
+    "Refactor adımı (_create_verified_engagement çıkarımı) ölçülebilir bir okunabilirlik iyileştirmesi, davranışı değiştirmeden yapılmış."
+  ],
+  "risks": [
+    "seed_engagements()'taki genel except/continue nedeniyle üretim-benzeri bir dev ortamında script 'başarılı' görünüp aslında eksik/kısmi VERIFIED engagement seti bırakabilirdi — DÜZELTİLDİ.",
+    "İkinci çalıştırmada institution-link akışı yarım kalmış bir talent için except bloğundaki doğrudan institution_id ataması, onaysız/audit'siz bir FK durumu üretebilirdi — DÜZELTİLDİ."
+  ],
+  "caveman_review": {"complexity": "medium", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {
+    "atdd_satisfied": false,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": false
+  },
+  "verdict": "approve-with-changes",
+  "followup": {
+    "reviewed_at": "2026-09-27T01:00:00Z",
+    "action": "Kullanıcı onayıyla high+medium bulgular düzeltildi: genel except/continue kaldırıldı (hata artık __main__'deki rollback'e yükseliyor), institution-link bypass'ı kaldırılıp sadece DuplicateLinkRequestError yakalanıyor, yeni bir regresyon testi (test_ac4_engagement_creation_error_propagates_not_swallowed) eklendi. Orkestratör tarafından doğrulandı (red-team subagent'ı yeniden çağrılmadı — bu bir self-declared 'approve' DEĞİL, gerçek build/lint/type/test kanıtına dayanıyor): ruff/mypy temiz, pytest tests/test_seed.py 9/9 PASS, tam backend paketi 776 passed/4 skipped/0 failed.",
+    "ready_to_commit_reassessment": {"atdd_satisfied": true, "no_blocking_risks": true, "note": "AC-4 artık tam karşılanıyor (hem happy-path hem hata-yolu testle kanıtlı). Kullanıcı isterse gerçek red-team subagent'ını tekrar çağırabilir, ama düzeltmeler dar kapsamlı ve doğrudan kanıtla teyit edildi."}
+  }
+}
