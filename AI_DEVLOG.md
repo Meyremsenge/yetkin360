@@ -5,6 +5,27 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## YET-112 (PLAN 3.8) — Public profil `/p/[slug]` + doğrulama `/v/[token]` sayfaları (2026-09-26)
+
+**Kaynak:** `obss_project/artifacts/public-profil-ve-dogrulama-sayfalari/`
+
+### Bilinçli kararlar (kaynak: atdd.md, plan.md)
+- `apiFetch` yerine bilinçli olarak basit `fetch()` (credentials YOK) kullanıldı — bu sayfalar auth-free, oturum çerezinin gereksiz gönderilmesi bir bilgi sızıntısı riski taşırdı.
+- SEO meta tag (`generateMetadata`) bu görevde EKLENMEDİ — proje genelinde tüm sayfalar `"use client"`, dinamik metadata server component gerektirir; bu mimari genişleme atdd.md'nin SEO'yu Medium/kritik-olmayan işaretlemesiyle orantısız olurdu (CAVEMAN).
+
+### Kritik bulgu ve düzeltme (kaynak: atdd.md Threat Model, code_diff.md, red_team.json)
+- **Middleware allowlist kusuru**: `/p/[slug]` ve `/v/[token]` PLAN'da "public sayfa" olarak tanımlanmıştı ama `frontend/lib/auth/should-redirect.ts`'deki `isPublicRoute()` bu yolları içermiyordu — kimliksiz ziyaretçi bu sayfalara gidince `/giris`'e yönlendiriliyordu, yani özellik hiç çalışmıyordu. Düzeltildi.
+- **Kritik güvenlik tuzağı (önlendi)**: Bu düzeltme yanlış yazılsaydı (`startsWith("/p")` eğik çizgisiz) mevcut KORUMALI `/profil` sayfası da yanlışlıkla public olurdu. `threat-model` bunu önceden AC-S2 olarak öngördü, `test-copilot` bunu regresyon testine çevirdi, `code-copilot` doğru (`startsWith("/p/")`) yazdı, `red-team` bağımsız olarak doğruladı.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md)
+- Koda gömülü Türkçe metin (CLAUDE.md ihlali) — `tr.json`'a eklenen anahtarlar bile kullanılmıyordu, tümü taşındı.
+- Nullable backend alanları (`institution_name`, `started_on_snapshot`/`ended_on_snapshot` vb.) TS'te non-null tiplenmişti — bu, önceki görevde de (YET-111) aynı sınıftan bulunan tekrarlayan bir hata kalıbı; düzeltildi.
+- **Ayrı bir görevin (YET-111, zaten push edilmiş) kaçırılmış regresyonu bulundu**: `app/profil/page.test.tsx`, YET-111'de eklenen `EvidenceSection`'ı mock'lamıyordu — YET-111'in kendi verify adımında SADECE yeni test dosyaları çalıştırıldığı için (tüm suite değil) bu kaçırılmıştı. Bu görevde gerçek `npx vitest run` (tüm suite) çalıştırılınca ortaya çıktı, düzeltildi.
+
+### Kabul edilen / kapsam dışı bırakılan sorunlar (kod değil, bilinçli karar)
+- `security-scan`'in `frontend/messages/tr.json` üzerindeki FAIL'i pre-existing bir yanlış-pozitif (PLAN 1.13'ten beri var, `"passwordLabel": "Şifre"` gibi UI etiketleri "Secret Keyword" sezgiseliyle yanlış işaretleniyor) — bu görevin diff'iyle ilgisiz, `git diff` ile doğrulandı.
+- Tam frontend test suite'inde (717 test) 3 dosyada (`lib/api/engagements.test.ts`, `lib/api/evaluation.test.ts`, `lib/api/evidence.test.ts`) 29 test `localStorage.clear is not a function` hatasıyla FAIL ediyor — bu görevle hiç ilgisi olmayan, izole çalıştırıldığında da aynı hatayı veren pre-existing bir ortam sorunu (muhtemelen jsdom/vitest sürüm uyumsuzluğu). Ayrı bir görev gerektirir.
+
 ## YET-111 (PLAN 3.7) — Profil sayfası kanıt dökümü (skill signal + verified experience) (2026-09-26)
 
 **Kaynak:** `obss_project/artifacts/profil-sayfasi-kanit-dokumu/`

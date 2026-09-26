@@ -190,5 +190,17 @@
     "alreadySubmittedError": "Bu çalışma için değerlendirme zaten gönderilmiş.",
     "invalidStatusError": "Bu çalışma şu anda değerlendirme aşamasında değil.",
     "notEligibleMessage": "Bu çalışma değerlendirme aşamasında değil, form gösterilemiyor."
+  },
+  "publicProfile": {
+    "empty": "henüz doğrulanmış deneyim yok",
+    "notFound": "Kayıt bulunamadı"
+  },
+  "publicVerification": {
+    "notFound": "Kayıt bulunamadı",
+    "organizationLabel": "Kurum",
+    "institutionLabel": "Eğitim Kurumu",
+    "periodLabel": "Dönem",
+    "verifiedAtLabel": "Doğrulama Tarihi",
+    "attestedSkillsTitle": "Tanıklık Yapılan Yetkinlikler"
   }
 }

@@ -1,0 +1,55 @@
+{
+  "task": "public-profil-ve-dogrulama-sayfalari",
+  "reviewed_at": "2026-09-26T00:00:00Z",
+  "summary": "Kritik AC-S2 regresyon riski (isPublicRoute prefix çakışması) kod okumasıyla doğrulandı ve doğru uygulanmış (startsWith(\"/p/\") eğik çizgili, /profil hâlâ korumalı, test ile kanıtlanmış). Nullable alanlar null-safe render ediliyor, credentials gerçekten yok, dangerouslySetInnerHTML kullanılmamış. Küçük bulgular ve mimari alternatif önerisi mevcut, kritik değil.",
+  "findings": [
+    {
+      "severity": "low",
+      "category": "reliability",
+      "file": "frontend/lib/auth/should-redirect.ts",
+      "issue": "isPublicRoute() artan bir if-zinciri; /p/ ve /v/ gibi kısa prefix'ler gelecekte yeni bir route eklendiğinde yanlışlıkla eşleşme riski taşıyor çünkü kontrol string-prefix bazlı, path-segment bazlı değil.",
+      "better_approach": "Path'i segmentlere ayırıp ilk segmenti bir allowlist set'i ile karşılaştırmak, ya da her yeni prefix eklenişinde AC-7 benzeri bir regresyon testini zorunlu kılan bir yorum eklemek.",
+      "reason": "Mevcut kod bu görevde doğru (testlerle kanıtlandı) ama yapı gelecekte aynı hatanın tekrarlanmasına açık."
+    },
+    {
+      "severity": "low",
+      "category": "maintainability",
+      "file": "frontend/app/p/[slug]/page.tsx, frontend/app/v/[token]/page.tsx",
+      "issue": "İki sayfa da loading/error/success iskeletini birebir kopyalıyor.",
+      "better_approach": "Şimdilik soyutlama gerekmiyor (verify_report.md zaten değerlendirmiş, sadece 2 kullanım noktası).",
+      "reason": "CAVEMAN ilkesine göre erken soyutlama gereksiz olurdu, bilgilendirici bir not."
+    },
+    {
+      "severity": "low",
+      "category": "correctness",
+      "file": "frontend/lib/api/public.ts",
+      "issue": "handleResponse() 200 durumunda JSON.parse başarısız olursa düz Error fırlatıyor (ApiError/NetworkError değil); mevcut errors.ts'teki InvalidResponseError kullanılmıyor.",
+      "better_approach": "JSON parse hatasını InvalidResponseError ile sarmalamak, tutarlılık için.",
+      "reason": "Davranışsal olarak kırık değil (generic mesaj gösteriliyor) ama mevcut sınıfın kullanılmaması bir tutarsızlık."
+    }
+  ],
+  "strengths": [
+    "should-redirect.ts'te prefix kontrolü doğru şekilde eğik çizgili yazılmış, /profil ile çakışmıyor; AC-7 regresyon testi bu senaryoyu kapsıyor ve gerçekten çalıştırılmış (105/105 PASS).",
+    "public.ts'teki fetch çağrılarında credentials: \"include\" gerçekten yok — bilinçli güvenlik kararı doğrulandı.",
+    "Nullable alanlar hem tip seviyesinde hem render seviyesinde null-safe.",
+    "dangerouslySetInnerHTML hiçbir yerde kullanılmamış, kullanıcı kaynaklı metinler düz metin render ediliyor.",
+    "404 ile network hatası ayrımı doğru yapılmış, backend mesajı sızdırılmıyor."
+  ],
+  "risks": [
+    "should-redirect.ts'teki string-prefix deseni gelecekte yeni bir public route eklendiğinde aynı sınıf hatayı tekrar üretebilir.",
+    "verify_report.md'de belirtilen pre-existing localStorage.clear test hatası ve security-scan false-positive bu görevin kapsamı dışı bırakıldı — kabul edilebilir ama kullanıcıya hatırlatılmalı."
+  ],
+  "caveman_review": {"complexity": "low", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve"
+}
