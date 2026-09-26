@@ -1,11 +1,20 @@
-"""Skill search service (YET-10)."""
+"""Skill search + admin management service (YET-10, YET-137)."""
 
+import uuid
 from typing import Sequence
 
 from sqlalchemy.orm import Session
 from sqlalchemy import select, or_
 
 from app.models import Skill
+
+
+class DuplicateSkillSlugError(Exception):
+    """Raised when creating a skill with a slug that already exists."""
+
+
+class InvalidSkillReferenceError(Exception):
+    """Raised when parent_id/merged_into_id points to a missing, self, or non-ACTIVE skill."""
 
 
 def search_skills(
@@ -45,3 +54,113 @@ def search_skills(
     stmt = stmt.limit(limit)
 
     return session.execute(stmt).scalars().all()
+
+
+def create_skill(
+    session: Session,
+    slug: str,
+    name_tr: str,
+    name_en: str | None,
+    category: str,
+    parent_id: uuid.UUID | None = None,
+) -> Skill:
+    """
+    Create a new skill (admin-only — YET-137). No free-text skill creation
+    exists elsewhere; this is the single controlled entry point (docs/DOMAIN.md §3.5).
+
+    Raises:
+        DuplicateSkillSlugError: slug already taken.
+        InvalidSkillReferenceError: parent_id does not reference an existing skill.
+    """
+    if session.execute(select(Skill).where(Skill.slug == slug)).scalars().first():
+        raise DuplicateSkillSlugError(f"Skill slug {slug!r} already exists")
+
+    if parent_id is not None and session.get(Skill, parent_id) is None:
+        raise InvalidSkillReferenceError(f"parent_id {parent_id} bulunamadı")
+
+    skill = Skill(
+        slug=slug,
+        name_tr=name_tr,
+        name_en=name_en,
+        category=category,
+        parent_id=parent_id,
+    )
+    session.add(skill)
+    session.flush()
+    return skill
+
+
+def update_skill(
+    session: Session,
+    skill_id: uuid.UUID,
+    name_tr: str | None = None,
+    name_en: str | None = None,
+    category: str | None = None,
+    parent_id: uuid.UUID | None = None,
+) -> Skill | None:
+    """
+    Update a skill's editable fields (admin-only — YET-137).
+    Status transitions (deprecate/merge) go through their own functions.
+
+    Returns None if skill_id does not exist.
+
+    Raises:
+        InvalidSkillReferenceError: parent_id is the skill itself or does not exist.
+    """
+    skill = session.get(Skill, skill_id)
+    if skill is None:
+        return None
+
+    if parent_id is not None:
+        if parent_id == skill_id:
+            raise InvalidSkillReferenceError("Bir skill kendi üst kategorisi olamaz")
+        if session.get(Skill, parent_id) is None:
+            raise InvalidSkillReferenceError(f"parent_id {parent_id} bulunamadı")
+        skill.parent_id = parent_id
+
+    if name_tr is not None:
+        skill.name_tr = name_tr
+    if name_en is not None:
+        skill.name_en = name_en
+    if category is not None:
+        skill.category = category
+
+    session.flush()
+    return skill
+
+
+def deprecate_skill(session: Session, skill_id: uuid.UUID) -> Skill | None:
+    """Mark a skill DEPRECATED (admin-only — YET-137). Returns None if not found."""
+    skill = session.get(Skill, skill_id)
+    if skill is None:
+        return None
+    skill.status = "DEPRECATED"
+    session.flush()
+    return skill
+
+
+def merge_skill(session: Session, skill_id: uuid.UUID, merged_into_id: uuid.UUID) -> Skill | None:
+    """
+    Mark a skill MERGED into another ACTIVE skill (admin-only — YET-137).
+    docs/DOMAIN.md §3.5: queries redirect to the merge target.
+
+    Returns None if skill_id does not exist.
+
+    Raises:
+        InvalidSkillReferenceError: merge target is the skill itself, missing, or not ACTIVE.
+    """
+    skill = session.get(Skill, skill_id)
+    if skill is None:
+        return None
+
+    if merged_into_id == skill_id:
+        raise InvalidSkillReferenceError("Bir skill kendisiyle birleştirilemez")
+
+    target = session.get(Skill, merged_into_id)
+    if target is None or target.status != "ACTIVE":
+        raise InvalidSkillReferenceError(f"merged_into_id {merged_into_id} geçerli bir ACTIVE skill değil")
+
+    skill.status = "MERGED"
+    skill.merged_into_id = merged_into_id
+    session.flush()
+    return skill

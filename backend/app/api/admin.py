@@ -1,0 +1,289 @@
+"""Admin endpoints (PLAN 3.6 — YET-110/136/137/138/139): kurum doğrulama kuyruğu + skill yönetimi.
+
+Tümü `ADMIN` yetkisi gerektirir (`users.is_platform_admin = true`, docs/API.md §2.10).
+Yetkisiz istekte 404 dönülür (CLAUDE.md: 403 kaynağın/ucun varlığını sızdırır) —
+app/api/organizations.py'deki ORG:ADMIN kontrolüyle aynı desen.
+"""
+
+import uuid
+from datetime import datetime
+from typing import Literal, Optional
+
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
+from app.api.deps import get_current_principal, get_session
+from app.core.errors import ApiError
+from app.services.audit import log_audit_event
+from app.services.authorization import Principal
+from app.services.organization import list_verification_queue, set_verification_level
+from app.services.skill import (
+    DuplicateSkillSlugError,
+    InvalidSkillReferenceError,
+    create_skill,
+    deprecate_skill,
+    merge_skill,
+    update_skill,
+)
+
+router = APIRouter(prefix="/admin", tags=["admin"])
+
+VerificationLevel = Literal["T1", "T2", "T3", "T4"]
+SkillCategory = Literal["LANGUAGE", "FRAMEWORK", "TOOL", "DOMAIN", "SOFT"]
+
+
+def _require_admin(principal: Principal) -> None:
+    if not principal.is_platform_admin:
+        raise ApiError(404, "NOT_FOUND", "Kaynak bulunamadı.")
+
+
+# ============================================================================
+# Pydantic Schemas
+# ============================================================================
+
+
+class VerificationQueueItem(BaseModel):
+    id: uuid.UUID
+    name: str
+    legal_id: Optional[str]
+    domain: Optional[str]
+    verification_level: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class VerificationQueueResponse(BaseModel):
+    items: list[VerificationQueueItem]
+
+
+class VerificationLevelUpdate(BaseModel):
+    verification_level: VerificationLevel
+    note: Optional[str] = Field(None, max_length=1000)
+
+
+class OrganizationSummary(BaseModel):
+    id: uuid.UUID
+    name: str
+    verification_level: str
+    verified_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
+class SkillCreateRequest(BaseModel):
+    slug: str = Field(..., min_length=1, max_length=100)
+    name_tr: str = Field(..., min_length=1)
+    name_en: Optional[str] = None
+    category: SkillCategory
+    parent_id: Optional[uuid.UUID] = None
+
+
+class SkillUpdateRequest(BaseModel):
+    name_tr: Optional[str] = Field(None, min_length=1)
+    name_en: Optional[str] = None
+    category: Optional[SkillCategory] = None
+    parent_id: Optional[uuid.UUID] = None
+
+
+class SkillMergeRequest(BaseModel):
+    merged_into_id: uuid.UUID
+
+
+class SkillResponse(BaseModel):
+    id: uuid.UUID
+    slug: str
+    name_tr: str
+    name_en: Optional[str]
+    category: str
+    parent_id: Optional[uuid.UUID]
+    status: str
+    merged_into_id: Optional[uuid.UUID]
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================================
+# Kurum doğrulama kuyruğu (YET-136)
+# ============================================================================
+
+
+@router.get("/verification-queue", response_model=VerificationQueueResponse)
+def get_verification_queue(
+    limit: int = 50,
+    offset: int = 0,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> VerificationQueueResponse:
+    """docs/API.md §2.10: T2 + legal_id dolu kurumlar (T3 başvurusu sayılır)."""
+    _require_admin(principal)
+    orgs = list_verification_queue(session, limit=limit, offset=offset)
+    return VerificationQueueResponse(items=[VerificationQueueItem.model_validate(o) for o in orgs])
+
+
+@router.post("/organizations/{organization_id}/verification-level", response_model=OrganizationSummary)
+def update_verification_level(
+    organization_id: uuid.UUID,
+    payload: VerificationLevelUpdate,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> OrganizationSummary:
+    """
+    Approve (level yükselt) veya reddet (level'ı değiştirmeden not düş).
+    Her çağrı audit_events'e yazılır — sonuç değişmese bile.
+    """
+    _require_admin(principal)
+
+    org = set_verification_level(
+        session,
+        organization_id=organization_id,
+        verification_level=payload.verification_level,
+        admin_user_id=principal.user_id,
+    )
+    if org is None:
+        raise ApiError(404, "NOT_FOUND", "Kurum bulunamadı.")
+
+    log_audit_event(
+        session=session,
+        actor_user_id=principal.user_id,
+        actor_ip=None,
+        action="ADMIN_SET_VERIFICATION_LEVEL",
+        subject_type="organization",
+        subject_id=organization_id,
+        result="SUCCESS",
+        metadata={"verification_level": payload.verification_level, "note": payload.note},
+    )
+
+    return OrganizationSummary.model_validate(org)
+
+
+# ============================================================================
+# Skill taksonomi yönetimi (YET-137)
+# ============================================================================
+
+
+@router.post("/skills", response_model=SkillResponse, status_code=201)
+def create_skill_endpoint(
+    payload: SkillCreateRequest,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> SkillResponse:
+    _require_admin(principal)
+    try:
+        skill = create_skill(
+            session,
+            slug=payload.slug,
+            name_tr=payload.name_tr,
+            name_en=payload.name_en,
+            category=payload.category,
+            parent_id=payload.parent_id,
+        )
+    except DuplicateSkillSlugError:
+        raise ApiError(409, "CONFLICT", "Bu slug zaten kullanımda.")
+    except InvalidSkillReferenceError as exc:
+        raise ApiError(422, "VALIDATION_ERROR", str(exc))
+
+    log_audit_event(
+        session=session,
+        actor_user_id=principal.user_id,
+        actor_ip=None,
+        action="ADMIN_CREATE_SKILL",
+        subject_type="skill",
+        subject_id=skill.id,
+        result="SUCCESS",
+        metadata={"slug": skill.slug, "category": skill.category},
+    )
+    return SkillResponse.model_validate(skill)
+
+
+@router.patch("/skills/{skill_id}", response_model=SkillResponse)
+def update_skill_endpoint(
+    skill_id: uuid.UUID,
+    payload: SkillUpdateRequest,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> SkillResponse:
+    _require_admin(principal)
+    try:
+        skill = update_skill(
+            session,
+            skill_id=skill_id,
+            name_tr=payload.name_tr,
+            name_en=payload.name_en,
+            category=payload.category,
+            parent_id=payload.parent_id,
+        )
+    except InvalidSkillReferenceError as exc:
+        raise ApiError(422, "VALIDATION_ERROR", str(exc))
+
+    if skill is None:
+        raise ApiError(404, "NOT_FOUND", "Skill bulunamadı.")
+
+    log_audit_event(
+        session=session,
+        actor_user_id=principal.user_id,
+        actor_ip=None,
+        action="ADMIN_UPDATE_SKILL",
+        subject_type="skill",
+        subject_id=skill_id,
+        result="SUCCESS",
+        metadata=None,
+    )
+    return SkillResponse.model_validate(skill)
+
+
+@router.post("/skills/{skill_id}/deprecate", response_model=SkillResponse)
+def deprecate_skill_endpoint(
+    skill_id: uuid.UUID,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> SkillResponse:
+    _require_admin(principal)
+    skill = deprecate_skill(session, skill_id)
+    if skill is None:
+        raise ApiError(404, "NOT_FOUND", "Skill bulunamadı.")
+
+    log_audit_event(
+        session=session,
+        actor_user_id=principal.user_id,
+        actor_ip=None,
+        action="ADMIN_DEPRECATE_SKILL",
+        subject_type="skill",
+        subject_id=skill_id,
+        result="SUCCESS",
+        metadata=None,
+    )
+    return SkillResponse.model_validate(skill)
+
+
+@router.post("/skills/{skill_id}/merge", response_model=SkillResponse)
+def merge_skill_endpoint(
+    skill_id: uuid.UUID,
+    payload: SkillMergeRequest,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> SkillResponse:
+    _require_admin(principal)
+    try:
+        skill = merge_skill(session, skill_id, payload.merged_into_id)
+    except InvalidSkillReferenceError as exc:
+        raise ApiError(422, "VALIDATION_ERROR", str(exc))
+
+    if skill is None:
+        raise ApiError(404, "NOT_FOUND", "Skill bulunamadı.")
+
+    log_audit_event(
+        session=session,
+        actor_user_id=principal.user_id,
+        actor_ip=None,
+        action="ADMIN_MERGE_SKILL",
+        subject_type="skill",
+        subject_id=skill_id,
+        result="SUCCESS",
+        metadata={"merged_into_id": str(payload.merged_into_id)},
+    )
+    return SkillResponse.model_validate(skill)

@@ -92,12 +92,10 @@ def summarize_role(session: Session, user: User) -> str:
     Coarse role label for the login/refresh response only — not an
     authorization decision (docs/AUTHORIZATION.md is the source of truth for
     that). Highest-privilege membership wins.
-
-    NOTE: docs/DOMAIN.md lists `users.is_platform_admin`, but that column
-    does not exist yet on the User model (app/models/identity.py) as of
-    PLAN 1.2/1.3. Treated as False here until it lands; flagged to the user
-    rather than added silently under PLAN 1.4's scope.
     """
+    if user.is_platform_admin:
+        return "PLATFORM_ADMIN"
+
     if session.execute(
         select(InstitutionMember).where(
             InstitutionMember.user_id == user.id, InstitutionMember.role == "COORDINATOR"

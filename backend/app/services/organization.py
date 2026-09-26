@@ -309,3 +309,51 @@ def verify_domain(
             "dns_txt_record": txt_record,
             "status": "pending",
         }
+
+
+def list_verification_queue(session: Session, limit: int = 50, offset: int = 0) -> list[Organization]:
+    """
+    List organizations awaiting T3 review (admin-only — PLAN 3.6/YET-136).
+
+    A T2 organization with a legal_id set is treated as "applied for T3"
+    (docs/DOMAIN.md §3.4: T3 requires MERSİS/vergi no, simplified to legal_id
+    in this schema — see AUTHORIZATION.md §2.4). Oldest first (fairness).
+    """
+    stmt = (
+        select(Organization)
+        .where(
+            Organization.verification_level == "T2",
+            Organization.legal_id.isnot(None),
+            Organization.status == "ACTIVE",
+            Organization.deleted_at.is_(None),
+        )
+        .order_by(Organization.created_at.asc())
+        .offset(offset)
+        .limit(limit)
+    )
+    return list(session.execute(stmt).scalars().all())
+
+
+def set_verification_level(
+    session: Session,
+    organization_id: uuid.UUID,
+    verification_level: str,
+    admin_user_id: Optional[uuid.UUID],
+) -> Optional[Organization]:
+    """
+    Set an organization's verification_level as a platform admin decision
+    (admin-only — PLAN 3.6/YET-136). Covers both "approve" (e.g. T2 → T3)
+    and "reject" (level left unchanged) — the caller logs the note/reason
+    as an audit event regardless of outcome.
+
+    Returns None if the organization does not exist.
+    """
+    org = session.get(Organization, organization_id)
+    if org is None or org.deleted_at is not None:
+        return None
+
+    org.verification_level = verification_level
+    org.verified_at = datetime.now(timezone.utc)
+    org.verified_by_user_id = admin_user_id
+    session.flush()
+    return org
