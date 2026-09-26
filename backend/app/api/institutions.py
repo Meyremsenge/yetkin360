@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_principal, get_session
 from app.models import Institution, InstitutionLinkRequest
+from app.schemas.reminder import ReminderCreate, ReminderResponse
 from app.services.authorization import Principal, get_scoped_or_404, scoped_institutions
 from app.services.institution import (
     DuplicateDomainError,
@@ -19,6 +20,7 @@ from app.services.institution import (
     request_institution_link,
 )
 from app.services.engagement import get_coordinator_dashboard
+from app.services.reminder import create_reminders
 
 router = APIRouter(prefix="/institutions", tags=["institutions"])
 
@@ -384,3 +386,85 @@ def get_coordinator_dashboard_endpoint(
     except ValueError:
         # Authorization failure or institution not found (both → 404)
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Kurum bulunamadı."})
+
+
+# ============================================================================
+# Bulk Reminders (PLAN 3.4 — yet-108-toplu-hatirlatma-ucu)
+# ============================================================================
+
+
+@router.post(
+    "/{institution_id}/reminders",
+    status_code=202,
+    response_model=ReminderResponse,
+)
+def create_reminders_endpoint(
+    institution_id: uuid.UUID,
+    payload: ReminderCreate,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> ReminderResponse:
+    """
+    Trigger bulk reminders for institution's pending evaluations.
+
+    Implements:
+    - AC-1 [Critical]: Happy path → 202 + queued_count
+    - AC-2 [Critical]: Validation (empty engagement_ids, missing template) → 400
+    - AC-3 [Critical]: Cross-institution filtering (only institution's engagements queued)
+    - AC-4 [Critical]: Cross-tenant path → 404 (not 403)
+    - AC-5 [Critical]: Insufficient role (not COORDINATOR/ADMIN) → 404
+    - AC-6 [High]: All filtered → 202 + queued_count: 0
+    - AC-7 [Medium]: Invalid template → 400 (Pydantic validates)
+    - AC-S1/S2: Tenant isolation via 404
+    - AC-S3: ID enumeration defense (no response field reveals filtering)
+    - AC-S6: Audit logging without PII
+
+    Args:
+        institution_id: Target institution (must be in principal's scope)
+        payload: engagement_ids (≥1), template (non-empty)
+        principal: Authenticated principal (must be COORDINATOR or INST_ADMIN)
+        session: Database session
+
+    Returns:
+        ReminderResponse with queued_count (0..N)
+
+    Status codes:
+        202: Reminders queued (queued_count ≥ 0)
+        400: Invalid input (empty engagement_ids, missing/empty template)
+        404: Institution not found, or user not authorized (same message for both)
+        422: Validation error
+    """
+    # AC-4, AC-5, AC-S1, AC-S2: Authorization check
+    # Principal must be COORDINATOR or INST_ADMIN of THIS institution
+    if institution_id not in principal.institution_ids:
+        # User not authorized for this institution (different institution, or no role)
+        # Return 404 without distinguishing between "not found" and "not authorized"
+        raise HTTPException(status_code=404, detail="Institution not found")
+
+    # Defense-in-depth: Verify institution exists and is in principal's scope
+    scoped = scoped_institutions(session, principal).where(Institution.id == institution_id)
+    institution = get_scoped_or_404(scoped, session)
+
+    if not institution:
+        raise HTTPException(status_code=404, detail="Institution not found")
+
+    # Ensure user_id is available for audit
+    if not principal.user_id:
+        raise HTTPException(status_code=401, detail="User not authenticated")
+
+    # Create reminders (AC-1, AC-2, AC-3, AC-6, AC-7, AC-S6)
+    # AC-2: Pydantic validates engagement_ids (min_length=1) and template (min_length=1)
+    # If validation fails, FastAPI returns 422 automatically
+    queued_count = create_reminders(
+        institution_id=institution_id,
+        engagement_ids=payload.engagement_ids,
+        template=payload.template,
+        actor_user_id=principal.user_id,
+        principal=principal,
+        session=session,
+    )
+
+    # AC-1: Flush to persist outbox + audit_event within transaction
+    session.flush()
+
+    return ReminderResponse(queued_count=queued_count)

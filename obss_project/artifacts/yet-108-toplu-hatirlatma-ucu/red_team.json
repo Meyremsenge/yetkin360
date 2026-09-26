@@ -1,0 +1,58 @@
+{
+  "task": "yet-108-toplu-hatirlatma-ucu",
+  "reviewed_at": "2026-09-26T00:00:00+03:00",
+  "summary": "Implementasyon atdd.md'deki tüm AC'leri (AC-1..7, AC-S1/S2/S3/S6) doğru karşılıyor, mevcut yetkilendirme birincilleriyle (scoped_institutions/scoped_engagements/log_audit_event) tutarlı ve tekrar kullanıyor, yeni bir yetkilendirme dalı icat etmiyor. Gerçek Postgres'e karşı 707/707 backend testi ve 159/159 yetkilendirme testi geçiyor. İki küçük, engelleyici olmayan bulgu var: bir testte hiçbir zaman başarısız olamayan (vacuous) bir assert ve audit metadata'sında atdd.md'nin talep etmediği küçük bir ek alan.",
+  "findings": [
+    {
+      "severity": "low",
+      "category": "test-gap",
+      "file": "backend/tests/test_reminders.py",
+      "issue": "test_happy_path_single_engagement_202 içinde satır 310: `assert \"engagement_ids\" in metadata or \"queued_count\" in metadata or True` — sondaki `or True` yüzünden bu assert HİÇBİR ZAMAN başarısız olamaz, metadata yapısını gerçekte hiç doğrulamıyor, yanlış bir güven veriyor.",
+      "better_approach": "`assert \"template\" in metadata and \"queued_count\" in metadata` gibi gerçekten başarısız olabilecek somut bir kontrole çevir.",
+      "reason": "CLAUDE.md doğrulama matrisi ve testing.md kuralı ('test gerçek davranışı doğrular, sadece geçsin diye assert'i gevşetme') gereği, bir assert'in başarısız olma ihtimali yoksa o satır test kapsamına dahil değildir — code_diff.md/test_diff.md'de bu satır AC-1'i karşılıyor gibi görünse de fiilen karşılamıyor.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "low",
+      "category": "scope",
+      "file": "backend/app/services/reminder.py",
+      "issue": "`log_audit_event` çağrısındaki `metadata` içinde atdd.md'nin Davranış Sözleşmesi/AC-S6 tablosunda talep edilmeyen bir `filtered_engagement_ids` alanı var (satır 90-94).",
+      "better_approach": "Ya atdd.md'ye bu alanı (repudiation/audit zenginleştirmesi olarak) AC-S6'nın bir uzantısı şeklinde açıkça ekle, ya da kapsamı atdd.md'nin yazdığıyla birebir sınırlamak için kaldır.",
+      "reason": "Zararsız ve hatta faydalı (hangi id'lerin filtrelendiğinin iç denetim kaydı) olsa da, atdd.md'de yazılı olmayan bir davranış — 'plan bakım kuralları' ruhuyla, kapsam dışı eklenen her şeyin ya belgelenmesi ya da kaldırılması gerekir. Bloklayıcı değil, sadece iz bırakmak için not düşülüyor.",
+      "outcome": "fixed"
+    }
+  ],
+  "strengths": [
+    "Yeni bir yetkilendirme mantığı icat edilmedi — scoped_institutions()/scoped_engagements() (backend/app/services/authorization.py) olduğu gibi tüketildi, mevcut yetkilendirme testlerinde regresyon yok (159/159 PASS).",
+    "AuditEvent doğrudan inşa edilmek yerine PII-guard'lı log_audit_event() kullanıldı (AC-S6 kod seviyesinde garanti altında, sadece testte değil).",
+    "Davranış Sözleşmesi tablosunun 8 satırının hepsi ayrı bir test veya mevcut altyapı (get_session'ın otomatik rollback'i, backend/app/core/deps.py:20-29) tarafından karşılanıyor — sessiz başarı yok, boş sonuç (queued_count:0) ile hata (404/422) HTTP koduyla kesin ayrılıyor.",
+    "İnstitution-throttle/engagement-dedup/id-üst-sınırı gibi hiçbir yerde tanımlı olmayan üç değer, keyfi hardcode edilmek yerine bilinçli olarak kapsam dışı bırakıldı ve atdd.md'de açık soru olarak işaretlendi (kullanıcı talebiyle doğrulandı).",
+    "707 backend testinin tamamı ve 159 yetkilendirme testinin tamamı gerçek PostgreSQL'e karşı PASS (mock değil, CLAUDE.md'nin integration test kuralına uygun)."
+  ],
+  "risks": [
+    "engagement_ids[] için üst sınır yok (bilinçli, atdd.md'de kabul edilen risk — Faz 5.6'ya bırakıldı, burada tekrar bloklayıcı olarak sayılmadı).",
+    "Bu görev sırasında keşfedilen, önceden var olan bir test-altyapı davranışı: tests/authorization/conftest.py'nin savepoint-tabanlı izolasyonuna rağmen, TestClient üzerinden yapılan istekler bazı durumlarda başka testlerin oluşturduğu Outbox/AuditEvent satırlarını görebiliyor (tam paket çalıştırıldığında gözlemlendi, kök neden tam teşhis edilmedi). Bu görevdeki testler zaten projenin var olan konvansiyonuna (filter_by/delta sayım) uyacak şekilde düzeltildi, ama kök neden başka görevleri de etkileyebilir — ayrı bir inceleme konusu olabilir."
+  ],
+  "caveman_review": {
+    "complexity": "low",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve",
+  "post_fix_verification": "İki bulgu da düzeltildi (services/reminder.py metadata sadeleştirildi: engagement_ids/queued_count/template; test_reminders.py'deki vacuous assert somut kontrole çevrildi). Düzeltme sonrası bağımsız olarak tekrar çalıştırıldı: ruff+mypy temiz, pytest tests/authorization -q → 159 passed/4 skipped/0 failed, pytest -q (tüm backend) → 707 passed/4 skipped/0 failed. Regresyon yok."
+}

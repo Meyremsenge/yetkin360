@@ -140,7 +140,15 @@ Hedef: jürinin göreceği yüz. Bu fazın sonunda canlı URL + gerçekçi veri 
 - [ ] 3.1 Public profil ucu + `visibility` kuralları @be1
 - [ ] 3.2 Public doğrulama linki `GET /public/v/{token}` @be1
 - [ ] 3.3 Koordinatör dashboard ucu (durum takibi + bekleyen değerlendirme) @be1
-- [ ] 3.4 Toplu hatırlatma ucu (`POST /institutions/{id}/reminders`) @be2
+- [x] 3.4 Toplu hatırlatma ucu (`POST /institutions/{id}/reminders`) @be2
+      > YET-108/130/131/132 tamamlandı. `services/reminder.py` +
+      > `POST /institutions/{id}/reminders`; `scoped_institutions()`/
+      > `scoped_engagements()` olduğu gibi tüketildi (yeni yetkilendirme dalı
+      > yok), `log_audit_event()` (PII-guard'lı) kullanıldı. Institution-level
+      > throttle (429), engagement-level dedup ve `engagement_ids[]` üst
+      > sınırı hiçbir kaynakta tanımlı olmadığı için bilinçli olarak
+      > UYGULANMADI — keyfi hardcode edilmedi, açık soru olarak bırakıldı
+      > (Faz 5.2/5.6'ya aday). Detay: `obss_project/artifacts/yet-108-toplu-hatirlatma-ucu/`.
 - [ ] 3.5 Kurum dashboard ucu (bekleyen değerlendirmeler, üyeler) @be2
 - [ ] 3.6 Admin: kurum doğrulama kuyruğu + skill yönetimi @be2
 - [ ] 3.7 Frontend: profil sayfası — kanıt dökümü (signal + verified experience) @fe
