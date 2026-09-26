@@ -1,0 +1,59 @@
+{
+  "task": "profil-sayfasi-kanit-dokumu",
+  "reviewed_at": "2026-09-26T00:00:00Z",
+  "summary": "Backend yetkilendirme (talent_id principal'dan kuruluyor, 401/404 sırası doğru, generate_public_token gerçekten geri yüklenmiş ve doğrulanmış) sağlam; ancak frontend'de started_on_snapshot için null-safety eksikliği var (ended_on_snapshot'a uygulanan düzeltmenin simetriği eksik), bu görünür bir 'Invalid Date' regresyonuna yol açabilir.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "correctness",
+      "file": "frontend/app/profil/evidence-section.tsx",
+      "issue": "`started_on_snapshot` backend'de nullable (Engagement.started_on) olmasına rağmen frontend interface `string` (non-null) tanımlıyor ve `formatDate(exp.started_on_snapshot)` null kontrolü olmadan çağrılıyor. `ended_on_snapshot` için aynı sorun düzeltilmişti ('Devam ediyor' etiketi), `started_on_snapshot` için simetrik kontrol atlanmış.",
+      "better_approach": "`started_on_snapshot`'ı da opsiyonel ele al ve interface'i `string | null` yap.",
+      "reason": "`new Date(null)` → `Invalid Date` üretir, kullanıcıya görünür UX hatası olarak sızar. AC-1/AC-7'nin 'yerelleştirilmiş tarih' şartını ihlal eder.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "low",
+      "category": "test-gap",
+      "file": "frontend/app/profil/evidence-section.test.tsx",
+      "issue": "15 testin hiçbiri `started_on_snapshot: null` senaryosunu kapsamıyor.",
+      "better_approach": "`started_on_snapshot: null` içeren bir mock ile render testi eklenmeli.",
+      "reason": "Şema nullable ama sözleşme/test bunu varsaymıyor — regresyon fark edilmeden geçebilir.",
+      "outcome": "skipped"
+    },
+    {
+      "severity": "low",
+      "category": "readability",
+      "file": "frontend/app/profil/evidence-section.tsx",
+      "issue": "`public_token: string;` non-nullable tanımlanmış ama backend `str | None`. Şu an render edilmiyor, runtime hatası yok ama tip yalanı var.",
+      "better_approach": "Interface'i backend şemasıyla eşleştir (`public_token: string | null`).",
+      "reason": "Elle yazılan tipler backend'den sürüklenebilir.",
+      "outcome": "fixed"
+    }
+  ],
+  "strengths": [
+    "generate_public_token() gerçekten dosyada mevcut, regresyon düzeltmesi doğrulandı.",
+    "scoped_own_verified_experiences filtreyi sadece principal.talent_id'den kuruyor, talent_id None ise boş sorgu döndürüyor (defense-in-depth).",
+    "401 kontrolü 404'ten önce yapılıyor, AC-S2/AC-S3 sırası doğru.",
+    "source_type/strength çevirileri backend'in gerçek CHECK constraint enum değerleriyle birebir eşleşiyor.",
+    "dangerouslySetInnerHTML component dosyasında hiç yok.",
+    "İki useQuery gerçekten bağımsız, AC-12 kod seviyesinde doğrulanmış."
+  ],
+  "risks": [
+    "verify_report.md'de işaretlenen 'gerçek tarayıcıda görsel/erişilebilirlik doğrulaması yapılmadı' sınırlaması geçerli — insan onayı öncesi kullanıcıya hatırlatılmalı.",
+    "started_on_snapshot null-safety eksikliği düşük olasılıklı ama gerçek bir production senaryosunda 'Invalid Date' gösterebilir."
+  ],
+  "caveman_review": {"complexity": "low", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve-with-changes"
+}

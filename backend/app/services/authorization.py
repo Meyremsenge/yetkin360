@@ -296,6 +296,28 @@ def scoped_public_verified_experiences(session: Session, talent_id: uuid.UUID) -
     return select(VerifiedExperience).where(VerifiedExperience.talent_id == talent_id)
 
 
+def scoped_own_verified_experiences(session: Session, principal: Principal) -> Select:
+    """
+    Return a SQLAlchemy Select query for a talent's own VerifiedExperience rows.
+
+    Owner can see ALL their verified experiences regardless of visibility
+    (including PRIVATE records). Used by GET /talents/me/verified-experiences.
+
+    Args:
+      - session: SQLAlchemy Session
+      - principal: Principal object (must have talent_id)
+
+    Returns:
+      - sqlalchemy.sql.Select: Query returning VerifiedExperience rows for this talent
+
+    Implements AC-7, AC-9/AC-S1 (owner isolation, visibility filter NOT applied).
+    """
+    if principal.talent_id is not None:
+        return select(VerifiedExperience).where(VerifiedExperience.talent_id == principal.talent_id)
+    # All other kinds: no verified experiences in scope
+    return select(VerifiedExperience).where(VerifiedExperience.id.in_([]))
+
+
 def scoped_public_verified_experience_by_token(session: Session, token: str) -> Select:
     """
     Return a SQLAlchemy Select query for a PUBLIC VerifiedExperience by public_token.

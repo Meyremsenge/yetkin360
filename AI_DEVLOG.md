@@ -5,6 +5,24 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## YET-111 (PLAN 3.7) — Profil sayfası kanıt dökümü (skill signal + verified experience) (2026-09-26)
+
+**Kaynak:** `obss_project/artifacts/profil-sayfasi-kanit-dokumu/`
+
+### Bilinçli kapsam kararı (kaynak: atdd.md)
+- Jira "Sahip: @fe" (saf frontend) olarak planlanmıştı, ama PLAN.md'nin tamamı (3.1-3.16) tarandığında kimliği doğrulanmış kullanıcının KENDİ (visibility'den bağımsız) verified experience'larını dönen bir "own" backend ucunun hiçbir yerde planlanmadığı görüldü — kullanıcı onayıyla bu göreve yeni bir backend ucu (`GET /talents/me/verified-experiences`) eklendi.
+- `scoped_own_verified_experiences` visibility filtresi UYGULAMAZ (final-analiz §15.4 "TalentProfile sahip: RW" ilkesiyle tutarlı) — sahibi kendi PRIVATE kaydını da görür.
+
+### Kabul edilen riskler (kaynak: atdd.md Risks)
+- Sayfalama yok, kurum/talent başına kayıt sayısı düşük varsayımına dayanıyor.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, red_team.json)
+- **KRİTİK regresyon**: code-copilot'un ilk implementasyonu, `backend/app/services/verified_experience.py`'deki mevcut `generate_public_token()` fonksiyonunu (YET-106, hâlâ `test_public_verification_authz.py` tarafından kullanılıyor) SİLEREK üzerine yazmıştı. Orkestratör review'unda bulunup geri eklendi, 22/22 testle doğrulandı.
+- **Yanlış enum çevirileri**: Frontend `source_type`/`strength` çeviri tabloları backend'in gerçek CHECK constraint enum değerleriyle (`SELF_CLAIM/DELIVERABLE/TASK/EVALUATION/ATTESTATION/EXTERNAL`, `NONE/WEAK/MODERATE/STRONG`) hiç eşleşmiyordu (tamamen uydurulmuş değerler) — düzeltildi.
+- **Test fixture hataları** (gerçek pytest koşusuyla bulundu, statik okuma yakalayamazdı): `Organization` modelinde olmayan bir alan, `Engagement`'ta eksik zorunlu `kind` alanı, bir testin yanlışlıkla farklı bir AC senaryosuna düşmesi (eksik fixture tetikleme) — 3 ayrı düzeltme turu gerekti.
+- **red-team bulgusu**: `ended_on_snapshot` için yapılan null-safety düzeltmesinin simetriği (`started_on_snapshot`) unutulmuştu — `new Date(null)` "Invalid Date" gösterebilirdi, düzeltildi.
+- **Ortam kesintisi (kod değil, altyapı)**: Görev ortasında Docker Desktop tamamen durdu (sadece container değil, motor kendisi) — yeniden başlatılıp `docker compose up -d` ile container'lar geri getirildi, test koşusuna devam edildi.
+
 ## YET-107 (PLAN 3.3) — Koordinatör dashboard ucu (2026-09-26)
 
 **Kaynak:** `obss_project/artifacts/koordinator-dashboard-ucu/`
