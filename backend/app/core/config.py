@@ -49,5 +49,10 @@ class Settings(BaseSettings):
     evidence_download_url_ttl_seconds: int = 300  # Download TTL: 5 minutes
     evidence_max_size_bytes: int = 10485760
 
+    # İlk platform admin — yalnız scripts/seed.py tarafından kullanılır (PLAN 3.6).
+    # Self-servis admin-olma ucu yoktur; prod'da bu değerler .env üzerinden değiştirilir.
+    seed_admin_email: str = "admin@yetkin360.local"
+    seed_admin_password: str = "DEGISTIR_admin_parola"
+
 
 settings = Settings()  # type: ignore[call-arg]  # values come from .env

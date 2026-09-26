@@ -10,11 +10,15 @@ DO NOT run in production without careful consideration.
 """
 
 import sys
+from datetime import datetime, timezone
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.deps import _SessionLocal
-from app.models import Skill
+from app.core.security import hash_password
+from app.models import Skill, User
 
 
 SKILLS_DATA = [
@@ -286,10 +290,39 @@ def seed_skills(session: Session) -> None:
     print(f"Skill seed complete: {inserted_count} inserted, {skipped_count} already exist")
 
 
+def seed_admin(session: Session) -> None:
+    """
+    Idempotently seed the first platform admin (PLAN 3.6 — YET-110).
+
+    No self-servis admin-olma ucu vardır; bu, is_platform_admin=true bir
+    kullanıcının var olmasının tek yolu (seed veya elle SQL). Zaten varsa
+    dokunulmaz — parola sıfırlanmaz.
+    """
+    existing = session.execute(
+        select(User).where(User.email == settings.seed_admin_email)
+    ).scalars().first()
+
+    if existing:
+        print(f"Admin seed skip: {settings.seed_admin_email} already exists")
+        return
+
+    admin = User(
+        email=settings.seed_admin_email,
+        password_hash=hash_password(settings.seed_admin_password),
+        is_platform_admin=True,
+        status="ACTIVE",
+        email_verified_at=datetime.now(timezone.utc),
+    )
+    session.add(admin)
+    session.commit()
+    print(f"Admin seed complete: {settings.seed_admin_email} created")
+
+
 if __name__ == "__main__":
     session = _SessionLocal()
     try:
         seed_skills(session)
+        seed_admin(session)
     except Exception as e:
         print(f"Error during seed: {e}", file=sys.stderr)
         sys.exit(1)
