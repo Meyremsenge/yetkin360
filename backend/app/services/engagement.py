@@ -678,7 +678,7 @@ def get_coordinator_dashboard(
         raise ValueError("Institution not found")
 
     # Defense-in-depth: verify institution exists in scope
-    from app.models import Institution
+    from app.models import Institution, InstitutionMember, User
     from app.services.authorization import scoped_institutions
 
     scoped = scoped_institutions(session, principal).where(Institution.id == inst_uuid)
@@ -702,6 +702,17 @@ def get_coordinator_dashboard(
             Engagement.status == "PENDING_EVALUATION",
         ).order_by(Engagement.created_at.desc())
     ).scalars().all()
+
+    # Query institution members (PLAN 3.5 — üye listesi)
+    # AC-S1: Critical security filter — institution_id must be in WHERE clause
+    members_query = session.execute(
+        select(InstitutionMember, User).join(
+            User, InstitutionMember.user_id == User.id
+        ).where(
+            InstitutionMember.institution_id == inst_uuid,
+            User.status == "ACTIVE"
+        ).order_by(InstitutionMember.created_at.desc())
+    ).all()
 
     # Build response data
     return {
@@ -729,5 +740,14 @@ def get_coordinator_dashboard(
                 "ended_on": eng.ended_on.isoformat() if eng.ended_on else None,
             }
             for eng in pending_evaluation
+        ],
+        "members": [
+            {
+                "user_id": str(member.user_id),
+                "email": user.email,
+                "role": member.role,
+                "joined_at": member.created_at.isoformat(),
+            }
+            for member, user in members_query
         ],
     }

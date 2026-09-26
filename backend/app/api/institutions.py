@@ -1,6 +1,7 @@
 """Institution endpoints (AC-1 through AC-8)."""
 
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -92,6 +93,15 @@ class DashboardEngagementItem(BaseModel):
     ended_on: str | None = None
 
 
+class DashboardMemberItem(BaseModel):
+    """Member item in dashboard response."""
+
+    user_id: str
+    email: str
+    role: str
+    joined_at: datetime
+
+
 class DashboardSummary(BaseModel):
     """Summary counts in dashboard response."""
 
@@ -106,6 +116,7 @@ class DashboardResponse(BaseModel):
     summary: DashboardSummary
     pending_approval: list[DashboardEngagementItem]
     pending_evaluation: list[DashboardEngagementItem]
+    members: list[DashboardMemberItem]
 
 
 # ============================================================================
@@ -382,6 +393,7 @@ def get_coordinator_dashboard_endpoint(
             summary=DashboardSummary(**dashboard_data["summary"]),
             pending_approval=[DashboardEngagementItem(**item) for item in dashboard_data["pending_approval"]],
             pending_evaluation=[DashboardEngagementItem(**item) for item in dashboard_data["pending_evaluation"]],
+            members=[DashboardMemberItem(**item) for item in dashboard_data["members"]],
         )
     except ValueError:
         # Authorization failure or institution not found (both → 404)
