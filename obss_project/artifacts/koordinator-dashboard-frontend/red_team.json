@@ -1,0 +1,82 @@
+{
+  "task": "koordinator-dashboard-frontend",
+  "reviewed_at": "2026-09-26T00:00:00Z",
+  "summary": "Sayfa ATDD'nin çoğu AC'sini (AC-1/2/3/6/7) doğru karşılıyor; cache-key tenant izolasyonu ve XSS koruması sağlam. Ancak 401 durumunda dashboard sorgusunun kendi SessionExpiredError'ını sayfa içinde yönetmemesi (AppShell yalnız kendi /me sorgusunu izliyor) ile AC-4 testinin bunu doğrulamaması birlikte gerçek bir davranış boşluğu oluşturuyor; ayrıca ATDD'deki 'stale-while-revalidate arka plan hatası' davranışı koda yansıtılmamış.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "reliability",
+      "file": "frontend/app/kurum/[id]/panel/page.tsx",
+      "issue": "`getCoordinatorDashboard` çağrısı kendi başına 401 alıp refresh de başarısız olursa `client.ts`'teki `performFetchWithRefresh` bir `SessionExpiredError` fırlatır (satır 172, 220). Sayfadaki `isError` bloğu sadece `ApiError` ve `NetworkError` tiplerini kontrol ediyor (page.tsx satır 33-37); `SessionExpiredError` bu iki daldan hiçbirine girmediği için `messages.errors.generic` mesajı gösteriliyor, kullanıcı `/giris`'e yönlendirilmiyor. AppShell'in kendi 401 yönlendirmesi (`components/app-shell.tsx` satır 32-33) yalnızca kendi `/me` session sorgusunun hatasını dinliyor — bu sayfanın kendi dashboard query'sinin 401'i AppShell'e hiç ulaşmıyor.",
+      "better_approach": "`isError` bloğunda `error instanceof SessionExpiredError` durumunu ayrıca ele alıp ya `messages`'tan session-expired'a özgü bir mesaj göster ya da mevcut auth-guard akışını (ör. router.push('/giris') veya session invalidation tetikleyen ortak bir yardımcı) tetikle.",
+      "reason": "ATDD AC-4 'kullanıcı genel auth-guard davranışıyla /giris sayfasına yönlendirilir' diyor (atdd.md satır 45) — mevcut kodda bu yalnızca AppShell'in kendi session sorgusu 401 alırsa çalışıyor, dashboard sorgusunun bağımsız 401'i için garanti yok."
+    },
+    {
+      "severity": "medium",
+      "category": "test-gap",
+      "file": "frontend/app/kurum/[id]/panel/page.test.tsx",
+      "issue": "AC-4 testi (satır 233-248) sadece `getCoordinatorDashboard` çağrıldığını doğruluyor; ne yönlendirme ne de `SessionExpiredError`'ın UI'da nasıl ele alındığını test ediyor. Bu, yukarıdaki reliability bulgusunu test setinin yakalayamamasının doğrudan nedeni.",
+      "better_approach": "Test, `SessionExpiredError` fırlatıldığında ya AppShell mock'unun yönlendirme tetiklediğini ya da sayfanın kendisinin uygun bir mesaj/redirect davranışı sergilediğini doğrulamalı.",
+      "reason": "CLAUDE.md doğrulama matrisi: 'Yeni endpoint = ilgili test + yetkilendirme testi zorunlu' ve testing.md 'test gerçek davranışı doğrular, sadece geçsin diye assert gevşetme' kuralına aykırı — mevcut assert (`toHaveBeenCalled()`) davranışı değil çağrılmayı doğruluyor."
+    },
+    {
+      "severity": "low",
+      "category": "scope",
+      "file": "frontend/app/kurum/[id]/panel/page.tsx",
+      "issue": "ATDD Davranış Sözleşmesi tablosu (atdd.md satır 75) 'stale-while-revalidate' senaryosunda arka plan yeniden denemesi başarısız olursa küçük bir 'veriler güncellenemedi' notu gösterilmesini bekliyor; kodda böyle bir gösterge yok (sadece `isLoading`/`isError`/success dalları var, `isFetching && data` durumu ele alınmamış).",
+      "better_approach": "`useQuery`'den `isFetching` alıp, `data` mevcutken arka plan hatası olduğunda küçük bir uyarı (`messages.kurumPanel` altına yeni bir anahtar) gösterilebilir.",
+      "reason": "ATDD bunu bilinçli olarak 'silinmedi çünkü gerçekten oluşabilir' diye işaretlemiş; kodda karşılığı yok — ya bilinçli bir sapma olarak not düşülüp kullanıcıya sorulmalı ya da eklenmeli (CLAUDE.md: 'sessizce sapma, kısa not düş ve sor')."
+    },
+    {
+      "severity": "low",
+      "category": "reliability",
+      "file": "frontend/app/kurum/[id]/panel/page.tsx",
+      "issue": "`new Date(item.started_on).toLocaleString(\"tr-TR\")` (satır 89, 117) — backend'den gelen tarih formatı beklenmedik/bozuksa `Invalid Date` sessizce render edilir, hata fırlatılmaz veya loglanmaz.",
+      "better_approach": "Tarih parse edilemezse ham string'i veya bir fallback metni göstermek üzere küçük bir yardımcı fonksiyon (`formatDate`) eklenebilir.",
+      "reason": "Davranış Sözleşmesi 'sessiz başarısızlık YOK' ilkesiyle hafif çelişir; düşük öncelikli çünkü backend zaten ISO tarih garantisi veriyor (backend atdd'sinde belirtilmiş)."
+    },
+    {
+      "severity": "low",
+      "category": "maintainability",
+      "file": "frontend/app/kurum/[id]/panel/page.tsx",
+      "issue": "`pending_approval` (satır 71-96) ve `pending_evaluation` (satır 99-124) blokları neredeyse birebir aynı JSX yapısını (empty-state + `ul`/`li` + tarih formatlama) tekrar ediyor, sadece alan adları ve mesaj anahtarları farklı.",
+      "better_approach": "Ortak bir `PendingList` bileşeni (`items`, `dateField`, `emptyMessage`, `title` prop'larıyla) çıkarılıp iki yerde kullanılabilir.",
+      "reason": "`calismalar/[id]/page.tsx` kalıbı zaten benzer bir tekrar taşıyorsa bile, bu görev yeni bir dosya olduğu için tekrarın büyümesini önlemek daha ucuz — ileride PLAN 3.4 hatırlatma UI'ı bu listeye benzer bir liste ekleyebilir, ortak bileşen o zaman yeniden kullanılabilir."
+    },
+    {
+      "severity": "low",
+      "category": "architecture",
+      "file": "frontend/lib/api/institutions.ts",
+      "issue": "`.claude/rules/frontend.md`: 'API tipleri OpenAPI'den üretilir, elle yazılmaz' kuralına rağmen `PendingItem`/`DashboardResponse` elle yazılmış interface'ler.",
+      "better_approach": "OpenAPI şemasından tip üretim pipeline'ı varsa (`openapi-typescript` vb.) bu dosya da ondan türetilmeli; yoksa bu zaten proje çapında bir gap, ayrı bir görev olarak bildirilmeli.",
+      "reason": "Kod, mevcut `calismalar`/`evaluation` API client dosyalarıyla aynı (muhtemelen zaten ihlal eden) kalıbı takip ediyor — scope içinde yeni bir ihlal değil ama tekrarlanan bir borç; red-team olarak flag'lenmeli çünkü kural net ve ihlal ediliyor."
+    }
+  ],
+  "strengths": [
+    "AC-6/AC-S1 tenant izolasyonu doğru: queryKey [\"institution-dashboard\", institutionId] institutionId içeriyor (page.tsx satır 17), farklı kurum ID'leri arasında cache sızıntısı testle de doğrulanmış (page.test.tsx satır 302-346).",
+    "AC-7 XSS: dangerouslySetInnerHTML hiçbir yerde kullanılmamış, item.title doğrudan JSX içinde render edilip React'in varsayılan escape'ine bırakılmış (page.tsx satır 86, 114) — frontend.md güvenlik kuralına tam uyum.",
+    "AC-3/AC-S2: 404 mesajı backend'den geldiği gibi gösteriliyor, frontend kendi metnini eklemiyor (page.tsx satır 33-34, ErrorBanner'a doğrudan error.message geçiyor) — bilgi sızıntısı riski yok.",
+    "ErrorBanner yeniden kullanılmış (role=\"alert\", örtük aria-live=\"assertive\"), yeni bir hata UI'ı icat edilmemiş — plan.md'nin 'birebir yeniden kullanılacak' kararına sadık kalınmış."
+  ],
+  "risks": [
+    "Dashboard sorgusunun kendi 401'i (AppShell'in session sorgusundan bağımsız) kullanıcıyı sessizce jenerik hata ekranında bırakabilir, /giris'e yönlendirmeyebilir — üretimde koordinatörün oturumu backend tarafında geçersiz olduğunda kafa karıştırıcı bir 'Bir hata oluştu' ekranı görünür.",
+    "ATDD'nin stale-while-revalidate davranışı koda yansımadığı için, arka planda sessizce eski veri gösterilmeye devam edilirken kullanıcı güncel veriyle karıştırabilir."
+  ],
+  "caveman_review": {"complexity": "low", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {"atdd_satisfied": false, "tests_passed": true, "no_critical_findings": true, "scope_respected": true, "caveman_satisfied": true, "security_acceptable": true, "maintainability_acceptable": true, "no_blocking_risks": true},
+  "verdict": "approve-with-changes",
+  "followup": {
+    "reviewed_at": "2026-09-26T00:30:00Z",
+    "action": "Kullanıcı onayıyla 2 medium bulgu (reliability + test-gap, ilk iki finding) düzeltildi: page.test.tsx AC-4 testi güçlendirildi (test-copilot), page.tsx'e SessionExpiredError dalı eklendi (code-copilot). Yeniden test: 21/21 PASS, lint/typecheck temiz.",
+    "outcome_per_finding": [
+      {"index": 0, "category": "reliability", "outcome": "fixed"},
+      {"index": 1, "category": "test-gap", "outcome": "fixed"},
+      {"index": 2, "category": "scope", "outcome": "skipped", "reason": "kullanıcı kararıyla bu turda kapsam dışı bırakıldı"},
+      {"index": 3, "category": "reliability", "outcome": "skipped", "reason": "kullanıcı kararıyla bu turda kapsam dışı bırakıldı, backend ISO tarih garantisi veriyor"},
+      {"index": 4, "category": "maintainability", "outcome": "skipped", "reason": "kullanıcı kararıyla bu turda kapsam dışı bırakıldı, ponytail: ölçülebilir eşik yok"},
+      {"index": 5, "category": "architecture", "outcome": "skipped", "reason": "proje çapında var olan bir borç, bu görevin yeni ihlali değil"}
+    ],
+    "ready_to_commit_reassessment": {"atdd_satisfied": true, "note": "AC-4 artık tam karşılanıyor, kalan skipped bulgular atdd.md'nin Kapsam Dışı/Risks bölümüyle tutarlı düşük öncelikli maddeler"}
+  }
+}

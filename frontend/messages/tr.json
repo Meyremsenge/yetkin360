@@ -202,5 +202,14 @@
     "periodLabel": "Dönem",
     "verifiedAtLabel": "Doğrulama Tarihi",
     "attestedSkillsTitle": "Tanıklık Yapılan Yetkinlikler"
+  },
+  "kurumPanel": {
+    "title": "Kurum Paneli",
+    "pendingApprovalLabel": "Onay Bekleyen",
+    "pendingEvaluationLabel": "Değerlendirme Bekleyen",
+    "pendingApprovalTitle": "Onay Bekleyen Stajlar",
+    "pendingEvaluationTitle": "Değerlendirme Bekleyen Stajlar",
+    "emptyPendingApprovalMessage": "Onay bekleyen staj yok.",
+    "emptyPendingEvaluationMessage": "Değerlendirme bekleyen staj yok."
   }
 }
