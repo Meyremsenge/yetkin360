@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -36,6 +37,7 @@ class User(Base, TimestampMixin):
     email: Mapped[str] = mapped_column(CITEXT, unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    is_platform_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     status: Mapped[str] = mapped_column(String, nullable=False, server_default="ACTIVE")
     failed_login_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
