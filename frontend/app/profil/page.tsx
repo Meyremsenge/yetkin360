@@ -4,6 +4,7 @@ import { useSession } from "@/lib/session/use-session";
 import { AppShell } from "@/components/app-shell";
 import ProfileForm from "./profile-form";
 import SkillsSection from "./skills-section";
+import EvidenceSection from "./evidence-section";
 import messages from "@/messages/tr.json";
 
 export default function ProfilePage() {
@@ -26,6 +27,9 @@ export default function ProfilePage() {
             <ProfileForm initialData={talentProfile as Record<string, unknown>} />
             <div className="mt-8">
               <SkillsSection />
+            </div>
+            <div>
+              <EvidenceSection />
             </div>
           </>
         ) : (

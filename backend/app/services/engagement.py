@@ -635,3 +635,99 @@ def create_deliverable(
     )
 
     return deliverable
+
+
+def get_coordinator_dashboard(
+    session: Session,
+    principal: Principal,
+    institution_id: str,
+) -> dict:
+    """
+    Retrieve coordinator dashboard for an institution (PLAN 3.3 — koordinator-dashboard-ucu).
+
+    Returns summary counts and lists of PENDING_APPROVAL and PENDING_EVALUATION engagements
+    for the specified institution, filtered by principal's authorization scope.
+
+    Args:
+        session: Database session
+        principal: Authorization context (must be COORDINATOR or INST_ADMIN)
+        institution_id: UUID of institution (string format)
+
+    Returns:
+        dict with keys: institution_id, summary, pending_approval, pending_evaluation
+
+    Raises:
+        ValueError: If institution_id is not in principal's scope or institution doesn't exist
+    """
+    # Parse UUID
+    try:
+        inst_uuid = uuid.UUID(institution_id)
+    except ValueError:
+        # Savunma amaçlı: normalde FastAPI path validasyonu (uuid.UUID tip) bu hatayı zaten yakalar
+        raise ValueError(f"Invalid institution_id format: {institution_id}")
+
+    # Authorization: Only COORDINATOR and INST_ADMIN can access dashboard
+    # Per-institution check: institution_id must be in principal.institution_ids
+    if principal.user_id is None:
+        raise ValueError("Not authorized to access dashboard")
+
+    if principal.kind not in ("COORDINATOR", "INST_ADMIN"):
+        raise ValueError("Not authorized to access dashboard")
+
+    if inst_uuid not in principal.institution_ids:
+        raise ValueError("Institution not found")
+
+    # Defense-in-depth: verify institution exists in scope
+    from app.models import Institution
+    from app.services.authorization import scoped_institutions
+
+    scoped = scoped_institutions(session, principal).where(Institution.id == inst_uuid)
+    institution = get_scoped_or_404(scoped, session)
+
+    if institution is None:
+        raise ValueError("Institution not found")
+
+    # Query PENDING_APPROVAL engagements for this institution
+    pending_approval = session.execute(
+        scoped_engagements(session, principal).where(
+            Engagement.institution_id == inst_uuid,
+            Engagement.status == "PENDING_APPROVAL",
+        ).order_by(Engagement.created_at.desc())
+    ).scalars().all()
+
+    # Query PENDING_EVALUATION engagements for this institution
+    pending_evaluation = session.execute(
+        scoped_engagements(session, principal).where(
+            Engagement.institution_id == inst_uuid,
+            Engagement.status == "PENDING_EVALUATION",
+        ).order_by(Engagement.created_at.desc())
+    ).scalars().all()
+
+    # Build response data
+    return {
+        "institution_id": str(inst_uuid),
+        "summary": {
+            "pending_approval": len(pending_approval),
+            "pending_evaluation": len(pending_evaluation),
+        },
+        "pending_approval": [
+            {
+                "id": str(eng.id),
+                "talent_id": str(eng.talent_id),
+                "organization_id": str(eng.organization_id),
+                "title": eng.title,
+                "started_on": eng.started_on.isoformat() if eng.started_on else None,
+            }
+            for eng in pending_approval
+        ],
+        "pending_evaluation": [
+            {
+                "id": str(eng.id),
+                "talent_id": str(eng.talent_id),
+                "organization_id": str(eng.organization_id),
+                "title": eng.title,
+                "ended_on": eng.ended_on.isoformat() if eng.ended_on else None,
+            }
+            for eng in pending_evaluation
+        ],
+    }

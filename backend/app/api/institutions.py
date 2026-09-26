@@ -18,6 +18,7 @@ from app.services.institution import (
     invite_member,
     request_institution_link,
 )
+from app.services.engagement import get_coordinator_dashboard
 
 router = APIRouter(prefix="/institutions", tags=["institutions"])
 
@@ -76,6 +77,33 @@ class InstitutionLinkRequestResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class DashboardEngagementItem(BaseModel):
+    """Engagement item in dashboard response."""
+
+    id: str
+    talent_id: str
+    organization_id: str
+    title: str
+    started_on: str | None = None
+    ended_on: str | None = None
+
+
+class DashboardSummary(BaseModel):
+    """Summary counts in dashboard response."""
+
+    pending_approval: int
+    pending_evaluation: int
+
+
+class DashboardResponse(BaseModel):
+    """Response schema for GET /institutions/{id}/dashboard."""
+
+    institution_id: str
+    summary: DashboardSummary
+    pending_approval: list[DashboardEngagementItem]
+    pending_evaluation: list[DashboardEngagementItem]
 
 
 # ============================================================================
@@ -303,3 +331,56 @@ def approve_link_request_endpoint(
         return link_request
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+
+
+# ============================================================================
+# Coordinator Dashboard (PLAN 3.3 — koordinator-dashboard-ucu)
+# ============================================================================
+
+
+@router.get("/{institution_id}/dashboard", status_code=200, response_model=DashboardResponse)
+def get_coordinator_dashboard_endpoint(
+    institution_id: uuid.UUID,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> DashboardResponse:
+    """
+    Get coordinator dashboard for institution (PLAN 3.3 — koordinator-dashboard-ucu).
+
+    Returns summary counts and lists of PENDING_APPROVAL and PENDING_EVALUATION engagements
+    for the specified institution.
+
+    Args:
+        institution_id: Target institution
+        principal: Authenticated principal
+        session: Database session
+
+    Returns:
+        DashboardResponse with summary and engagement lists
+
+    Status codes:
+        200: Dashboard retrieved
+        404: Institution not found or user not authorized
+        401: Unauthenticated
+        422: Invalid institution_id format (FastAPI path validation)
+    """
+    # Verify principal is authenticated
+    if principal.user_id is None:
+        raise HTTPException(status_code=401, detail={"code": "UNAUTHORIZED", "message": "Kimlik doğrulama gerekli."})
+
+    # Call service (handles authorization and validation)
+    try:
+        dashboard_data = get_coordinator_dashboard(
+            session=session,
+            principal=principal,
+            institution_id=str(institution_id),
+        )
+        return DashboardResponse(
+            institution_id=dashboard_data["institution_id"],
+            summary=DashboardSummary(**dashboard_data["summary"]),
+            pending_approval=[DashboardEngagementItem(**item) for item in dashboard_data["pending_approval"]],
+            pending_evaluation=[DashboardEngagementItem(**item) for item in dashboard_data["pending_evaluation"]],
+        )
+    except ValueError:
+        # Authorization failure or institution not found (both → 404)
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Kurum bulunamadı."})

@@ -16,6 +16,7 @@ Schema:
   - institution_name_snapshot: text, nullable (copied from Institution.name if institution_id IS NOT NULL)
   - claim_type: CHECK IN (PARTICIPATION, CONTRIBUTION, COMPETENCE, CONDUCT), NOT NULL (final claim_type from Attestation)
   - visibility: CHECK IN (PRIVATE, INSTITUTION, ORGANIZATIONS, PUBLIC), mutable (D6 change-visibility uç, future)
+  - public_token: text, unique, nullable (YET-106, paylaşılabilir doğrulama linki için rastgele token)
   - created_at: timestamptz (append-only)
 """
 
@@ -79,6 +80,9 @@ class VerifiedExperience(Base):
 
     # Visibility: mutable (DOMAIN.md D6, future uç for private → public transitions)
     visibility: Mapped[str] = mapped_column(String(50), nullable=False, server_default="PRIVATE")
+
+    # Public verification link token (YET-106)
+    public_token: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
 
     # Timestamps (append-only: no updated_at, except visibility changes which happen via separate mechanism)
     created_at: Mapped[datetime] = mapped_column(

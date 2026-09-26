@@ -5,6 +5,89 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## YET-112 (PLAN 3.8) — Public profil `/p/[slug]` + doğrulama `/v/[token]` sayfaları (2026-09-26)
+
+**Kaynak:** `obss_project/artifacts/public-profil-ve-dogrulama-sayfalari/`
+
+### Bilinçli kararlar (kaynak: atdd.md, plan.md)
+- `apiFetch` yerine bilinçli olarak basit `fetch()` (credentials YOK) kullanıldı — bu sayfalar auth-free, oturum çerezinin gereksiz gönderilmesi bir bilgi sızıntısı riski taşırdı.
+- SEO meta tag (`generateMetadata`) bu görevde EKLENMEDİ — proje genelinde tüm sayfalar `"use client"`, dinamik metadata server component gerektirir; bu mimari genişleme atdd.md'nin SEO'yu Medium/kritik-olmayan işaretlemesiyle orantısız olurdu (CAVEMAN).
+
+### Kritik bulgu ve düzeltme (kaynak: atdd.md Threat Model, code_diff.md, red_team.json)
+- **Middleware allowlist kusuru**: `/p/[slug]` ve `/v/[token]` PLAN'da "public sayfa" olarak tanımlanmıştı ama `frontend/lib/auth/should-redirect.ts`'deki `isPublicRoute()` bu yolları içermiyordu — kimliksiz ziyaretçi bu sayfalara gidince `/giris`'e yönlendiriliyordu, yani özellik hiç çalışmıyordu. Düzeltildi.
+- **Kritik güvenlik tuzağı (önlendi)**: Bu düzeltme yanlış yazılsaydı (`startsWith("/p")` eğik çizgisiz) mevcut KORUMALI `/profil` sayfası da yanlışlıkla public olurdu. `threat-model` bunu önceden AC-S2 olarak öngördü, `test-copilot` bunu regresyon testine çevirdi, `code-copilot` doğru (`startsWith("/p/")`) yazdı, `red-team` bağımsız olarak doğruladı.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md)
+- Koda gömülü Türkçe metin (CLAUDE.md ihlali) — `tr.json`'a eklenen anahtarlar bile kullanılmıyordu, tümü taşındı.
+- Nullable backend alanları (`institution_name`, `started_on_snapshot`/`ended_on_snapshot` vb.) TS'te non-null tiplenmişti — bu, önceki görevde de (YET-111) aynı sınıftan bulunan tekrarlayan bir hata kalıbı; düzeltildi.
+- **Ayrı bir görevin (YET-111, zaten push edilmiş) kaçırılmış regresyonu bulundu**: `app/profil/page.test.tsx`, YET-111'de eklenen `EvidenceSection`'ı mock'lamıyordu — YET-111'in kendi verify adımında SADECE yeni test dosyaları çalıştırıldığı için (tüm suite değil) bu kaçırılmıştı. Bu görevde gerçek `npx vitest run` (tüm suite) çalıştırılınca ortaya çıktı, düzeltildi.
+
+### Kabul edilen / kapsam dışı bırakılan sorunlar (kod değil, bilinçli karar)
+- `security-scan`'in `frontend/messages/tr.json` üzerindeki FAIL'i pre-existing bir yanlış-pozitif (PLAN 1.13'ten beri var, `"passwordLabel": "Şifre"` gibi UI etiketleri "Secret Keyword" sezgiseliyle yanlış işaretleniyor) — bu görevin diff'iyle ilgisiz, `git diff` ile doğrulandı.
+- Tam frontend test suite'inde (717 test) 3 dosyada (`lib/api/engagements.test.ts`, `lib/api/evaluation.test.ts`, `lib/api/evidence.test.ts`) 29 test `localStorage.clear is not a function` hatasıyla FAIL ediyor — bu görevle hiç ilgisi olmayan, izole çalıştırıldığında da aynı hatayı veren pre-existing bir ortam sorunu (muhtemelen jsdom/vitest sürüm uyumsuzluğu). Ayrı bir görev gerektirir.
+
+## YET-111 (PLAN 3.7) — Profil sayfası kanıt dökümü (skill signal + verified experience) (2026-09-26)
+
+**Kaynak:** `obss_project/artifacts/profil-sayfasi-kanit-dokumu/`
+
+### Bilinçli kapsam kararı (kaynak: atdd.md)
+- Jira "Sahip: @fe" (saf frontend) olarak planlanmıştı, ama PLAN.md'nin tamamı (3.1-3.16) tarandığında kimliği doğrulanmış kullanıcının KENDİ (visibility'den bağımsız) verified experience'larını dönen bir "own" backend ucunun hiçbir yerde planlanmadığı görüldü — kullanıcı onayıyla bu göreve yeni bir backend ucu (`GET /talents/me/verified-experiences`) eklendi.
+- `scoped_own_verified_experiences` visibility filtresi UYGULAMAZ (final-analiz §15.4 "TalentProfile sahip: RW" ilkesiyle tutarlı) — sahibi kendi PRIVATE kaydını da görür.
+
+### Kabul edilen riskler (kaynak: atdd.md Risks)
+- Sayfalama yok, kurum/talent başına kayıt sayısı düşük varsayımına dayanıyor.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, red_team.json)
+- **KRİTİK regresyon**: code-copilot'un ilk implementasyonu, `backend/app/services/verified_experience.py`'deki mevcut `generate_public_token()` fonksiyonunu (YET-106, hâlâ `test_public_verification_authz.py` tarafından kullanılıyor) SİLEREK üzerine yazmıştı. Orkestratör review'unda bulunup geri eklendi, 22/22 testle doğrulandı.
+- **Yanlış enum çevirileri**: Frontend `source_type`/`strength` çeviri tabloları backend'in gerçek CHECK constraint enum değerleriyle (`SELF_CLAIM/DELIVERABLE/TASK/EVALUATION/ATTESTATION/EXTERNAL`, `NONE/WEAK/MODERATE/STRONG`) hiç eşleşmiyordu (tamamen uydurulmuş değerler) — düzeltildi.
+- **Test fixture hataları** (gerçek pytest koşusuyla bulundu, statik okuma yakalayamazdı): `Organization` modelinde olmayan bir alan, `Engagement`'ta eksik zorunlu `kind` alanı, bir testin yanlışlıkla farklı bir AC senaryosuna düşmesi (eksik fixture tetikleme) — 3 ayrı düzeltme turu gerekti.
+- **red-team bulgusu**: `ended_on_snapshot` için yapılan null-safety düzeltmesinin simetriği (`started_on_snapshot`) unutulmuştu — `new Date(null)` "Invalid Date" gösterebilirdi, düzeltildi.
+- **Ortam kesintisi (kod değil, altyapı)**: Görev ortasında Docker Desktop tamamen durdu (sadece container değil, motor kendisi) — yeniden başlatılıp `docker compose up -d` ile container'lar geri getirildi, test koşusuna devam edildi.
+
+## YET-107 (PLAN 3.3) — Koordinatör dashboard ucu (2026-09-26)
+
+**Kaynak:** `obss_project/artifacts/koordinator-dashboard-ucu/`
+
+### Kabul edilen riskler (kaynak: atdd.md Risks, plan.md Risks)
+- Sayfalama yok — kurum başına engagement sayısının MVP ölçeğinde küçük
+  kalacağı varsayımına dayanan bilinçli risk; büyürse V2'de sayfalama
+  eklenmeli.
+
+### Düzeltme (atdd.md/plan.md'nin kendi hatası — commit öncesi bulundu)
+`plan.md` "Migration Required? Evet — kullanıcı onayı gerekiyor" diyordu,
+`(institution_id, status)` ve partial `PENDING_EVALUATION` index'lerinin
+eksik olduğunu varsaymıştı. Gerçekte bu iki index **zaten YET-2.1'de**
+(`backend/alembic/versions/g8h9i0j1k2l3_add_engagements_table.py`,
+`ix_engagements_institution_status` + `ix_engagements_status_pending_evaluation`)
+oluşturulmuş — yeni migration gerekmedi, dashboard sorguları mevcut
+index'leri doğrudan kullanıyor. `plan.md`'nin kod keşfi bu dosyayı
+görmemişti; bir sonraki plan adımında mevcut migration'ları da tarayan bir
+kontrol eklenmesi faydalı olabilir.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, red_team.json, dynamic_pentest.json)
+- **code-copilot'un ilk implementasyonu** iki sorguda çıplak
+  `select(Engagement)` kullanmıştı — CLAUDE.md'nin "çıplak select(Model)
+  yasak" kuralını ihlal ediyordu (institution scope zaten önceden
+  doğrulandığı için pratikte güvenliydi, ama proje kuralına aykırıydı).
+  `scoped_engagements()` üzerine kuruldu.
+- **red-team** 404 gövdesinin atdd.md'nin `{"code":"NOT_FOUND",...}`
+  şemasını değil düz string döndürdüğünü buldu (401'deki desenle
+  tutarsızdı) — düzeltildi.
+- **dynamic-pentest** (gerçek DB'ye karşı, doğrudan fonksiyon çağrısıyla)
+  `get_coordinator_dashboard`'un `principal.user_id`'yi hiç kontrol
+  etmediğini kanıtladı — tek katmanlı savunma (route/`get_current_principal`'a
+  bağımlı), defense-in-depth ilkesine aykırıydı. Şu an pratikte
+  sömürülemez (route zaten 401 üretiyor) ama tek-nokta-arıza riski taşıyordu
+  — servis fonksiyonunun başına ikinci bir kontrol eklendi.
+- **Ortam notu (kod değil, süreç):** Bu makinedeki paylaşılan `hermes-agent`
+  venv'inde `psycopg_binary` C-uzantısı bozuktu (`ImportError: cannot
+  import name Deque`), `pip install --force-reinstall` denendi ama
+  düzelmedi ve üstüne başka araçlarla (aider-chat, mcp, langchain-openai)
+  sürüm çakışması yarattı. Gerçek test koşusu projenin KENDİ
+  `backend/.venv`'i ile yapıldı — paylaşılan agent venv'i bu tür
+  görevler için güvenilir değil, sonraki görevlerde önce proje-lokal
+  venv aranmalı.
+
 ## YET-105 (PLAN 3.1) — Public profil ucu + visibility kuralları (2026-09-25)
 
 **Kaynak:** `obss_project/artifacts/public-profil-endpoint/`
@@ -50,7 +133,26 @@ zamanında buraya **aktarır** — yeniden yorumlamaz.
   taşındı (önceden çıplak `session.query()` idi — IDOR riski yoktu ama
   proje kuralının harfine aykırıydı).
 
-## YET-2.2 — Durum makinesi: POST /engagements/{id}/transitions (2026-09-23)
+## YET-106 (PLAN 3.2) — Public doğrulama linki GET /public/v/{token} (2026-09-25)
+
+**Kaynak:** `obss_project/artifacts/public-dogrulama-linki/`
+
+### Bilinçli kararlar (kaynak: plan.md Kararlar, kullanıcı onayı)
+- **`attestor_name` yerine `attestor_organization`** (`Organization.name`, `attestor_org_id` üzerinden) — `docs/API.md §2.9`'un örnek response'unda `attestor_name: "Mehmet K."` vardı ama gerçek şemada (`User` modeli) kişi adı için hiçbir alan yok, `Attestation`'da da attestor adını snapshot'layan bir kolon yok. Migration gerektiren daha büyük bir çözüm (User.display_name eklemek) yerine mevcut şemadan üretilebilen kurum adı tercih edildi.
+- **`verified_experiences.public_token` migration'ı** (nullable, String, UNIQUE + index) — `docs/DATABASE.md` bu kolonu zaten dokümante etmişti ama gerçek kodda yoktu. `alembic upgrade head` → `downgrade -1` → `upgrade head` ile doğrulandı.
+- **Token üretimi entegre edilmedi** — `generate_public_token()` (`secrets.token_urlsafe(32)`) yazıldı ama T8 attestation transition'a bağlanmadı; bu görevin kapsamı sadece doğrulama ucu, üretim akışı ayrı bir görev.
+
+### Kabul edilen riskler (kaynak: atdd.md Risks)
+- Rate limit yok — `docs/SECURITY.md`'nin kendi açık sorusu (final analizde karar verilmemiş), token'ın yüksek entropisi riski kısmen azaltıyor ama tam telafi etmiyor.
+- **F5/410 (iptal edilmiş doğrulama linki) mekanizması bu görevde uygulanmadı** — DB'de "revoke" durumunu temsil edecek hiçbir kolon yok (`docs/AUTHORIZATION.md`'nin F5 satırı doğru bir gelecek-durum sözleşmesi ama şu an gerçekleştirilemez). Sessizce atlanmadı, atdd.md'nin Kapsam Dışı/Unknowns bölümüne kayıtlı.
+- `public_token` backfill'i yapılmadı — mevcut (migration öncesi) `VerifiedExperience` kayıtları için doğrulama linki üretilmeyecek, sadece yeni kayıtlar (token üretimi entegre edildiğinde) token alacak.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, verify_report.md, red_team.json)
+- **`atdd.md`'nin kendi hatası (YET-105'ten farklı bir örnek):** İlk yazımda `docs/API.md`'nin örnek response'undaki `attestor_name` alanının gerçek şemada hiç kaynağı olmadığı fark edilmemişti — `plan` adımındaki kod keşfinde ortaya çıktı, kullanıcı onayıyla `attestor_organization`'a çevrildi.
+- test-copilot'un ilk teslimi 4 ayrı fixture bug'ı içeriyordu: (1) `Skill` fixture'ı zorunlu `slug` alanını vermiyordu (`NotNullViolation`, 14 test ERROR), (2) aynı `(engagement_id, attestor_user_id, subject_type)` ile 2 `Attestation` oluşturulmaya çalışılmış (`UNIQUE` ihlali), (3) bir fixture `org_verification`'ı kullanıyor ama parametre listesine eklenmemiş (`AttributeError`), (4) bir test yanlış alan adı (`role_snapshot`, response'ta `title`) arıyordu VE `or` ile gevşetilmişti (proje kuralı ihlali) — hepsi ayrı turlarda düzeltildi.
+- red-team incelemesi 2 medium bulgu buldu: `Attestation` sorgusu `scoped_*()` deseninde değildi (YET-105'teki aynı desen, `scoped_attestations_for_engagement()`'e taşındı) ve `PublicVerificationResponse.started_on: date` (non-nullable) modeldeki `date | None` ile uyuşmuyordu (gerçek NULL veride yakalanmamış `ValidationError`/500 riski — `date | None`'a düzeltildi, testte hiç tetiklenmemişti ama gerçek bug riskiydi).
+
+## YET-105 (PLAN 3.1) — Public profil ucu + visibility kuralları (2026-09-25)
 
 **Kaynak:** `obss_project/artifacts/engagement-durum-makinesi-transitions-ucu/`
 

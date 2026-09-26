@@ -18,7 +18,7 @@ Key principle: "404 sızdırmama" — out-of-scope and nonexistent resources bot
 
 import pytest
 
-from app.models import Institution, InstitutionMember, TalentProfile, User
+from app.models import Institution, InstitutionMember, TalentProfile, User, Organization, OrganizationMember
 from app.services.authorization import Principal, can, get_scoped_or_404, scoped_institutions
 
 
@@ -665,3 +665,349 @@ class TestGetScopedOr404Institution:
         result_ids = [inst.id for inst in results]
 
         assert institution_b.id not in result_ids
+
+
+# ============================================================================
+# Additional Fixtures for Dashboard Authorization Tests
+# ============================================================================
+
+
+@pytest.fixture
+def user_dashboard_talent_fixture(session):
+    """User with TALENT kind (no institution affiliation)."""
+    user = User(email="talent-dashboard-test@example.com", password_hash="hash_talent")
+    session.add(user)
+    session.flush()
+    return user
+
+
+@pytest.fixture
+def talent_dashboard_profile(session, user_dashboard_talent_fixture):
+    """Talent profile for dashboard test TALENT user."""
+    profile = TalentProfile(
+        user_id=user_dashboard_talent_fixture.id,
+        full_name="Dashboard Test Talent",
+        visibility="PRIVATE"
+    )
+    session.add(profile)
+    session.flush()
+    return profile
+
+
+@pytest.fixture
+def org_member_for_dashboard_test(session):
+    """User with ORG_MEMBER role."""
+    user = User(email="orgmember-dashboard@example.com", password_hash="hash_orgmember")
+    session.add(user)
+    session.flush()
+    return user
+
+
+@pytest.fixture
+def org_member_talent_profile(session, org_member_for_dashboard_test):
+    """Talent profile for ORG_MEMBER user."""
+    profile = TalentProfile(
+        user_id=org_member_for_dashboard_test.id,
+        full_name="ORG Member Talent",
+        visibility="PRIVATE"
+    )
+    session.add(profile)
+    session.flush()
+    return profile
+
+
+@pytest.fixture
+def org_for_member_test(session):
+    """Organization for ORG_MEMBER test."""
+    org = Organization(
+        name="Test Org for Dashboard",
+        domain="dashboard-org.example.com",
+        legal_id="ORG-DASHBOARD-001",
+        verification_level="T1",
+        status="ACTIVE"
+    )
+    session.add(org)
+    session.flush()
+    return org
+
+
+@pytest.fixture
+def org_member_membership(session, org_for_member_test, org_member_for_dashboard_test):
+    """Establish ORG_MEMBER role."""
+    member = OrganizationMember(
+        organization_id=org_for_member_test.id,
+        user_id=org_member_for_dashboard_test.id,
+        role="MEMBER"
+    )
+    session.add(member)
+    session.flush()
+    return member
+
+
+# ============================================================================
+# COORDINATOR Dashboard Tests (Authorization Matrix — authz_test.md)
+# ============================================================================
+# Tests for GET /institutions/{institution_id}/dashboard endpoint
+# Implements authz_test.md rows 2-6: cross-tenant isolation, role-based access,
+# and unauthenticated access denial.
+
+
+class TestCoordinatorDashboardAuthorizationMatrix:
+    """
+    Authorization matrix for GET /institutions/{id}/dashboard.
+
+    Authz_test.md row mapping:
+    - Row 2: Cross-tenant (COORDINATOR in Y, accessing A) → 404 (not 403, no data leak)
+    - Row 3: TALENT → 404 (role-based denial)
+    - Row 4: ORG_MEMBER → 404 (role-based denial)
+    - Row 5: Unauthenticated (anon) → 401
+    - Row 6: Expired/invalid JWT → 401
+    """
+
+    # ============================================================================
+    # Row 2: Cross-tenant Access Prevention (AC-S1)
+    # ============================================================================
+
+    def test_coordinator_different_institution_404_no_leak(
+        self,
+        client,
+        session,
+        institution_a,
+        institution_b,
+        inst_a_coordinator_member,
+        inst_b_coordinator_member,
+        user_a_coordinator,
+    ):
+        """
+        Authz Row 2: COORDINATOR of institution_b attempts to access institution_a's dashboard.
+
+        Scenario:
+        - Coordinator A is member of institution_a only
+        - Coordinator A tries to access /institutions/{institution_b}/dashboard
+        - Expected: 404 (not 403 — resource existence hidden)
+        - Response body must NOT contain any of institution_b's engagement data
+          (id, talent_id, organization_id, title fields specifically checked)
+
+        Acceptance Criteria:
+        - Status code: exactly 404
+        - Response body does not contain any engagement fields from institution_b
+        - Error message does not reveal whether institution exists
+        """
+        # Coordinator of institution_a trying to access institution_b
+        response = client.get(
+            f"/institutions/{institution_b.id}/dashboard",
+            headers={"X-Debug-User-Id": str(user_a_coordinator.id)}
+        )
+
+        # EXACT status code match — 404, not 403
+        assert response.status_code == 404, (
+            f"Cross-tenant access should return 404, got {response.status_code}"
+        )
+
+        # Verify no data leak in response body
+        response_body = response.json()
+
+        # Response must not contain any engagement fields from institution_b
+        assert "pending_approval" not in response_body, (
+            "Response body should not contain pending_approval field (404 should not leak data)"
+        )
+        assert "pending_evaluation" not in response_body, (
+            "Response body should not contain pending_evaluation field (404 should not leak data)"
+        )
+        assert "summary" not in response_body, (
+            "Response body should not contain summary field (404 should not leak data)"
+        )
+
+    def test_admin_different_institution_404_no_leak(
+        self,
+        client,
+        institution_a,
+        institution_b,
+        inst_a_admin_member,
+        inst_b_admin_member,
+        user_a_admin,
+    ):
+        """
+        Authz Row 2 (Admin variant): ADMIN of institution_a cannot access institution_b.
+
+        Same as coordinator test, but with ADMIN role.
+        """
+        response = client.get(
+            f"/institutions/{institution_b.id}/dashboard",
+            headers={"X-Debug-User-Id": str(user_a_admin.id)}
+        )
+
+        # EXACT status code match
+        assert response.status_code == 404, (
+            f"Admin cross-tenant access should return 404, got {response.status_code}"
+        )
+
+    # ============================================================================
+    # Row 3: TALENT Cannot Access Dashboard (AC-S2)
+    # ============================================================================
+
+    def test_talent_principal_404_not_403(
+        self,
+        client,
+        session,
+        institution_a,
+        user_dashboard_talent_fixture,
+        talent_dashboard_profile,
+    ):
+        """
+        Authz Row 3: TALENT (kind='TALENT') cannot access institution dashboard.
+
+        Expected:
+        - Status: 404 (not 403)
+        - Principal kind is 'TALENT' (verified via fixture setup)
+        """
+        # TALENT user has talent_id set, so principal.kind would be 'TALENT'
+        response = client.get(
+            f"/institutions/{institution_a.id}/dashboard",
+            headers={"X-Debug-User-Id": str(user_dashboard_talent_fixture.id)}
+        )
+
+        # EXACT status code match — 404, not 403
+        assert response.status_code == 404, (
+            f"TALENT should receive 404, got {response.status_code} (not 403 — no access to dashboard endpoint)"
+        )
+
+    def test_talent_even_with_institution_link_404(
+        self,
+        client,
+        session,
+        institution_a,
+    ):
+        """
+        Authz Row 3 (edge case): TALENT who is a student in institution_a still gets 404.
+
+        Even if the talent's profile has institution_id = institution_a.id,
+        TALENT kind cannot access the coordinator dashboard.
+        """
+        # Create a talent linked to institution_a
+        user = User(email="talent-in-inst@example.com", password_hash="hash_talent_inst")
+        session.add(user)
+        session.flush()
+
+        profile = TalentProfile(
+            user_id=user.id,
+            institution_id=institution_a.id,
+            full_name="Talent in Institution A",
+            visibility="PRIVATE"
+        )
+        session.add(profile)
+        session.flush()
+
+        response = client.get(
+            f"/institutions/{institution_a.id}/dashboard",
+            headers={"X-Debug-User-Id": str(user.id)}
+        )
+
+        # EXACT status code match
+        assert response.status_code == 404, (
+            "TALENT linked to institution should still get 404 from dashboard endpoint"
+        )
+
+    # ============================================================================
+    # Row 4: ORG_MEMBER Cannot Access Dashboard (AC-S2)
+    # ============================================================================
+
+    def test_org_member_404_not_403(
+        self,
+        client,
+        session,
+        institution_a,
+        org_member_for_dashboard_test,
+        org_member_talent_profile,
+        org_member_membership,
+    ):
+        """
+        Authz Row 4: ORG_MEMBER (kind='ORG_MEMBER') cannot access institution dashboard.
+
+        Expected:
+        - Status: 404 (not 403)
+        - Principal kind is 'ORG_MEMBER'
+        """
+        response = client.get(
+            f"/institutions/{institution_a.id}/dashboard",
+            headers={"X-Debug-User-Id": str(org_member_for_dashboard_test.id)}
+        )
+
+        # EXACT status code match — 404, not 403
+        assert response.status_code == 404, (
+            f"ORG_MEMBER should receive 404, got {response.status_code}"
+        )
+
+    # ============================================================================
+    # Row 5: Unauthenticated (No Header) → 401
+    # ============================================================================
+
+    def test_unauthenticated_no_header_401(
+        self,
+        client,
+        institution_a,
+    ):
+        """
+        Authz Row 5: Unauthenticated request (no X-Debug-User-Id header).
+
+        Expected:
+        - Status: 401 Unauthorized
+        - Error message indicates authentication required
+        """
+        # Make request WITHOUT X-Debug-User-Id header
+        response = client.get(f"/institutions/{institution_a.id}/dashboard")
+
+        # EXACT status code match
+        assert response.status_code == 401, (
+            f"Unauthenticated request should return 401, got {response.status_code}"
+        )
+
+    def test_unauthenticated_empty_header_401(
+        self,
+        client,
+        institution_a,
+    ):
+        """
+        Authz Row 5: Unauthenticated request (empty X-Debug-User-Id header).
+
+        Expected:
+        - Status: 401
+        """
+        response = client.get(
+            f"/institutions/{institution_a.id}/dashboard",
+            headers={"X-Debug-User-Id": ""}
+        )
+
+        assert response.status_code == 401, (
+            f"Empty X-Debug-User-Id should return 401, got {response.status_code}"
+        )
+
+    # ============================================================================
+    # Row 6: Expired/Invalid JWT → 401 (simulated via invalid user ID)
+    # ============================================================================
+
+    def test_invalid_user_id_401(
+        self,
+        client,
+        institution_a,
+    ):
+        """
+        Authz Row 6: Invalid user ID (simulates expired/invalid JWT).
+
+        In conftest.py, override_get_current_user queries the session for user_id.
+        If the user doesn't exist, it returns 401.
+
+        Expected:
+        - Status: 401
+        """
+        fake_user_id = str(__import__('uuid').uuid4())  # User doesn't exist in DB
+
+        response = client.get(
+            f"/institutions/{institution_a.id}/dashboard",
+            headers={"X-Debug-User-Id": fake_user_id}
+        )
+
+        # EXACT status code match
+        assert response.status_code == 401, (
+            f"Invalid user ID should return 401, got {response.status_code}"
+        )

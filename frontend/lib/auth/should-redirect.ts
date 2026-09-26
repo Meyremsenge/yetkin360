@@ -64,6 +64,12 @@ function isPublicRoute(pathname: string): boolean {
   // Reset password page and subpaths
   if (pathname === "/sifre-sifirla" || pathname.startsWith("/sifre-sifirla/")) return true;
 
+  // Public profile page and subpaths
+  if (pathname === "/p" || pathname.startsWith("/p/")) return true;
+
+  // Public verification page and subpaths
+  if (pathname === "/v" || pathname.startsWith("/v/")) return true;
+
   // Next.js internals
   if (pathname.startsWith("/_next/")) return true;
 

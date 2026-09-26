@@ -102,6 +102,37 @@ describe("shouldRedirect", () => {
       expect(redirect).not.toBeNull();
       expect(redirect).toContain("/giris");
     });
+
+    it("AC-6: allows `/p/{slug}` (public profile) without cookies", () => {
+      expect(shouldRedirect("/p/some-slug", [])).toBeNull();
+    });
+
+    it("AC-6: allows `/p/{slug}/` (public profile with trailing slash) without cookies", () => {
+      expect(shouldRedirect("/p/some-slug/", [])).toBeNull();
+    });
+
+    it("AC-6: allows `/v/{token}` (public verification) without cookies", () => {
+      expect(shouldRedirect("/v/some-token-abc123", [])).toBeNull();
+    });
+
+    it("AC-7 (KRİTİK regresyon): `/p/` prefix kontrolü `/profil`'i yanlışlıkla public yapmamalı — `/profil` hâlâ korumalı", () => {
+      // If prefix check is written as startsWith("/p") (without trailing slash),
+      // it will incorrectly match "/profil", treating it as public. This would be a
+      // security regression. The correct implementation uses startsWith("/p/") (with slash).
+      const redirect = shouldRedirect("/profil", []);
+      expect(redirect).not.toBeNull();
+      expect(redirect).toBe(buildLoginUrl("/profil"));
+    });
+
+    it("AC-6: `/p/{slug}` remains public even when cookie is present", () => {
+      // Public routes should not be redirected regardless of cookies
+      expect(shouldRedirect("/p/some-slug", ["access_token"])).toBeNull();
+    });
+
+    it("AC-6: `/v/{token}` remains public even when cookie is present", () => {
+      // Public routes should not be redirected regardless of cookies
+      expect(shouldRedirect("/v/some-token-abc123", ["csrf_token"])).toBeNull();
+    });
   });
 
   describe("Cookie-based gating", () => {

@@ -87,7 +87,28 @@
     "removeSkillButton": "Kaldır",
     "skillAddedMessage": "Yetkinlik eklendi.",
     "skillRemovedMessage": "Yetkinlik kaldırıldı.",
-    "claimedLevel": "Seviye"
+    "claimedLevel": "Seviye",
+    "evidenceSection": "Kanıt Dökümü",
+    "emptySignalsMessage": "Henüz kanıt sinyali yok.",
+    "signalsLoadError": "Kanıt dökümü yüklenemedi.",
+    "retryButton": "Tekrar dene",
+    "supersededBadge": "Geçersiz kılındı",
+    "selfClaimLabel": "Kendi beyanı",
+    "signalsSectionTitle": "Kanıt Sinyalleri",
+    "verifiedExperiencesSectionTitle": "Doğrulanmış Deneyimler",
+    "emptyVerifiedExperiencesMessage": "Henüz doğrulanmış deneyim yok.",
+    "unknownStartLabel": "Başlangıç bilinmiyor",
+    "ongoingLabel": "Devam ediyor",
+    "sourceTypeSelfClaim": "Kendi Beyanı",
+    "sourceTypeDeliverable": "Teslim Edilen Çıktı",
+    "sourceTypeTask": "Görev",
+    "sourceTypeEvaluation": "Değerlendirme",
+    "sourceTypeAttestation": "Tanıklık",
+    "sourceTypeExternal": "Harici Kaynak",
+    "strengthNone": "Yok",
+    "strengthWeak": "Zayıf",
+    "strengthModerate": "Orta",
+    "strengthStrong": "Güçlü"
   },
   "calismalar": {
     "listTitle": "Çalışmalarım",
@@ -169,5 +190,17 @@
     "alreadySubmittedError": "Bu çalışma için değerlendirme zaten gönderilmiş.",
     "invalidStatusError": "Bu çalışma şu anda değerlendirme aşamasında değil.",
     "notEligibleMessage": "Bu çalışma değerlendirme aşamasında değil, form gösterilemiyor."
+  },
+  "publicProfile": {
+    "empty": "henüz doğrulanmış deneyim yok",
+    "notFound": "Kayıt bulunamadı"
+  },
+  "publicVerification": {
+    "notFound": "Kayıt bulunamadı",
+    "organizationLabel": "Kurum",
+    "institutionLabel": "Eğitim Kurumu",
+    "periodLabel": "Dönem",
+    "verifiedAtLabel": "Doğrulama Tarihi",
+    "attestedSkillsTitle": "Tanıklık Yapılan Yetkinlikler"
   }
 }

@@ -370,3 +370,19 @@ export async function removeSkill(skill_id: string): Promise<void> {
     method: "DELETE",
   });
 }
+
+/**
+ * AC-1: Get current user's signals (kanıt dökümü). Calls GET /talents/me/signals.
+ * Returns { items: [...] } where each item has skill (id, name_tr) and signals array.
+ */
+export async function getMySignals(): Promise<{ items: unknown[] } | undefined> {
+  return apiFetch("/talents/me/signals");
+}
+
+/**
+ * AC-7: Get current user's verified experiences. Calls GET /talents/me/verified-experiences.
+ * Returns { items: [...] } where each item has organization_name_snapshot, role_snapshot, etc.
+ */
+export async function getMyVerifiedExperiences(): Promise<{ items: unknown[] } | undefined> {
+  return apiFetch("/talents/me/verified-experiences");
+}
