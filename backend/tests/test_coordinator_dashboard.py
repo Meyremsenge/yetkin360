@@ -664,3 +664,305 @@ class TestCoordinatorDashboardConfidential:
             assert item["talent_id"] == str(pending_evaluation_with_confidential_a[0].talent_id), (
                 "Found engagement from institution B in response (cross-tenant leak)"
             )
+
+
+# ============================================================================
+# AC-1, AC-2, AC-S1: Members field tests (PLAN 3.5 — kurum-dashboard-uyeler)
+# ============================================================================
+
+
+class TestCoordinatorDashboardMembers:
+    """
+    AC-1: Happy path — dashboard response includes members list.
+    AC-2: Theoretical empty members case.
+    AC-S1 (Threat-model): Cross-tenant member isolation.
+
+    Reference: PLAN 3.5 — kurum-dashboard-uyeler, atdd.md
+    """
+
+    def test_ac1_members_field_present_with_coordinator(
+        self,
+        client,
+        institution_dashboard_a,
+        inst_dashboard_a_coordinator,
+        user_dashboard_coordinator_a
+    ):
+        """
+        AC-1 [Critical]: Dashboard response includes members field with at least
+        one member (the coordinator itself).
+
+        Expected:
+        - Status: 200
+        - Response contains "members" field (list)
+        - members list has exactly 1 item (inst_dashboard_a_coordinator)
+        - Member item has fields: user_id, email, role, joined_at
+        - Member data matches fixture values
+        """
+        response = client.get(
+            f"/institutions/{institution_dashboard_a.id}/dashboard",
+            headers={"X-Debug-User-Id": str(user_dashboard_coordinator_a.id)}
+        )
+
+        # Exact status code match
+        assert response.status_code == 200, (
+            f"Expected 200, got {response.status_code}: {response.json()}"
+        )
+
+        data = response.json()
+
+        # Verify members field exists
+        assert "members" in data, "Response missing 'members' field"
+        assert isinstance(data["members"], list), "members field must be a list"
+
+        # Verify at least one member (the fixture coordinator)
+        assert len(data["members"]) >= 1, (
+            f"Expected at least 1 member, got {len(data['members'])}"
+        )
+
+        # Verify member fields
+        member = data["members"][0]
+        assert "user_id" in member, "Member item missing 'user_id'"
+        assert "email" in member, "Member item missing 'email'"
+        assert "role" in member, "Member item missing 'role'"
+        assert "joined_at" in member, "Member item missing 'joined_at'"
+
+        # Verify member data matches fixture
+        assert member["user_id"] == str(user_dashboard_coordinator_a.id), (
+            f"Expected user_id {user_dashboard_coordinator_a.id}, got {member['user_id']}"
+        )
+        assert member["email"] == user_dashboard_coordinator_a.email, (
+            f"Expected email {user_dashboard_coordinator_a.email}, got {member['email']}"
+        )
+        assert member["role"] == "COORDINATOR", (
+            f"Expected role COORDINATOR, got {member['role']}"
+        )
+        # joined_at should be present (UTC timestamp); we don't verify exact time,
+        # just presence and format
+        assert isinstance(member["joined_at"], str), "joined_at must be ISO 8601 timestamp string"
+
+    def test_ac1_members_multiple_when_present(
+        self,
+        client,
+        session,
+        institution_dashboard_a,
+        inst_dashboard_a_coordinator,
+        user_dashboard_coordinator_a
+    ):
+        """
+        AC-1 [Critical]: When multiple members exist in institution,
+        all are returned in members list.
+
+        Scenario:
+        - Institution A already has 1 COORDINATOR (inst_dashboard_a_coordinator fixture)
+        - Add second member (ADMIN) to same institution
+        - Coordinator queries dashboard
+
+        Expected:
+        - members list has exactly 2 items
+        - Both members returned in response
+        - All required fields present for each
+        """
+        # Create second member for Institution A (ADMIN role)
+        second_user = User(
+            email="dashboard-admin-a@example.com",
+            password_hash="hash_admin_a"
+        )
+        session.add(second_user)
+        session.flush()
+
+        second_member = InstitutionMember(
+            institution_id=institution_dashboard_a.id,
+            user_id=second_user.id,
+            role="ADMIN"
+        )
+        session.add(second_member)
+        session.commit()
+
+        response = client.get(
+            f"/institutions/{institution_dashboard_a.id}/dashboard",
+            headers={"X-Debug-User-Id": str(user_dashboard_coordinator_a.id)}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Verify members field and count
+        assert "members" in data
+        assert isinstance(data["members"], list)
+        assert len(data["members"]) == 2, (
+            f"Expected 2 members, got {len(data['members'])}"
+        )
+
+        # Verify both members are present (order may vary)
+        member_user_ids = {m["user_id"] for m in data["members"]}
+        expected_user_ids = {
+            str(user_dashboard_coordinator_a.id),
+            str(second_user.id)
+        }
+        assert member_user_ids == expected_user_ids, (
+            f"Expected user_ids {expected_user_ids}, got {member_user_ids}"
+        )
+
+        # Verify roles are present
+        member_roles = {m["role"] for m in data["members"]}
+        assert "COORDINATOR" in member_roles
+        assert "ADMIN" in member_roles
+
+    def test_acs1_cross_tenant_member_isolation(
+        self,
+        client,
+        institution_dashboard_a,
+        institution_dashboard_b,
+        inst_dashboard_a_coordinator,
+        inst_dashboard_b_coordinator,
+        user_dashboard_coordinator_a,
+        user_dashboard_coordinator_b
+    ):
+        """
+        AC-S1 [Critical, threat-model]: Coordinator A's dashboard ONLY includes
+        Institution A members, never Institution B members.
+
+        Scenario:
+        - Institution A has 1 COORDINATOR (inst_dashboard_a_coordinator)
+        - Institution B has 1 COORDINATOR (inst_dashboard_b_coordinator)
+        - Coordinator A queries /institutions/{A_id}/dashboard
+
+        Expected:
+        - members list has exactly 1 item (A's coordinator)
+        - B's coordinator email NEVER appears in response
+        - No cross-tenant leakage (even in counts, member count, etc.)
+        """
+        response = client.get(
+            f"/institutions/{institution_dashboard_a.id}/dashboard",
+            headers={"X-Debug-User-Id": str(user_dashboard_coordinator_a.id)}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Verify members field exists
+        assert "members" in data
+        assert isinstance(data["members"], list)
+
+        # Verify exactly 1 member (Institution A's coordinator only)
+        assert len(data["members"]) == 1, (
+            f"Expected 1 member (Institution A only), got {len(data['members'])}"
+        )
+
+        # Verify member is from Institution A
+        member = data["members"][0]
+        assert member["user_id"] == str(user_dashboard_coordinator_a.id), (
+            f"Expected Coordinator A's user_id, got {member['user_id']}"
+        )
+        assert member["email"] == user_dashboard_coordinator_a.email, (
+            f"Expected Coordinator A's email, got {member['email']}"
+        )
+
+        # CRITICAL SECURITY CHECK: Institution B's coordinator email must NOT appear
+        member_emails = [m["email"] for m in data["members"]]
+        assert user_dashboard_coordinator_b.email not in member_emails, (
+            f"SECURITY LEAK: Institution B coordinator email {user_dashboard_coordinator_b.email} "
+            f"appeared in Institution A dashboard members list"
+        )
+
+        # CRITICAL: No Institution B data should leak in any form
+        member_user_ids = {m["user_id"] for m in data["members"]}
+        assert str(user_dashboard_coordinator_b.id) not in member_user_ids, (
+            "SECURITY LEAK: Institution B coordinator user_id appeared in Institution A members"
+        )
+
+    def test_ac2_members_empty_when_no_other_members(
+        self,
+        client,
+        session,
+        institution_dashboard_a,
+        user_dashboard_coordinator_a
+    ):
+        """
+        AC-2 [Medium]: When an institution has no members (theoretical case),
+        dashboard returns 200 with empty members list (not 404 or error).
+
+        NOTE: This test creates a coordinator user but explicitly does NOT
+        add an InstitutionMember record for them. In production, the institution
+        might automatically have an ADMIN member (the creator), but for this
+        theoretical test, we create a separate institution without any members.
+
+        Expected:
+        - Status: 200 (not 404)
+        - members: [] (empty list)
+        - summary and engagement lists still present and empty
+        """
+        pytest.skip(
+            "Kurum oluşturma otomatik ADMIN atadığı için üyesiz-ama-erişilebilir kurum senaryosu "
+            "gerçekçi kurulamıyor (bkz. atdd.md Assumptions)"
+        )
+        # Create institution with no members
+        inst_no_members = Institution(
+            name="Institution With No Members",
+            domain="no-members.edu.tr",
+            verification_level="T1",
+            status="ACTIVE"
+        )
+        session.add(inst_no_members)
+        session.flush()
+
+        # Create a new user unrelated to this institution
+        unrelated_user = User(
+            email="unrelated@example.com",
+            password_hash="hash_unrelated"
+        )
+        session.add(unrelated_user)
+        session.flush()
+
+        # NOTE: We cannot actually query with this user because they have no
+        # membership/authorization for this institution. The endpoint will
+        # return 404 due to authorization (scoped_institutions filter), not 200.
+        # So this test verifies that IF the authorization somehow passed,
+        # the members list would be empty. But practically, unauthorized access
+        # returns 404 first.
+        #
+        # DECISION: Skip this test. Reasoning in test report.
+        pass
+
+    def test_acs1_members_email_not_exposed_across_institutions(
+        self,
+        client,
+        institution_dashboard_a,
+        institution_dashboard_b,
+        inst_dashboard_a_coordinator,
+        inst_dashboard_b_coordinator,
+        user_dashboard_coordinator_a,
+        user_dashboard_coordinator_b
+    ):
+        """
+        AC-S1 (additional scenario): Email addresses of Institution B members
+        must not leak to Institution A coordinator (even as part of members list).
+
+        This is a specific check for PII leakage via email addresses,
+        as noted in atdd.md threat-model section (Info Disclosure).
+
+        Expected:
+        - Institution A coordinator queries dashboard
+        - members list contains ONLY A's members' emails
+        - B's coordinator email is never visible
+        """
+        response = client.get(
+            f"/institutions/{institution_dashboard_a.id}/dashboard",
+            headers={"X-Debug-User-Id": str(user_dashboard_coordinator_a.id)}
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert "members" in data
+        member_emails = [m["email"] for m in data["members"]]
+
+        # B's coordinator email must never appear
+        assert user_dashboard_coordinator_b.email not in member_emails, (
+            f"EMAIL LEAK: {user_dashboard_coordinator_b.email} exposed to Institution A"
+        )
+
+        # A's coordinator email must be present
+        assert user_dashboard_coordinator_a.email in member_emails, (
+            f"Expected Coordinator A's email in list, got {member_emails}"
+        )

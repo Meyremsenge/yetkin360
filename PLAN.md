@@ -149,7 +149,17 @@ Hedef: jürinin göreceği yüz. Bu fazın sonunda canlı URL + gerçekçi veri 
       > sınırı hiçbir kaynakta tanımlı olmadığı için bilinçli olarak
       > UYGULANMADI — keyfi hardcode edilmedi, açık soru olarak bırakıldı
       > (Faz 5.2/5.6'ya aday). Detay: `obss_project/artifacts/yet-108-toplu-hatirlatma-ucu/`.
-- [ ] 3.5 Kurum dashboard ucu (bekleyen değerlendirmeler, üyeler) @be2
+- [x] 3.5 Kurum dashboard ucu (bekleyen değerlendirmeler, üyeler) @be2
+      > YET-109/133/134/135 tamamlandı. **Kapsam notu:** bu uç ("bekleyen
+      > değerlendirmeler" kısmı) YET-107/PLAN 3.3'te zaten yapılmıştı — iki
+      > ayrı Jira görevi yanlışlıkla aynı backend ucuna işaret ediyordu
+      > (YET-109'a yorum olarak da düşüldü). Gerçek kalan iş: mevcut
+      > `GET /institutions/{id}/dashboard` ucuna/servisine `members` (üye)
+      > listesi eklendi — `InstitutionMember`+`User` join, `institution_id`
+      > ve `User.status == "ACTIVE"` filtreleriyle (çapraz-kurum sızıntısı ve
+      > askıya alınmış kullanıcı sızıntısı engellendi). Sayfalama/üye
+      > yönetimi/öğrenci listesi bilinçli olarak kapsam dışı bırakıldı.
+      > Detay: `obss_project/artifacts/kurum-dashboard-uyeler/`.
 - [ ] 3.6 Admin: kurum doğrulama kuyruğu + skill yönetimi @be2
 - [ ] 3.7 Frontend: profil sayfası — kanıt dökümü (signal + verified experience) @fe
 - [ ] 3.8 Frontend: public profil `/p/[slug]` + doğrulama `/v/[token]` @fe
