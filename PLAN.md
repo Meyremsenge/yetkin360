@@ -160,7 +160,21 @@ Hedef: jürinin göreceği yüz. Bu fazın sonunda canlı URL + gerçekçi veri 
       > askıya alınmış kullanıcı sızıntısı engellendi). Sayfalama/üye
       > yönetimi/öğrenci listesi bilinçli olarak kapsam dışı bırakıldı.
       > Detay: `obss_project/artifacts/kurum-dashboard-uyeler/`.
-- [ ] 3.6 Admin: kurum doğrulama kuyruğu + skill yönetimi @be2
+- [x] 3.6 Admin: kurum doğrulama kuyruğu + skill yönetimi @be2
+      > YET-110/136/137/138/139 tamamlandı. Ön koşul olarak `users.is_platform_admin`
+      > eklendi (DOMAIN.md'de tanımlıydı, migration'a hiç işlenmemişti — DATABASE.md
+      > senkronu da düzeltildi). `list_verification_queue()`: T2 + `legal_id` dolu
+      > kurumlar (T3 başvurusu sayılır — şemada ayrı başvuru alanı yok).
+      > `set_verification_level()` approve/reject'i tek fonksiyonla kapsıyor.
+      > Skill yönetimi bilinçli olarak sadece admin CRUD (create/update/deprecate/
+      > merge) — kullanıcı öneri akışı (docs/API.md §2.10 açık sorusu) kapsam dışı
+      > bırakıldı. Tüm `/admin/*` uçlarında yetkisiz erişim 404 (403 değil,
+      > organizations.py'deki ORG:ADMIN deseniyle aynı). İlk admin self-servis
+      > değil — `scripts/seed.py`'ye eklendi. `tests/authorization/test_admin_authz.py`
+      > (15 test) + `pytest tests/authorization -q` tam paket (196 geçti).
+      > Ayrı bulgu (bu maddenin kapsamı dışı): `require_email_verified()` hiçbir
+      > router'da kullanılmıyor — e-posta doğrulama yazma kısıtı hiçbir uçta
+      > uygulanmıyor, ayrı bir madde olarak açılmalı.
 - [ ] 3.7 Frontend: profil sayfası — kanıt dökümü (signal + verified experience) @fe
 - [ ] 3.8 Frontend: public profil `/p/[slug]` + doğrulama `/v/[token]` @fe
 - [ ] 3.9 Frontend: koordinatör dashboard @fe
