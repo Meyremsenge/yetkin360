@@ -36,7 +36,7 @@ def user_talent(session):
 def skill_python_active(session):
     """ACTIVE skill: Python language."""
     skill = Skill(
-        slug="python",
+        slug="test-python",
         name_tr="Python",
         name_en="Python",
         category="LANGUAGE",
@@ -53,7 +53,7 @@ def skill_python_active(session):
 def skill_javascript_active(session):
     """ACTIVE skill: JavaScript language."""
     skill = Skill(
-        slug="javascript",
+        slug="test-javascript",
         name_tr="JavaScript",
         name_en="JavaScript",
         category="LANGUAGE",
@@ -70,7 +70,7 @@ def skill_javascript_active(session):
 def skill_react_framework(session):
     """ACTIVE skill: React framework."""
     skill = Skill(
-        slug="react",
+        slug="test-react",
         name_tr="React",
         name_en="React",
         category="FRAMEWORK",
@@ -87,7 +87,7 @@ def skill_react_framework(session):
 def skill_fastapi_framework(session):
     """ACTIVE skill: FastAPI framework."""
     skill = Skill(
-        slug="fastapi",
+        slug="test-fastapi",
         name_tr="FastAPI",
         name_en="FastAPI",
         category="FRAMEWORK",
@@ -104,7 +104,7 @@ def skill_fastapi_framework(session):
 def skill_docker_tool(session):
     """ACTIVE skill: Docker tool."""
     skill = Skill(
-        slug="docker",
+        slug="test-docker",
         name_tr="Docker",
         name_en="Docker",
         category="TOOL",
@@ -152,7 +152,7 @@ def skill_deprecated(session):
 
 
 # ============================================================================
-# AC-1: GET /skills?q=python → 200 + {items: [...]} (search by name/slug)
+# AC-1: GET /skills?q=test-python → 200 + {items: [...]} (search by name/slug)
 # ============================================================================
 
 
@@ -163,9 +163,9 @@ class TestSkillSearchHappyPath:
         """
         AC-1: Search by English name.
 
-        GET /skills?q=python → 200 + {items: [{id, slug, name_tr, name_en, category, parent_id}, ...]}
+        GET /skills?q=test-python → 200 + {items: [{id, slug, name_tr, name_en, category, parent_id}, ...]}
         """
-        response = client.get("/skills?q=python", headers={"X-Debug-User-Id": str(user_talent.id)})
+        response = client.get("/skills?q=test-python", headers={"X-Debug-User-Id": str(user_talent.id)})
 
         assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
 
@@ -175,12 +175,12 @@ class TestSkillSearchHappyPath:
         assert len(data["items"]) >= 1
 
         # Find Python skill in results
-        python_item = next((item for item in data["items"] if item["slug"] == "python"), None)
+        python_item = next((item for item in data["items"] if item["slug"] == "test-python"), None)
         assert python_item is not None, "Python skill not found in search results"
 
         # Validate response schema
         assert "id" in python_item
-        assert python_item["slug"] == "python"
+        assert python_item["slug"] == "test-python"
         assert python_item["name_tr"] == "Python"
         assert python_item["name_en"] == "Python"
         assert python_item["category"] == "LANGUAGE"
@@ -193,17 +193,17 @@ class TestSkillSearchHappyPath:
         assert response.status_code == 200
         data = response.json()
 
-        python_item = next((item for item in data["items"] if item["slug"] == "python"), None)
+        python_item = next((item for item in data["items"] if item["slug"] == "test-python"), None)
         assert python_item is not None
 
     def test_search_by_slug(self, client, user_talent, skill_python_active):
         """AC-1: Search by slug (case-insensitive CITEXT)."""
-        response = client.get("/skills?q=python", headers={"X-Debug-User-Id": str(user_talent.id)})
+        response = client.get("/skills?q=test-python", headers={"X-Debug-User-Id": str(user_talent.id)})
 
         assert response.status_code == 200
         data = response.json()
 
-        python_item = next((item for item in data["items"] if item["slug"] == "python"), None)
+        python_item = next((item for item in data["items"] if item["slug"] == "test-python"), None)
         assert python_item is not None
 
     def test_search_returns_only_active_skills(self, client, user_talent, skill_python_active, skill_merged_into_python):
@@ -212,13 +212,13 @@ class TestSkillSearchHappyPath:
 
         Merged/deprecated skills must NOT appear.
         """
-        response = client.get("/skills?q=python", headers={"X-Debug-User-Id": str(user_talent.id)})
+        response = client.get("/skills?q=test-python", headers={"X-Debug-User-Id": str(user_talent.id)})
 
         assert response.status_code == 200
         data = response.json()
 
         slugs = [item["slug"] for item in data["items"]]
-        assert "python" in slugs, "Active Python skill should be in results"
+        assert "test-python" in slugs, "Active Python skill should be in results"
         assert "python2" not in slugs, "MERGED Python 2 skill should NOT be in results"
 
 
@@ -390,7 +390,7 @@ class TestSkillSearchInvalidCategory:
     def test_invalid_category_with_query_returns_422(self, client, user_talent, skill_python_active):
         """AC-5: Invalid category is validated even with query parameter."""
         response = client.get(
-            "/skills?q=python&category=BADCATEGORY", headers={"X-Debug-User-Id": str(user_talent.id)}
+            "/skills?q=test-python&category=BADCATEGORY", headers={"X-Debug-User-Id": str(user_talent.id)}
         )
 
         assert response.status_code == 422
@@ -455,7 +455,7 @@ class TestSkillSearchFiltersInactiveStatus:
 
         slugs = [item["slug"] for item in data["items"]]
         assert "python2" not in slugs, "MERGED skill 'python2' should never appear"
-        assert "python" in slugs, "ACTIVE skill 'python' should appear"
+        assert "test-python" in slugs, "ACTIVE skill 'test-python' should appear"
 
     def test_deprecated_skill_never_in_results(
         self, client, user_talent, skill_python_active, skill_deprecated
@@ -559,8 +559,8 @@ class TestSkillSearchSeeded:
 
         # Verify specific skills are seeded
         slugs = {item["slug"] for item in data["items"]}
-        assert "python" in slugs
-        assert "javascript" in slugs
-        assert "react" in slugs
-        assert "fastapi" in slugs
-        assert "docker" in slugs
+        assert "test-python" in slugs
+        assert "test-javascript" in slugs
+        assert "test-react" in slugs
+        assert "test-fastapi" in slugs
+        assert "test-docker" in slugs

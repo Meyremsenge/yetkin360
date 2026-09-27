@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_principal, get_current_user, get_session
+from app.core.deps import require_csrf
 from app.models import User
 from app.services.authorization import Principal, get_scoped_or_404, scoped_talent_profiles
 from app.services.talent import SlugTakenError, get_me_context, update_talent_profile
@@ -156,6 +157,7 @@ def patch_talents_me(
     payload: UpdateTalentProfileRequest,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ) -> TalentProfileResponse:
     """
     AC-3 through AC-7: Update current user's talent profile.

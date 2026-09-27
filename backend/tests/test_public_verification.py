@@ -166,7 +166,7 @@ def engagement_private_verification(session, profile_private_verification, org_v
 @pytest.fixture
 def skill_python(session):
     """Skill: Python."""
-    skill = Skill(slug="python", name_en="Python", name_tr="Python", category="LANGUAGE", status="ACTIVE")
+    skill = Skill(slug="test-python", name_en="Python", name_tr="Python", category="LANGUAGE", status="ACTIVE")
     session.add(skill)
     session.flush()
     return skill
@@ -175,7 +175,7 @@ def skill_python(session):
 @pytest.fixture
 def skill_fastapi(session):
     """Skill: FastAPI."""
-    skill = Skill(slug="fastapi", name_en="FastAPI", name_tr="FastAPI", category="FRAMEWORK", status="ACTIVE")
+    skill = Skill(slug="test-fastapi", name_en="FastAPI", name_tr="FastAPI", category="FRAMEWORK", status="ACTIVE")
     session.add(skill)
     session.flush()
     return skill

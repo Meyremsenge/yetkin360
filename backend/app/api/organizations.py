@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_principal, get_session
+from app.core.deps import require_csrf
 from app.models import Organization
 from app.services.authorization import Principal, get_scoped_or_404, scoped_organizations
 from app.services.audit import log_audit_event
@@ -137,6 +138,7 @@ def create_organization_endpoint(
     payload: OrganizationCreate,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ) -> Organization:
     """
     AC-1: Create organization. Caller becomes ADMIN.
@@ -205,6 +207,7 @@ def invite_member_endpoint(
     payload: OrganizationMemberInvite,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ):
     """
     AC-3: Invite user to organization (ADMIN-only action).
@@ -297,6 +300,7 @@ def verify_domain_endpoint(
     payload: DomainVerifyRequest = DomainVerifyRequest(),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ):
     """
     AC-5/AC-6/AC-7/AC-8: Verify organization domain via DNS TXT lookup.

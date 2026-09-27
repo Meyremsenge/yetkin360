@@ -30,7 +30,11 @@ class Principal:
       - org_admin_ids: List of organization IDs the principal is an admin of
       - institution_ids: List of institution IDs the principal is associated with
       - is_platform_admin: True if principal is a platform administrator
-      - is_suspended: True if principal's account is suspended
+      - is_suspended: True if principal's account is suspended. Not currently
+        read by can()/scoped_*() — suspension is already enforced earlier, at
+        app/core/deps.py:get_current_user (status not in PENDING/ACTIVE → 401),
+        which is stricter than this field would allow (blocks reads too, not
+        just writes). Kept on Principal for API completeness / future use.
       - institution_admin_ids: List of institution IDs the principal is an admin of
     """
 

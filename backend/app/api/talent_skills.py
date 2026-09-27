@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_principal, get_session
+from app.core.deps import require_csrf
 from app.services.authorization import Principal
 from app.services.skill_claim import (
     SkillAlreadyClaimedError,
@@ -82,6 +83,7 @@ def post_skills(
     payload: PostSkillClaimRequest,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ) -> PostSkillClaimResponse:
     """
     AC-1: Add a new skill to authenticated talent's profile.
@@ -188,6 +190,7 @@ def delete_skills(
     skill_id: str,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ) -> None:
     """
     AC-3, AC-7: Remove a skill claim from authenticated talent's profile.

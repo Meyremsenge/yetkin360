@@ -55,7 +55,7 @@ def talent_a(session, user_talent_a):
 def skill_python(session):
     """ACTIVE skill: Python."""
     skill = Skill(
-        slug="python",
+        slug="test-python",
         name_tr="Python",
         name_en="Python",
         category="LANGUAGE",
@@ -72,7 +72,7 @@ def skill_python(session):
 def skill_javascript(session):
     """ACTIVE skill: JavaScript."""
     skill = Skill(
-        slug="javascript",
+        slug="test-javascript",
         name_tr="JavaScript",
         name_en="JavaScript",
         category="LANGUAGE",
@@ -106,7 +106,7 @@ def skill_deprecated(session):
 def skill_merged(session, skill_python):
     """MERGED skill: Java (merged into Python)."""
     skill = Skill(
-        slug="java",
+        slug="test-java",
         name_tr="Java",
         name_en="Java",
         category="LANGUAGE",
@@ -255,7 +255,7 @@ class TestGetSkillClaims:
 
         skill = item["skill"]
         assert skill.get("id") == str(skill_python.id)
-        assert skill.get("slug") == "python"
+        assert skill.get("slug") == "test-python"
         assert skill.get("name_tr") == "Python"
         assert skill.get("name_en") == "Python"
         assert skill.get("category") == "LANGUAGE"
@@ -290,8 +290,8 @@ class TestGetSkillClaims:
         assert len(data["items"]) == 2
 
         skills_in_response = {item["skill"]["slug"] for item in data["items"]}
-        assert "python" in skills_in_response
-        assert "javascript" in skills_in_response
+        assert "test-python" in skills_in_response
+        assert "test-javascript" in skills_in_response
 
 
 # ============================================================================

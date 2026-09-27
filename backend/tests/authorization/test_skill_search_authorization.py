@@ -38,7 +38,7 @@ def user_searcher(session):
 def skill_python_active(session):
     """ACTIVE skill: Python language."""
     skill = Skill(
-        slug="python",
+        slug="authz-test-python",
         name_tr="Python",
         name_en="Python",
         category="LANGUAGE",
@@ -149,7 +149,7 @@ class TestSkillSearchResponseSchema:
         No extra fields leaked in search results.
         """
         list_response = client.get("/skills", headers={"X-Debug-User-Id": str(user_searcher.id)})
-        search_response = client.get("/skills?q=python", headers={"X-Debug-User-Id": str(user_searcher.id)})
+        search_response = client.get("/skills?q=authz-test-python", headers={"X-Debug-User-Id": str(user_searcher.id)})
 
         assert list_response.status_code == 200
         assert search_response.status_code == 200
@@ -205,7 +205,7 @@ class TestSkillSearchSQLInjection:
         # Verify DB is still accessible (skill_python_active is still in DB)
         subsequent_response = client.get("/skills", headers={"X-Debug-User-Id": str(user_searcher.id)})
         assert subsequent_response.status_code == 200
-        assert any(item["slug"] == "python" for item in subsequent_response.json()["items"])
+        assert any(item["slug"] == "authz-test-python" for item in subsequent_response.json()["items"])
 
     def test_sql_injection_or_condition_returns_200(self, client, user_searcher, skill_python_active):
         """
@@ -258,7 +258,7 @@ class TestSkillSearchSQLInjection:
         assert response.status_code == 200
 
         data = response.json()
-        assert any(item["slug"] == "python" for item in data["items"]), "Database should not be corrupted"
+        assert any(item["slug"] == "authz-test-python" for item in data["items"]), "Database should not be corrupted"
 
     def test_sql_injection_in_category_parameter(self, client, user_searcher, skill_python_active):
         """

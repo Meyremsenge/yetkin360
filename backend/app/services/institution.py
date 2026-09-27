@@ -131,6 +131,17 @@ def invite_member(
     return member
 
 
+def get_institution(session: Session, institution_id: uuid.UUID) -> Institution | None:
+    """
+    Look up an institution by ID (no scoping — institution existence is not
+    tenant-private info; any authenticated student may target any institution
+    with a link request, per AC-3 in app/api/institutions.py).
+    """
+    return session.execute(
+        select(Institution).where(Institution.id == institution_id)
+    ).scalar_one_or_none()
+
+
 def request_institution_link(
     institution_id: uuid.UUID,
     talent_profile_id: uuid.UUID,
@@ -183,6 +194,7 @@ def request_institution_link(
 
 def approve_institution_link(
     request_id: uuid.UUID,
+    institution_id: uuid.UUID,
     approver_user_id: uuid.UUID,
     session: Session,
 ) -> InstitutionLinkRequest:
@@ -194,6 +206,10 @@ def approve_institution_link(
 
     Args:
         request_id: InstitutionLinkRequest ID
+        institution_id: Institution the caller is authorized for (AC-5/AC-S2 —
+            the request must belong to THIS institution; a match on request_id
+            alone would let an admin of institution A approve institution B's
+            link request)
         approver_user_id: User approving (for audit)
         session: Database session
 
@@ -201,11 +217,12 @@ def approve_institution_link(
         InstitutionLinkRequest (status=APPROVED, decided_at/decided_by set)
 
     Raises:
-        ValueError: If request not found or not PENDING
+        ValueError: If request not found, not in this institution, or not PENDING
     """
     link_request = session.execute(
         select(InstitutionLinkRequest).where(
-            InstitutionLinkRequest.id == request_id
+            InstitutionLinkRequest.id == request_id,
+            InstitutionLinkRequest.institution_id == institution_id,
         )
     ).scalar_one_or_none()
 
