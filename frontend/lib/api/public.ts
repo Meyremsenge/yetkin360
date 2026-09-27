@@ -7,7 +7,7 @@
 
 import { ApiError, NetworkError, parseApiError } from "./errors";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 const TIMEOUT_MS = 10_000;
 
 /**

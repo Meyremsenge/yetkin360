@@ -23,7 +23,7 @@ bir ucun sözleşmesi burada yazılmadan `@fe` o ekranı yapamaz. Sözleşme yaz
 | Kural | Değer |
 |---|---|
 | Stil | REST |
-| Taban yol | `/api/v1` |
+| Taban yol | *(yok — router'lar kök dizinde mount edilir, ör. `/auth/login`, `/engagements`)* |
 | Format | JSON, `application/json; charset=utf-8` |
 | Zaman | ISO 8601, **UTC**, `Z` sonekiyle |
 | ID | UUIDv7, string |
@@ -35,8 +35,8 @@ bir ucun sözleşmesi burada yazılmadan `@fe` o ekranı yapamaz. Sözleşme yaz
 > **Kritik tasarım kuralı: Kaynak sahipliği URL'den çıkarılmalı, gövdeden değil.**
 
 ```
-✅ GET /api/v1/engagements/{id}          → servis, kullanıcının erişimini KONTROL EDER
-❌ GET /api/v1/engagements?org_id={id}   → org_id'ye güvenmek = BOLA
+✅ GET /engagements/{id}          → servis, kullanıcının erişimini KONTROL EDER
+❌ GET /engagements?org_id={id}   → org_id'ye güvenmek = BOLA
 ```
 
 BOLA (Broken Object Level Authorization) API saldırılarının ~%40'ında görülüyor
@@ -119,7 +119,7 @@ Aşağıdaki kodlar her uçta oluşabilir; uç tablolarında tekrarlanmaz.
 
 **Cursor isteği:**
 ```
-GET /api/v1/engagements?limit=20&cursor=eyJjcmVhdGVkX2F0IjoiMjAyNi0wOS0xNVQxMDowMDowMFoiLCJpZCI6Ii4uLiJ9
+GET /engagements?limit=20&cursor=eyJjcmVhdGVkX2F0IjoiMjAyNi0wOS0xNVQxMDowMDowMFoiLCJpZCI6Ii4uLiJ9
 ```
 
 **Cursor cevabı:**
