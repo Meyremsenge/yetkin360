@@ -24,6 +24,7 @@ from app.services.skill import (
     InvalidSkillReferenceError,
     create_skill,
     deprecate_skill,
+    list_all_skills,
     merge_skill,
     update_skill,
 )
@@ -108,6 +109,10 @@ class SkillResponse(BaseModel):
         from_attributes = True
 
 
+class SkillsListResponse(BaseModel):
+    items: list[SkillResponse]
+
+
 # ============================================================================
 # Kurum doğrulama kuyruğu (YET-136)
 # ============================================================================
@@ -166,6 +171,19 @@ def update_verification_level(
 # ============================================================================
 # Skill taksonomi yönetimi (YET-137)
 # ============================================================================
+
+
+@router.get("/skills", response_model=SkillsListResponse)
+def list_skills_endpoint(
+    limit: int = 200,
+    offset: int = 0,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> SkillsListResponse:
+    """Admin taksonomi yönetimi için TÜM skill'leri (durumdan bağımsız) listeler."""
+    _require_admin(principal)
+    skills = list_all_skills(session, limit=limit, offset=offset)
+    return SkillsListResponse(items=[SkillResponse.model_validate(s) for s in skills])
 
 
 @router.post("/skills", response_model=SkillResponse, status_code=201)

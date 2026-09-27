@@ -17,6 +17,17 @@ class InvalidSkillReferenceError(Exception):
     """Raised when parent_id/merged_into_id points to a missing, self, or non-ACTIVE skill."""
 
 
+def list_all_skills(session: Session, limit: int = 200, offset: int = 0) -> Sequence[Skill]:
+    """
+    List ALL skills regardless of status (ACTIVE/DEPRECATED/MERGED) — for
+    admin taxonomy management (YET-137). Unlike search_skills(), this is not
+    filtered to ACTIVE only, since admins need to see/manage deprecated and
+    merged skills too.
+    """
+    stmt = select(Skill).order_by(Skill.name_tr).limit(limit).offset(offset)
+    return session.execute(stmt).scalars().all()
+
+
 def search_skills(
     session: Session,
     q: str | None = None,

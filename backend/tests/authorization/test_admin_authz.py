@@ -91,6 +91,13 @@ class TestAdminOnlyAccess:
         )
         assert response.status_code == 404, response.text
 
+    def test_non_admin_cannot_list_skills_404(self, client, non_admin_talent):
+        response = client.get(
+            "/admin/skills",
+            headers={"X-Debug-User-Id": str(non_admin_talent.id)},
+        )
+        assert response.status_code == 404, response.text
+
     def test_non_admin_cannot_create_skill_404(self, client, non_admin_talent):
         response = client.post(
             "/admin/skills",
@@ -167,6 +174,22 @@ class TestVerificationQueue:
 
 
 class TestSkillManagement:
+    def test_admin_lists_all_skills_including_non_active(
+        self, client, session, platform_admin, sample_skill
+    ):
+        from app.services.skill import deprecate_skill
+
+        deprecate_skill(session, sample_skill.id)
+        session.commit()
+
+        response = client.get(
+            "/admin/skills",
+            headers={"X-Debug-User-Id": str(platform_admin.id)},
+        )
+        assert response.status_code == 200, response.text
+        slugs = [s["slug"] for s in response.json()["items"]]
+        assert sample_skill.slug in slugs
+
     def test_admin_creates_skill(self, client, platform_admin):
         response = client.post(
             "/admin/skills",
