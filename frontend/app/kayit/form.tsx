@@ -91,7 +91,7 @@ export default function RegisterForm() {
 
   if (successMessage) {
     return (
-      <div className="rounded-md bg-green-50 border border-green-200 p-6 text-center">
+      <div role="status" className="rounded-md bg-green-50 border border-green-200 p-6 text-center">
         <p className="text-green-700">{successMessage}</p>
       </div>
     );

@@ -56,7 +56,7 @@ const mockEmptyQueue = {
  */
 describe("DogrulamaKuyruguPage (/admin/dogrulama-kuyrugu)", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     // Mock session — admin kullanıcı
     vi.mocked(useSession).mockReturnValue({
       data: {
@@ -479,6 +479,78 @@ describe("DogrulamaKuyruguPage (/admin/dogrulama-kuyrugu)", () => {
     await waitFor(() => {
       expect(screen.getByRole("columnheader", { name: /kurum adı|name/i })).toBeTruthy();
       expect(screen.getByRole("columnheader", { name: /ticari kayıt|legal_id/i })).toBeTruthy();
+    });
+  });
+
+  // =========================================================================
+  // AC-1/AC-4: Erişilebilirlik — başarı mesajı role='status' ile duyurulabilir
+  // =========================================================================
+
+  it("AC-1/AC-4: seviye güncellemesi başarılı — başarı mesajı role='status' ile bulunabilir", async () => {
+    const updatedOrg = { ...mockOrganization, verification_level: "T3" };
+    vi.mocked(adminApi.getVerificationQueue).mockResolvedValueOnce(
+      mockVerificationQueue
+    );
+    vi.mocked(adminApi.updateVerificationLevel).mockResolvedValueOnce(
+      updatedOrg
+    );
+
+    const user = userEvent.setup();
+    renderWithQueryClient(<DogrulamaKuyruguPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Tech Startup Inc.")).toBeTruthy();
+    });
+
+    // Seviye seçme
+    const table = screen.getByRole("table");
+    const org1Row = within(table).getByText("Tech Startup Inc.").closest("tr");
+    const levelSelect = within(org1Row!).getByDisplayValue("T2");
+    await user.selectOptions(levelSelect, "T3");
+
+    // Onayla
+    const confirmButton = within(org1Row!).getByRole("button", { name: /onayla|güncelle/i });
+    await user.click(confirmButton);
+
+    // Başarı mesajı role="status" ile bulunabilir olmalı
+    await waitFor(() => {
+      const statusMsg = screen.getByRole("status", { hidden: false });
+      expect(statusMsg).toBeTruthy();
+      expect(statusMsg.textContent).toBeTruthy();
+    });
+  });
+
+  it("AC-4: başarı mesajı görsel stil korunur (regresyon: yeşil renk, kenarlık)", async () => {
+    const updatedOrg = { ...mockOrganization, verification_level: "T3" };
+    vi.mocked(adminApi.getVerificationQueue).mockResolvedValueOnce(
+      mockVerificationQueue
+    );
+    vi.mocked(adminApi.updateVerificationLevel).mockResolvedValueOnce(
+      updatedOrg
+    );
+
+    const user = userEvent.setup();
+    renderWithQueryClient(<DogrulamaKuyruguPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Tech Startup Inc.")).toBeTruthy();
+    });
+
+    const table = screen.getByRole("table");
+    const org1Row = within(table).getByText("Tech Startup Inc.").closest("tr");
+    const levelSelect = within(org1Row!).getByDisplayValue("T2");
+    await user.selectOptions(levelSelect, "T3");
+
+    const confirmButton = within(org1Row!).getByRole("button", { name: /onayla|güncelle/i });
+    await user.click(confirmButton);
+
+    // Başarı mesajı gösterilir — yeşil stilini kontrol et
+    await waitFor(() => {
+      const successDiv = document.querySelector(".bg-green-50");
+      expect(successDiv).toBeTruthy();
+      expect(successDiv?.className).toContain("bg-green-50");
+      expect(successDiv?.className).toContain("border-green-200");
+      expect(successDiv?.className).toContain("text-green-700");
     });
   });
 });

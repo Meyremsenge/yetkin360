@@ -224,4 +224,43 @@ describe("EmailVerifyPage (e-posta-dogrula/page.tsx)", () => {
       // Düşük öncelik — ideal ama zorunlu değil
     });
   });
+
+  describe("AC-1/AC-4: Erişilebilirlik — başarı mesajı role='status' ile duyurulabilir", () => {
+    it("AC-1/AC-4: e-posta doğrulama başarılı — başarı mesajı role='status' ile bulunabilir", async () => {
+      const mockToken = "valid-token-for-a11y";
+      const mockSearchParams = new URLSearchParams({ token: mockToken });
+
+      vi.mocked(useSearchParams).mockReturnValue(mockSearchParams as unknown as ReturnType<typeof useSearchParams>);
+      vi.mocked(verifyEmail).mockResolvedValue(undefined);
+
+      render(<EmailVerifyPage />);
+
+      // Başarı mesajı role="status" ile duyurulabilir olmalı
+      await waitFor(() => {
+        const statusMsg = screen.getByRole("status", { hidden: false });
+        expect(statusMsg).toBeTruthy();
+        expect(statusMsg.textContent).toContain("doğrulandı");
+      });
+    });
+
+    it("AC-4: başarı mesajı görsel stil korunur (regresyon: yeşil renk, kenarlık)", async () => {
+      const mockToken = "token-visual-check";
+      const mockSearchParams = new URLSearchParams({ token: mockToken });
+
+      vi.mocked(useSearchParams).mockReturnValue(mockSearchParams as unknown as ReturnType<typeof useSearchParams>);
+      vi.mocked(verifyEmail).mockResolvedValue(undefined);
+
+      render(<EmailVerifyPage />);
+
+      // Başarı mesajı gösterilir — yeşil stilini kontrol et
+      await waitFor(() => {
+        const successDiv = document.querySelector(".bg-green-50");
+        expect(successDiv).toBeTruthy();
+        expect(successDiv?.className).toContain("bg-green-50");
+        expect(successDiv?.className).toContain("border-green-200");
+        const paragraph = successDiv?.querySelector("p");
+        expect(paragraph?.className).toContain("text-green-700");
+      });
+    });
+  });
 });

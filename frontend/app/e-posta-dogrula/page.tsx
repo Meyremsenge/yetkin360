@@ -80,7 +80,11 @@ function EmailVerifyContent() {
           E-Posta Doğrulama
         </h1>
 
-        <div role="alert" aria-live="assertive" className="mb-6">
+        <div
+          role={status === "success" ? undefined : "alert"}
+          aria-live={status === "success" ? undefined : "assertive"}
+          className="mb-6"
+        >
           {status === "verifying" && (
             <div className="rounded-md bg-blue-50 border border-blue-200 p-4">
               <p className="text-sm text-blue-700">
@@ -90,7 +94,7 @@ function EmailVerifyContent() {
           )}
 
           {status === "success" && (
-            <div className="rounded-md bg-green-50 border border-green-200 p-4">
+            <div role="status" className="rounded-md bg-green-50 border border-green-200 p-4">
               <p className="text-sm text-green-700 font-medium mb-4">
                 {messages.epostaDogrula.success}
               </p>
