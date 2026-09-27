@@ -86,7 +86,7 @@ def test_talent_profiles_study_year_check(session):
 
 
 def test_skill_merged_requires_target(session):
-    session.add(Skill(slug="python", name_tr="Python", category="LANGUAGE", status="MERGED"))
+    session.add(Skill(slug="test-merged-no-target", name_tr="Python", category="LANGUAGE", status="MERGED"))
     with pytest.raises(IntegrityError):
         session.commit()
 

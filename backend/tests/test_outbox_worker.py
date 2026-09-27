@@ -9,7 +9,7 @@ Fixture pattern from test_audit_events.py + concurrent worker simulation.
 """
 
 import pytest
-from sqlalchemy import create_engine, select, delete
+from sqlalchemy import create_engine, select, delete, update
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 
@@ -126,6 +126,15 @@ def test_worker_ignores_already_processed_rows(session):
 def test_worker_batch_size_limits_rows(session):
     """AC-2: process_batch() respects batch_size limit."""
     topic = "email.test"
+
+    # The shared dev DB may already hold unrelated unprocessed rows (real
+    # usage, other workers). process_batch() selects globally, oldest first,
+    # so leftover rows would eat into batch_size ahead of this test's own
+    # rows. Neutralize them within this test's own transaction only — rolled
+    # back at teardown, real data is untouched.
+    session.execute(
+        update(Outbox).where(Outbox.processed_at.is_(None)).values(processed_at=datetime.now(timezone.utc))
+    )
 
     # Insert 5 unprocessed rows
     for i in range(5):
@@ -395,6 +404,22 @@ def test_worker_skip_locked_second_worker_processes_different_row():
     # Independent setup connection: insert rows and COMMIT so both workers can see them
     setup_conn = engine.connect()
     setup_session = Session(bind=setup_conn)
+
+    # The shared dev DB may already hold unrelated unprocessed rows (real
+    # usage, other tests). process_batch() selects globally, oldest first, so
+    # leftover rows would be picked ahead of this test's own two rows and
+    # never match `handlers` (no handler registered for their topic),
+    # starving both workers to 0 processed. Push those rows past max_attempts
+    # for the duration of this test only, then restore their original
+    # attempts in `finally` — never permanently altered.
+    stale_rows = setup_session.execute(
+        select(Outbox).where(Outbox.processed_at.is_(None))
+    ).scalars().all()
+    stale_snapshot = [(row.id, row.attempts) for row in stale_rows]
+    for row in stale_rows:
+        row.attempts = 999999
+    setup_session.commit()
+
     row_id_1 = insert_outbox_row(setup_session, topic, {"id": 1}, processed_at=None, attempts=0)
     row_id_2 = insert_outbox_row(setup_session, topic, {"id": 2}, processed_at=None, attempts=0)
     setup_session.commit()
@@ -430,8 +455,14 @@ def test_worker_skip_locked_second_worker_processes_different_row():
         connection1.close()
         session2.close()
         connection2.close()
-        # Cleanup: delete rows that were committed outside fixture rollback
+        # Cleanup: delete rows that were committed outside fixture rollback,
+        # and restore the stale rows' original attempts (real data — never
+        # left mutated after this test).
         setup_session.execute(delete(Outbox).where(Outbox.id.in_([row_id_1, row_id_2])))
+        for stale_id, original_attempts in stale_snapshot:
+            setup_session.execute(
+                update(Outbox).where(Outbox.id == stale_id).values(attempts=original_attempts)
+            )
         setup_session.commit()
         setup_session.close()
         setup_conn.close()

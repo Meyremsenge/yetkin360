@@ -129,7 +129,9 @@ def test_enqueue_rejects_password_in_payload(session):
         )
 
     # Verify row was NOT inserted
-    outbox_count = session.execute(select(Outbox)).scalars().all()
+    # Scoped to this test's own topic: the shared dev DB may already hold
+    # unrelated outbox rows, so a bare select(Outbox) would false-fail here.
+    outbox_count = session.execute(select(Outbox).filter_by(topic="email.test")).scalars().all()
     assert len(outbox_count) == 0
 
 
@@ -142,7 +144,9 @@ def test_enqueue_rejects_password_hash_in_payload(session):
             payload={"password_hash": "bcrypt$2b$12$..."},
         )
 
-    outbox_count = session.execute(select(Outbox)).scalars().all()
+    # Scoped to this test's own topic: the shared dev DB may already hold
+    # unrelated outbox rows, so a bare select(Outbox) would false-fail here.
+    outbox_count = session.execute(select(Outbox).filter_by(topic="email.test")).scalars().all()
     assert len(outbox_count) == 0
 
 
@@ -155,7 +159,9 @@ def test_enqueue_rejects_token_in_payload(session):
             payload={"token": "eyJhbGciOiJIUzI1NiIs..."},
         )
 
-    outbox_count = session.execute(select(Outbox)).scalars().all()
+    # Scoped to this test's own topic: the shared dev DB may already hold
+    # unrelated outbox rows, so a bare select(Outbox) would false-fail here.
+    outbox_count = session.execute(select(Outbox).filter_by(topic="email.test")).scalars().all()
     assert len(outbox_count) == 0
 
 
@@ -168,7 +174,9 @@ def test_enqueue_rejects_email_in_payload(session):
             payload={"email": "user@example.com"},
         )
 
-    outbox_count = session.execute(select(Outbox)).scalars().all()
+    # Scoped to this test's own topic: the shared dev DB may already hold
+    # unrelated outbox rows, so a bare select(Outbox) would false-fail here.
+    outbox_count = session.execute(select(Outbox).filter_by(topic="email.test")).scalars().all()
     assert len(outbox_count) == 0
 
 
@@ -181,7 +189,9 @@ def test_enqueue_rejects_private_note_in_payload(session):
             payload={"private_note": "internal note"},
         )
 
-    outbox_count = session.execute(select(Outbox)).scalars().all()
+    # Scoped to this test's own topic: the shared dev DB may already hold
+    # unrelated outbox rows, so a bare select(Outbox) would false-fail here.
+    outbox_count = session.execute(select(Outbox).filter_by(topic="email.test")).scalars().all()
     assert len(outbox_count) == 0
 
 
@@ -194,7 +204,9 @@ def test_enqueue_rejects_case_insensitive_password(session):
             payload={"Password": "secret123"},  # Capital P
         )
 
-    outbox_count = session.execute(select(Outbox)).scalars().all()
+    # Scoped to this test's own topic: the shared dev DB may already hold
+    # unrelated outbox rows, so a bare select(Outbox) would false-fail here.
+    outbox_count = session.execute(select(Outbox).filter_by(topic="email.test")).scalars().all()
     assert len(outbox_count) == 0
 
 
@@ -207,7 +219,9 @@ def test_enqueue_rejects_case_insensitive_token(session):
             payload={"TOKEN": "secret"},  # All caps
         )
 
-    outbox_count = session.execute(select(Outbox)).scalars().all()
+    # Scoped to this test's own topic: the shared dev DB may already hold
+    # unrelated outbox rows, so a bare select(Outbox) would false-fail here.
+    outbox_count = session.execute(select(Outbox).filter_by(topic="email.test")).scalars().all()
     assert len(outbox_count) == 0
 
 
@@ -225,7 +239,9 @@ def test_enqueue_rejects_nested_password(session):
             },
         )
 
-    outbox_count = session.execute(select(Outbox)).scalars().all()
+    # Scoped to this test's own topic: the shared dev DB may already hold
+    # unrelated outbox rows, so a bare select(Outbox) would false-fail here.
+    outbox_count = session.execute(select(Outbox).filter_by(topic="email.test")).scalars().all()
     assert len(outbox_count) == 0
 
 
@@ -246,7 +262,9 @@ def test_enqueue_rejects_deeply_nested_token(session):
             },
         )
 
-    outbox_count = session.execute(select(Outbox)).scalars().all()
+    # Scoped to this test's own topic: the shared dev DB may already hold
+    # unrelated outbox rows, so a bare select(Outbox) would false-fail here.
+    outbox_count = session.execute(select(Outbox).filter_by(topic="email.test")).scalars().all()
     assert len(outbox_count) == 0
 
 
@@ -263,7 +281,9 @@ def test_enqueue_rejects_multiple_sensitive_keys(session):
             },
         )
 
-    outbox_count = session.execute(select(Outbox)).scalars().all()
+    # Scoped to this test's own topic: the shared dev DB may already hold
+    # unrelated outbox rows, so a bare select(Outbox) would false-fail here.
+    outbox_count = session.execute(select(Outbox).filter_by(topic="email.test")).scalars().all()
     assert len(outbox_count) == 0
 
 
@@ -286,8 +306,10 @@ def test_enqueue_accepts_safe_payload(session):
         payload=safe_payload,
     )
 
+    # Scoped to this test's own topic: the shared dev DB may already hold
+    # unrelated outbox rows, so a bare select(Outbox) would false-fail here.
     outbox_row = session.execute(
-        select(Outbox)
+        select(Outbox).filter_by(topic="email.duplicate_registration_attempt")
     ).scalar_one_or_none()
 
     assert outbox_row is not None
@@ -308,7 +330,9 @@ def test_enqueue_rejects_private_note_nested(session):
             },
         )
 
-    outbox_count = session.execute(select(Outbox)).scalars().all()
+    # Scoped to this test's own topic: the shared dev DB may already hold
+    # unrelated outbox rows, so a bare select(Outbox) would false-fail here.
+    outbox_count = session.execute(select(Outbox).filter_by(topic="email.test")).scalars().all()
     assert len(outbox_count) == 0
 
 
@@ -327,8 +351,10 @@ def test_enqueue_accepts_email_as_value_not_key(session):
         payload=payload,
     )
 
+    # Scoped to this test's own topic: the shared dev DB may already hold
+    # unrelated outbox rows, so a bare select(Outbox) would false-fail here.
     outbox_row = session.execute(
-        select(Outbox)
+        select(Outbox).filter_by(topic="email.duplicate_registration_attempt")
     ).scalar_one_or_none()
 
     assert outbox_row is not None
