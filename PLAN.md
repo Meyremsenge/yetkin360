@@ -180,7 +180,24 @@ Hedef: jürinin göreceği yüz. Bu fazın sonunda canlı URL + gerçekçi veri 
 - [ ] 3.9 Frontend: koordinatör dashboard @fe
 - [ ] 3.10 Frontend: kurum dashboard + admin ekranları @fe
 - [ ] 3.11 Seed verisi: 20 öğrenci, 5 kurum, 15 tamamlanmış engagement @be1
-- [ ] 3.12 Güvenlik geçişi: BOLA taraması, 404-yerine-403 doğrulaması @be2
+- [x] 3.12 Güvenlik geçişi: BOLA taraması, 404-yerine-403 doğrulaması @be2
+      > YET-116/154/155 tamamlandı (PR #32). Tüm `api/*.py` ve `services/*.py`
+      > `scoped_*()`/`can()` kullanımı için tarandı — `institutions.py`'de router
+      > içinde çıplak `select(Model)` vardı, merkezi katmana taşındı
+      > (`get_institution()`, `institution_id`-scoped `approve_institution_link()`).
+      > 404-vs-403 ayrımı final-analiz §21.2 matrisine göre doğrulandı, tutarlı.
+      > Ek bulgu (kapsam genişletildi): `require_csrf` sadece `auth.py`/`evidence.py`'de
+      > uygulanıyordu; `institutions`/`organizations`/`engagements`/`admin`/`me`/
+      > `talent_skills`'teki 23 yazma ucuna eklendi. Yetkilendirme test paketi
+      > birleştirildi (`tests/` kökündeki 10 dosya `tests/authorization/`'a
+      > taşındı — `pytest tests/authorization -q` artık gerçekten tam paket).
+      > Outbox PII-guard + birkaç skill testindeki dev-DB seed verisiyle (gerçek
+      > skill taksonomisi) çakışan test fixture'ları düzeltildi (kod hatası
+      > değildi, test izolasyon hatasıydı).
+      > Ayrı bulgu (bu maddenin kapsamı dışı): `tests/test_seed.py`, seed
+      > fonksiyonlarını çağırırken kendi ayrı DB session'ını açıyor ve test
+      > rollback izolasyonunu bypass ediyor — yerel dev DB'ye kalıcı satır
+      > bırakıyor, ayrı bir madde olarak açılmalı.
 - [ ] 3.13 Erişilebilirlik geçişi: klavye, focus, kontrast, `aria-live` @fe
 - [ ] 3.14 Deploy: VPS, HTTPS, canlı URL, yedekleme, log @be2
 - [ ] 3.15 Açık kaynak paketi: kurulum talimatı sıfırdan doğrulanır, sır taraması @all
