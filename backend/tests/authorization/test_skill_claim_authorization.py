@@ -95,7 +95,7 @@ def talent_bob(session, user_talent_bob):
 def skill_python(session):
     """ACTIVE skill: Python."""
     skill = Skill(
-        slug="python",
+        slug="authz-test-python",
         name_tr="Python",
         name_en="Python",
         category="LANGUAGE",
@@ -112,7 +112,7 @@ def skill_python(session):
 def skill_javascript(session):
     """ACTIVE skill: JavaScript."""
     skill = Skill(
-        slug="javascript",
+        slug="authz-test-javascript",
         name_tr="JavaScript",
         name_en="JavaScript",
         category="LANGUAGE",
@@ -331,7 +331,7 @@ class TestGetOnlyOwnClaims:
         # Assert: only Alice's claim
         assert "items" in data
         assert len(data["items"]) == 1
-        assert data["items"][0]["skill"]["slug"] == "python"
+        assert data["items"][0]["skill"]["slug"] == "authz-test-python"
 
     def test_get_with_query_param_talent_id_ignored(self, client, session, user_talent_alice, user_talent_bob, talent_alice, talent_bob, skill_python, skill_javascript):
         """
@@ -376,7 +376,7 @@ class TestGetOnlyOwnClaims:
 
         # Assert: Alice's claims only (query param ignored)
         assert len(data["items"]) == 1
-        assert data["items"][0]["skill"]["slug"] == "python"
+        assert data["items"][0]["skill"]["slug"] == "authz-test-python"
 
 
 # ============================================================================
@@ -496,7 +496,7 @@ class TestDeleteCrossUserIsolation:
         assert response.status_code == 200
         data = response.json()
         assert len(data["items"]) == 1
-        assert data["items"][0]["skill"]["slug"] == "python"
+        assert data["items"][0]["skill"]["slug"] == "authz-test-python"
 
 
 # ============================================================================
