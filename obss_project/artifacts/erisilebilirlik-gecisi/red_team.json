@@ -1,0 +1,30 @@
+{
+  "task": "erisilebilirlik-gecisi",
+  "reviewed_at": "2026-09-27T00:00:00Z",
+  "summary": "Değişiklikler ATDD'nin 6 AC'sini karşılıyor; iki kritik regresyon (bogus bg-green-200, kaldırılmış native disabled) doğrulanarak gerçekten geri alınmış, focus-trap implementasyonu (admin/skiller/page.tsx) eksiksiz ve doğru desende. Tek gerçek bulgu (iç içe live-region, e-posta-dogrula/page.tsx) kullanıcı onayıyla düzeltildi ve bağımsız doğrulandı.",
+  "findings": [
+    {
+      "severity": "low",
+      "category": "correctness",
+      "file": "frontend/app/e-posta-dogrula/page.tsx",
+      "issue": "Yeni eklenen role=\"status\" (satır 93), zaten var olan dış sarmalayıcı role=\"alert\" aria-live=\"assertive\" (satır 83) içine iç içe yerleşmişti — iki farklı canlı bölge (biri assertive, biri implicit polite) çakışan/çift duyuruya yol açabilirdi.",
+      "better_approach": "Dış sarmalayıcının role/aria-live'ını status===\"success\" iken kaldırıp sadece iç role=\"status\"'u bırakmak, diğer durumlarda (verifying/error) dış role=\"alert\" aynen kalmalı (error dalı kendi rolüne sahip değil, dışa bağımlı).",
+      "reason": "atdd.md AC-1'in amacı 'mesajın net biçimde otomatik duyurulması' — iç içe çelişen live-region rolleri bu amacı riske atıyordu.",
+      "outcome": "fixed"
+    }
+  ],
+  "strengths": [
+    "frontend/app/admin/skiller/page.tsx — Confirm butonunda native disabled={!mergeTarget || isMerging} korunmuş, CSS-only sahte disabled regresyonu yok.",
+    "Hiçbir dosyada bg-green-200 sınıfı yok (grep ile doğrulandı) — görsel regresyon (AC-4) geri alınmış.",
+    "admin/skiller/page.tsx — focus-trap document-level keydown + dialogRef.contains() deseniyle doğru kurulmuş; Escape hem state'i temizliyor hem tetikleyici butona odağı geri veriyor (AC-3); Tab/Shift+Tab döngüsü doğru çalışıyor (AC-2).",
+    "code_diff.md'nin iddia ettiği minimal, tek satırlık role=\"status\" eklemeleriyle gerçek diff birebir örtüşüyor — kapsam genişlemesi yok."
+  ],
+  "risks": [
+    "Kontrast (4.5:1) ve Lighthouse/axe taraması bu görevde bilinçli olarak yapılmadı (atdd.md Kapsam Dışı) — gelecekte ayrı bir takip görevi gerekiyor, blocking değil."
+  ],
+  "caveman_review": {"complexity": "low", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {"atdd_satisfied": true, "tests_passed": true, "no_critical_findings": true, "scope_respected": true, "caveman_satisfied": true, "security_acceptable": true, "maintainability_acceptable": true, "no_blocking_risks": true},
+  "verdict": "approve",
+  "post_fix_note": "Tek bulgu kullanıcı onayıyla düzeltildi: e-posta-dogrula/page.tsx'teki dış live-region role/aria-live'ı status==='success' iken koşullu olarak kaldırıldı. Bağımsız doğrulama: tsc 0 hata, vitest 64/64 PASS, eslint 0 error."
+}

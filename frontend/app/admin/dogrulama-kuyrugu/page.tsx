@@ -86,7 +86,7 @@ export default function DogrulamaKuyruguPage() {
         ) : (
           <>
             {successMessage && (
-              <div className="mb-4 rounded-md bg-green-50 border border-green-200 p-4 text-sm text-green-700">
+              <div role="status" className="mb-4 rounded-md bg-green-50 border border-green-200 p-4 text-sm text-green-700">
                 {successMessage}
               </div>
             )}

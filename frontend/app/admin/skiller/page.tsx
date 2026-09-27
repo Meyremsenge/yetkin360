@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import * as adminApi from "@/lib/api/admin";
@@ -21,6 +21,8 @@ export default function SkillerPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [mergeDialog, setMergeDialog] = useState<{ skillId: string; skillName: string } | null>(null);
   const [mergeTarget, setMergeTarget] = useState<string>("");
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
 
   const { data: skillsList, isLoading, isError, error } = useQuery({
     queryKey: SKILLS_KEY,
@@ -143,6 +145,85 @@ export default function SkillerPage() {
     return target ? target.name_tr : "-";
   };
 
+  useEffect(() => {
+    if (!mergeDialog) return;
+
+    const triggerEl = document.activeElement as HTMLElement;
+    triggerRef.current = triggerEl;
+
+    // Setup focus trap (first focus) after paint
+    const rafId = requestAnimationFrame(() => {
+      if (!dialogRef.current) return;
+
+      const focusables = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'button, select, input, [tabindex]'
+        )
+      ).filter(el => {
+        const disabled = el.getAttribute('disabled');
+        const tabindex = el.getAttribute('tabindex');
+        return !disabled && tabindex !== '-1';
+      });
+
+      if (focusables.length > 0) {
+        focusables[0].focus();
+      }
+    });
+
+    // Setup event listener
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!dialogRef.current) return;
+
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMergeDialog(null);
+        setMergeTarget("");
+        triggerEl?.focus();
+        return;
+      }
+
+      if (e.key === "Tab") {
+        const getFocusable = () => {
+          if (!dialogRef.current) return [];
+          return Array.from(
+            dialogRef.current.querySelectorAll<HTMLElement>(
+              'button, select, input, [tabindex]'
+            )
+          ).filter(el => {
+            const disabled = el.getAttribute('disabled');
+            const tabindex = el.getAttribute('tabindex');
+            return !disabled && tabindex !== '-1';
+          });
+        };
+
+        const items = getFocusable();
+        if (items.length === 0) return;
+
+        const active = document.activeElement as HTMLElement;
+        const isInsideDialog = dialogRef.current.contains(active);
+        const currentIndex = items.indexOf(active);
+
+        if (e.shiftKey) {
+          if (!isInsideDialog || currentIndex <= 0) {
+            e.preventDefault();
+            items[items.length - 1].focus();
+          }
+        } else {
+          if (!isInsideDialog || currentIndex === items.length - 1) {
+            e.preventDefault();
+            items[0].focus();
+          }
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      cancelAnimationFrame(rafId);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [mergeDialog]);
+
   return (
     <AppShell>
       <main className="p-6 max-w-7xl mx-auto">
@@ -178,7 +259,10 @@ export default function SkillerPage() {
               <h2 className="text-lg font-bold mb-4">{messages.adminSkills.formTitle}</h2>
 
               {successMessage && (
-                <div className="mb-4 rounded-md bg-green-50 border border-green-200 p-4 text-sm text-green-700">
+                <div
+                  role="status"
+                  className="mb-4 rounded-md bg-green-50 border border-green-200 p-4 text-sm text-green-700"
+                >
                   {successMessage}
                 </div>
               )}
@@ -346,7 +430,18 @@ export default function SkillerPage() {
 
             {/* Merge Dialog */}
             {mergeDialog && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div
+                role="dialog"
+                aria-modal="true"
+                ref={dialogRef}
+                className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+                onClick={(e) => {
+                  if (e.target === e.currentTarget) {
+                    setMergeDialog(null);
+                    setMergeTarget("");
+                  }
+                }}
+              >
                 <div className="bg-white rounded-md p-6 max-w-md w-full mx-4">
                   <h3 className="text-lg font-bold mb-4">
                     {messages.adminSkills.mergeDialog.title}
