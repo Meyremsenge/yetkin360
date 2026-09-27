@@ -505,6 +505,7 @@ def _create_verified_engagement(
             if inst_admin:
                 approve_institution_link(
                     request_id=link_request.id,
+                    institution_id=institution.id,
                     approver_user_id=inst_admin.id,
                     session=session
                 )
