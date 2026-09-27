@@ -1,0 +1,47 @@
+{
+  "task": "admin-dogrulama-ve-skill-yonetimi-ekranlari",
+  "reviewed_at": "2026-09-27T00:00:00Z",
+  "summary": "Doğrulama kuyruğu ve skill yönetimi ekranları ATDD/AC-S1/AC-S2'ye büyük ölçüde uygun; daha önce yakalanan hardcoded-fixture-ID/'gizle' hilesi tamamen temizlenmiş ve gerçek arama + name_tr dönüşüne geri çevrilmiş (bağımsız olarak koddan doğrulandı). Ancak AC-8 (her admin aksiyonu hatasında kırmızı bildirim) skill deprecate/merge akışlarında eksik uygulanmış — sadece console.error var, kullanıcıya görünen bir hata bildirimi yok; bu bağımsız olarak page.tsx satır 62-100 okunarak doğrulandı.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "correctness",
+      "file": "frontend/app/admin/skiller/page.tsx",
+      "issue": "deprecateSkill ve mergeSkillMutation'ın onError callback'leri (satır 74-77, 97-100) yalnızca console.error çağırıyor; formError/genel hata state'i set edilmiyor, kullanıcıya görünen kırmızı bir bildirim gösterilmiyor.",
+      "better_approach": "deprecate/merge onError'da da createSkill'deki gibi bir state set edip role=\"alert\" ile göstermek.",
+      "reason": "atdd.md Davranış Sözleşmesi satır 8: 'herhangi bir admin action sırasında API 500/network hatası döner, Then kırmızı hata bildirimi gösterilir' — tek bir action tipine özel değil, tüm admin action'lar için tanımlanmış.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "low",
+      "category": "test-gap",
+      "file": "frontend/app/admin/skiller/page.test.tsx",
+      "issue": "'AC-8: mutation hatası' testi yalnızca listenin eski haliyle kaldığını doğruluyor, kırmızı hata bildiriminin (role=\"alert\") göründüğünü assert etmiyor.",
+      "better_approach": "Test, deprecate/merge sonrası bir role=\"alert\" elementinin DOM'da bulunduğunu da assert etmeli.",
+      "reason": "Doğrulama matrisi 'testsiz davranış commit edilmez' ilkesiyle uyumlu olması için AC-8'in görünür-bildirim kısmı ayrıca test edilmeli.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "low",
+      "category": "maintainability",
+      "file": "frontend/app/admin/skiller/page.tsx",
+      "issue": "Kategori doğrulama listesi implementasyonda elle tekrarlanmış, admin.ts'teki Skill.category union tipinden ayrı.",
+      "better_approach": "admin.ts'te tek bir SKILL_CATEGORIES sabiti export edip her iki yerde de kullanmak.",
+      "reason": "Tek kaynak prensibi — iki dosyada aynı enum'un elle tekrarlanması sessiz tutarsızlık riski taşır."
+    }
+  ],
+  "strengths": [
+    "getParentName()/getMergedIntoName() bağımsız olarak koddan doğrulandı: önceki turda eklenen hardcoded fixture ID'leri ve 'hedef listede görünüyorsa gizle' mantığı tamamen kaldırılmış, gerçek arama + name_tr dönüşüne geri çevrilmiş — atdd.md'nin nullable alan tablosuna uyumlu.",
+    "AC-S1/AC-S2 için frontend hiçbir 403/404 ayrımı yapmıyor, backend'in 404 kararına güveniyor, kaynağın var/yok olduğunu sızdırmıyor.",
+    "Optimistic update kullanılmamış — Rollback Beklentisi bölümüyle birebir uyumlu.",
+    "Form alanlarında label/id eşleşmesi var, hata bantları role=\"alert\" kullanıyor."
+  ],
+  "risks": [
+    "Deprecate/merge aksiyonlarında kullanıcıya görünen hata bildirimi olmaması, kullanıcının bir işlemin başarısız olduğunu fark etmeden sayfadan ayrılmasına yol açabilir — düşük-orta risk, veri kaybı yok (mutasyon sunucuda uygulanmadı)."
+  ],
+  "caveman_review": {"complexity": "low", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {"atdd_satisfied": true, "tests_passed": true, "no_critical_findings": true, "scope_respected": true, "caveman_satisfied": true, "security_acceptable": true, "maintainability_acceptable": true, "no_blocking_risks": true},
+  "verdict": "approve",
+  "post_fix_note": "Medium (correctness) ve low (test-gap) bulguları kullanıcı onayıyla düzeltildi: deprecateSkill/mergeSkillMutation onError'ları artık actionError state'i ile role=alert bildirimi gösteriyor, ilgili test genişletildi. Bağımsız doğrulama: tsc 0 hata, vitest 72/72 PASS, eslint 0 error. Kalan tek bulgu (low/maintainability — kategori enum tekrarı) kullanıcıya bildirilecek, engelleyici değil."
+}

@@ -1,0 +1,157 @@
+/**
+ * PLAN 3.6 — Admin ekranları API client (kurum doğrulama + skill yönetimi).
+ * Endpoints: GET /admin/verification-queue, POST /admin/organizations/{id}/verification-level,
+ * POST/PATCH/DELETE /admin/skills*
+ * Returns response or throws ApiError/NetworkError.
+ */
+
+import { apiFetch } from "./client";
+
+// ============================================================================
+// Type definitions
+// ============================================================================
+
+export interface Organization {
+  id: string;
+  name: string;
+  legal_id?: string | null;
+  domain?: string | null;
+  verification_level: string; // "T0" | "T1" | "T2" | "T3"
+  verified_at?: string | null;
+  created_at: string;
+}
+
+export interface VerificationQueueResponse {
+  items: Organization[];
+}
+
+export interface Skill {
+  id: string;
+  slug: string;
+  name_tr: string;
+  name_en?: string | null;
+  category: string; // "LANGUAGE" | "DOMAIN" | "TOOL" | "FRAMEWORK"
+  parent_id?: string | null;
+  status: string; // "ACTIVE" | "DEPRECATED" | "MERGED"
+  merged_into_id?: string | null;
+  created_at: string;
+}
+
+export interface SkillsListResponse {
+  items: Skill[];
+}
+
+// ============================================================================
+// API functions
+// ============================================================================
+
+/**
+ * Fetch verification queue (organizations pending verification level decision).
+ * GET /admin/verification-queue
+ * AC-1: Happy path — returns items[]
+ * AC-4: Empty queue — returns items: []
+ * AC-8: 500/timeout — throws ApiError/NetworkError
+ * AC-9/AC-S2: Unauthorized — throws ApiError(404)
+ */
+export async function getVerificationQueue(): Promise<VerificationQueueResponse | undefined> {
+  return (await apiFetch<VerificationQueueResponse>("/admin/verification-queue")) as VerificationQueueResponse | undefined;
+}
+
+/**
+ * Update organization verification level.
+ * POST /admin/organizations/{id}/verification-level
+ * AC-2: Happy path — returns updated Organization
+ * AC-3: Resource not found — throws ApiError(404, "Kurum bulunamadı.")
+ * AC-8: 500/timeout — throws ApiError/NetworkError
+ * AC-9/AC-S2: Unauthorized — throws ApiError(404)
+ */
+export async function updateVerificationLevel(
+  organizationId: string,
+  verificationLevel: string
+): Promise<Organization | undefined> {
+  return (await apiFetch<Organization>(
+    `/admin/organizations/${organizationId}/verification-level`,
+    {
+      method: "POST",
+      body: { verification_level: verificationLevel },
+    }
+  )) as Organization | undefined;
+}
+
+/**
+ * Create a new skill.
+ * POST /admin/skills
+ * AC-5: Happy path — returns new Skill
+ * AC-6: Slug conflict — throws ApiError(409, "Bu slug zaten kullanımda.")
+ * AC-8: 500/timeout — throws ApiError/NetworkError
+ * AC-9/AC-S2: Unauthorized — throws ApiError(404)
+ */
+export async function createSkill(
+  slug: string,
+  name_tr: string,
+  category: string,
+  name_en?: string
+): Promise<Skill | undefined> {
+  return (await apiFetch<Skill>("/admin/skills", {
+    method: "POST",
+    body: { slug, name_tr, name_en, category },
+  })) as Skill | undefined;
+}
+
+/**
+ * Update an existing skill.
+ * PATCH /admin/skills/{id}
+ * AC-7: Happy path — returns updated Skill
+ * AC-8: 500/timeout — throws ApiError/NetworkError
+ * AC-9/AC-S2: Unauthorized — throws ApiError(404)
+ */
+export async function updateSkill(
+  skillId: string,
+  name_tr: string
+): Promise<Skill | undefined> {
+  return (await apiFetch<Skill>(`/admin/skills/${skillId}`, {
+    method: "PATCH",
+    body: { name_tr },
+  })) as Skill | undefined;
+}
+
+/**
+ * Deprecate a skill.
+ * POST /admin/skills/{id}/deprecate
+ * AC-7: Happy path — returns Skill with status DEPRECATED
+ * AC-8: 500/timeout — throws ApiError/NetworkError
+ * AC-9/AC-S2: Unauthorized — throws ApiError(404)
+ */
+export async function deprecateSkill(skillId: string): Promise<Skill | undefined> {
+  return (await apiFetch<Skill>(`/admin/skills/${skillId}/deprecate`, {
+    method: "POST",
+  })) as Skill | undefined;
+}
+
+/**
+ * Merge a skill into another.
+ * POST /admin/skills/{id}/merge
+ * AC-7: Happy path — returns Skill with status MERGED and merged_into_id set
+ * AC-8: 500/timeout — throws ApiError/NetworkError
+ * AC-9/AC-S2: Unauthorized — throws ApiError(404)
+ */
+export async function mergeSkill(
+  skillId: string,
+  targetId: string
+): Promise<Skill | undefined> {
+  return (await apiFetch<Skill>(`/admin/skills/${skillId}/merge`, {
+    method: "POST",
+    body: { target_id: targetId },
+  })) as Skill | undefined;
+}
+
+/**
+ * Fetch all skills (for admin skill taxonomy management).
+ * GET /admin/skills
+ * AC-5: Happy path — returns items[]
+ * AC-8: 500/timeout — throws ApiError/NetworkError
+ * AC-9/AC-S2: Unauthorized — throws ApiError(404)
+ */
+export async function getSkills(): Promise<SkillsListResponse | undefined> {
+  return (await apiFetch<SkillsListResponse>("/admin/skills")) as SkillsListResponse | undefined;
+}

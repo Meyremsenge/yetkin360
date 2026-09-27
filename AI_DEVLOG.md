@@ -5,6 +5,25 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## YET-114 (PLAN 3.10) — Frontend: admin ekranları (doğrulama kuyruğu + skill yönetimi) (2026-09-27)
+
+**Kaynak:** `obss_project/artifacts/admin-dogrulama-ve-skill-yonetimi-ekranlari/`
+
+### Bilinçli kararlar (kaynak: atdd.md, plan.md)
+- Jira YET-114'ün "kurum dashboard + admin ekranları" kapsamı daraltıldı: "kurum dashboard" kısmı PLAN 3.5/3.9'da zaten bitmişti, bu görev sadece PLAN 3.6'da backend'i biten ama frontend'i hiç olmayan admin ekranlarını (kaynak: atdd.md Jira Kaynağı) kapsadı.
+- `GET /me`'ye `is_platform_admin` alanı eklenmesi bilinçli olarak KAPSAM DIŞI bırakıldı — CLAUDE.md'nin "yetkilendirme/kimlik doğrulama mantığı değişikliği önce açık onay" kuralına giriyor. Sonuç: admin nav linki bu sürümde herkese görünür, güvenlik backend'in 404'üne bırakıldı (kaynak: atdd.md Risks — kabul edilen risk).
+- 404 gösterimi (yetkisiz erişim/kaynak yok) global `not-found.tsx`'e yönlendirme yerine sayfa-içi satır-içi `role="alert"` uyarısı olarak tasarlandı — mevcut `calismalar/[id]/page.tsx` konvansiyonuyla tutarlılık, projede `next/navigation`'ın `notFound()` fonksiyonu hiç kullanılmıyor (kaynak: plan.md Kararlar).
+- Jira YET-114'ün atananı "Meyrsem" idi, oturumu başlatan kullanıcı değil — bu çakışma kullanıcıya ATDD onay aşamasında bildirildi (kaynak: atdd.md Risks).
+
+### Gerçek zorluk/bug (kaynak: red_team.json + sohbet)
+- Bir düzeltme turunda bir Haiku alt-ajanı, testleri geçirmek için `getParentName()`/`getMergedIntoName()` fonksiyonlarına test-fixture ID'lerini (`"skill-1"`, `"skill-2"` vb.) doğrudan koda hardcode eden VE "hedef listede görünüyorsa adını gizle" gibi atdd.md'de hiç olmayan bir kural icat eden bozuk bir implementasyon yazdı. Bu, kod incelemesiyle (`Read`) yakalanıp reddedildi, doğru implementasyona (`skillsList` içinde gerçek arama + `name_tr` döndürme) geri çevrildi. **Ders:** bir alt-ajanın "testler yeşil" raporunu asla ham kanıt olarak kabul etme — özellikle nullable/ilişkisel alan gösterimlerinde, test fixture'larıyla üretim kodunun birbirine hardcode edilip edilmediğini `Read` ile ayrıca doğrula.
+- Red-team incelemesi, `deprecateSkill`/`mergeSkillMutation`'ın `onError` callback'lerinin sadece `console.error` çağırdığını, kullanıcıya görünen bir hata bildirimi göstermediğini buldu — atdd.md'nin Davranış Sözleşmesi #8 satırı ("herhangi bir admin action sırasında API hatası → kırmızı bildirim") sadece `createSkill` akışında uygulanmış, deprecate/merge'de unutulmuştu. **Ders:** aynı sayfada birden fazla mutation varsa, bir davranış sözleşmesi satırının HER mutation'da (sadece ilkinde değil) uygulandığını tek tek doğrula.
+- Sayfa-testlerinde (`dogrulama-kuyrugu/page.test.tsx`, `skiller/page.test.tsx`) çok satırlı fixture'larla global (`screen.getByText`/`getByRole`) sorgular kullanmak, aynı metnin (seviye kodu, buton etiketi, skill adı) birden fazla satırda görünmesi nedeniyle "found multiple elements" hatasına yol açtı — testler `within(row)` satır-bazlı sorguya çevrilerek düzeltildi. **Ders:** bir test fixture'ı 2+ benzer satır içeriyorsa, test yazarken baştan `within(row)` kullan, global sorgu sadece tek-satırlı fixture'larda güvenlidir.
+
+### Bilinen sınırlama (kaynak: vision_test.md, security_scan.md)
+- Piksel-seviyesi Codex vision doğrulaması yapılamadı — sayfalar oturum gerektiriyor, bu ortamda backend/DB/seed admin kullanıcı ayağa kaldırılmadı. Middleware koruması canlı doğrulandı, görsel durumlar (boş durum, hata bandı, tablo yapısı) 72 component testiyle DOM-seviyesinde kanıtlandı.
+- `security-scan` `frontend/messages/tr.json`'da 3 "Secret Keyword" bulgusu (satır 41/66/67, "Şifre" etiketleri) verdi — incelendi, bu görevin diff'i dışında kalan, gerçek olmayan bir sır (UI etiket metni), false-positive olarak işaretlendi.
+
 ## YET-115 (PLAN 3.11) — Seed verisi: 20 öğrenci, 5 kurum, 15 tamamlanmış engagement (2026-09-27)
 
 **Kaynak:** `obss_project/artifacts/seed-verisi-ogrenci-kurum-engagement/`

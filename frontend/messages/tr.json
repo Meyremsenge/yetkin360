@@ -15,7 +15,7 @@
     "logoutFailed": "Çıkış tamamlanamadı, lütfen tekrar deneyin."
   },
   "errors": {
-    "generic": "Bir hata oluştu. Lütfen daha sonra tekrar deneyin.",
+    "generic": "İşlem sırasında bir hata oluştu. Lütfen tekrar deneyin.",
     "network": "Bağlantı hatası. Lütfen bağlantınızı kontrol edin.",
     "timeout": "İstek zaman aşımına uğradı. Lütfen tekrar deneyin.",
     "retry": "Tekrar dene",
@@ -211,5 +211,68 @@
     "pendingEvaluationTitle": "Değerlendirme Bekleyen Stajlar",
     "emptyPendingApprovalMessage": "Onay bekleyen staj yok.",
     "emptyPendingEvaluationMessage": "Değerlendirme bekleyen staj yok."
+  },
+  "adminVerificationQueue": {
+    "title": "Kurum Doğrulama Kuyruğu",
+    "empty": "Bekleyen doğrulama isteği yok",
+    "notFound": "Kaynak bulunamadı.",
+    "updated": "Doğrulama seviyesi güncellendi",
+    "headers": {
+      "name": "Kurum Adı",
+      "legalId": "Ticari Kayıt",
+      "domain": "Domain",
+      "verificationLevel": "Doğrulama Seviyesi",
+      "createdAt": "Tarih"
+    },
+    "form": {
+      "levelLabel": "Doğrulama Seviyesi",
+      "confirm": "Onayla"
+    }
+  },
+  "adminSkills": {
+    "title": "Yetkinlik Yönetimi",
+    "empty": "Henüz bir yetkinlik yok",
+    "notFound": "Kaynak bulunamadı.",
+    "formTitle": "Yeni Yetkinlik Oluştur",
+    "createSuccess": "Yetkinlik oluşturuldu",
+    "slugConflict": "Bu slug zaten kullanımda.",
+    "headers": {
+      "slug": "Slug",
+      "name": "Adı",
+      "category": "Kategori",
+      "status": "Durum",
+      "parent": "Üst Yetkinlik",
+      "mergedInto": "Hedef"
+    },
+    "form": {
+      "slugLabel": "Slug",
+      "nameLabel": "Adı (Türkçe)",
+      "categoryLabel": "Kategori",
+      "createButton": "Oluştur",
+      "creatingButton": "Oluşturuluyor..."
+    },
+    "actions": {
+      "edit": "Düzenle",
+      "deprecate": "Devre Dışı Bırak",
+      "merge": "Birleştir"
+    },
+    "mergeDialog": {
+      "title": "Yetkinliği Birleştir",
+      "label": "Hedef Yetkinlik",
+      "confirm": "Onayla",
+      "cancel": "İptal"
+    },
+    "skillStatus": {
+      "ACTIVE": "Aktif",
+      "DEPRECATED": "Devre Dışı",
+      "MERGED": "Birleştirilmiş"
+    },
+    "categoryLabels": {
+      "LANGUAGE": "Dil",
+      "DOMAIN": "Alan",
+      "TOOL": "Araç",
+      "FRAMEWORK": "Framework"
+    },
+    "parentLabel": "Kök seviye"
   }
 }

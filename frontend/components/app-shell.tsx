@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode } from "react";
+import Link from "next/link";
 import { useSession, useLogout } from "@/lib/session/use-session";
 import { ErrorBanner } from "@/components/error-banner";
 import { Button } from "@/components/ui/button";
@@ -129,9 +130,17 @@ export function AppShell({ children }: { children: ReactNode }) {
         {children}
       </div>
 
-      {/* AC-8: Logout button */}
+      {/* Admin links and logout button */}
       {session.data && (
-        <div className="flex justify-end p-4 border-t">
+        <div className="flex justify-between items-center p-4 border-t">
+          <div className="flex gap-4 text-sm">
+            <Link href="/admin/dogrulama-kuyrugu" className="text-slate-600 hover:text-slate-900 hover:underline">
+              Kurum Doğrulama
+            </Link>
+            <Link href="/admin/skiller" className="text-slate-600 hover:text-slate-900 hover:underline">
+              Yetkinlik Yönetimi
+            </Link>
+          </div>
           <Button
             onClick={() => logoutState.logout()}
             className="bg-slate-600 hover:bg-slate-700"
