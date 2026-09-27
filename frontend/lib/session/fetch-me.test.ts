@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fetchMe, devFixtureMe } from "@/lib/session/fetch-me";
+import { fetchMe } from "@/lib/session/fetch-me";
 import {
   InvalidResponseError,
   SessionExpiredError,
@@ -25,43 +25,7 @@ describe("fetchMe", () => {
     vi.unstubAllEnvs();
   });
 
-  describe("AC-1: devFixtureMe dev ortamında mock kullanılır", () => {
-    it("AC-1: devFixtureMe valid MeResponse'tir", () => {
-      expect(isMeResponse(devFixtureMe)).toBe(true);
-    });
-
-    it("AC-1: devFixtureMe organizations en az bir öğe içerir", () => {
-      expect(Array.isArray(devFixtureMe.organizations)).toBe(true);
-      expect(devFixtureMe.organizations.length).toBeGreaterThan(0);
-    });
-
-    it("AC-1: NODE_ENV !== production iken apiFetch çağrılmaz, devFixtureMe döner", async () => {
-      vi.stubEnv("NODE_ENV", "development");
-      const { apiFetch } = await import("@/lib/api/client");
-      const mockFetch = vi.mocked(apiFetch);
-
-      const result = await fetchMe();
-
-      expect(result).toEqual(devFixtureMe);
-      expect(mockFetch).not.toHaveBeenCalled();
-    });
-
-    it("AC-1: NODE_ENV !== production iken network isteği YOKtur", async () => {
-      vi.stubEnv("NODE_ENV", "test");
-      const { apiFetch } = await import("@/lib/api/client");
-      const mockFetch = vi.mocked(apiFetch);
-
-      await fetchMe();
-
-      expect(mockFetch).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("AC-7: NODE_ENV === production'da apiFetch kullanılır", () => {
-    beforeEach(() => {
-      vi.stubEnv("NODE_ENV", "production");
-    });
-
+  describe("AC-7: apiFetch her ortamda kullanılır", () => {
     it("AC-7: valid response döner", async () => {
       const { apiFetch } = await import("@/lib/api/client");
       const validData = {
