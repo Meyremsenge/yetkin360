@@ -5,10 +5,10 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_principal, get_session
+from app.core.deps import require_csrf
 from app.models import Institution, InstitutionLinkRequest
 from app.schemas.reminder import ReminderCreate, ReminderResponse
 from app.services.authorization import Principal, get_scoped_or_404, scoped_institutions
@@ -17,6 +17,7 @@ from app.services.institution import (
     DuplicateLinkRequestError,
     approve_institution_link,
     create_institution,
+    get_institution,
     invite_member,
     request_institution_link,
 )
@@ -129,6 +130,7 @@ def create_institution_endpoint(
     payload: InstitutionCreate,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ) -> Institution:
     """
     AC-1: Create institution. Caller becomes ADMIN.
@@ -178,6 +180,7 @@ def invite_member_endpoint(
     payload: InstitutionMemberInvite,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ):
     """
     AC-2: Invite user to institution (ADMIN-only action, AC-4/AC-S1).
@@ -234,6 +237,7 @@ def request_institution_link_endpoint(
     institution_id: uuid.UUID,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ) -> InstitutionLinkRequest:
     """
     AC-3: Student creates PENDING link request to institution.
@@ -257,9 +261,7 @@ def request_institution_link_endpoint(
         raise HTTPException(status_code=422, detail="Caller must have a talent profile")
 
     # Verify institution exists (intentional exception: any student can request link to any institution)
-    institution = session.execute(
-        select(Institution).where(Institution.id == institution_id)
-    ).scalar_one_or_none()
+    institution = get_institution(session, institution_id)
 
     if not institution:
         raise HTTPException(status_code=404, detail="Institution not found")
@@ -288,6 +290,7 @@ def approve_link_request_endpoint(
     request_id: uuid.UUID,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ) -> InstitutionLinkRequest:
     """
     AC-3b: Coordinator/Admin approves link request → APPROVED + TalentProfile linked.
@@ -319,31 +322,24 @@ def approve_link_request_endpoint(
     if not institution:
         raise HTTPException(status_code=404, detail="Institution not found")
 
-    # Verify request exists and belongs to this institution
-    link_request = session.execute(
-        select(InstitutionLinkRequest).where(
-            InstitutionLinkRequest.id == request_id,
-            InstitutionLinkRequest.institution_id == institution_id,
-        )
-    ).scalar_one_or_none()
-
-    if not link_request:
-        raise HTTPException(status_code=404, detail="Link request not found")
-
     # Assert user_id is not None (principal kind is INST_ADMIN or COORDINATOR, which require authentication)
     assert principal.user_id is not None
 
-    # Approve request
+    # Approve request (service scopes request_id to institution_id — AC-5/AC-S2)
     try:
         link_request = approve_institution_link(
             request_id=request_id,
+            institution_id=institution_id,
             approver_user_id=principal.user_id,
             session=session,
         )
         session.flush()  # Persist changes within transaction
         return link_request
     except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        message = str(e)
+        if "not found" in message:
+            raise HTTPException(status_code=404, detail="Link request not found")
+        raise HTTPException(status_code=422, detail=message)
 
 
 # ============================================================================
@@ -415,6 +411,7 @@ def create_reminders_endpoint(
     payload: ReminderCreate,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ) -> ReminderResponse:
     """
     Trigger bulk reminders for institution's pending evaluations.

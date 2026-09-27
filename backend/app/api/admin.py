@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_principal, get_session
+from app.core.deps import require_csrf
 from app.core.errors import ApiError
 from app.services.audit import log_audit_event
 from app.services.authorization import Principal
@@ -131,6 +132,7 @@ def update_verification_level(
     payload: VerificationLevelUpdate,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ) -> OrganizationSummary:
     """
     Approve (level yükselt) veya reddet (level'ı değiştirmeden not düş).
@@ -171,6 +173,7 @@ def create_skill_endpoint(
     payload: SkillCreateRequest,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ) -> SkillResponse:
     _require_admin(principal)
     try:
@@ -206,6 +209,7 @@ def update_skill_endpoint(
     payload: SkillUpdateRequest,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ) -> SkillResponse:
     _require_admin(principal)
     try:
@@ -241,6 +245,7 @@ def deprecate_skill_endpoint(
     skill_id: uuid.UUID,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ) -> SkillResponse:
     _require_admin(principal)
     skill = deprecate_skill(session, skill_id)
@@ -266,6 +271,7 @@ def merge_skill_endpoint(
     payload: SkillMergeRequest,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ) -> SkillResponse:
     _require_admin(principal)
     try:

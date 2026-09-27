@@ -72,6 +72,11 @@ def client(request, session):
     app.dependency_overrides[core_get_current_user] = override_get_current_user
 
     test_client = TestClient(app)
+    # require_csrf checks csrf_token cookie == X-CSRF-Token header (double-submit).
+    # Set both by default so authorization tests don't need to wire CSRF per call —
+    # a test that specifically exercises CSRF_FAILED overrides headers/cookies itself.
+    test_client.cookies.set("csrf_token", "test-csrf-token")
+    test_client.headers.update({"X-CSRF-Token": "test-csrf-token"})
 
     yield test_client
 

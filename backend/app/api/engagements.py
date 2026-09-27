@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_principal, get_session
+from app.core.deps import require_csrf
 from app.services.authorization import Principal
 from app.services.engagement import (
     InstitutionMismatchError,
@@ -159,6 +160,7 @@ def post_engagements(
     payload: PostEngagementRequest,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ) -> PostEngagementResponse:
     """
     AC-1: Create a new engagement (internship/capstone/project/part-time work).
@@ -257,6 +259,7 @@ def post_engagement_transitions(
     payload: TransitionEngagementRequest,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ) -> PostEngagementResponse:
     """
     PLAN 2.2: Transition engagement status (state machine: DRAFT→PENDING_APPROVAL→ACTIVE→CANCELLED, etc.).
@@ -380,6 +383,7 @@ def post_engagement_tasks(
     payload: PostTaskRequest,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ) -> PostTaskResponse:
     """
     PLAN 2.4: Create a task within an engagement (AC-1).
@@ -482,6 +486,7 @@ def post_engagement_deliverables(
     payload: PostDeliverableRequest,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ) -> PostDeliverableResponse:
     """
     PLAN 2.4: Submit a deliverable (evidence) on an engagement (AC-2).
@@ -583,6 +588,7 @@ def post_engagement_evaluation(
     payload: EvaluationCreate,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ) -> EvaluationResponse:
     """
     PLAN 2.7 (YET-69, YET-86, YET-87): Submit a structured evaluation form on an engagement.
@@ -747,6 +753,7 @@ def post_engagement_attestation(
     payload: AttestationCreateRequest,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ) -> AttestationResponse:
     """
     PLAN 2.8 (YET-70, YET-88, YET-89, YET-90): Submit attestation (tanıklık) on EVALUATED engagement.
@@ -899,6 +906,7 @@ def revoke_attestation_endpoint(
     payload: RevokeAttestationRequest,
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
 ) -> RevokeAttestationResponse:
     """
     PLAN 2.10 (YET-72): Revoke an attestation (set revoked_at and revoke_reason).
