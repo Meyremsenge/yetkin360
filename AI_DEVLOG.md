@@ -5,6 +5,47 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## Çalışmalar sayfasını gerçek backend'e bağlama (2026-09-27)
+
+**Kaynak:** `obss_project/artifacts/calismalar-gercek-backend-baglama/` —
+Jira'ya bağlı değil, kullanıcı doğrudan istedi. İlgili önceki iş: YET-73/95/96/97
+(PLAN 2.11, `obss_project/artifacts/yet-73-95-96-97-engagement-frontend-mock/ENTEGRASYON_NOTU.md`).
+
+### Bilinçli kararlar (kaynak: atdd.md, plan.md)
+- `GET /me`'ye `principal.kind`/`role` eklenmesi ve `availableTransitions()`'ın
+  role-bazlı filtrelenmesi bilinçli olarak KAPSAM DIŞI bırakıldı —
+  ENTEGRASYON_NOTU'nun kendi kararı, gerçek yetki zaten sunucuda
+  `POST /transitions`'da uygulanıyor (kaynak: atdd.md Kapsam Dışı).
+- Cursor tabanlı sayfalama yerine offset/limit tercih edildi — MVP'de veri
+  hacmi küçük, admin ekranlarıyla tutarlı (kaynak: atdd.md Assumptions).
+- `confidential=true` engagement'lar için özel gizleme mantığı EKLENMEDİ —
+  `scoped_engagements()` zaten sadece yetkili tarafları döndürüyor (kaynak:
+  atdd.md Unknowns).
+- `organization_name` için gerçek bir SQL JOIN yerine 2 ayrı sorgu (batch
+  `WHERE id IN (...)`) bilinçli olarak KORUNDU — N+1 değil (sabit 2 sorgu),
+  JOIN'e geçmek `scoped_engagements()`'in imzasını değiştirmeyi gerektirirdi,
+  CAVEMAN ilkesi gereği en basit doğru çözüm tercih edildi (kaynak:
+  red_team.json, kullanıcı onayıyla "no_change_needed").
+
+### Gerçek zorluk/bug (kaynak: red_team.json)
+- Red-team, `GET /engagements` ve `GET /engagements/{id}` uçlarındaki geniş
+  `except Exception: raise HTTPException(500,...)` bloklarının TÜM
+  beklenmeyen hataları (DB bağlantı hatası, programlama hatası) sessizce
+  jenerik 500'e çevirdiğini buldu — projenin diğer engagement endpoint'lerinde
+  (`post_engagements`, `post_engagement_transitions`) böyle bir catch-all
+  YOKTU, bu iki yeni uç kalıptan sapıyordu. **Ders:** yeni bir endpoint
+  yazarken komşu endpoint'lerin hata-yönetim kalıbını (hangi exception'lar
+  özel yakalanıyor, geri kalanı nereye bırakılıyor) taklit et — "her ihtimale
+  karşı" geniş bir `except Exception` eklemek, aslında projenin FastAPI genel
+  exception handler'ının (app/main.py) zaten yaptığı işi tekrarlayıp hata
+  görünürlüğünü azaltıyor.
+- `limit`/`offset` docstring'i "400 BAD_REQUEST" diyordu ama kodda hiçbir
+  doğrulama yoktu — FastAPI `Query(ge=..., le=...)` eklenip docstring
+  gerçek davranışa (422, FastAPI'nin standart validasyon kodu) güncellendi.
+  **Ders:** docstring'e "X durumunda Y hatası döner" yazmak, o davranışı
+  gerçekten implemente etmek anlamına gelmiyor — `code-copilot`'un kendi
+  yazdığı docstring'i bile ayrıca doğrulamak gerekiyor.
+
 ## YET-117 (PLAN 3.13) — Erişilebilirlik geçişi: klavye, focus, kontrast, aria-live (2026-09-27)
 
 **Kaynak:** `obss_project/artifacts/erisilebilirlik-gecisi/`

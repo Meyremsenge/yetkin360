@@ -1,0 +1,55 @@
+{
+  "task": "calismalar-gercek-backend-baglama",
+  "reviewed_at": "2026-09-27T16:27:45Z",
+  "summary": "Backend tarafı (scoped_engagements + get_scoped_or_404 kalıbı, aynı 404 şekli, N+1'siz Organization sorgusu) sağlam ve güvenlik hedeflerini karşılıyor. 4 bulgu (1 medium, 3 low) kullanıcı onayıyla düzeltildi ve bağımsız doğrulandı.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "reliability",
+      "file": "backend/app/api/engagements.py",
+      "issue": "GET /engagements ve GET /engagements/{id} uçlarında `except Exception: raise HTTPException(500, ...)` ile TÜM beklenmeyen hatalar sessizce jenerik 500'e çevriliyordu; diğer engagement endpoint'lerinde böyle bir catch-all yoktu.",
+      "better_approach": "Sadece bilinen exception'ları yakala, geri kalanı FastAPI'nin genel exception handler'ına bırak.",
+      "reason": "Diğer endpoint'lerle tutarlılık ve sessiz hata yutma riskini önlemek için.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "low",
+      "category": "test-gap",
+      "file": "backend/app/api/engagements.py",
+      "issue": "Docstring 400 diyordu ama limit/offset için hiç doğrulama yoktu.",
+      "better_approach": "FastAPI Query(ge=..., le=...) ile doğrulama ekle, docstring'i 422'ye güncelle.",
+      "reason": "Kod ve dokümantasyon arasındaki tutarsızlığı gidermek için.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "low",
+      "category": "maintainability",
+      "file": "frontend/lib/api/engagements.test.ts",
+      "issue": "Eski mock-store döneminden kalma yanlış yorum ve anlamsız localStorage.clear() çağrısı.",
+      "better_approach": "Yorumu güncelle, gereksiz çağrıyı kaldır.",
+      "reason": "AC-9'un 'mock store tamamen silindi' iddiasıyla tutarlılık için.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "low",
+      "category": "architecture",
+      "file": "backend/app/services/engagement.py",
+      "issue": "list_engagements() gerçek SQL JOIN yerine 2 ayrı sorgu kullanıyor (N+1 değil, ama atdd.md 'JOIN' diyordu).",
+      "better_approach": "Mevcut 2-sorgu yaklaşımı korundu (scoped_engagements'in imzasını değiştirmeden JOIN'e geçmek karmaşıklaştırırdı), açıklayıcı yorum eklendi.",
+      "reason": "CAVEMAN ilkesi — en basit doğru çözüm zaten mevcuttu, performans farkı önemsiz.",
+      "outcome": "no_change_needed"
+    }
+  ],
+  "strengths": [
+    "get_engagement_detail() ve list_engagements() çıplak select(Engagement) kullanmıyor — scoped_engagements()+get_scoped_or_404 kalıbı birebir uygulanmış.",
+    "Kapsam-dışı (AC-5) ve var-olmayan (AC-6) ID için tek kod yolu — IDOR/AC-S1/AC-S2 gereksinimini karşılıyor.",
+    "list_engagements() N+1 yaratmıyor.",
+    "conftest.py'deki session fixture kaldırma değişikliği doğrulandı — parent conftest aynı implementasyonu içeriyor, güvenli."
+  ],
+  "risks": [],
+  "caveman_review": {"complexity": "low", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {"atdd_satisfied": true, "tests_passed": true, "no_critical_findings": true, "scope_respected": true, "caveman_satisfied": true, "security_acceptable": true, "maintainability_acceptable": true, "no_blocking_risks": true},
+  "verdict": "approve",
+  "post_fix_note": "4 bulgunun 3'ü düzeltildi, 1'i (JOIN) bilinçli olarak mevcut haliyle bırakıldı (gerekçeli). Bağımsız doğrulama: ruff/mypy 0 hata, pytest tests/authorization 346/346 PASS, frontend 18/18 PASS."
+}

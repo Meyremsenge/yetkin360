@@ -2,12 +2,20 @@
 
 import uuid
 from datetime import datetime, timezone
-from typing import Callable, TypedDict
+from typing import Callable, Sequence, TypedDict
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import Deliverable, EngagementTask, Engagement, Organization, TalentProfile, Skill, SkillSignal
+from app.models import (
+    Deliverable,
+    EngagementTask,
+    Engagement,
+    Organization,
+    TalentProfile,
+    Skill,
+    SkillSignal,
+)
 from app.services.authorization import Principal, get_scoped_or_404, scoped_engagements
 from app.services.audit import log_audit_event
 from app.services.outbox import enqueue
@@ -15,46 +23,55 @@ from app.services.outbox import enqueue
 
 class TalentNotFoundError(Exception):
     """Raised when talent_id does not exist or is not accessible to principal."""
+
     pass
 
 
 class OrganizationNotFoundError(Exception):
     """Raised when organization_id does not exist or is not accessible to principal."""
+
     pass
 
 
 class InstitutionMismatchError(Exception):
     """Raised when institution_id does not match talent's institution."""
+
     pass
 
 
 class EngagementNotFoundError(Exception):
     """Raised when engagement_id does not exist or is not accessible to principal."""
+
     pass
 
 
 class IllegalTransitionError(Exception):
     """Raised when to_status is not a valid transition from current status."""
+
     pass
 
 
 class PreconditionFailedError(Exception):
     """Raised when transition preconditions are not met (institution_id NULL, reason missing)."""
+
     pass
 
 
 class TransitionForbiddenError(Exception):
     """Raised when principal is not authorized to perform this transition."""
+
     pass
 
 
 class VersionConflictError(Exception):
     """Raised when version from request does not match DB version (optimistic locking)."""
+
     pass
 
 
 class InvalidSkillError(Exception):
     """Raised when skill_id does not exist in skills table or is not ACTIVE."""
+
     pass
 
 
@@ -65,6 +82,7 @@ DELIVERABLE_SIGNAL_STRENGTH = "MODERATE"
 
 class TransitionSpec(TypedDict):
     """Type specification for transition table entries."""
+
     preconditions: list[str]
     can_transition: Callable[[], bool]
 
@@ -147,7 +165,9 @@ def create_engagement(
     # AC-S2: ORG_MEMBER can only create for their own organizations
     if principal.kind in ("ORG_MEMBER", "ORG_ADMIN"):
         if org_uuid not in principal.org_ids:
-            raise OrganizationNotFoundError(f"Organization {organization_id} not found or not accessible")
+            raise OrganizationNotFoundError(
+                f"Organization {organization_id} not found or not accessible"
+            )
 
     org = session.execute(
         select(Organization).where(Organization.id == org_uuid)
@@ -248,8 +268,7 @@ def transition_engagement(
 
     # Fetch engagement scoped to principal (AC-10, AC-11 unified by get_scoped_or_404)
     engagement = get_scoped_or_404(
-        scoped_engagements(session, principal).where(Engagement.id == engagement_uuid),
-        session
+        scoped_engagements(session, principal).where(Engagement.id == engagement_uuid), session
     )
     if engagement is None:
         # Both "engagement doesn't exist" and "no access" return 404 per AC-11
@@ -268,43 +287,60 @@ def transition_engagement(
         ("DRAFT", "PENDING_APPROVAL"): {
             "preconditions": ["institution_id_not_null"],
             "can_transition": lambda: (
-                (principal.kind == "TALENT" and principal.talent_id == engagement.talent_id) or
-                (principal.kind in ("ORG_MEMBER", "ORG_ADMIN") and engagement.organization_id in principal.org_ids)
+                (principal.kind == "TALENT" and principal.talent_id == engagement.talent_id)
+                or (
+                    principal.kind in ("ORG_MEMBER", "ORG_ADMIN")
+                    and engagement.organization_id in principal.org_ids
+                )
             ),
         },
         ("PENDING_APPROVAL", "ACTIVE"): {
             "preconditions": [],
             "can_transition": lambda: (
-                principal.kind == "COORDINATOR" and
-                engagement.institution_id in principal.institution_ids
+                principal.kind == "COORDINATOR"
+                and engagement.institution_id in principal.institution_ids
             ),
         },
         ("PENDING_APPROVAL", "REJECTED"): {
             "preconditions": ["reason_not_empty"],
             "can_transition": lambda: (
-                principal.kind == "COORDINATOR" and
-                engagement.institution_id in principal.institution_ids
+                principal.kind == "COORDINATOR"
+                and engagement.institution_id in principal.institution_ids
             ),
         },
         ("ACTIVE", "CANCELLED"): {
             "preconditions": ["reason_not_empty"],
             "can_transition": lambda: (
-                (principal.kind == "ORG_ADMIN" and engagement.organization_id in principal.org_admin_ids) or
-                (principal.kind == "COORDINATOR" and engagement.institution_id in principal.institution_ids)
+                (
+                    principal.kind == "ORG_ADMIN"
+                    and engagement.organization_id in principal.org_admin_ids
+                )
+                or (
+                    principal.kind == "COORDINATOR"
+                    and engagement.institution_id in principal.institution_ids
+                )
             ),
         },
         ("ACTIVE", "PENDING_EVALUATION"): {
             "preconditions": ["has_deliverable"],
             "can_transition": lambda: (
-                (principal.kind in ("ORG_MEMBER", "ORG_ADMIN") and engagement.organization_id in principal.org_ids) or
-                (principal.kind == "COORDINATOR" and engagement.institution_id in principal.institution_ids)
+                (
+                    principal.kind in ("ORG_MEMBER", "ORG_ADMIN")
+                    and engagement.organization_id in principal.org_ids
+                )
+                or (
+                    principal.kind == "COORDINATOR"
+                    and engagement.institution_id in principal.institution_ids
+                )
             ),
         },
     }
 
     # Check: is this transition defined? (AC-5)
     if (current_status, to_status) not in transition_table:
-        raise IllegalTransitionError(f"Transition from {current_status} to {to_status} is not allowed")
+        raise IllegalTransitionError(
+            f"Transition from {current_status} to {to_status} is not allowed"
+        )
 
     transition_spec = transition_table[(current_status, to_status)]
 
@@ -319,9 +355,9 @@ def transition_engagement(
         elif precondition == "has_deliverable":
             # Real database query to verify at least one Deliverable exists (AC-S4: client input ignored)
             count = session.execute(
-                select(func.count()).select_from(Deliverable).where(
-                    Deliverable.engagement_id == engagement.id
-                )
+                select(func.count())
+                .select_from(Deliverable)
+                .where(Deliverable.engagement_id == engagement.id)
             ).scalar()
             if count == 0:
                 raise PreconditionFailedError("En az bir deliverable gerekli.")
@@ -333,6 +369,7 @@ def transition_engagement(
     # Optimistic locking: UPDATE with status and version check (defense-in-depth paranoia check)
     # Version was already checked above, but UPDATE includes it for atomic consistency
     from sqlalchemy import update
+
     values_dict = {"status": to_status, "version": Engagement.version + 1}
     if reason is not None:
         values_dict["reason"] = reason
@@ -429,8 +466,7 @@ def create_engagement_task(
 
     # Fetch engagement scoped to principal
     engagement = get_scoped_or_404(
-        scoped_engagements(session, principal).where(Engagement.id == engagement_uuid),
-        session
+        scoped_engagements(session, principal).where(Engagement.id == engagement_uuid), session
     )
     if engagement is None:
         raise EngagementNotFoundError(f"Engagement {engagement_id} not found")
@@ -552,8 +588,7 @@ def create_deliverable(
 
     # Fetch engagement scoped to principal
     engagement = get_scoped_or_404(
-        scoped_engagements(session, principal).where(Engagement.id == engagement_uuid),
-        session
+        scoped_engagements(session, principal).where(Engagement.id == engagement_uuid), session
     )
     if engagement is None:
         raise EngagementNotFoundError(f"Engagement {engagement_id} not found")
@@ -688,30 +723,40 @@ def get_coordinator_dashboard(
         raise ValueError("Institution not found")
 
     # Query PENDING_APPROVAL engagements for this institution
-    pending_approval = session.execute(
-        scoped_engagements(session, principal).where(
-            Engagement.institution_id == inst_uuid,
-            Engagement.status == "PENDING_APPROVAL",
-        ).order_by(Engagement.created_at.desc())
-    ).scalars().all()
+    pending_approval = (
+        session.execute(
+            scoped_engagements(session, principal)
+            .where(
+                Engagement.institution_id == inst_uuid,
+                Engagement.status == "PENDING_APPROVAL",
+            )
+            .order_by(Engagement.created_at.desc())
+        )
+        .scalars()
+        .all()
+    )
 
     # Query PENDING_EVALUATION engagements for this institution
-    pending_evaluation = session.execute(
-        scoped_engagements(session, principal).where(
-            Engagement.institution_id == inst_uuid,
-            Engagement.status == "PENDING_EVALUATION",
-        ).order_by(Engagement.created_at.desc())
-    ).scalars().all()
+    pending_evaluation = (
+        session.execute(
+            scoped_engagements(session, principal)
+            .where(
+                Engagement.institution_id == inst_uuid,
+                Engagement.status == "PENDING_EVALUATION",
+            )
+            .order_by(Engagement.created_at.desc())
+        )
+        .scalars()
+        .all()
+    )
 
     # Query institution members (PLAN 3.5 — üye listesi)
     # AC-S1: Critical security filter — institution_id must be in WHERE clause
     members_query = session.execute(
-        select(InstitutionMember, User).join(
-            User, InstitutionMember.user_id == User.id
-        ).where(
-            InstitutionMember.institution_id == inst_uuid,
-            User.status == "ACTIVE"
-        ).order_by(InstitutionMember.created_at.desc())
+        select(InstitutionMember, User)
+        .join(User, InstitutionMember.user_id == User.id)
+        .where(InstitutionMember.institution_id == inst_uuid, User.status == "ACTIVE")
+        .order_by(InstitutionMember.created_at.desc())
     ).all()
 
     # Build response data
@@ -751,3 +796,112 @@ def get_coordinator_dashboard(
             for member, user in members_query
         ],
     }
+
+
+def list_engagements(
+    session: Session,
+    principal: Principal,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[tuple[Engagement, str]]:
+    """
+    List engagements scoped to principal with organization name (AC-1, AC-2, AC-3, AC-8).
+
+    Returns engagements accessible to principal (by scoped_engagements), sorted by
+    updated_at descending, with organization name joined in single query (N+1-free).
+
+    Args:
+        session: Database session
+        principal: Authorization context
+        limit: Number of results per page (default 50)
+        offset: Pagination offset (default 0)
+
+    Returns:
+        List of (Engagement, organization_name) tuples, sorted by updated_at DESC
+
+    Implements: AC-1 (TALENT), AC-2 (ORG_MEMBER/ORG_ADMIN), AC-3 (COORDINATOR/INST_ADMIN),
+                AC-8 (limit/offset pagination)
+    """
+    # Build scoped query and extend with Organization JOIN, order by, and pagination
+    # scoped_engagements() returns a Select[Engagement] filtered by principal's scope
+    scoped = scoped_engagements(session, principal)
+
+    # Fetch Engagement objects scoped to principal
+    stmt = scoped.order_by(Engagement.updated_at.desc()).limit(limit).offset(offset)
+    engagements = session.execute(stmt).scalars().all()
+
+    # Fetch all Organization names in a single batch query (not N+1: exactly 2 SQL queries)
+    # Query 1: Engagements above, Query 2: Organizations below via WHERE id IN (...)
+    org_ids = set(e.organization_id for e in engagements)
+    if org_ids:
+        orgs = (
+            session.execute(select(Organization).where(Organization.id.in_(org_ids)))
+            .scalars()
+            .all()
+        )
+        org_map = {o.id: o.name for o in orgs}
+    else:
+        org_map = {}
+
+    # Return list of (Engagement, organization_name) tuples
+    return [(eng, org_map.get(eng.organization_id, "")) for eng in engagements]
+
+
+def get_engagement_detail(
+    session: Session,
+    principal: Principal,
+    engagement_id: str,
+) -> tuple[Engagement, str, Sequence[EngagementTask], Sequence[Deliverable]]:
+    """
+    Get engagement detail with tasks and deliverables (AC-4, AC-5, AC-6).
+
+    Fetches engagement from principal's scope, retrieves organization name, and
+    fetches associated tasks and deliverables in separate queries.
+
+    Args:
+        session: Database session
+        principal: Authorization context
+        engagement_id: UUID of engagement (string format)
+
+    Returns:
+        Tuple of (Engagement, organization_name, tasks[], deliverables[])
+
+    Raises:
+        EngagementNotFoundError: Engagement not in principal's scope or doesn't exist (404)
+
+    Implements: AC-4 (detail response), AC-5 (out-of-scope 404), AC-6 (nonexistent 404)
+    """
+    # Parse UUID
+    try:
+        engagement_uuid = uuid.UUID(engagement_id)
+    except ValueError:
+        raise EngagementNotFoundError(f"Invalid engagement_id format: {engagement_id}")
+
+    # Fetch engagement scoped to principal — uses exact same pattern as transition_engagement
+    engagement = get_scoped_or_404(
+        scoped_engagements(session, principal).where(Engagement.id == engagement_uuid), session
+    )
+    if engagement is None:
+        # Both "out-of-scope" and "doesn't exist" return 404 per AC-5/AC-6
+        raise EngagementNotFoundError(f"Engagement {engagement_id} not found")
+
+    # Fetch organization_name via JOIN (single query, not N+1)
+    # FK constraint guarantees organization exists, so scalar_one() is safe
+    org_query = session.execute(
+        select(Organization.name).where(Organization.id == engagement.organization_id)
+    )
+    organization_name = org_query.scalar_one()
+
+    # Fetch tasks (WHERE engagement_id = :id, single query)
+    tasks_query = session.execute(
+        select(EngagementTask).where(EngagementTask.engagement_id == engagement.id)
+    )
+    tasks = tasks_query.scalars().all()
+
+    # Fetch deliverables (WHERE engagement_id = :id, single query)
+    deliverables_query = session.execute(
+        select(Deliverable).where(Deliverable.engagement_id == engagement.id)
+    )
+    deliverables = deliverables_query.scalars().all()
+
+    return engagement, organization_name, tasks, deliverables
