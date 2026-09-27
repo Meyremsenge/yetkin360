@@ -137,9 +137,16 @@ attestation + verified experience + skill signal üretilir.
 
 Hedef: jürinin göreceği yüz. Bu fazın sonunda canlı URL + gerçekçi veri olmalı.
 
-- [ ] 3.1 Public profil ucu + `visibility` kuralları @be1
-- [ ] 3.2 Public doğrulama linki `GET /public/v/{token}` @be1
-- [ ] 3.3 Koordinatör dashboard ucu (durum takibi + bekleyen değerlendirme) @be1
+- [x] 3.1 Public profil ucu + `visibility` kuralları @be1
+      > YET-105 tamamlandı (PR #24, commit a65e670). `app/api/public.py` +
+      > `visibility_service.py`. PLAN.md'de işaretlenmemişti — kod/test main'de
+      > tam, sadece belge senkronu eksikti (2026-09-27 entegrasyon denetiminde bulundu).
+- [x] 3.2 Public doğrulama linki `GET /public/v/{token}` @be1
+      > YET-106 tamamlandı (PR #25, commit f2279a0). `verified_experiences.public_token`
+      > migration'ı dahil. PLAN.md'de işaretlenmemişti (2026-09-27 entegrasyon denetiminde bulundu).
+- [x] 3.3 Koordinatör dashboard ucu (durum takibi + bekleyen değerlendirme) @be1
+      > YET-107 tamamlandı (commit 35a494c). `GET /institutions/{id}/dashboard`.
+      > PLAN.md'de işaretlenmemişti (2026-09-27 entegrasyon denetiminde bulundu).
 - [x] 3.4 Toplu hatırlatma ucu (`POST /institutions/{id}/reminders`) @be2
       > YET-108/130/131/132 tamamlandı. `services/reminder.py` +
       > `POST /institutions/{id}/reminders`; `scoped_institutions()`/
@@ -179,7 +186,11 @@ Hedef: jürinin göreceği yüz. Bu fazın sonunda canlı URL + gerçekçi veri 
 - [ ] 3.8 Frontend: public profil `/p/[slug]` + doğrulama `/v/[token]` @fe
 - [ ] 3.9 Frontend: koordinatör dashboard @fe
 - [ ] 3.10 Frontend: kurum dashboard + admin ekranları @fe
-- [ ] 3.11 Seed verisi: 20 öğrenci, 5 kurum, 15 tamamlanmış engagement @be1
+- [x] 3.11 Seed verisi: 20 öğrenci, 5 kurum, 15 tamamlanmış engagement @be1
+      > commit ad183f6 tamamlandı. `backend/scripts/seed.py` — 20 öğrenci
+      > (ogrenci1-20@seed.local), 5 kurum + 5 organizasyon, 15 tam VERIFIED
+      > engagement (Attestation/VerifiedExperience zinciriyle), idempotent.
+      > PLAN.md'de işaretlenmemişti (2026-09-27 entegrasyon denetiminde bulundu).
 - [x] 3.12 Güvenlik geçişi: BOLA taraması, 404-yerine-403 doğrulaması @be2
       > YET-116/154/155 tamamlandı (PR #32). Tüm `api/*.py` ve `services/*.py`
       > `scoped_*()`/`can()` kullanımı için tarandı — `institutions.py`'de router
@@ -201,6 +212,46 @@ Hedef: jürinin göreceği yüz. Bu fazın sonunda canlı URL + gerçekçi veri 
 - [ ] 3.13 Erişilebilirlik geçişi: klavye, focus, kontrast, `aria-live` @fe
 - [ ] 3.14 Deploy: VPS, HTTPS, canlı URL, yedekleme, log @be2
 - [ ] 3.15 Açık kaynak paketi: kurulum talimatı sıfırdan doğrulanır, sır taraması @all
+
+**Aşağıdaki 5 madde 2026-09-27 frontend↔backend entegrasyon denetiminde bulundu
+— önceki maddelerin "kapsam dışı" notlarında iz bırakılmış ama hiçbiri resmi
+PLAN maddesi olarak açılmamıştı. Detay: `HATA.md`.**
+
+- [ ] 3.17 Evidence upload akışının mock'tan gerçek backend'e bağlanması @fe
+      > `frontend/lib/api/evidence.ts`: `USE_MOCK_UPLOAD_URL`/`USE_MOCK_STORAGE_UPLOAD`
+      > hâlâ `true`, `recordEvidence()` her koşulda localStorage. Backend'de
+      > `POST /evidence/upload-url` VE `POST /evidence` ikisi de tamamlanmış (2.5/2.6) —
+      > dosya başındaki "Adım 3 backend'de HİÇ YOK" yorumu artık YANLIŞ/güncel değil.
+      > Aktif kullanılan bir bileşende (`calismalar/[id]/evidence-upload-form.tsx`)
+      > kullanıcı dosya yüklediğini sanıp hiçbir şey backend'e gitmiyor. bkz. HATA.md §1.
+- [ ] 3.18 Değerlendirme formunun mock'tan gerçek backend'e bağlanması @fe
+      > `frontend/lib/api/evaluation.ts`: `submitEvaluation()` tamamen localStorage,
+      > dosya başı yorumu "backend'de HİÇ YOK" diyor ama `POST /engagements/{id}/evaluation`
+      > 2.7'de (YET-69) tamamlandı. Ayrıca mock 422/409 hata kodu ayrımı yapıyor,
+      > gerçek backend ikisini de 409 CONFLICT döndürüyor — bağlarken hata kodu
+      > eşlemesi düzeltilmeli. `private_note` localStorage'a düz metin yazılıyor,
+      > bu da ayrıca bkz. 3.19. bkz. HATA.md §2.
+- [ ] 3.19 localStorage'a PII/hassas veri yazılmaması + auth kuralına uyum @fe
+      > `.claude/rules/frontend.md`: "Auth: httpOnly cookie — `localStorage` kullanılmaz."
+      > `evidence.ts` ve `evaluation.ts` (private_note dahil) kalıcı state için
+      > localStorage kullanıyor — 3.17/3.18 ile birlikte çözülecek, ayrı doğrulama
+      > gerektirir (localStorage temizliği + XSS maruziyeti kontrolü). bkz. HATA.md §2, §5.
+- [ ] 3.20 `.env.example` NEXT_PUBLIC_API_BASE_URL düzeltmesi @be1
+      > `.env.example`: `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1` yazıyor
+      > ama backend'de `/api/v1` prefix'i YOK (router'lar doğrudan `/auth`, `/engagements`
+      > vb.) — `frontend/lib/api/client.ts` default'u da zaten prefix'siz
+      > (`http://localhost:8000`) ve doğru. `.env.example`'dan kopyalayan biri kırık
+      > bir base URL alır. Açık kaynak paketi (3.15) öncesi düzeltilmeli. bkz. HATA.md §3.
+- [ ] 3.21 `require_email_verified()` hiçbir router'da uygulanmıyor @be2
+      > 3.12'nin notu: e-posta doğrulama yazma kısıtı hiçbir uçta zorlanmıyor.
+      > Güvenlik/kapsam kararı gerektirir (hangi uçlarda zorunlu olacağı netleşmeli).
+- [ ] 3.22 `tests/test_seed.py` rollback izolasyonunu bypass ediyor @be1
+      > 3.12'nin notu: seed fonksiyonlarını çağırırken ayrı DB session açıyor,
+      > yerel dev DB'ye kalıcı satır bırakıyor. Test izolasyon hatası, veri hatası değil.
+- [ ] 3.23 Faz 2/3 backend↔frontend GET/mock eşleşmesi son doğrulama @all
+      > 3.17-3.19 kapandıktan sonra: `grep -rn "USE_MOCK\|localStorage\." frontend/lib/api/`
+      > sıfır sonuç dönmeli (test dosyaları hariç). Bu madde kapanmadan 2.14
+      > (uçtan uca duman testi) güvenilir sayılmaz.
 - [ ] 3.16 Kod dondurma — Faz 4'e yeni özellik girmez @all
 
 ---
