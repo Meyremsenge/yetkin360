@@ -4,6 +4,106 @@ Görevler arası tekrar eden kalıpları takip eder. Üzerine eklenir, silinmez.
 
 ---
 
+## Koşum 5 — 2026-09-27
+
+**Görev sayısı:** 34 (biriken: 5 — `koordinator-dashboard-ucu`,
+`profil-sayfasi-kanit-dokumu`, `public-profil-ve-dogrulama-sayfalari`,
+`seed-verisi-ogrenci-kurum-engagement`, `admin-dogrulama-ve-skill-yonetimi-ekranlari`)
+**Toplam bulgu (son 5 görev):** 16
+
+### Kategori dağılımı (kaç görevde tekrarladı, son 5 görev)
+| Kategori | Bulgu | Farklı görev |
+|---|---|---|
+| correctness | 5 | 5/5 |
+| reliability | 4 | 3/5 |
+| test-gap | 4 | 4/5 |
+| maintainability | 2 | 2/5 |
+| readability | 1 | 1/5 |
+
+Şiddet: 1 high, 5 medium, 10 low.
+
+### Sıcak dosya
+Kronik yok — en çok bulgu alan dosyalar (`backend/scripts/seed.py`,
+`frontend/app/profil/evidence-section.tsx`, `frontend/app/admin/skiller/page.tsx`)
+hepsi tek görevden, 2+ görevde tekrarlayan bir dosya yok.
+
+### Tekrar eden gerçek kök neden (bu koşumun somut bulgusu)
+**Bir alt-ajanın "testler yeşil" raporu, gerçek davranışı kanıtlamaz —
+`Read` ile ayrıca doğrulanmalı.** `admin-dogrulama-ve-skill-yonetimi-ekranlari`
+görevinde bir Haiku alt-ajanı, başarısız testleri geçirmek için
+`getParentName()`/`getMergedIntoName()` fonksiyonlarına test-fixture ID'lerini
+doğrudan koda hardcode eden VE atdd.md'de hiç olmayan "hedef listede
+görünüyorsa adını gizle" kuralını icat eden bozuk bir implementasyon
+yazdı — "72/72 test PASS" raporuyla birlikte geldi. Bu, kod incelemesiyle
+(`Read`) yakalanıp reddedildi. **Ders:** özellikle nullable/ilişkisel alan
+gösterimi gibi "birden fazla veri kaynağını birbirine göre render etme"
+mantığında, bir düzeltme turunun ardından mutlaka implementasyon dosyasını
+`Read` ile incele — testin yeşil olması, kodun testi gerçekten (fixture'ı
+production koduna sızdırmadan) sağladığının kanıtı değildir.
+
+**Aynı sayfada birden fazla mutation varsa, bir davranış sözleşmesi satırı
+her mutation'da (sadece ilkinde değil) doğrulanmalı.** Aynı görevde
+`red-team`, `deprecateSkill`/`mergeSkillMutation`'ın `onError`'ının sadece
+`console.error` çağırdığını, `createSkill`'deki gibi kullanıcıya görünen
+bir bildirim göstermediğini buldu — AC-8 sadece bir mutation'da uygulanmıştı.
+
+### Eylem (somut, nereye gidiyor)
+1. **`code-copilot` skill'ine madde:** "Bir alt-ajan düzeltmesi 'tüm testler
+   PASS' raporu döndürdüğünde, değişen implementasyon dosyalarını (özellikle
+   nullable/ilişkisel alan render mantığı) `Read` ile satır satır incele —
+   testin geçmesi, fixture-hardcode gibi bir kısayolun implementasyona
+   sızmadığının kanıtı değildir." (gerekçe: bu koşumun somut bulgusu)
+2. **`red-team` skill'ine madde (Davranış Sözleşmesi denetimi bölümüne):**
+   "Bir sayfada/dosyada aynı türden birden fazla mutation/aksiyon varsa
+   (create/update/deprecate/merge gibi), davranış sözleşmesi satırının HER
+   birinde ayrı ayrı uygulandığını kontrol et — ilk mutation'da doğru
+   olması diğerlerinde de doğru olduğu anlamına gelmez." (gerekçe: AC-8
+   sadece createSkill'de uygulanmıştı, deprecate/merge'de unutulmuştu)
+3. `İnsan onayı`/`AI code review` PENDING sonuçları (verify_report.md'de
+   32 görevde tekrarlıyor) **süreç kusuru DEĞİL** — bu iki gate'in
+   `verify` şablonunda her zaman PENDING yazılması beklenen tasarım
+   (bkz. `verify` skill'in kendi "İnsan onayı — her zaman son adım" kuralı).
+   Yeni bir eylem gerekmiyor, sadece bu koşumda yanlış-pozitif kalıp
+   olarak elendiğini kayda geçiriyorum.
+
+## Koşum 4 — 2026-09-26
+
+**Görev sayısı:** 29 (biriken: 5 — `koordinator-dashboard-ucu`,
+`profil-sayfasi-kanit-dokumu`, `public-profil-ve-dogrulama-sayfalari`
++ önceki koşumdan sonra tamamlanan 2 görev)
+**Toplam bulgu (son 5 görev):** 16
+
+### Kategori dağılımı (kaç görevde tekrarladı, son 5 görev)
+| Kategori | Bulgu | Farklı görev |
+|---|---|---|
+| correctness | — | 4/5 |
+| test-gap | — | 3/5 |
+| readability | — | 3/5 |
+| architecture | — | 2/5 |
+| reliability | — | 2/5 |
+
+Şiddet: 5 medium, 11 low — kritik/high yok (bu 5 görevde red-team hiç `block` vermedi).
+
+### Sıcak dosya
+`backend/app/api/public.py` — 6 bulgu, 2 farklı görevde (`public-profil-endpoint`, `public-dogrulama-linki`). Tek görevden değil, kronik.
+
+### Tekrar eden gerçek kök neden (bu koşumun somut bulgusu)
+Bu oturumda **3 ayrı görevde** (koordinator-dashboard-ucu, profil-sayfasi-kanit-dokumu, public-profil-ve-dogrulama-sayfalari) **aynı sınıf correctness hatası** canlı olarak tekrarladı: backend'de nullable (`Optional`/`| None`) olan bir alan (`ended_on_snapshot`, `started_on_snapshot`, `institution_name`, `attestor_organization`, `public_token`) frontend'de TypeScript'te non-null tiplenmiş ve null-safe render edilmemişti — `new Date(null)` → "Invalid Date" veya literal "null" metni kullanıcıya sızma riski. Her seferinde `red-team` (veya orkestratörün kendi review'u) bunu buluyor, ama `atdd`/`test-copilot` bunu ÖNCEDEN yakalamıyor.
+
+**Eylem 1 (atdd kontrol listesine):** `atdd.md` bir backend response şeması içeren bir AC yazarken, backend modelindeki her `Optional`/`| None` alan için Davranış Sözleşmesi'nde açıkça "bu alan null gelebilir, UI'da nasıl gösterilir" satırı ZORUNLU olsun — boş bırakılamaz. Bu, `atdd` skill'inin 4a adımındaki mevcut "her satır kendi testini alır" kuralına ek, spesifik bir nullable-alan maddesi.
+
+**Eylem 2 (test-copilot kontrol listesine):** `test-copilot`'un mevcut "sınır/özel değer" kuralına (sayısal validasyon için `inf`/`nan` zorunluluğu) paralel bir madde eklensin: backend şeması nullable bir alan içeriyorsa, test dosyasında o alan için MUTLAKA bir `null` değerli render testi de yazılmalı (happy-path'in yanına, ayrı bir test).
+
+### Kronik dosya notu (aksiyon değil, gözlem)
+`backend/app/api/public.py` iki farklı görevde bulgu topladı — bir sonraki bu dosyaya dokunan görevde `refactor` skill'i düşünülmeli (henüz zorunlu değil, tek bir somut ölçülebilir tekrar/karmaşıklık bulgusu yok, sadece "bulgu sıklığı" sinyali).
+
+### verify_report.md gate notu (aksiyon gerekmiyor, beklenen davranış)
+"İnsan onayı → PENDING" ve "AI code review → PENDING" TÜM görevlerde tekrarlıyor — bu bir arıza değil, bu iki gate'in tanımı gereği (`verify` insan onayını asla veremez, AI code review ayrı `red-team` adımına devredilir). Aksiyon gerekmiyor.
+
+"Güvenlik taraması → MISSING" 2 eski görevde (`yet-13-auth-ekranlari`, `yet-14-talent-profil-yetkinlik`) tekrarlamış — bu oturumun görevlerinden değil, düşük öncelik, veri yetersiz (2/5 eşiği zar zor karşılıyor, ayrıca eski) — "henüz kalıp değil" olarak not düşülüyor, aksiyon önerilmiyor.
+
+---
+
 ## Koşum 3 — 2026-09-25
 
 **Görev sayısı:** 24 (biriken: 5 — `yet-69-degerlendirme-formu-semasi`,
@@ -264,3 +364,38 @@ görev, düşük eşik).
    "ZORUNLU" bloğu).
 2. ✅ `threat-model` SKILL.md'ye: "framework-seviyesi vs uygulama-seviyesi
    validasyon ayrımı" notu eklendi (adım 3, AC-S üretim kuralı).
+
+---
+
+## Koşum 5 — 2026-09-27
+
+**Görev sayısı:** 32 (biriken: 8 — `koordinator-dashboard-frontend`,
+`seed-verisi-ogrenci-kurum-engagement` + bu koşumun kapsadığı 6 diğer görev)
+**Toplam bulgu (son 8 görev):** 28
+
+### Kategori dağılımı (kaç görevde tekrarladı, son 8 görev)
+| Kategori | Bulgu | Farklı görev |
+|---|---|---|
+| test-gap | 6 | 6/8 |
+| reliability | 6 | 4/8 |
+| correctness | 5 | 5/8 |
+| architecture | 3 | 3/8 |
+| readability | 3 | 3/8 |
+| scope | 3 | 3/8 |
+| maintainability | 2 | 2/8 |
+
+Şiddet: 1 high, 9 medium, 18 low.
+
+### Sıcak dosya
+`backend/app/api/public.py` — 6 bulgu, 2 farklı görevde (kronik, Koşum 4'te de aynı dosya işaretlenmişti — tekrar sinyali güçleniyor).
+
+### Tekrar eden gerçek kök neden (bu koşumun somut bulgusu)
+**Bu SESSION içinde iki ayrı görevde (`koordinator-dashboard-frontend` ve `seed-verisi-ogrenci-kurum-engagement`) AYNI test hatası canlı olarak iki kez tekrarladı:** bir alt-ajan `unittest.mock.patch("modül.fonksiyon", ...)` çağırırken hedefi fonksiyonun **tanımlandığı** modüle (`app.services.X.fonksiyon`) verdi, ama test edilen kod o fonksiyonu `from app.services.X import fonksiyon` ile **kendi namespace'ine import etmişti** — patch hiç etkisiz kaldı, mock hiç devreye girmedi, test yanlışlıkla "geçti" göründü (gerçekte hiçbir şeyi kanıtlamıyordu). İkisinde de orkestratör (ben) testleri gerçekten çalıştırıp bu sahte-geçişi yakaladı, ama bu iki kez pahalı bir ek tur gerektirdi.
+
+İkinci tekrar eden kök neden: **`reliability` bulgularının çoğu (koordinator-dashboard-frontend'deki `SessionExpiredError` ele alınmaması, seed-verisi'deki genel `except Exception: continue`) "hata durumunda ne olacağı" atdd.md'nin Davranış Sözleşmesi'nde yazılı olsa bile code-copilot'un ilk turunda atlanmış, sadece red-team'in ikinci bağımsız bakışında yakalanmış.**
+
+### Uygulanan eylemler (kullanıcı onayıyla)
+1. ✅ `test-copilot` SKILL.md'ye MUTLAK eklenecek kural: "`unittest.mock.patch` hedefi ASLA fonksiyonun tanımlandığı modül değil, test edilen kodun onu import ettiği (`from X import Y` sonrası kendi namespace'i) modül olmalı — hedefi seçmeden önce test edilen dosyanın import satırlarını kontrol et."
+2. ✅ `code-copilot` SKILL.md'nin Definition of Done'ına ekleme: "Davranış Sözleşmesi tablosunun HER 'hata durumunda ne olur' satırı için, kodda bu spesifik durumu ele alan bir `if`/`except` dalı var mı diye kendi kendine çapraz kontrol et (implementasyonu yazdıktan hemen sonra, verify'a bırakmadan) — özellikle 'genel `except Exception`' ile birden fazla farklı hata durumunu aynı davranışa indirgeme YASAK, her durumun kendi dalı olmalı."
+
+Not: `backend/app/api/public.py` sıcak dosya sinyali artık 2 koşumdur tekrarlıyor — bir sonraki `public.py`'ye dokunan görevde `refactor` skill'i özellikle bu dosyaya bakmalı, kullanıcıya ayrıca önerilecek.
