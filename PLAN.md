@@ -252,6 +252,33 @@ PLAN maddesi olarak açılmamıştı. Detay: `HATA.md`.**
       > 3.17-3.19 kapandıktan sonra: `grep -rn "USE_MOCK\|localStorage\." frontend/lib/api/`
       > sıfır sonuç dönmeli (test dosyaları hariç). Bu madde kapanmadan 2.14
       > (uçtan uca duman testi) güvenilir sayılmaz.
+- [ ] 3.24 Giriş kilitleme sayacı kalıcı olsun (HATA_DUZELTME_PROMPT A-01, GUV-01, L-03) @be2
+- [ ] 3.25 Logout refresh token ailesini iptal etsin (HATA_DUZELTME_PROMPT A-02, GUV-06, L-04) @be2
+- [ ] 3.26 MinIO bucket, healthcheck, depolama hataları, .env.example (HATA_DUZELTME_PROMPT A-03, OPS-03) @be2
+- [ ] 3.27 Outbox worker: döngü, tıkanma, e-posta linkleri (HATA_DUZELTME_PROMPT A-04, OPS-01, OPS-02) @be2
+- [ ] 3.28 Seed demo düzeltmesi: COORDINATOR, T2 organizasyon, doğrulanmış e-posta (HATA_DUZELTME_PROMPT A-05, AUTHZ-02, IS-02) @be2
+- [ ] 3.29 Kanıt backend'i: tarama, liste ucu, kayıt sertleştirme (HATA_DUZELTME_PROMPT A-06, IS-07, GUV-12) @be2
+- [ ] 3.30 Çoklu rol: kapsam sorguları `kind`'dan bağımsız (HATA_DUZELTME_PROMPT A-08, AUTHZ-01, GUV-02, AUTHZ-02, L-08) @be2
+- [ ] 3.31 Davet uçları: 500, numaralandırma, rol doğrulama (HATA_DUZELTME_PROMPT A-09, GUV-07, GUV-02, L-01) @be2
+- [ ] 3.32 Kayıt zamanlama + kimlik uçlarına hız sınırı (HATA_DUZELTME_PROMPT A-10, GUV-10, GUV-11) @be2
+- [ ] 3.33 Bağımlılık yükseltmeleri + secrets baseline (HATA_DUZELTME_PROMPT A-11, DEP-01, L-16) @be2
+- [ ] 3.34 DB kısıtları: append-only trigger, claimed_level, timestamptz (HATA_DUZELTME_PROMPT A-12, VER-01, VER-02, VER-03) @be2
+- [ ] 3.35 Backend test izolasyonu + fixture rollback semantiği (HATA_DUZELTME_PROMPT A-13, TEST-01, TEST-02) @be2
+- [ ] 3.36 Hata yanıt biçimi, 307'ler, prod ayarları (HATA_DUZELTME_PROMPT A-14, OPS-04, ENT-06, L-07, L-11, L-12, L-14) @be2
+- [ ] 3.37 Alan adı gaspı, DNS transaction, hatırlatma sınırları (HATA_DUZELTME_PROMPT A-15, GUV-09, AUTHZ-04, GUV-13) @be2
+- [ ] 3.38 Refresh sonrası CSRF başlığı yeniden okunsun (HATA_DUZELTME_PROMPT B-01, ENT-03, L-13) @fe
+- [ ] 3.39 `/me` rol bilgisi, admin linkleri, durum etiketleri, 307 (HATA_DUZELTME_PROMPT B-02, ENT-04, ENT-05, IS-04, ENT-06) @fe
+- [ ] 3.40 Engagement tarihleri (oluşturma + PATCH) (HATA_DUZELTME_PROMPT B-03, IS-02) @be1
+- [ ] 3.41 Public token, VE görünürlüğü, geri çekme okuma filtresi (HATA_DUZELTME_PROMPT B-04, IS-01, GUV-05, GUV-03, L-05) @be1
+- [ ] 3.42 Skill sinyal ve tanıklık kuralları (HATA_DUZELTME_PROMPT B-05, GUV-04, IS-05, IS-06) @be1
+- [ ] 3.43 Durum makinesi dokümana uysun (HATA_DUZELTME_PROMPT B-06, AUTHZ-03, IS-03, GUV-08) @be1
+- [ ] 3.44 Değerlendirme formunun mock'tan gerçek backend'e bağlanması (HATA_DUZELTME_PROMPT B-07, ENT-02) @fe
+- [ ] 3.45 Engagement oluşturma + teslim ekranları (HATA_DUZELTME_PROMPT B-08, ENT-01) @fe
+- [ ] 3.46 Kanıt yükleme gerçek backend'e (HATA_DUZELTME_PROMPT B-09, ENT-02) @fe
+- [ ] 3.47 Tanıklık, geri çekme, deneyim paylaşımı ekranları (HATA_DUZELTME_PROMPT B-10, ENT-01, IS-01) @fe
+- [ ] 3.48 Frontend testleri + CI'da vitest (HATA_DUZELTME_PROMPT B-11, TEST-01) @fe
+- [ ] 3.49 Kurum bağlanma talepleri + admin kuyruğu reddi (HATA_DUZELTME_PROMPT B-12, IS-10, IS-11) @fe
+- [ ] 3.50 Profil düzeltmeleri, skill yönetimi, frontend bağımlılığı (HATA_DUZELTME_PROMPT B-13, IS-09, DEP-02, L-06, L-10) @fe
 - [ ] 3.16 Kod dondurma — Faz 4'e yeni özellik girmez @all
 
 ---

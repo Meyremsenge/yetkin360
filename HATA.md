@@ -722,7 +722,7 @@ uyarısı olarak görünecek.
 | L-12 | `core/deps.py:16` | Engine `pool_pre_ping` olmadan; DB yeniden başlarsa ilk istekler 500 |
 | L-13 | `client.ts:28` | `csrf_token=` regex'i `xcsrf_token=` gibi adlarla da eşleşir; sınır eklenmeli |
 | L-14 | `config.py:55` | `seed_admin_password` varsayılanı tahmin edilebilir (`DEGISTIR_admin_parola`); üretimde seed engeli dışında koruma yok |
-| L-15 | repo kökü | `.mcp.json` izlenmiyor ve `.gitignore`'da da yok — içinde erişim anahtarı varsa yanlışlıkla commit edilebilir (içerik okunmadı) |
+| L-15 | repo kökü | `.mcp.json` izlenmiyor ve `.gitignore`'da da yok — içinde erişim anahtarı varsa yanlışlıkla commit edilebilir (içerik okunmadı) — ✅ GEÇERSİZ (O-00, 2026-09-28): içerik okundu, yalnız Atlassian MCP sunucusunun public SSE URL'si var, sır yok; dosya zaten `4dab7bc` commit'inde bilinçli olarak eklenmiş |
 | L-16 | `security-scan` | detect-secrets 589 bulgu: büyük çoğunluğu migration revision hash'leri ve test parolaları (yanlış pozitif). Baseline güncellenmeli ki gerçek sızıntı gürültüde kaybolmasın |
 
 ---

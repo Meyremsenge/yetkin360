@@ -137,16 +137,16 @@ bırakılırsa Sonnet "Öneri"yi uygular ve bunu raporunda belirtir.
 
 | # | Konu | Seçenekler | Öneri (varsayılan) | Seçilen |
 |---|---|---|---|---|
-| K1 | **Davet rızası** (GUV-02) | (a) Davet + kabul akışı (yeni durum kolonu, migration) · (b) Doğrudan ekleme kalsın; tek tip yanıt + 500 düzeltmesi + AUTHZ-01 | **(b)** — AUTHZ-01 düzelince hesap kilitleme etkisi kalkar; kabul akışı Faz 5 | ☐ |
-| K2 | **Sybil / org rızası** (GUV-03, GUV-08) | (a) Org'un engagement'ı onaylaması (yeni geçiş) · (b) Onay yok; public sayfada kurum seviyesi + org alan adı gösterilir, bilgi-sızıntısı oracle'ı kapatılır | **(b)** — MVP'de yeni geçiş eklemek zinciri uzatır | ☐ |
-| K3 | **Kurum ADMIN onay/tanıklık verebilir mi?** (AUTHZ-02) | (a) Hayır (doküman: yalnız `INST:COORD`); seed'e COORDINATOR hesapları eklenir · (b) Evet, INST_ADMIN de yapabilir | **(a)** — doküman böyle; kod değişmez, seed düzelir | ☐ |
-| K4 | **Geri çekilen tanıklığın etkisi** (GUV-05) | (a) VE'ye yeni durum kolonu (migration + append-only istisnası) · (b) VE satırı değişmez; okuma katmanı "aktif tanıklığı kalmayan VE"yi geri çekilmiş sayar | **(b)** — migration yok, append-only korunur | ☐ |
-| K5 | **T4 — kurumsuz engagement** (AUTHZ-03) | (a) T4'ü uygula (`DRAFT→ACTIVE`, org üyesi) · (b) MVP dışı: `institution_id` zorunlu | **(b)** — `INSTITUTION_REQUIRED` 422 | ☐ |
-| K6 | **Üretim topolojisi** (ENT-07) | (a) Tek origin, reverse proxy `/api` → backend · (b) Alt alan adları + `Domain=` cookie | **(a)** — CSRF/middleware değişmeden çalışır. Kodlama deploy maddesine kalır; O-02 dokümante eder | ☐ |
-| K7 | **E-posta doğrulama kapsamı** (IS-08) | (a) Tüm yazma uçları (`/auth/*` ve logout hariç) · (b) Yalnız kritik uçlar (engagement, evidence, evaluation, attestation) · (c) Hiç (kararı belgele) | **(a)** + seed kullanıcıları doğrulanmış + yeniden gönderme ucu | ☐ |
-| K8 | **Engagement tarihleri** (IS-02) | (a) Yalnız oluştururken · (b) Oluştururken + `PATCH /engagements/{id}/dates` | **(b)** — ACTIVE'de bitiş tarihi sonradan girilir; DRAFT/PENDING_APPROVAL/ACTIVE'de, org üyesi veya talent sahibi, `version` kilidiyle | ☐ |
-| K9 | **Kanıt taraması** (IS-07) | (a) Worker'da magic-byte + boyut kontrolü → CLEAN/INFECTED · (b) ClamAV | **(a)** — ClamAV PLAN 5.3'te | ☐ |
-| K10 | **Skill sinyal kuralları** (GUV-04, IS-06) | TALENT_TO_ORG sinyal üretmesin (zorunlu) · teslim sinyali MODERATE→WEAK? · silinen claim için tombstone? | TALENT_TO_ORG **hiç sinyal üretmez**; teslim sinyali **WEAK**; silinen claim için **NONE tombstone** (supersede) | ☐ |
+| K1 | **Davet rızası** (GUV-02) | (a) Davet + kabul akışı (yeni durum kolonu, migration) · (b) Doğrudan ekleme kalsın; tek tip yanıt + 500 düzeltmesi + AUTHZ-01 | **(b)** — AUTHZ-01 düzelince hesap kilitleme etkisi kalkar; kabul akışı Faz 5 | ✅ (b) |
+| K2 | **Sybil / org rızası** (GUV-03, GUV-08) | (a) Org'un engagement'ı onaylaması (yeni geçiş) · (b) Onay yok; public sayfada kurum seviyesi + org alan adı gösterilir, bilgi-sızıntısı oracle'ı kapatılır | **(b)** — MVP'de yeni geçiş eklemek zinciri uzatır | ✅ (b) |
+| K3 | **Kurum ADMIN onay/tanıklık verebilir mi?** (AUTHZ-02) | (a) Hayır (doküman: yalnız `INST:COORD`); seed'e COORDINATOR hesapları eklenir · (b) Evet, INST_ADMIN de yapabilir | **(a)** — doküman böyle; kod değişmez, seed düzelir | ✅ (a) |
+| K4 | **Geri çekilen tanıklığın etkisi** (GUV-05) | (a) VE'ye yeni durum kolonu (migration + append-only istisnası) · (b) VE satırı değişmez; okuma katmanı "aktif tanıklığı kalmayan VE"yi geri çekilmiş sayar | **(b)** — migration yok, append-only korunur | ✅ (b) |
+| K5 | **T4 — kurumsuz engagement** (AUTHZ-03) | (a) T4'ü uygula (`DRAFT→ACTIVE`, org üyesi) · (b) MVP dışı: `institution_id` zorunlu | **(b)** — `INSTITUTION_REQUIRED` 422 | ✅ (b) |
+| K6 | **Üretim topolojisi** (ENT-07) | (a) Tek origin, reverse proxy `/api` → backend · (b) Alt alan adları + `Domain=` cookie | **(a)** — CSRF/middleware değişmeden çalışır. Kodlama deploy maddesine kalır; O-02 dokümante eder | ✅ (a) |
+| K7 | **E-posta doğrulama kapsamı** (IS-08) | (a) Tüm yazma uçları (`/auth/*` ve logout hariç) · (b) Yalnız kritik uçlar (engagement, evidence, evaluation, attestation) · (c) Hiç (kararı belgele) | **(a)** + seed kullanıcıları doğrulanmış + yeniden gönderme ucu | ✅ (a) |
+| K8 | **Engagement tarihleri** (IS-02) | (a) Yalnız oluştururken · (b) Oluştururken + `PATCH /engagements/{id}/dates` | **(b)** — ACTIVE'de bitiş tarihi sonradan girilir; DRAFT/PENDING_APPROVAL/ACTIVE'de, org üyesi veya talent sahibi, `version` kilidiyle | ✅ (b) |
+| K9 | **Kanıt taraması** (IS-07) | (a) Worker'da magic-byte + boyut kontrolü → CLEAN/INFECTED · (b) ClamAV | **(a)** — ClamAV PLAN 5.3'te | ✅ (a) |
+| K10 | **Skill sinyal kuralları** (GUV-04, IS-06) | TALENT_TO_ORG sinyal üretmesin (zorunlu) · teslim sinyali MODERATE→WEAK? · silinen claim için tombstone? | TALENT_TO_ORG **hiç sinyal üretmez**; teslim sinyali **WEAK**; silinen claim için **NONE tombstone** (supersede) | ✅ önerilen paket |
 
 ---
 
