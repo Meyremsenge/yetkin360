@@ -19,7 +19,7 @@ from sqlalchemy import func, select
 from app.core.deps import get_session
 from app.core.security import hash_email_token, hash_password, hash_refresh_token
 from app.main import app
-from app.models import EmailVerificationToken, PasswordResetToken, RefreshToken, TalentProfile, User
+from app.models import AuditEvent, EmailVerificationToken, PasswordResetToken, RefreshToken, TalentProfile, User
 
 
 @pytest.fixture
@@ -140,6 +140,207 @@ class TestLogin:
         assert response.status_code == 423
         assert response.json()["code"] == "ACCOUNT_LOCKED"
 
+    def test_login_tenth_failed_attempt_returns_401_and_sets_lock_until(self, client, existing_user, session):
+        """
+        AC-2 sınır durumu: 10. yanlış denemenin KENDİSİ 401 INVALID_CREDENTIALS döner
+        (henüz kilitli değil), ama bu 10. denemeden sonra locked_until ~now+15dk olmalı.
+        """
+        # 9 yanlış deneme
+        for _ in range(9):
+            response = client.post("/auth/login", json={"email": "existing-auth@example.com", "password": "wrong"})
+            assert response.status_code == 401
+            assert response.json()["code"] == "INVALID_CREDENTIALS"
+
+        # 10. deneme: kendisi de 401 döner
+        response = client.post("/auth/login", json={"email": "existing-auth@example.com", "password": "wrong"})
+        assert response.status_code == 401
+        assert response.json()["code"] == "INVALID_CREDENTIALS"
+
+        # locked_until şimdi set edilmiş olmalı
+        session.refresh(existing_user)
+        assert existing_user.locked_until is not None
+        now = datetime.now(timezone.utc)
+        assert existing_user.locked_until > now
+        assert existing_user.locked_until <= now + timedelta(minutes=20)
+
+    def test_login_after_lock_returns_423_with_account_locked(self, client, existing_user, session):
+        """
+        AC-2 devamı: kilit ayarlandıktan sonra (doğru parola bile) 11. deneme 423 döner.
+        """
+        # 10 yanlış deneme
+        for _ in range(10):
+            client.post("/auth/login", json={"email": "existing-auth@example.com", "password": "wrong"})
+
+        # 11. deneme, doğru parola: 423 döner
+        response = client.post("/auth/login", json={"email": "existing-auth@example.com", "password": "Str0ngPassw0rd!"})
+        assert response.status_code == 423
+        assert response.json()["code"] == "ACCOUNT_LOCKED"
+
+    def test_login_wrong_password_logs_audit_denied(self, client, existing_user, session):
+        """
+        AC-3: yanlış parola denemesi sonrası audit_events'te USER_LOGIN/DENIED satırı
+        gerçek session'da (savepoint ıvırında, flush görüntüsü) var.
+        """
+        before_count = session.execute(select(func.count()).select_from(AuditEvent)).scalar()
+
+        response = client.post("/auth/login", json={"email": "existing-auth@example.com", "password": "wrong"})
+        assert response.status_code == 401
+
+        session.flush()  # Ensure audit event is flushed to visible state
+        after_count = session.execute(select(func.count()).select_from(AuditEvent)).scalar()
+        assert after_count > before_count
+
+        audit = session.execute(
+            select(AuditEvent)
+            .where(AuditEvent.action == "USER_LOGIN", AuditEvent.result == "DENIED")
+            .order_by(AuditEvent.created_at.desc())
+        ).scalars().first()
+        assert audit is not None
+
+    def test_login_locked_account_audit_contains_only_locked_reason(self, client, existing_user, session):
+        """
+        AC-S1 (güvenlik, threat-model): kilitli hesaba giriş denemesi audit'inde
+        metadata = {"reason": "locked"} olmalı, email/password/hash hiçbiri YAZILMAMALI.
+        """
+        # Hesabı kitleyelim
+        for _ in range(10):
+            client.post("/auth/login", json={"email": "existing-auth@example.com", "password": "wrong"})
+
+        session.flush()
+
+        # Kilitli hesaba erişim deneyelim
+        response = client.post("/auth/login", json={"email": "existing-auth@example.com", "password": "Str0ngPassw0rd!"})
+        assert response.status_code == 423
+
+        session.flush()
+
+        # Son DENIED audit satırını bul
+        audit = session.execute(
+            select(AuditEvent)
+            .where(AuditEvent.action == "USER_LOGIN", AuditEvent.result == "DENIED")
+            .order_by(AuditEvent.id.desc())
+        ).scalars().first()
+        assert audit is not None
+        assert audit.event_metadata == {"reason": "locked"}
+        # email, password, hash vb. hiçbiri metadata'da olmamali
+        if audit.event_metadata:
+            for key in audit.event_metadata.keys():
+                assert key not in ["email", "password", "password_hash", "tc_kimlik_no"]
+
+    def test_login_expired_lock_with_correct_password_succeeds_and_resets_count(self, client, existing_user, session):
+        """
+        AC-4: locked_until geçmişte kalıntı bir zamana set edilirse, doğru parolayla giriş
+        başarılı olmalı ve sayaç 0'a, locked_until NULL'a sıfırlanmalı.
+        """
+        # Sayacı yükselt
+        for _ in range(10):
+            client.post("/auth/login", json={"email": "existing-auth@example.com", "password": "wrong"})
+
+        session.flush()
+        session.refresh(existing_user)
+        assert existing_user.locked_until is not None
+
+        # Kilit süresini geçmişe ayarla
+        existing_user.locked_until = datetime.now(timezone.utc) - timedelta(minutes=1)
+        session.flush()
+
+        # Doğru parolayla giriş yap
+        response = client.post("/auth/login", json={"email": "existing-auth@example.com", "password": "Str0ngPassw0rd!"})
+        assert response.status_code == 200
+
+        session.refresh(existing_user)
+        assert existing_user.failed_login_count == 0
+        assert existing_user.locked_until is None
+
+    def test_login_suspended_user_with_correct_password_returns_invalid_credentials(self, client, existing_user, session):
+        """
+        AC-5 (L-03): SUSPENDED kullanıcı doğru parolayla giriş denerse, 401 INVALID_CREDENTIALS
+        döner (200 DEĞİL), ACTIVE kullanıcının yanlış-parola hatasıyla AYNI mesaj.
+        """
+        existing_user.status = "SUSPENDED"
+        session.flush()
+
+        response = client.post("/auth/login", json={"email": "existing-auth@example.com", "password": "Str0ngPassw0rd!"})
+        assert response.status_code == 401
+        assert response.json()["code"] == "INVALID_CREDENTIALS"
+
+    def test_login_suspended_vs_wrong_password_same_response_enumeration_protection(self, client, existing_user, session):
+        """
+        AC-S2 (güvenlik, threat-model, numaralandırma koruması): SUSPENDED kullanıcı + doğru
+        parola vs. ACTIVE kullanıcı + yanlış parola iki tepkisinin HTTP status_code,
+        error.code ve error.message alanları BİREBİR AYNI olmalı.
+        """
+        # SUSPENDED kullanıcı + doğru parola
+        existing_user.status = "SUSPENDED"
+        session.flush()
+
+        response_suspended = client.post(
+            "/auth/login", json={"email": "existing-auth@example.com", "password": "Str0ngPassw0rd!"}
+        )
+        assert response_suspended.status_code == 401
+
+        # ACTIVE kullanıcı (yeni user) + yanlış parola
+        active_user = User(email="active-user@example.com", password_hash=hash_password("Str0ngPassw0rd!"))
+        session.add(active_user)
+        session.flush()
+
+        response_active = client.post(
+            "/auth/login", json={"email": "active-user@example.com", "password": "WrongPassword"}
+        )
+        assert response_active.status_code == 401
+
+        # İki tepki aynı olmalı
+        assert response_suspended.status_code == response_active.status_code
+        assert response_suspended.json()["code"] == response_active.json()["code"]
+        assert response_suspended.json()["message"] == response_active.json()["message"]
+
+    def test_login_expired_lock_with_wrong_password_resets_count_and_increments_by_one(
+        self, client, existing_user, session
+    ):
+        """
+        AC-8: kilit süresi dolmuş bir kullanıcı yanlış parolayla giriş denerse, sayac 0'a
+        sıfırlanır (önce), sonra bu deneme +1 eklenir (sonuç: 1, 0 DEĞİL), locked_until NULL kalır.
+        """
+        # Sayacı yükselt + lock
+        for _ in range(10):
+            client.post("/auth/login", json={"email": "existing-auth@example.com", "password": "wrong"})
+
+        session.flush()
+        session.refresh(existing_user)
+
+        # Kilit süresini geçmişe ayarla
+        existing_user.locked_until = datetime.now(timezone.utc) - timedelta(minutes=1)
+        session.flush()
+
+        # Yanlış parolayla giriş yap
+        response = client.post("/auth/login", json={"email": "existing-auth@example.com", "password": "WrongPassword"})
+        assert response.status_code == 401
+
+        session.refresh(existing_user)
+        assert existing_user.failed_login_count == 1, "Should be reset to 0, then +1"
+        assert existing_user.locked_until is None
+
+    def test_login_refresh_token_denied_for_suspended_user(self, client, existing_user, session):
+        """
+        AC-7 (L-03): token sahibinin status'u ACTIVE/PENDING değilse refresh 401 döner.
+        """
+        # Giriş yap
+        login_response = client.post(
+            "/auth/login", json={"email": "existing-auth@example.com", "password": "Str0ngPassw0rd!"}
+        )
+        assert login_response.status_code == 200
+        refresh_token = login_response.cookies["refresh_token"]
+
+        # Kullanıcıyı SUSPENDED yap
+        existing_user.status = "SUSPENDED"
+        session.flush()
+
+        # Refresh token'ı kullan
+        client.cookies.set("refresh_token", refresh_token)
+        response = client.post("/auth/refresh")
+        assert response.status_code == 401
+        assert response.json()["code"] == "INVALID_REFRESH_TOKEN"
+
 
 class TestRefresh:
     def test_refresh_rotates_token_and_issues_new_cookies(self, client, existing_user):
@@ -196,6 +397,54 @@ class TestRefresh:
         response = client.post("/auth/refresh")
         assert response.status_code == 401
         assert response.json()["code"] == "INVALID_REFRESH_TOKEN"
+
+    def test_refresh_reused_token_with_suspended_user_still_revokes_family(self, client, existing_user, session):
+        """
+        Bulgu 2 testi: SUSPENDED kullanıcı + zaten revoke edilmiş refresh token
+        kombinasyonunda, REUSE_DETECTED mantığı (aile-çapında revoke + audit)
+        çalışmmalı. AC-7 (L-03 status kontrolü) devreye girmeden ONCE REUSE
+        tespiti çalışsın diye L-03 kontrol satırları revoked_at/expires_at
+        kontrolünden SONRA taşındı.
+        """
+        # Giriş yap, refresh_token alın
+        login_response = client.post(
+            "/auth/login", json={"email": "existing-auth@example.com", "password": "Str0ngPassw0rd!"}
+        )
+        assert login_response.status_code == 200
+        original_refresh = login_response.cookies["refresh_token"]
+
+        # İlk rotasyon: orijinal token artık revoked_at dolu
+        first_rotation = client.post("/auth/refresh")
+        assert first_rotation.status_code == 204
+        rotated_refresh = first_rotation.cookies["refresh_token"]
+
+        # Kullanıcıyı SUSPENDED yap
+        existing_user.status = "SUSPENDED"
+        session.flush()
+
+        # ESKİ (zaten revoke edilmiş) token'ı tekrar kullan: REUSE_DETECTED yoluna gitmeli
+        client.cookies.set("refresh_token", original_refresh)
+        reuse_response = client.post("/auth/refresh")
+        assert reuse_response.status_code == 401
+        assert reuse_response.json()["code"] == "INVALID_REFRESH_TOKEN"
+
+        # REUSE_DETECTED audit satırının var olduğunu doğrula
+        session.flush()
+        audit = session.execute(
+            select(AuditEvent)
+            .where(
+                AuditEvent.action == "REFRESH_TOKEN_REUSE_DETECTED",
+                AuditEvent.result == "DENIED",
+            )
+            .order_by(AuditEvent.created_at.desc())
+        ).scalars().first()
+        assert audit is not None, "REUSE_DETECTED audit olmalı, SUSPENDED kontrol gelmeden evvel çalışmış olmalı"
+
+        # YENİ rotasyondan gelen token'ın da artık revoke edilmiş olmasını doğrula
+        # (aile-çapında revoke başarılı)
+        client.cookies.set("refresh_token", rotated_refresh)
+        second_attempt = client.post("/auth/refresh")
+        assert second_attempt.status_code == 401
 
 
 class TestLogout:

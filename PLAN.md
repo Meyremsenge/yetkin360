@@ -252,7 +252,7 @@ PLAN maddesi olarak açılmamıştı. Detay: `HATA.md`.**
       > 3.17-3.19 kapandıktan sonra: `grep -rn "USE_MOCK\|localStorage\." frontend/lib/api/`
       > sıfır sonuç dönmeli (test dosyaları hariç). Bu madde kapanmadan 2.14
       > (uçtan uca duman testi) güvenilir sayılmaz.
-- [ ] 3.24 Giriş kilitleme sayacı kalıcı olsun (HATA_DUZELTME_PROMPT A-01, GUV-01, L-03) @be2
+- [x] 3.24 Giriş kilitleme sayacı kalıcı olsun (HATA_DUZELTME_PROMPT A-01, GUV-01, L-03) @be2
 - [ ] 3.25 Logout refresh token ailesini iptal etsin (HATA_DUZELTME_PROMPT A-02, GUV-06, L-04) @be2
 - [ ] 3.26 MinIO bucket, healthcheck, depolama hataları, .env.example (HATA_DUZELTME_PROMPT A-03, OPS-03) @be2
 - [ ] 3.27 Outbox worker: döngü, tıkanma, e-posta linkleri (HATA_DUZELTME_PROMPT A-04, OPS-01, OPS-02) @be2

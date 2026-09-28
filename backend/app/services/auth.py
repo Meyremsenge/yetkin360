@@ -364,11 +364,57 @@ def authenticate(session: Session, email: str, password: str, actor_ip: str | No
     """
     docs/API.md §2.1: login failures never distinguish "wrong email" from
     "wrong password" — both raise InvalidCredentials with one generic message.
+
+    L-03 (plan.md): status check happens after user lookup but before password
+    verification to avoid timing variations that could leak account status.
+
+    AC-3, AC-1, AC-2: failed login counts, locks, and audit events are committed
+    before raising exceptions, so they survive the get_session rollback handler.
     """
     user = session.execute(select(User).where(User.email == email)).scalars().first()
 
+    # L-03: Check if user is suspended/deleted immediately after lookup,
+    # before password verification. Raise same error as wrong password to
+    # prevent enumeration. (AC-5, AC-S2)
+    if user is not None and user.status in ('SUSPENDED', 'DELETED'):
+        log_audit_event(
+            session=session,
+            actor_user_id=user.id,
+            actor_ip=actor_ip,
+            action="USER_LOGIN",
+            subject_type="user",
+            subject_id=user.id,
+            result="DENIED",
+        )
+        session.commit()
+        raise InvalidCredentials()
+
+    # If lock has expired, reset the counter proactively before checking password.
+    # (AC-4, AC-8)
     if user is not None and user.locked_until is not None:
-        if user.locked_until > datetime.now(timezone.utc):
+        if user.locked_until <= datetime.now(timezone.utc):
+            # Lock has expired; reset both counter and lock timestamp.
+            user.failed_login_count = 0
+            user.locked_until = None
+            session.flush()
+        elif user.locked_until > datetime.now(timezone.utc):
+            # Account is still locked. Log DENIED audit before raising to
+            # ensure it survives rollback in production (AC-3, AC-S1).
+            log_audit_event(
+                session=session,
+                actor_user_id=user.id,
+                actor_ip=actor_ip,
+                action="USER_LOGIN",
+                subject_type="user",
+                subject_id=user.id,
+                result="DENIED",
+                metadata={"reason": "locked"},
+            )
+            # Commit this audit and lock state before raising, so the security
+            # event (and the fact that the account is locked) persists even if
+            # the caller's exception handler rolls back the request transaction.
+            # See refresh_tokens()'s similar pattern (REUSE_DETECTED).
+            session.commit()
             raise AccountLocked()
 
     if user is None or not verify_password(password, user.password_hash):
@@ -386,6 +432,11 @@ def authenticate(session: Session, email: str, password: str, actor_ip: str | No
             subject_id=user.id if user is not None else None,
             result="DENIED",
         )
+        # Commit the failed login count, lock, and audit event before raising
+        # the exception. Otherwise, if the caller's exception handler rolls back
+        # the transaction (as get_session does), the brute-force protection state
+        # is silently undone. (AC-1, AC-2, AC-3, AC-9)
+        session.commit()
         raise InvalidCredentials()
 
     user.failed_login_count = 0
@@ -415,6 +466,9 @@ def refresh_tokens(session: Session, refresh_token_value: str, actor_ip: str | N
     """
     Rotates the refresh token. Reuse of an already-revoked token revokes the
     entire family (docs/API.md §2.1, docs/SECURITY.md §5: theft signal).
+
+    L-03: Reject refresh if token owner's status is not ACTIVE or PENDING.
+    (AC-7)
     """
     # FOR UPDATE pairs with reset_password()'s lock on the same row — without
     # it, a reset committing concurrently could revoke this token right after
@@ -455,6 +509,12 @@ def refresh_tokens(session: Session, refresh_token_value: str, actor_ip: str | N
             # of detecting token reuse. Commit it now, before raising, so it
             # survives regardless of what happens after this point.
             session.commit()
+        raise InvalidRefreshToken()
+
+    # L-03 (AC-7): Check token owner's status after verifying token is valid
+    # (not revoked or expired). If user is suspended or deleted, deny the refresh.
+    user = session.execute(select(User).where(User.id == token.user_id)).scalars().first()
+    if user is not None and user.status not in ('ACTIVE', 'PENDING'):
         raise InvalidRefreshToken()
 
     token.revoked_at = now
