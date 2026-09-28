@@ -13,6 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { SESSION_QUERY_KEY } from "@/lib/session/use-session";
 
+const DEFAULT_AFTER_LOGIN = "/calismalar";
+
 function useQueryClientSafe() {
   try {
     return useQueryClient();
@@ -42,9 +44,10 @@ export default function LoginForm({ nextPath }: { nextPath?: string }) {
         await queryClient.invalidateQueries({ queryKey: SESSION_QUERY_KEY });
       }
 
-      // Redirect (sanitize next path to prevent open redirect)
-      const destination = sanitizeNext(nextPath);
-      router.push(destination);
+      // Redirect (sanitize next path to prevent open redirect).
+      // "/" is the public landing page, so a logged-in user goes to the app instead.
+      const safeNext = sanitizeNext(nextPath);
+      router.push(safeNext === "/" ? DEFAULT_AFTER_LOGIN : safeNext);
     } catch (error) {
       // Duck-typing: check for error object with status property
       if (error && typeof error === "object") {
