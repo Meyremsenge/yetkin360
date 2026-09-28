@@ -5,6 +5,29 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## YET-119 (PLAN 3.15) — Açık kaynak paketi doğrulaması (2026-09-28)
+
+**Kaynak:** `obss_project/artifacts/acik-kaynak-paketi-dogrulama/`
+
+### Bilinçli kararlar (kaynak: atdd.md, plan.md)
+- Test stratejisi klasik unit/integration/e2e piramidine değil, %70 manuel temiz-ortam kurulum denemesi + %30 otomatik secret-scan olarak tanımlandı — bu görev bir kod birimi değil bir "talimat + repo durumu" denetimi (kaynak: atdd.md Test Strategy).
+- Kurulum süresi için sabit bir zaman aşımı eşiği bilinçli olarak konulmadı — PLAN.md/final-analiz'de somut bir dakika kısıtı yok, keyfi bir sayı uydurulmadı (kaynak: atdd.md Assumptions).
+- Sır taraması kapsamı sadece mevcut dosyalar değil, tüm git geçmişi olarak belirlendi — CLAUDE.md'nin "commit geçmişi temiz tutulur, jüri repoya bakabilir" ilkesi gereği (kaynak: atdd.md Sorular ve Cevaplar #9).
+
+### Gerçek bulgu ve düzeltme (kaynak: plan.md, code_diff.md)
+- **Stale kurulum talimatı**: README.md:138 ".env.example henüz repoda yok (PLAN.md 0.9)" diyordu, ama PLAN.md 0.9 zaten tamamlanmış ve dosya repo kökünde gerçekten mevcuttu — sıfırdan kurulum deneyen biri gereksiz bir ekstra adıma yönlendiriliyordu. Düzeltildi, regresyon testi (`backend/tests/test_repo_packaging.py::test_readme_does_not_claim_env_example_missing`) eklendi.
+
+### Kritik güvenlik triyajı (kaynak: verify_report.md, red_team.json)
+- Tüm repo üzerinde `security-scan` çalıştırıldı: 1032 bulgudan 962'si `frontend/tsconfig.tsbuildinfo` (gitignore'da, hiç public olmayacak bir build-cache dosyası) — gerçek risk değil, araç kapsamının `.gitignore`'ı hesaba katmamasından kaynaklanan bir false-positive yığını.
+- Kalan 70 bulgunun 69'u tek tek incelenip false positive doğrulandı (CI'nin belgelediği test değerleri, seed script demo şifresi, docs/ENV.md'deki "DEĞİŞTİR" placeholder'ı, UI'daki "Şifre" etiketleri, test fixture'ları, Alembic migration ID'leri).
+- `.env`/`.env.example` satır 23'teki aynı hash eşleşmesi sandbox kısıtı (`.env` okunmaz kuralı `.env.example`'ı da kapsıyor) yüzünden Claude tarafından doğrulanamadı — kullanıcı kendisi kontrol edip gerçek placeholder olduğunu teyit etti, ardından `.secrets.baseline` güncellendi.
+- Scoped tarama backend'de gerçek CVE'ler buldu (`pyjwt`, `starlette`) ve frontend'de (`postcss`, high severity) — bağımlılık yükseltmesi CLAUDE.md'nin "açık onay gerektirir" kuralı gereği bu görevin kapsamına alınmadı, PLAN.md madde **3.15b** olarak ayrı görev açıldı.
+
+### Kabul edilen / kapsam dışı bırakılan sorunlar (kod değil, bilinçli karar — kaynak: red_team.json)
+- `test_repo_packaging.py` AC-1'in "sıfırdan kurulum gerçekten çalışır" iddiasını kanıtlamıyor, yalnız statik dosya/metin kontrolü yapıyor — bu, atdd.md'nin kendi Test Strategy'sinde zaten %70 manuel olarak planlanmıştı (gizlenmemiş bir sınırlama, red-team severity: medium/test-gap).
+- Davranış Sözleşmesi'nin "kısmi başarı" ve "0 dosya tarandı" satırları bu turda hiç fiilen tetiklenip doğrulanmadı, teorik N/A kaldı (red-team severity: low/test-gap).
+- Backend'in `bandit` (python_sast) taraması scoped koşumda TIMEOUT verdi — INCONCLUSIVE, ayrıca doğrulanmalı.
+
 ## Çalışmalar sayfasını gerçek backend'e bağlama (2026-09-27)
 
 **Kaynak:** `obss_project/artifacts/calismalar-gercek-backend-baglama/` —

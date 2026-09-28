@@ -201,6 +201,17 @@ Hedef: jürinin göreceği yüz. Bu fazın sonunda canlı URL + gerçekçi veri 
 - [ ] 3.13 Erişilebilirlik geçişi: klavye, focus, kontrast, `aria-live` @fe
 - [ ] 3.14 Deploy: VPS, HTTPS, canlı URL, yedekleme, log @be2
 - [ ] 3.15 Açık kaynak paketi: kurulum talimatı sıfırdan doğrulanır, sır taraması @all
+  > YET-119 `verify` adımında (2026-09-28) `security-scan` ile bulundu: backend
+  > `pyjwt` 2.10.1 (birden fazla advisory, PYSEC-2026-120/175/176/177/178/179 —
+  > 2.12.0/2.13.0'a yükselt) ve `starlette` 0.41.3 (PYSEC-2026-161/248/249/
+  > 1941/1942/2280/2281 — 1.3.1'e yükselt); frontend `postcss` (high severity
+  > XSS advisory). `pytest` 8.3.4 için de bir advisory var (9.0.3, dev-only,
+  > düşük öncelik). Bağımlılık sürüm yükseltmesi CLAUDE.md gereği açık onay
+  > istediği ve bu görevin kapsamı dışında kaldığı için ayrı madde olarak
+  > açıldı (bkz. 3.15b).
+- [ ] 3.15b Bağımlılık güvenlik yükseltmesi: `pyjwt`→2.13.0, `starlette`→1.3.1,
+  `postcss` (frontend, high severity), `pytest`→9.0.3 (dev-only, düşük
+  öncelik) — kaynak: YET-119 verify_report.md @be2
 - [ ] 3.16 Kod dondurma — Faz 4'e yeni özellik girmez @all
 
 ---

@@ -135,9 +135,6 @@ cp .env.example .env          # varsayılanlar geliştirme için çalışır
 docker compose up -d          # PostgreSQL + MinIO
 ```
 
-> **Not:** `.env.example` henüz repoda yok ([PLAN.md](PLAN.md) 0.9).
-> O zamana kadar [docs/ENV.md](docs/ENV.md) §8'deki şablonu kopyalayın.
-
 **Backend:**
 
 ```bash
