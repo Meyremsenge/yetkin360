@@ -132,11 +132,13 @@ class TestPublicShowsWhoVouches:
 @pytest.fixture
 def sybil_chain(client, session):
     """
-    One person, two accounts, real API: account `owner` creates an org + institution and adds
-    itself as COORDINATOR; account `talent` links to that institution and opens an engagement
+    One person, three accounts, real API: account `owner` creates an org + institution and adds
+    account `coord` as COORDINATOR (an existing member's role is never overwritten, so the owner
+    cannot promote itself); account `talent` links to that institution and opens an engagement
     on the owner's org. Returns everything up to PENDING_EVALUATION (before evaluation).
     """
     owner, _ = _make_user(session, f"sy-owner-{uuid4()}@example.com")
+    coord, _ = _make_user(session, f"sy-coord-{uuid4()}@example.com")
     talent_user, talent = _make_user(session, f"sy-talent-{uuid4()}@example.com", talent=True)
     session.commit()
 
@@ -149,15 +151,15 @@ def sybil_chain(client, session):
     inst_id = r.json()["id"]
     r = client.post(
         f"/institutions/{inst_id}/members",
-        json={"email": owner.email, "role": "COORDINATOR"},
+        json={"email": coord.email, "role": "COORDINATOR"},
         headers=_h(owner),
     )
-    assert r.status_code == 201
+    assert r.status_code == 202
 
     r = client.post(f"/institutions/{inst_id}/link-requests", headers=_h(talent_user))
     assert r.status_code == 201
     r = client.post(
-        f"/institutions/{inst_id}/link-requests/{r.json()['id']}/approve", headers=_h(owner)
+        f"/institutions/{inst_id}/link-requests/{r.json()['id']}/approve", headers=_h(coord)
     )
     assert r.status_code == 200
 
@@ -186,13 +188,13 @@ def sybil_chain(client, session):
         version = resp.json()["version"]
 
     step("PENDING_APPROVAL", talent_user)
-    step("ACTIVE", owner)
+    step("ACTIVE", coord)
     r = client.post(
         f"/engagements/{eng_id}/deliverables", json={"title": "x"}, headers=_h(talent_user)
     )
     assert r.status_code == 201
-    step("PENDING_EVALUATION", owner)
-    return owner, talent_user, eng_id
+    step("PENDING_EVALUATION", coord)
+    return owner, talent_user, eng_id, coord
 
 
 EVAL_BODY = {
@@ -206,7 +208,7 @@ class TestSybilChainTodayOwnOrg:
         self, client, session, sybil_chain
     ):
         """OPEN by K2 (b): chain completes. CLOSED: result is PARTICIPATION + ATTESTOR_NOT_VERIFIED."""
-        owner, _, eng_id = sybil_chain
+        owner, _, eng_id, coord = sybil_chain
 
         r = client.post(f"/engagements/{eng_id}/evaluation", json=EVAL_BODY, headers=_h(owner))
         assert r.status_code == 201
@@ -217,7 +219,7 @@ class TestSybilChainTodayOwnOrg:
         r = client.post(
             f"/engagements/{eng_id}/attestations",
             json={"claim_type": "COMPETENCE", "version": eng.version},
-            headers=_h(owner),
+            headers=_h(coord),
         )
 
         assert r.status_code == 201
@@ -229,7 +231,7 @@ class TestSybilChainTodayOwnOrg:
 
     def test_t1_org_blocks_competence_even_with_28_plus_days(self, client, session, sybil_chain):
         """The real Sybil guard: duration is satisfied, T1 org alone still downgrades."""
-        owner, _, eng_id = sybil_chain
+        owner, _, eng_id, coord = sybil_chain
         r = client.post(f"/engagements/{eng_id}/evaluation", json=EVAL_BODY, headers=_h(owner))
         assert r.status_code == 201
         session.expire_all()
@@ -242,7 +244,7 @@ class TestSybilChainTodayOwnOrg:
         r = client.post(
             f"/engagements/{eng_id}/attestations",
             json={"claim_type": "COMPETENCE", "version": eng.version},
-            headers=_h(owner),
+            headers=_h(coord),
         )
 
         assert r.status_code == 201
@@ -259,16 +261,18 @@ class TestForeignOrgNeedsItsOwnMember:
         )
         session.add(victim_org)
         coord, _ = _make_user(session, f"fo-coord-{uuid4()}@example.com")
+        inst_admin, _ = _make_user(session, f"fo-admin-{uuid4()}@example.com")
         talent_user, talent = _make_user(session, f"fo-talent-{uuid4()}@example.com", talent=True)
         session.commit()
 
-        r = client.post("/institutions/", json={"name": "Fo Inst"}, headers=_h(coord))
+        r = client.post("/institutions/", json={"name": "Fo Inst"}, headers=_h(inst_admin))
         inst_id = r.json()["id"]
-        client.post(
+        r = client.post(
             f"/institutions/{inst_id}/members",
             json={"email": coord.email, "role": "COORDINATOR"},
-            headers=_h(coord),
+            headers=_h(inst_admin),
         )
+        assert r.status_code == 202
         r = client.post(f"/institutions/{inst_id}/link-requests", headers=_h(talent_user))
         client.post(
             f"/institutions/{inst_id}/link-requests/{r.json()['id']}/approve", headers=_h(coord)

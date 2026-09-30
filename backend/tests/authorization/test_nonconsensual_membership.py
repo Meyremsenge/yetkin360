@@ -118,8 +118,8 @@ def forced_membership(client, attacker, victim, victim_records):
         json={"email": VICTIM_EMAIL, "role": "ADMIN"},
         headers=_h(attacker),
     )
-    assert r.status_code == 201
-    assert r.json()["role"] == "ADMIN"
+    assert r.status_code == 202
+    assert r.json() == {"status": "queued"}
 
     r = client.post("/institutions/", json={"name": "Attacker Inst"}, headers=_h(attacker))
     assert r.status_code == 201
@@ -129,8 +129,8 @@ def forced_membership(client, attacker, victim, victim_records):
         json={"email": VICTIM_EMAIL, "role": "ADMIN"},
         headers=_h(attacker),
     )
-    assert r.status_code == 201
-    assert r.json()["role"] == "ADMIN"
+    assert r.status_code == 202
+    assert r.json() == {"status": "queued"}
     return evil_org_id, evil_inst_id
 
 
@@ -227,7 +227,7 @@ class TestVictimKeepsTalentFunctions:
             json={"email": VICTIM_EMAIL, "role": "ADMIN"},
             headers=_h(attacker2),
         )
-        assert r.status_code == 201
+        assert r.status_code == 202
         assert client.get(f"/engagements/{eng.id}", headers=_h(v_user)).status_code == 200
         # MEMBER of the real org is still not an ADMIN there: unchanged 404
         r = client.post(

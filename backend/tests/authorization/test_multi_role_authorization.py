@@ -496,9 +496,14 @@ class TestMultiRoleOrgInstitutionAccess:
             json={"email": "newmember@example.com", "role": "MEMBER"},
             headers={"X-Debug-User-Id": str(mr_user_m1.id)},
         )
-        assert response.status_code == 201
-        body = response.json()
-        assert body["role"] == "MEMBER"
+        assert response.status_code == 202
+        assert response.json() == {"status": "queued"}
+        assert (
+            session.query(OrganizationMember)
+            .filter_by(organization_id=mr_org_o1.id, user_id=new_user.id, role="MEMBER")
+            .count()
+            == 1
+        )
 
     def test_m1_post_verify_domain_200(self, client, mr_user_m1, mr_org_o1, mr_m1_org_o1_admin, mr_talent_m1, mr_m1_inst_k1_coordinator):
         """
@@ -621,7 +626,7 @@ class TestRoleIsolation:
 
     def test_m3_admin_o2_can_post_members_201(self, client, mr_user_m3, mr_talent_m3, mr_org_o2, mr_m3_org_o2_admin, session):
         """
-        AC-S4 (satÄ±r 11): M3 is ADMIN of O2 + MEMBER of O1 + talent â†’ POST /organizations/{O2}/members returns 201.
+        AC-S4 (satÄ±r 11): M3 is ADMIN of O2 + MEMBER of O1 + talent â†’ POST /organizations/{O2}/members returns 202.
         """
         # Create a user to invite
         new_user = User(email="member-o2@example.com", password_hash="hash_new")
@@ -633,9 +638,14 @@ class TestRoleIsolation:
             json={"email": "member-o2@example.com", "role": "MEMBER"},
             headers={"X-Debug-User-Id": str(mr_user_m3.id)},
         )
-        assert response.status_code == 201
-        body = response.json()
-        assert body["role"] == "MEMBER"
+        assert response.status_code == 202
+        assert response.json() == {"status": "queued"}
+        assert (
+            session.query(OrganizationMember)
+            .filter_by(organization_id=mr_org_o2.id, user_id=new_user.id, role="MEMBER")
+            .count()
+            == 1
+        )
 
 
 # ============================================================================
@@ -776,7 +786,7 @@ class TestExtraFieldsIgnored:
         # Should succeed (extra field ignored) or 422 (depends on Pydantic config)
         # Per Pydantic 2 default: extra fields are ignored (allow="ignore")
         # If Pydantic has extra="forbid", this would be 422
-        assert response.status_code in (201, 422)
+        assert response.status_code in (202, 422)
 
 
 # ============================================================================

@@ -9,10 +9,13 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_principal, get_session, get_verified_principal
 from app.core.deps import require_csrf
+from app.core.errors import ApiError
 from app.models import Institution, InstitutionLinkRequest
 from app.schemas.reminder import ReminderCreate, ReminderResponse
 from app.services.authorization import Principal, get_scoped_or_404, scoped_institutions
+from app.services.audit import log_audit_event
 from app.services.institution import (
+    AlreadyMemberError,
     DuplicateDomainError,
     DuplicateLinkRequestError,
     approve_institution_link,
@@ -22,6 +25,7 @@ from app.services.institution import (
     request_institution_link,
 )
 from app.services.engagement import get_coordinator_dashboard
+from app.services.outbox import enqueue
 from app.services.reminder import create_reminders
 
 router = APIRouter(prefix="/institutions", tags=["institutions"])
@@ -174,7 +178,7 @@ def create_institution_endpoint(
 # ============================================================================
 
 
-@router.post("/{institution_id}/members", status_code=201, response_model=InstitutionMemberResponse)
+@router.post("/{institution_id}/members", status_code=202)
 def invite_member_endpoint(
     institution_id: uuid.UUID,
     payload: InstitutionMemberInvite,
@@ -183,8 +187,13 @@ def invite_member_endpoint(
     _csrf: None = Depends(require_csrf),
 ):
     """
-    AC-2: Invite user to institution (ADMIN-only action, AC-4/AC-S1).
-    AC-5/AC-S2: Tenant isolation — COORDINATOR or out-of-scope ADMIN gets 404.
+    AC-1/AC-2/AC-4/AC-6: Invite user to institution (ADMIN-only action).
+    AC-1: Bilinen e-posta → 202 {"status": "queued"}, üyelik + outbox enqueue + audit
+    AC-2: Bilinmeyen e-posta → 202 {"status": "queued"}, hiç üyelik oluşmaz, yalnız audit
+    AC-3: Geçersiz rol → 422 INVALID_ROLE
+    AC-4: Zaten üye → 202 (rol değişmez)
+    AC-5/AC-8: Tenant isolation — COORDINATOR or out-of-scope ADMIN gets 404.
+    AC-6: Audit event yazılması (yeni)
 
     Args:
         institution_id: Target institution
@@ -193,27 +202,32 @@ def invite_member_endpoint(
         session: Database session
 
     Returns:
-        InstitutionMember (created or updated)
+        {"status": "queued"}
 
     Status codes:
-        201: Member invited
-        404: Institution not found or user not authorized (no distinction)
-        422: Invalid input
+        202: Invitation queued (whether member created or not)
+        404: Institution not found or user not authorized
+        422: Invalid role
     """
-    # Authorization: Principal must be ADMIN of THIS institution (not just any admin).
+    # AC-3: Validate role (HAND, not Pydantic Literal)
+    if payload.role not in ("ADMIN", "COORDINATOR"):
+        raise ApiError(422, "INVALID_ROLE", "Geçerli rol değeri: ADMIN veya COORDINATOR")
+
+    # AC-8: Authorization: Principal must be ADMIN of THIS institution (not just any admin).
     # Per-kurum check: institution_id must be in principal.institution_admin_ids.
     if institution_id not in principal.institution_admin_ids:
         # Not admin of this institution. Return 404 (not 403, to hide resource existence).
-        raise HTTPException(status_code=404, detail="Institution not found")
+        raise ApiError(404, "NOT_FOUND", "Kurum bulunamadı")
 
-    # Verify institution exists and is in scope (defense-in-depth)
+    # AC-8: Verify institution exists and is in scope (defense-in-depth)
     scoped = scoped_institutions(session, principal).where(Institution.id == institution_id)
     institution = get_scoped_or_404(scoped, session)
 
     if not institution:
-        raise HTTPException(status_code=404, detail="Institution not found")
+        raise ApiError(404, "NOT_FOUND", "Kurum bulunamadı")
 
-    # Invite member
+    # Invite member (isolate exception handling to invite_member only)
+    member = None
     try:
         member = invite_member(
             institution_id=institution_id,
@@ -221,10 +235,69 @@ def invite_member_endpoint(
             role=payload.role,
             session=session,
         )
-        session.flush()  # Persist changes within transaction
-        return member
+    except AlreadyMemberError:
+        # AC-4: Zaten üye → 202 (rol değişmez, hiçbir şey yapılmaz)
+        log_audit_event(
+            session=session,
+            actor_user_id=principal.user_id,
+            actor_ip=None,
+            action="INVITE_INSTITUTION_MEMBER",
+            subject_type="institution",
+            subject_id=institution_id,
+            result="SUCCESS",
+            metadata={
+                "institution_id": str(institution_id),
+                "role": payload.role,
+                "reason": "already_member",
+            },
+        )
     except ValueError:
-        raise HTTPException(status_code=422, detail="User not found")
+        # AC-2: Bilinmeyen e-posta → 202 (hiçbir üyelik oluşmaz, yalnız audit)
+        log_audit_event(
+            session=session,
+            actor_user_id=principal.user_id,
+            actor_ip=None,
+            action="INVITE_INSTITUTION_MEMBER",
+            subject_type="institution",
+            subject_id=institution_id,
+            result="SUCCESS",
+            metadata={
+                "institution_id": str(institution_id),
+                "role": payload.role,
+                "reason": "user_not_found",
+            },
+        )
+
+    # AC-1: Member created successfully → enqueue + audit (outside invite_member exception handler)
+    if member:
+        enqueue(
+            session=session,
+            topic="email.institution_member_invited",
+            payload={
+                "user_id": str(member.user_id),
+                "institution_id": str(institution_id),
+                "institution_name": institution.name,
+                "role": payload.role,
+            },
+        )
+
+        # AC-6: Log audit event
+        log_audit_event(
+            session=session,
+            actor_user_id=principal.user_id,
+            actor_ip=None,
+            action="INVITE_INSTITUTION_MEMBER",
+            subject_type="institution_member",
+            subject_id=member.id,
+            result="SUCCESS",
+            metadata={
+                "institution_id": str(institution_id),
+                "invited_user_id": str(member.user_id),
+                "role": payload.role,
+            },
+        )
+
+    return {"status": "queued"}
 
 
 # ============================================================================

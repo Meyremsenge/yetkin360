@@ -249,10 +249,11 @@ class TestInstitutionMemberInvitation:
 
     def test_admin_invites_coordinator(self, session, user_creator, user_coordinator, institution_a, institution_a_admin_member, client):
         """
-        AC-2: ADMIN invites user as COORDINATOR → 201, member created/invited.
+        AC-2: ADMIN invites user as COORDINATOR → 202, member created/invited.
 
         Acceptance Criteria:
-        - Status code: 201 Created
+        - Status code: 202 Accepted (request queued)
+        - Response: {"status": "queued"}
         - InstitutionMember record created with role=COORDINATOR
         - User receives invitation (outbox event, not tested here)
         """
@@ -263,9 +264,9 @@ class TestInstitutionMemberInvitation:
 
         response = client.post(f"/institutions/{institution_a.id}/members", json=payload, headers={"X-Debug-User-Id": str(user_creator.id)})
 
-        assert response.status_code == 201
+        assert response.status_code == 202
         data = response.json()
-        assert data["role"] == "COORDINATOR"
+        assert data["status"] == "queued"
 
         # Verify in database
         member = session.query(InstitutionMember).filter_by(
@@ -276,7 +277,7 @@ class TestInstitutionMemberInvitation:
         assert member.role == "COORDINATOR"
 
     def test_admin_invites_admin(self, session, user_creator, user_admin_inviter, institution_a, institution_a_admin_member, client):
-        """AC-2: ADMIN invites another ADMIN → 201."""
+        """AC-2: ADMIN invites another ADMIN → 202."""
         payload = {
             "email": user_admin_inviter.email,
             "role": "ADMIN"
@@ -284,7 +285,10 @@ class TestInstitutionMemberInvitation:
 
         response = client.post(f"/institutions/{institution_a.id}/members", json=payload, headers={"X-Debug-User-Id": str(user_creator.id)})
 
-        assert response.status_code == 201
+        assert response.status_code == 202
+        data = response.json()
+        assert data["status"] == "queued"
+
         member = session.query(InstitutionMember).filter_by(
             institution_id=institution_a.id,
             user_id=user_admin_inviter.id

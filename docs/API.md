@@ -307,7 +307,7 @@ Her sinyal kaynağıyla birlikte döner:
 |---|---|---|---|---|---|
 | `POST` | `/organizations` | `AUTH` | `name`, `domain?`, `legal_id?` | `201` — kurum (`verification_level: T1`) | `409 LEGAL_ID_TAKEN` |
 | `GET` | `/organizations/{id}` | `AUTH` | — | `200` — kurum | `404` |
-| `POST` | `/organizations/{id}/members` | `ORG:ADMIN` | `email`, `role` | `201` — davet | `404`, `409 ALREADY_MEMBER` |
+| `POST` | `/organizations/{id}/members` | `ORG:ADMIN` | `email`, `role` | `202` — `{"status": "queued"}` | `404`, `422 INVALID_ROLE` |
 | `POST` | `/organizations/{id}/verify-domain` | `ORG:ADMIN` | — | `200` — `dns_txt_record`, `status` | `404`, `400 FREE_EMAIL_DOMAIN` |
 
 **Domain doğrulama (T1 → T2):** Uç bir DNS TXT kaydı üretir. Kurum bu kaydı
@@ -324,6 +324,7 @@ onayından gelir.
 |---|---|---|---|---|---|
 | `GET` | `/institutions/{id}/dashboard` | `INST:COORD` | — | `200` — özet sayaçlar | `404` |
 | `GET` | `/institutions/{id}/engagements` | `INST:COORD` | `status?`, `limit?`, `cursor?` | `200` — `items[]` | `404` |
+| `POST` | `/institutions/{id}/members` | `INST:ADMIN` | `email`, `role` | `202` — `{"status": "queued"}` | `404`, `422 INVALID_ROLE` |
 | `POST` | `/institutions/{id}/reminders` | `INST:COORD` | `engagement_ids[]`, `template` | `202` — `queued_count` | `404`, `429` |
 
 **Dashboard cevabı** — koordinatörün "durumu bir bakışta gör" ihtiyacı:

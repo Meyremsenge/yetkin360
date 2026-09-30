@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_principal, get_session, get_verified_principal
 from app.core.deps import require_csrf
+from app.core.errors import ApiError
 from app.models import Organization
 from app.services.authorization import Principal, get_scoped_or_404, scoped_organizations
 from app.services.audit import log_audit_event
@@ -201,7 +202,7 @@ def create_organization_endpoint(
 # ============================================================================
 
 
-@router.post("/{organization_id}/members", status_code=201, response_model=OrganizationMemberResponse)
+@router.post("/{organization_id}/members", status_code=202)
 def invite_member_endpoint(
     organization_id: uuid.UUID,
     payload: OrganizationMemberInvite,
@@ -210,12 +211,13 @@ def invite_member_endpoint(
     _csrf: None = Depends(require_csrf),
 ):
     """
-    AC-3: Invite user to organization (ADMIN-only action).
-    AC-4: Duplicate membership → 409 ALREADY_MEMBER.
+    AC-1/AC-2/AC-4: Invite user to organization (ADMIN-only action).
+    AC-1: Bilinen e-posta → 202 {"status": "queued"}, üyelik + outbox enqueue + audit
+    AC-2: Bilinmeyen e-posta → 202 {"status": "queued"}, hiç üyelik oluşmaz, yalnız audit
+    AC-4: Zaten üye → 202 (rol değişmez)
+    AC-3: Geçersiz rol → 422 INVALID_ROLE
     AC-S1: Tenant isolation — non-ADMIN or out-of-scope gets 404.
-    AC-S2: role must be ADMIN or MEMBER only.
-    AC-S6: outbox event added in same transaction.
-    AC-S7: Audit logged.
+    AC-S6/AC-S7: outbox + audit same transaction.
 
     Args:
         organization_id: Target organization
@@ -224,29 +226,30 @@ def invite_member_endpoint(
         session: Database session
 
     Returns:
-        OrganizationMember
+        {"status": "queued"}
 
     Status codes:
-        201: Member invited
+        202: Invitation queued (whether member created or not)
         404: Organization not found or not authorized
-        409: User already a member
         422: Invalid role
     """
-    # AC-S2: Validate role
+    # AC-3: Validate role (HAND, not Pydantic Literal)
     if payload.role not in ("ADMIN", "MEMBER"):
-        raise HTTPException(status_code=422, detail="INVALID_ROLE")
+        raise ApiError(422, "INVALID_ROLE", "Geçerli rol değeri: ADMIN veya MEMBER")
 
     # AC-S1: Check organization exists and is in principal's scope + is ADMIN
     scoped = scoped_organizations(session, principal)
     org_query = scoped.where(Organization.id == organization_id)
     org = get_scoped_or_404(org_query, session)
     if not org:
-        raise HTTPException(status_code=404, detail="Organization not found")
+        raise ApiError(404, "NOT_FOUND", "Organizasyon bulunamadı")
 
     # Check if principal is ADMIN of this organization
     if organization_id not in principal.org_admin_ids:
-        raise HTTPException(status_code=404, detail="Organization not found")
+        raise ApiError(404, "NOT_FOUND", "Organizasyon bulunamadı")
 
+    # Invite member (isolate exception handling to invite_org_member only)
+    member = None
     try:
         member = invite_org_member(
             organization_id=organization_id,
@@ -254,9 +257,41 @@ def invite_member_endpoint(
             role=payload.role,
             session=session,
         )
-        session.flush()
+    except AlreadyMemberError:
+        # AC-4: Zaten üye → 202 (rol değişmez, hiçbir şey yapılmaz)
+        log_audit_event(
+            session=session,
+            actor_user_id=principal.user_id,
+            actor_ip=None,
+            action="INVITE_ORG_MEMBER",
+            subject_type="organization",
+            subject_id=organization_id,
+            result="SUCCESS",
+            metadata={
+                "organization_id": str(organization_id),
+                "role": payload.role,
+                "reason": "already_member",
+            },
+        )
+    except ValueError:
+        # AC-2: Bilinmeyen e-posta → 202 (hiçbir üyelik oluşmaz, yalnız audit)
+        log_audit_event(
+            session=session,
+            actor_user_id=principal.user_id,
+            actor_ip=None,
+            action="INVITE_ORG_MEMBER",
+            subject_type="organization",
+            subject_id=organization_id,
+            result="SUCCESS",
+            metadata={
+                "organization_id": str(organization_id),
+                "role": payload.role,
+                "reason": "user_not_found",
+            },
+        )
 
-        # AC-S6: Enqueue email invitation in same transaction (PII guard: use user_id, not email)
+    # AC-1: Member created successfully → enqueue + audit (outside invite_org_member exception handler)
+    if member:
         enqueue(
             session=session,
             topic="email.organization_member_invited",
@@ -268,7 +303,7 @@ def invite_member_endpoint(
             },
         )
 
-        # Log audit event (AC-S7)
+        # Log audit event
         log_audit_event(
             session=session,
             actor_user_id=principal.user_id,
@@ -284,9 +319,7 @@ def invite_member_endpoint(
             },
         )
 
-        return member
-    except AlreadyMemberError:
-        raise HTTPException(status_code=409, detail="ALREADY_MEMBER")
+    return {"status": "queued"}
 
 
 # ============================================================================

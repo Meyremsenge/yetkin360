@@ -37,6 +37,7 @@ from app.services.institution import (
     request_institution_link,
     approve_institution_link,
     DuplicateLinkRequestError,
+    AlreadyMemberError,
 )
 from app.services.organization import create_organization
 from app.services.engagement import (
@@ -415,12 +416,15 @@ def _ensure_institution_coordinator(session: Session, index: int, inst_domain: s
             full_name=f"Institution {index} Coordinator",
         )
 
-    invite_member(
-        institution_id=institution.id,
-        email=coord_email,
-        role="COORDINATOR",
-        session=session,
-    )
+    try:
+        invite_member(
+            institution_id=institution.id,
+            email=coord_email,
+            role="COORDINATOR",
+            session=session,
+        )
+    except AlreadyMemberError:
+        pass  # idempotent re-run: the coordinator membership already exists
 
 
 def seed_institutions_and_organizations(session: Session) -> None:
