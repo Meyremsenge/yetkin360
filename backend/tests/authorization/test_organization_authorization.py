@@ -633,11 +633,6 @@ class TestInviteOrganizationMember:
         - DB: OrganizationMember created for user_to_invite in org_a
         - Audit: INVITE_ORG_MEMBER logged
         """
-        # Setup: count members before invite
-        members_before = session.query(OrganizationMember).filter_by(
-            organization_id=organization_a.id
-        ).count()
-
         payload = {
             "email": user_to_invite.email,
             "role": "MEMBER"
