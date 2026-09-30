@@ -18,7 +18,7 @@ Key principle: "404 sızdırmama" — out-of-scope and nonexistent resources bot
 
 import pytest
 
-from app.models import Institution, InstitutionMember, TalentProfile, User, Organization, OrganizationMember
+from app.models import Institution, InstitutionMember, TalentProfile, User, Organization, OrganizationMember, AuditEvent
 from app.services.authorization import Principal, can, get_scoped_or_404, scoped_institutions
 
 
@@ -1023,9 +1023,6 @@ class TestCoordinatorDashboardAuthorizationMatrix:
 # - AC-4/AC-5: Zaten üye (202, rol değişmez) + son ADMIN senaryosu
 # - AC-8: Çapraz-kiracı (404) + COORDINATOR (404)
 # Institution'a özgü: AC-6 audit event logging
-
-
-from app.models import AuditEvent
 
 
 class TestInviteInstitutionMember:
