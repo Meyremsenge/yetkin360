@@ -27,6 +27,12 @@ class DuplicateLinkRequestError(Exception):
     pass
 
 
+class AlreadyMemberError(Exception):
+    """Raised when inviting user who is already an institution member."""
+
+    pass
+
+
 def create_institution(
     name: str, domain: str | None, caller_user_id: uuid.UUID, session: Session
 ) -> Institution:
@@ -84,9 +90,11 @@ def invite_member(
     session: Session,
 ) -> InstitutionMember:
     """
-    Invite user to institution (create/update InstitutionMember).
+    Invite user to institution (create InstitutionMember, no UPSERT).
 
-    AC-2: POST /institutions/{id}/members → 201, member created.
+    AC-1/AC-4: POST /institutions/{id}/members → 202 (always).
+    AC-1: Bilinen e-posta → member oluştur.
+    AC-4: Zaten üye → exception fırlat, router 202 döner.
 
     Args:
         institution_id: Target institution
@@ -95,18 +103,23 @@ def invite_member(
         session: Database session
 
     Returns:
-        InstitutionMember object (newly created or updated)
+        InstitutionMember object (newly created)
 
     Raises:
-        ValueError: If user not found
+        ValueError: If invalid role or user not found
+        AlreadyMemberError: If user is already a member (no UPSERT)
     """
+    # Validate role (defense-in-depth; router also validates)
+    if role not in ("ADMIN", "COORDINATOR"):
+        raise ValueError(f"Invalid role: {role}")
+
     # Find user by email
     user = session.execute(select(User).where(User.email == email)).scalar_one_or_none()
     if not user:
         raise ValueError(f"User {email} not found")
 
-    # Create or update member (UPSERT)
-    member = session.execute(
+    # Check if already a member
+    existing_member = session.execute(
         select(InstitutionMember).where(
             and_(
                 InstitutionMember.institution_id == institution_id,
@@ -115,19 +128,19 @@ def invite_member(
         )
     ).scalar_one_or_none()
 
-    if member:
-        # Update role
-        member.role = role
-    else:
-        # Create new
-        member = InstitutionMember(
-            institution_id=institution_id,
-            user_id=user.id,
-            role=role,
-        )
-        session.add(member)
+    if existing_member:
+        # AC-4: Zaten üye → exception, rol değiştirilmez
+        raise AlreadyMemberError(f"User {email} is already a member of this institution")
 
+    # Create new member (no UPSERT)
+    member = InstitutionMember(
+        institution_id=institution_id,
+        user_id=user.id,
+        role=role,
+    )
+    session.add(member)
     session.flush()
+
     return member
 
 

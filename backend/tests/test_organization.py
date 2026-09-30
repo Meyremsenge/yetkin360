@@ -279,10 +279,11 @@ class TestOrganizationMemberInvitation:
 
     def test_admin_invites_member(self, session, user_admin, user_member, organization_a, organization_a_admin_member, client):
         """
-        AC-3: ADMIN invites user as MEMBER → 201, member created, outbox event enqueued.
+        AC-3: ADMIN invites user as MEMBER → 202, member created, outbox event enqueued.
 
         Acceptance Criteria:
-        - Status code: 201 Created
+        - Status code: 202 Accepted (request queued)
+        - Response: {"status": "queued"}
         - OrganizationMember record created with role=MEMBER
         - Outbox event is created (same transaction)
         """
@@ -293,9 +294,9 @@ class TestOrganizationMemberInvitation:
 
         response = client.post(f"/organizations/{organization_a.id}/members", json=payload, headers={"X-Debug-User-Id": str(user_admin.id)})
 
-        assert response.status_code == 201
+        assert response.status_code == 202
         data = response.json()
-        assert data["role"] == "MEMBER"
+        assert data["status"] == "queued"
 
         # Verify in database
         member = session.query(OrganizationMember).filter_by(
@@ -306,7 +307,7 @@ class TestOrganizationMemberInvitation:
         assert member.role == "MEMBER"
 
     def test_admin_invites_admin(self, session, user_admin, user_another_admin, organization_a, organization_a_admin_member, client):
-        """AC-3: ADMIN invites another ADMIN → 201."""
+        """AC-3: ADMIN invites another ADMIN → 202."""
         payload = {
             "email": user_another_admin.email,
             "role": "ADMIN"
@@ -314,7 +315,10 @@ class TestOrganizationMemberInvitation:
 
         response = client.post(f"/organizations/{organization_a.id}/members", json=payload, headers={"X-Debug-User-Id": str(user_admin.id)})
 
-        assert response.status_code == 201
+        assert response.status_code == 202
+        data = response.json()
+        assert data["status"] == "queued"
+
         member = session.query(OrganizationMember).filter_by(
             organization_id=organization_a.id,
             user_id=user_another_admin.id
@@ -347,15 +351,23 @@ class TestOrganizationMemberInvitation:
 class TestDuplicateMemberInvitation:
     """AC-4: Inviting already-member user → 409 ALREADY_MEMBER."""
 
-    def test_invite_existing_member_returns_409(self, session, user_admin, user_member, organization_a, organization_a_admin_member, organization_a_member, client):
+    def test_invite_existing_member_202_role_unchanged(self, session, user_admin, user_member, organization_a, organization_a_admin_member, organization_a_member, client):
         """
-        AC-4: POST /organizations/{id}/members with user already a member → 409.
+        AC-4: POST /organizations/{id}/members with user already a member → 202 (no-op).
 
         Acceptance Criteria:
-        - Status code: 409 Conflict
-        - Error indicates user is already a member
-        - No duplicate member record created
+        - Status code: 202 Accepted (no-op, role unchanged)
+        - Response: {"status": "queued"}
+        - Member's role remains unchanged (no-op case)
+        - Only one member record exists (no duplicate)
         """
+        # Record the current role before invitation
+        member_before = session.query(OrganizationMember).filter_by(
+            organization_id=organization_a.id,
+            user_id=user_member.id
+        ).first()
+        role_before = member_before.role
+
         payload = {
             "email": user_member.email,
             "role": "MEMBER"
@@ -363,9 +375,17 @@ class TestDuplicateMemberInvitation:
 
         response = client.post(f"/organizations/{organization_a.id}/members", json=payload, headers={"X-Debug-User-Id": str(user_admin.id)})
 
-        assert response.status_code == 409
+        # Expect 202, not 409 (no-op behavior)
+        assert response.status_code == 202
         data = response.json()
-        assert "already" in str(data).lower() or "member" in str(data).lower()
+        assert data["status"] == "queued"
+
+        # Verify role unchanged
+        member_after = session.query(OrganizationMember).filter_by(
+            organization_id=organization_a.id,
+            user_id=user_member.id
+        ).first()
+        assert member_after.role == role_before, "Member's role should not change on duplicate invitation"
 
         # Verify only one member record exists
         member_count = session.query(OrganizationMember).filter_by(

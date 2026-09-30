@@ -1011,3 +1011,500 @@ class TestCoordinatorDashboardAuthorizationMatrix:
         assert response.status_code == 401, (
             f"Invalid user ID should return 401, got {response.status_code}"
         )
+
+
+# ============================================================================
+# GUV-02 Davet Ucu Testleri — Institution (AC-1 — AC-8)
+# ============================================================================
+# Acceptance Criteria tablosundan türetilen testler (organization'la aynı pattern):
+# - AC-1: Happy path (bilinen e-posta, geçerli rol, yeni üye) + audit
+# - AC-2: Bilinmeyen e-posta (202 döner, üyelik oluşmaz, audit yazılır)
+# - AC-3: Geçersiz rol (422 + INVALID_ROLE)
+# - AC-4/AC-5: Zaten üye (202, rol değişmez) + son ADMIN senaryosu
+# - AC-8: Çapraz-kiracı (404) + COORDINATOR (404)
+# Institution'a özgü: AC-6 audit event logging
+
+
+from app.models import AuditEvent
+
+
+class TestInviteInstitutionMember:
+    """
+    GUV-02: POST /institutions/{id}/members — Davranış Sözleşmesi (AC-1 — AC-8).
+
+    Institution-specific patterns:
+    - Audit event verification (AC-6): every invite must log to audit_events
+    - COORDINATOR cannot invite (AC-8)
+    - Single ADMIN protection (AC-5): re-inviting last ADMIN with different role keeps role
+    """
+
+    # ========================================================================
+    # AC-1: Happy Path — Bilinen e-posta + geçerli rol + yeni üye + audit
+    # ========================================================================
+
+    def test_invite_known_user_valid_role_202_queued_with_audit(
+        self, client, session, institution_a, inst_a_admin_member, user_to_invite, user_a_admin
+    ):
+        """
+        AC-1: ADMIN of inst_a invites known user with valid role → 202 queued + audit.
+
+        Acceptance Criteria:
+        - Status code: exactly 202 Accepted
+        - Response body: exactly {"status": "queued"}
+        - DB: InstitutionMember created
+        - Audit: INVITE_INSTITUTION_MEMBER logged (new in this task, AC-6)
+        """
+        # Count audit events before
+        audit_count_before = session.query(AuditEvent).filter_by(
+            action="INVITE_INSTITUTION_MEMBER",
+            actor_user_id=user_a_admin.id
+        ).count()
+
+        payload = {
+            "email": user_to_invite.email,
+            "role": "COORDINATOR"
+        }
+
+        response = client.post(
+            f"/institutions/{institution_a.id}/members",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_a_admin.id)}
+        )
+
+        # EXACT status code match
+        assert response.status_code == 202, f"Expected 202, got {response.status_code}"
+
+        # EXACT response body match
+        assert response.json() == {"status": "queued"}, (
+            f"Expected {{'status': 'queued'}}, got {response.json()}"
+        )
+
+        # DB verification: membership created
+        member = session.query(InstitutionMember).filter_by(
+            institution_id=institution_a.id,
+            user_id=user_to_invite.id
+        ).first()
+        assert member is not None, "InstitutionMember should be created in DB"
+        assert member.role == "COORDINATOR", f"Role should be COORDINATOR, got {member.role}"
+
+        # Audit event verification (AC-6)
+        audit_count_after = session.query(AuditEvent).filter_by(
+            action="INVITE_INSTITUTION_MEMBER",
+            actor_user_id=user_a_admin.id
+        ).count()
+        assert audit_count_after == audit_count_before + 1, (
+            "One new INVITE_INSTITUTION_MEMBER audit event should be logged"
+        )
+
+    # ========================================================================
+    # AC-2: Bilinmeyen e-posta — 202 döner, üyelik oluşmaz, audit yazılır
+    # ========================================================================
+
+    def test_invite_unknown_email_202_no_membership_with_audit(
+        self, client, session, institution_a, inst_a_admin_member, user_a_admin
+    ):
+        """
+        AC-2: ADMIN invites unknown email → 202 queued, no membership, audit logged.
+
+        Acceptance Criteria:
+        - Status code: exactly 202 (not 422 as before)
+        - Response body: exactly {"status": "queued"}
+        - DB: NO InstitutionMember created
+        - Audit: event logged (but without email PII — no email in metadata)
+        """
+        unknown_email = "unknown-institution-xyz@example.com"
+
+        # Count audit before
+        audit_count_before = session.query(AuditEvent).filter_by(
+            action="INVITE_INSTITUTION_MEMBER",
+            actor_user_id=user_a_admin.id
+        ).count()
+
+        payload = {
+            "email": unknown_email,
+            "role": "COORDINATOR"
+        }
+
+        response = client.post(
+            f"/institutions/{institution_a.id}/members",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_a_admin.id)}
+        )
+
+        # EXACT status code match (202, not 422)
+        assert response.status_code == 202, f"Expected 202, got {response.status_code}"
+
+        # EXACT response body match
+        assert response.json() == {"status": "queued"}, (
+            f"Expected {{'status': 'queued'}}, got {response.json()}"
+        )
+
+        # Audit: event logged (AC-6)
+        audit_count_after = session.query(AuditEvent).filter_by(
+            action="INVITE_INSTITUTION_MEMBER",
+            actor_user_id=user_a_admin.id
+        ).count()
+        assert audit_count_after == audit_count_before + 1, (
+            "Audit event should be logged even for unknown email"
+        )
+
+        # Verify no PII in audit metadata
+        audit_event = session.query(AuditEvent).filter_by(
+            action="INVITE_INSTITUTION_MEMBER",
+            actor_user_id=user_a_admin.id
+        ).order_by(AuditEvent.created_at.desc()).first()
+        metadata_str = str(audit_event.event_metadata or {})
+        assert unknown_email not in metadata_str, "PII (email) should not be in audit metadata"
+
+    # ========================================================================
+    # AC-3: Geçersiz rol — 422 + INVALID_ROLE
+    # ========================================================================
+
+    def test_invite_invalid_role_422_invalid_role_code(
+        self, client, session, institution_a, inst_a_admin_member, user_to_invite, user_a_admin
+    ):
+        """
+        AC-3: ADMIN invites with invalid role → 422 INVALID_ROLE.
+
+        Acceptance Criteria:
+        - Status code: exactly 422 Unprocessable Entity
+        - Response body contains: {"code": "INVALID_ROLE"}
+        - DB: NO membership created
+        - No CHECK constraint error (Pydantic catches it first, AC-3)
+        """
+        invalid_roles = ["SUPERADMIN", "ADMIN_PLUS", "GUEST", "MEMBER"]
+
+        for invalid_role in invalid_roles:
+            payload = {
+                "email": user_to_invite.email,
+                "role": invalid_role
+            }
+
+            response = client.post(
+                f"/institutions/{institution_a.id}/members",
+                json=payload,
+                headers={"X-Debug-User-Id": str(user_a_admin.id)}
+            )
+
+            # EXACT status code match
+            assert response.status_code == 422, (
+                f"Invalid role '{invalid_role}' should return 422, got {response.status_code}"
+            )
+
+            # Verify error code
+            response_data = response.json()
+            assert response_data.get("code") == "INVALID_ROLE", (
+                f"Error code should be 'INVALID_ROLE', got {response_data.get('code')}"
+            )
+
+            # DB: verify NO membership created
+            member = session.query(InstitutionMember).filter_by(
+                institution_id=institution_a.id,
+                user_id=user_to_invite.id,
+                role=invalid_role
+            ).first()
+            assert member is None, f"No membership should be created for invalid role '{invalid_role}'"
+
+    # ========================================================================
+    # AC-4: Zaten üye — 202 queued, rol DEĞİŞMEZ
+    # ========================================================================
+
+    def test_invite_already_member_202_role_unchanged(
+        self, client, session, institution_a, inst_a_admin_member, inst_a_coordinator_member,
+        user_a_coordinator, user_a_admin
+    ):
+        """
+        AC-4: ADMIN re-invites existing member with different role → 202, role unchanged.
+
+        Scenario:
+        - user_a_coordinator is already COORDINATOR of inst_a
+        - ADMIN invites same user as ADMIN role (higher privilege)
+        - Expected: 202 queued, but user's role stays COORDINATOR (not UPSERT'd)
+
+        Acceptance Criteria:
+        - Status code: exactly 202
+        - Response body: exactly {"status": "queued"}
+        - DB before: user_a_coordinator.role == "COORDINATOR"
+        - DB after: user_a_coordinator.role == "COORDINATOR" (unchanged)
+        """
+        # Verify initial state
+        initial_member = session.query(InstitutionMember).filter_by(
+            institution_id=institution_a.id,
+            user_id=user_a_coordinator.id
+        ).first()
+        assert initial_member is not None, "user_a_coordinator should be member"
+        initial_role = initial_member.role
+        assert initial_role == "COORDINATOR", f"Initial role should be COORDINATOR, got {initial_role}"
+
+        # Re-invite with ADMIN role
+        payload = {
+            "email": user_a_coordinator.email,
+            "role": "ADMIN"
+        }
+
+        response = client.post(
+            f"/institutions/{institution_a.id}/members",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_a_admin.id)}
+        )
+
+        # EXACT status code
+        assert response.status_code == 202, f"Expected 202, got {response.status_code}"
+
+        # EXACT response body
+        assert response.json() == {"status": "queued"}, (
+            f"Expected {{'status': 'queued'}}, got {response.json()}"
+        )
+
+        # DB: role unchanged (AC-4's key test)
+        final_member = session.query(InstitutionMember).filter_by(
+            institution_id=institution_a.id,
+            user_id=user_a_coordinator.id
+        ).first()
+        assert final_member is not None, "Member should still exist"
+        assert final_member.role == "COORDINATOR", (
+            f"Role should remain COORDINATOR (not UPSERT'd), but got {final_member.role}"
+        )
+
+    # ========================================================================
+    # AC-5: Son ADMIN senaryosu — tek ADMIN'i COORDINATOR'a davet → rol ADMIN kalır
+    # ========================================================================
+
+    def test_single_admin_re_invite_role_unchanged_protects_admin_count(
+        self, client, session, institution_a, inst_a_admin_member, user_a_admin
+    ):
+        """
+        AC-5: Single ADMIN of inst_a re-invites themselves with COORDINATOR role
+               → 202 queued, but role stays ADMIN (prevents accidental admin removal).
+
+        Scenario:
+        - Institution A has exactly 1 ADMIN (user_a_admin)
+        - ADMIN invites themselves with role=COORDINATOR (self-destruction attempt)
+        - Expected: 202 queued, role stays ADMIN (not demoted to COORDINATOR)
+        - Result: institution never loses all admins
+
+        Acceptance Criteria:
+        - Status code: exactly 202
+        - Response body: exactly {"status": "queued"}
+        - DB before: inst_a has 1 ADMIN (user_a_admin)
+        - DB after: inst_a still has 1 ADMIN, user_a_admin.role == ADMIN (unchanged)
+        - Audit: event logged (even though operation is no-op)
+        """
+        # Verify pre-condition: only 1 ADMIN in institution_a
+        admin_count_before = session.query(InstitutionMember).filter_by(
+            institution_id=institution_a.id,
+            role="ADMIN"
+        ).count()
+        assert admin_count_before == 1, f"Should have exactly 1 ADMIN, got {admin_count_before}"
+
+        # ADMIN invites self with COORDINATOR role (attempting demotion)
+        payload = {
+            "email": user_a_admin.email,
+            "role": "COORDINATOR"
+        }
+
+        response = client.post(
+            f"/institutions/{institution_a.id}/members",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_a_admin.id)}
+        )
+
+        # EXACT status code
+        assert response.status_code == 202, f"Expected 202, got {response.status_code}"
+
+        # EXACT response body
+        assert response.json() == {"status": "queued"}, (
+            f"Expected {{'status': 'queued'}}, got {response.json()}"
+        )
+
+        # DB: verify role unchanged (AC-5's key protection)
+        member_after = session.query(InstitutionMember).filter_by(
+            institution_id=institution_a.id,
+            user_id=user_a_admin.id
+        ).first()
+        assert member_after is not None, "Member should exist"
+        assert member_after.role == "ADMIN", (
+            f"Role should remain ADMIN (not demoted to COORDINATOR), got {member_after.role}"
+        )
+
+        # Verify ADMIN count unchanged
+        admin_count_after = session.query(InstitutionMember).filter_by(
+            institution_id=institution_a.id,
+            role="ADMIN"
+        ).count()
+        assert admin_count_after == 1, (
+            f"Should still have exactly 1 ADMIN, got {admin_count_after} (AC-5 protection)"
+        )
+
+    # ========================================================================
+    # AC-8: Çapraz-kiracı — INST_ADMIN B vs INST A → 404
+    # ========================================================================
+
+    def test_cross_tenant_inst_b_admin_cannot_invite_to_inst_a_404(
+        self, client, session, institution_a, institution_b, inst_a_admin_member, inst_b_admin_member,
+        user_to_invite, user_b_admin
+    ):
+        """
+        AC-8 / Authz row 2: ADMIN of inst_b tries to invite to inst_a → 404 (tenant isolation).
+
+        Acceptance Criteria:
+        - Status code: exactly 404 Not Found
+        - No membership created in inst_a
+        - No data leak in response
+        """
+        payload = {
+            "email": user_to_invite.email,
+            "role": "COORDINATOR"
+        }
+
+        # user_b_admin is ADMIN of inst_b, tries to invite to inst_a
+        response = client.post(
+            f"/institutions/{institution_a.id}/members",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_b_admin.id)}
+        )
+
+        # EXACT status code: 404
+        assert response.status_code == 404, (
+            f"Cross-tenant access should return 404, got {response.status_code}"
+        )
+
+        # DB: verify no membership created in inst_a
+        member = session.query(InstitutionMember).filter_by(
+            institution_id=institution_a.id,
+            user_id=user_to_invite.id
+        ).first()
+        assert member is None, "No membership should be created in inst_a by inst_b's admin"
+
+    # ========================================================================
+    # AC-8: COORDINATOR cannot invite (role-based denial) → 404
+    # ========================================================================
+
+    def test_coordinator_cannot_invite_404(
+        self, client, session, institution_a, inst_a_coordinator_member, user_to_invite, user_a_coordinator
+    ):
+        """
+        AC-8 / Authz row 3: COORDINATOR of inst_a (not ADMIN) tries to invite → 404.
+
+        Acceptance Criteria:
+        - Status code: exactly 404 Not Found (not 403 — role-based denial hides resource)
+        - No membership created
+        """
+        payload = {
+            "email": user_to_invite.email,
+            "role": "COORDINATOR"
+        }
+
+        response = client.post(
+            f"/institutions/{institution_a.id}/members",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_a_coordinator.id)}
+        )
+
+        # EXACT status code: 404 (not 403, not 201)
+        assert response.status_code == 404, (
+            f"COORDINATOR should get 404 (not 403), got {response.status_code}"
+        )
+
+        # DB: no membership created
+        member = session.query(InstitutionMember).filter_by(
+            institution_id=institution_a.id,
+            user_id=user_to_invite.id
+        ).first()
+        assert member is None, "No membership should be created by COORDINATOR"
+
+    # ========================================================================
+    # AC-6: Audit event kontrolü (institution'a yeni)
+    # ========================================================================
+
+    def test_invite_success_audit_event_created(
+        self, client, session, institution_a, inst_a_admin_member, user_to_invite, user_a_admin
+    ):
+        """
+        AC-6: Successful invite creates INVITE_INSTITUTION_MEMBER audit event.
+
+        Acceptance Criteria:
+        - Before invite: N audit events
+        - After invite: N+1 audit events
+        - action == "INVITE_INSTITUTION_MEMBER"
+        - actor_user_id == user_a_admin.id
+        - subject_id == member.id (not membership email, but member.id)
+        """
+        # Count before
+        count_before = session.query(AuditEvent).filter_by(
+            action="INVITE_INSTITUTION_MEMBER"
+        ).count()
+
+        payload = {
+            "email": user_to_invite.email,
+            "role": "COORDINATOR"
+        }
+
+        response = client.post(
+            f"/institutions/{institution_a.id}/members",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_a_admin.id)}
+        )
+
+        assert response.status_code == 202, f"Expected 202, got {response.status_code}"
+
+        # Count after
+        count_after = session.query(AuditEvent).filter_by(
+            action="INVITE_INSTITUTION_MEMBER"
+        ).count()
+
+        assert count_after == count_before + 1, "One new audit event should be created"
+
+        # Verify latest event has correct attributes
+        latest_event = session.query(AuditEvent).filter_by(
+            action="INVITE_INSTITUTION_MEMBER"
+        ).order_by(AuditEvent.created_at.desc()).first()
+
+        assert latest_event is not None, "Audit event should exist"
+        assert latest_event.actor_user_id == user_a_admin.id, (
+            f"actor_user_id should be {user_a_admin.id}, got {latest_event.actor_user_id}"
+        )
+
+    def test_invite_unknown_email_audit_event_created_without_pii(
+        self, client, session, institution_a, inst_a_admin_member, user_a_admin
+    ):
+        """
+        AC-6 + AC-2: Unknown email invite creates audit event WITHOUT PII.
+
+        Acceptance Criteria:
+        - Audit event created for unknown email invite
+        - Email NOT in event metadata (PII guard)
+        """
+        unknown_email = "unknown-no-pii@example.com"
+
+        count_before = session.query(AuditEvent).filter_by(
+            action="INVITE_INSTITUTION_MEMBER"
+        ).count()
+
+        payload = {
+            "email": unknown_email,
+            "role": "COORDINATOR"
+        }
+
+        response = client.post(
+            f"/institutions/{institution_a.id}/members",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_a_admin.id)}
+        )
+
+        assert response.status_code == 202
+
+        count_after = session.query(AuditEvent).filter_by(
+            action="INVITE_INSTITUTION_MEMBER"
+        ).count()
+
+        assert count_after == count_before + 1, "Audit event should be created"
+
+        latest_event = session.query(AuditEvent).filter_by(
+            action="INVITE_INSTITUTION_MEMBER"
+        ).order_by(AuditEvent.created_at.desc()).first()
+
+        metadata_str = str(latest_event.event_metadata or {})
+        assert unknown_email not in metadata_str, (
+            "Email (PII) should not be in audit event metadata"
+        )

@@ -1,0 +1,43 @@
+{
+  "task": "guv-02-davet-yaniti-duzeltmesi",
+  "reviewed_at": "2026-09-30T00:00:00Z",
+  "summary": "Numaralandırma kapatma, rol validasyonu ve L-01 (sessiz rol değiştirme) düzeltmeleri doğru uygulanmış; önceki turda bulunan email-PII audit sızıntısı gerçekten kapatılmış ve her iki dosyada da kontrol edildi. İki orta seviye bulgu var: router'daki geniş `except ValueError:` blokları amaçlanan 'bilinmeyen e-posta' durumunun ötesindeki hataları da yutabiliyor, ve institution.py servis katmanında organization.py'dekiyle simetrik olması planlanan (plan.md satır 24) rol doğrulaması savunma katmanı olarak eklenmemiş.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "reliability",
+      "file": "backend/app/api/organizations.py",
+      "issue": "Satır 251-318: `try` bloğu `invite_org_member()`, `enqueue()` VE başarı yolundaki `log_audit_event()` çağrısını aynı anda sarıyor; `except ValueError:` bunların HERHANGİ birinden gelen ValueError'ı 'bilinmeyen e-posta' (AC-2) olarak yorumluyor. Örn. `log_audit_event`'in PII guard'ı (audit.py `_check_pii_in_metadata`) başarı yolunda beklenmedik bir anahtar yüzünden ValueError fırlatırsa, bu sessizce 'user_not_found' audit kaydına dönüşür ve 202 döner — gerçek hata (audit yazılamadı) kullanıcıya ve loglara hiç yansımaz.",
+      "better_approach": "invite servislerini exception-tabanlı kontrol akışı yerine açık bir sonuç tipi (ör. `InviteOutcome` enum/dataclass: CREATED / ALREADY_MEMBER / USER_NOT_FOUND) döndürecek şekilde tasarlamak, ya da en azından `except ValueError:` bloğunu yalnız `invite_org_member(...)` çağrısını saran dar bir try içine almak (enqueue/log_audit_event'i try dışına ya da ayrı try'a almak).",
+      "reason": "atdd.md Davranış Sözleşmesi satır 9 ('hiçbir şey yapılamadı ama hata yok') zaten 'içsel gözlemlenebilirlik riski'ni kabul ediyor, ama bunun kapsamı yalnız AC-2/bilinmeyen-e-posta dalı için düşünülmüş — mevcut kod bu riski başarı yoluna da genişletiyor, bu ATDD'nin öngörmediği bir davranış.",
+      "outcome": "fixed",
+      "resolution_note": "invite_org_member(...) çağrısı kendi dar try/except'ine alındı, enqueue/başarı-audit çağrıları dışına taşındı (organizations.py). Tutarlılık için institutions.py'de de AYNI desen bulunup (red-team bunu ayrıca işaretlememişti) düzeltildi. pytest tests/authorization -q (361 passed) ve tests/test_organization.py+test_institution.py (40 passed) bağımsız doğrulandı."
+    },
+    {
+      "severity": "medium",
+      "category": "maintainability",
+      "file": "backend/app/services/institution.py",
+      "issue": "`invite_member()` (satır 86-140) hiçbir rol doğrulaması yapmıyor; sadece router'daki elle kontrol (`institutions.py` satır 213) role güveniliyor. Buna karşılık `organization.py`'nin `invite_org_member()`'ı (satır 152-154) `if role not in (\"ADMIN\", \"MEMBER\"): raise ValueError(...)` ile servis katmanında da savunma-derinliği sağlıyor. plan.md satır 24 açıkça 'rol validasyonu servise de eklenir (savunma katmanı)' diyor ama institution.py'de bu uygulanmamış.",
+      "better_approach": "`invite_member()`'ın başına `organization.py`'deki gibi `if role not in (\"ADMIN\", \"COORDINATOR\"): raise ValueError(...)` eklemek.",
+      "reason": "DB CHECK constraint (`ck_institution_members_role`) hâlâ son savunma hattı olarak duruyor, dolayısıyla AC-3 (422 INVALID_ROLE, DB'ye hiç düşmeme) yine de router seviyesinde sağlanıyor — kritik değil. Ama iki paralel modülün (org/institution) aynı deseni takip etmesi bekleniyor (verify_report.md'nin kendisi bu paralelliği 'bilinçli' ve kasıtlı olarak savunuyor); tutarsızlık gelecekte institution.py'nin router kontrolü kaldırılırsa/refactor edilirse sessizce IntegrityError'a (500) geri dönme riski taşır — GUV-07'nin tam da önlemeye çalıştığı sınıftan bir regresyon.",
+      "outcome": "fixed",
+      "resolution_note": "invite_member()'ın başına organization.py'deki ile tutarlı rol validasyonu eklendi. pytest tests/authorization -q (361 passed) bağımsız doğrulandı, mevcut davranış değişmedi (router zaten önce 422 döndürüyor)."
+    }
+  ],
+  "strengths": [
+    "backend/app/api/organizations.py satır 287-302 ve backend/app/api/institutions.py satır 266-297 — AlreadyMemberError/ValueError dallarında audit metadata'sı sadece `organization_id`/`institution_id`/`role`/`reason` içeriyor, `payload.email` hiç geçmiyor; önceki turda bulunan PII sızıntısı (organizations.py AlreadyMemberError bloğu) gerçekten düzeltilmiş ve institutions.py'nin paralel dalında da aynı hata tekrarlanmamış.",
+    "backend/app/services/institution.py satır 30-33 — `AlreadyMemberError` organization.py'den import edilmeden bağımsız tanımlanmış; CLAUDE.md'nin 'modüller birbirinin iç dosyasını import etmez' kuralına doğru uyuluyor.",
+    "backend/app/services/institution.py invite_member() artık UPSERT yapmıyor (satır 117-140), zaten-üye durumunda exception fırlatıp router'ı 202'ye yönlendiriyor — L-01'in kökü (son ADMIN'in sessizce düşürülmesi) bu değişiklikle kapatılmış.",
+    "backend/app/services/outbox.py enqueue() DB-only ve transaction içinde (satır 64-70), CLAUDE.md'nin 'ağ çağrısı açık transaction içinde yapılmaz' kuralına aykırılık yok; ayrıca kendi PII guard'ı var.",
+    "Tenant izolasyon kontrolleri (organizations.py satır 241-249, institutions.py satır 216-227) bu görevde dokunulmadan aynen korunmuş — AUTHZ-01/A-08'e sapma yok."
+  ],
+  "risks": [
+    "verify_report.md'deki '13 pre-existing failure = TEST-01 ile birebir eşleşiyor' iddiası red-team tarafından bağımsız olarak pytest çalıştırılarak doğrulanmadı — orkestratör kendi Bash'iyle iki kez bağımsız çalıştırıp doğrulamıştı (session transcript), bu doğrulama red-team'in kapsamı dışında kaldı ama geçerliliğini etkilemiyor.",
+    "Yanıt süresi farkı (bilinen-e-posta yolu DB yazma+outbox+audit, bilinmeyen-e-posta yolu yalnız audit) kabul edilen risk olarak belgelenmiş ama gerçek ortamda ölçülmedi; ADMIN hesabı ele geçirilmiş bir saldırgan (insider tehdit) için hâlâ kullanılabilir bir yan kanal."
+  ],
+  "caveman_review": {"complexity": "low", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {"atdd_satisfied": true, "tests_passed": true, "no_critical_findings": true, "scope_respected": true, "caveman_satisfied": true, "security_acceptable": true, "maintainability_acceptable": true, "no_blocking_risks": true},
+  "verdict": "approve",
+  "post_review_update": "Her iki bulgu da (reliability/organizations.py, maintainability/institution.py) düzeltildi, tutarlılık için institutions.py'deki aynı desen de ek olarak bulunup düzeltildi. pytest tests/authorization -q (361 passed) + tests/test_organization.py+test_institution.py (40 passed) + ruff + mypy bağımsız doğrulandı (2026-09-30). Commit'e hazır."
+}

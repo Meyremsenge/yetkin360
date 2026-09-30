@@ -5,6 +5,29 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## YET-165 (HATA.md GUV-02/GUV-07/L-01) — Davet ucu numaralandırma/rol/500 düzeltmesi (2026-09-30)
+
+**Kaynak:** `obss_project/artifacts/guv-02-davet-yaniti-duzeltmesi/` — HATA.md'nin (2026-09-28 kapsamlı denetim) GUV-02 bulgusuna dayalı, HATA_DUZELTME_PROMPT.md K1=(b) kararıyla dar kapsamlı (yalnız A-09, AUTHZ-01/A-08 hariç).
+
+### Bilinçli kapsam kararı (kaynak: atdd.md)
+- **GUV-02'nin tam etkisi bu görevde KAPANMADI**: kurbanın `kind`'ı değişip kendi talent işlevlerini (engagement/kanıt erişimi) kaybetmesi sorunu AUTHZ-01/A-08'e (çoklu rol düzeltmesi, ayrı ve en riskli görev) bağımlı — kullanıcı bilinçli olarak dar kapsamı seçti, bu görev yalnız GUV-07 (500 hatası), numaralandırma oracle'ı ve L-01'i (sessiz rol değiştirme) kapattı.
+- "Zaten üye" durumunda numaralandırmayı tam kapatmak için `202 queued` tercih edildi (alternatif: org'un eski `409 ALREADY_MEMBER`'ı korunabilirdi, davet eden zaten o tenant'ın ADMIN'i olduğu için bu sızıntı kabul edilebilir sayılabilirdi) — tutarlılık gerekçesiyle 202 seçildi, kullanıcı onayıyla.
+- Yanıt süresi farkı (bilinen e-posta yolunda DB yazma+outbox+audit var, bilinmeyende yok) bilinçli olarak eşitlenmedi — MVP kapsamında saldırganın zaten kimliği doğrulanmış bir tenant ADMIN'i olması gerektiği gerekçesiyle (kaynak: atdd.md Threat Model, Risks).
+
+### Gerçek bulgu ve düzeltme — planlama sırasında (kaynak: plan.md)
+- **Kritik uyumsuzluk keşfi**: `app/main.py`'deki Pydantic `RequestValidationError` handler'ı `code: "VALIDATION_ERROR"` üretiyor, `ApiError` handler'ı ise `exc.detail`'deki kodu aynen geçiriyor. Plan başlangıçta "role alanını Pydantic Literal'a çevir" öneriyordu — bu, framework-seviyesi bir hataya düşüp testlerin beklediği `"INVALID_ROLE"` kodunu ASLA üretemezdi. Kod yazılmadan ÖNCE (`plan.md` aşamasında) fark edilip düzeltildi: rol validasyonu Literal'a değil, elle handler içinde kaldı.
+- **Threat-model'de bulunan beklenmedik gerçek açık**: `institutions.py`'nin davet ucu hiç audit logging yapmıyordu (org tarafında `INVITE_ORG_MEMBER` vardı, kurum tarafında hiç yoktu) — HATA.md'de bu ayrı bir ID olarak anılmamıştı, threat-model'in Repudiation analizinde bulundu, AC-6 olarak eklendi.
+- `docs/API.md`'de `POST /institutions/{id}/members` ucu daha önce HİÇ dokümante edilmemişti (org tarafı vardı, kurum tarafı yoktu) — bu görevde eklendi.
+
+### Review sürecinde bulunan ve düzeltilen gerçek sorunlar (kaynak: code_diff.md, red_team.json)
+- **PII sızıntısı (code-copilot'un ilk turu)**: `organizations.py`'nin `AlreadyMemberError` bloğu `log_audit_event`'in `metadata`'sına `"email": payload.email` koymuştu — `audit.py`'nin kendi PII guard'ı bunu görünce `ValueError` fırlatıp AC-4 senaryosunu her tetiklendiğinde beklenmedik bir 500'e yol açacaktı. Kod incelemesiyle (sub-agent'ın kendi "tamamlandı" raporuna güvenilmeden, `git diff` okunarak) yakalanıp düzeltildi.
+- **Geniş `except ValueError:` bloğu (red-team bulgusu)**: Hem `organizations.py` hem `institutions.py`'de `invite_*()`, `enqueue()` ve başarı-audit çağrıları TEK bir try içindeydi — `enqueue`/`log_audit_event`'ten gelebilecek bir `ValueError`'ın yanlışlıkla "bilinmeyen e-posta" sayılıp gizlenmesi riski vardı. `invite_*()` çağrısı kendi dar try/except'ine alınıp diğer çağrılar dışına taşındı (red-team yalnız organizations.py'yi işaretlemişti, institutions.py'deki aynı desen orkestratör tarafından ek olarak bulunup düzeltildi).
+- **Savunma-derinliği eksikliği (red-team bulgusu)**: `institution.py`'nin `invite_member()`'ı hiç rol validasyonu yapmıyordu (org'un aksine) — DB CHECK constraint son hat olarak yeterliydi ama tutarsızlık gelecekte regresyon riski taşıyordu, eklendi.
+
+### Ortam notu (kod hatası değil)
+- `verify` adımında proje Docker Compose'u (PostgreSQL + MinIO) kapalıydı, testler DB'ye bağlanmaya çalışırken sonsuza kadar bekliyordu — kullanıcı fark edip `docker compose up -d` ile ayağa kaldırdı.
+- Tam `pytest -q` (818 test) koşumunda 13 test FAIL verdi — HATA.md'nin kendi TEST-01 bulgusuyla (`test_outbox_worker.py` 9, `test_seed.py` 3, `test_evaluation.py` 1 = 13) birebir eşleşen, bu görevden ÖNCE var olan, seed-data izolasyon sorunları. Bu görevin diff'inden kaynaklı sıfır yeni regresyon.
+
 ## YET-119 (PLAN 3.15) — Açık kaynak paketi doğrulaması (2026-09-28)
 
 **Kaynak:** `obss_project/artifacts/acik-kaynak-paketi-dogrulama/`
