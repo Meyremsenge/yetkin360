@@ -190,6 +190,7 @@ echo.
 echo   Seed giris bilgileri - backend/scripts/seed.py, sabit test sifresi:
 echo     Ogrenci      : ogrenci1@seed.local .. ogrenci20@seed.local
 echo     Kurum admin  : kurum1-admin@seed.local .. kurum5-admin@seed.local
+echo     Koordinator  : kurum1-koordinator@seed.local .. kurum5-koordinator@seed.local
 echo     Organizasyon : org1-admin@seed.local .. org5-admin@seed.local
 echo     Sifre, hepsi : SeedTest123!
 echo     Platform admin: admin@yetkin360.local - sifre .env icindeki SEED_ADMIN_PASSWORD

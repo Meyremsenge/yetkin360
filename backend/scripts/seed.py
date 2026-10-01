@@ -21,10 +21,19 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.deps import _SessionLocal
 from app.core.security import hash_password
-from app.models import Skill, User, TalentProfile, Institution, Organization, Engagement
+from app.models import (
+    Skill,
+    User,
+    TalentProfile,
+    Institution,
+    InstitutionMember,
+    Organization,
+    Engagement,
+)
 from app.services.auth import register_user
 from app.services.institution import (
     create_institution,
+    invite_member,
     request_institution_link,
     approve_institution_link,
     DuplicateLinkRequestError,
@@ -381,6 +390,39 @@ def seed_talents(session: Session) -> None:
     print(f"Talents seed complete: {inserted_count} inserted, {skipped_count} already exist")
 
 
+def _ensure_institution_coordinator(session: Session, index: int, inst_domain: str) -> None:
+    """
+    Ensure institution `index` has a real COORDINATOR member (kurum{i}-koordinator@seed.local).
+
+    YET-190 / K3: only COORDINATOR members approve engagements and attest; the
+    institution ADMIN does not. Idempotent, also repairs databases seeded earlier.
+    """
+    coord_email = f"kurum{index}-koordinator@seed.local"
+
+    institution = session.execute(
+        select(Institution).where(Institution.domain == inst_domain)
+    ).scalars().first()
+    assert institution is not None, f"Institution {inst_domain} must exist before adding its coordinator"
+
+    coord_user = session.execute(
+        select(User).where(User.email == coord_email)
+    ).scalars().first()
+    if coord_user is None:
+        register_user(
+            session=session,
+            email=coord_email,
+            password="SeedTest123!",
+            full_name=f"Institution {index} Coordinator",
+        )
+
+    invite_member(
+        institution_id=institution.id,
+        email=coord_email,
+        role="COORDINATOR",
+        session=session,
+    )
+
+
 def seed_institutions_and_organizations(session: Session) -> None:
     """
     Seed 5 institutions + 5 organizations with admin accounts, idempotently.
@@ -428,6 +470,8 @@ def seed_institutions_and_organizations(session: Session) -> None:
                 session=session
             )
             inst_inserted += 1
+
+        _ensure_institution_coordinator(session, i, inst_domain)
 
     # Seed 5 organizations
     for i in range(1, 6):
@@ -552,13 +596,17 @@ def _create_verified_engagement(
         is_suspended=False
     )
 
-    # Get institution admin/coordinator user
-    coord_email = f"kurum{(eng_idx % 5) + 1}-admin@seed.local"
+    # Get the institution's real COORDINATOR member (YET-190: admin does not approve/attest)
     coord_user = session.execute(
-        select(User).where(User.email == coord_email)
+        select(User)
+        .join(InstitutionMember, InstitutionMember.user_id == User.id)
+        .where(
+            InstitutionMember.institution_id == institution.id,
+            InstitutionMember.role == "COORDINATOR",
+        )
     ).scalars().first()
 
-    assert coord_user is not None, f"Coordinator user (email: {coord_email}) not found — this should have been created in seed_institutions_and_organizations()"
+    assert coord_user is not None, f"Coordinator of institution {institution.id} not found — this should have been created in seed_institutions_and_organizations()"
 
     coordinator_principal = Principal(
         user_id=coord_user.id,
