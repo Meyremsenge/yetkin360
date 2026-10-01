@@ -290,11 +290,48 @@ def email_password_reset_handler(payload: dict, outbox_id: int) -> None:
     )
 
 
+def email_organization_member_invited_handler(payload: dict, outbox_id: int) -> None:
+    """
+    Handler for email.organization_member_invited topic.
+
+    Args:
+      - payload: {"user_id", "organization_id", "organization_name", "role"} — no
+        address (PII guard); the recipient is resolved from user_id.
+      - outbox_id: row ID in outbox table
+    """
+    from app.core.config import settings
+    from app.core.email_messages import (
+        ORGANIZATION_INVITE_BODY,
+        ORGANIZATION_INVITE_SUBJECT,
+        ORGANIZATION_ROLE_LABELS,
+    )
+
+    if settings.email_backend == "console":
+        print(f"[EMAIL] Organization invite email (outbox_id={outbox_id})")
+        return
+
+    to_email = _resolve_user_email(payload["user_id"])
+    if to_email is None:
+        return
+
+    role_label = ORGANIZATION_ROLE_LABELS.get(payload["role"], payload["role"].lower())
+    _send_smtp_email(
+        to_email=to_email,
+        subject=ORGANIZATION_INVITE_SUBJECT,
+        body=ORGANIZATION_INVITE_BODY.format(
+            organization_name=payload["organization_name"],
+            role_label=role_label,
+            login_url=f"{settings.frontend_origin}/giris",
+        ),
+    )
+
+
 # Handler dispatch table (expanded as new topics are introduced)
 DEFAULT_HANDLERS = {
     "email.duplicate_registration_attempt": email_duplicate_registration_handler,
     "email.verify_email": email_verify_email_handler,
     "email.password_reset": email_password_reset_handler,
+    "email.organization_member_invited": email_organization_member_invited_handler,
 }
 
 
