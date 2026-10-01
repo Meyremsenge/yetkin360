@@ -245,7 +245,7 @@ def email_verify_email_handler(payload: dict, outbox_id: int) -> None:
     from app.core.config import settings
 
     raw_token = payload["raw_token"]
-    verify_url = f"{settings.frontend_origin}/verify-email?token={raw_token}"
+    verify_url = f"{settings.frontend_origin}/e-posta-dogrula?token={raw_token}"
 
     if settings.email_backend == "console":
         print(f"[EMAIL] Verify email link (outbox_id={outbox_id}): {verify_url}")
@@ -273,7 +273,7 @@ def email_password_reset_handler(payload: dict, outbox_id: int) -> None:
     from app.core.config import settings
 
     raw_token = payload["raw_token"]
-    reset_url = f"{settings.frontend_origin}/reset-password?token={raw_token}"
+    reset_url = f"{settings.frontend_origin}/sifre-sifirla?token={raw_token}"
 
     if settings.email_backend == "console":
         print(f"[EMAIL] Password reset link (outbox_id={outbox_id}): {reset_url}")
