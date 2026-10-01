@@ -109,7 +109,9 @@ export async function getPublicVerification(token: string): Promise<{
   talent_name: string;
   organization_name: string;
   organization_trust_level: string;
+  organization_domain: string | null;
   institution_name: string | null;
+  institution_trust_level: string | null;
   started_on: string | null;
   ended_on: string | null;
   verified_at: string;

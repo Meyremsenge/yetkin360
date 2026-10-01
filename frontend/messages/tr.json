@@ -199,6 +199,8 @@
     "notFound": "Kayıt bulunamadı",
     "organizationLabel": "Kurum",
     "institutionLabel": "Eğitim Kurumu",
+    "domainLabel": "Doğrulanmış alan adı",
+    "trustLevelLabel": "Doğrulama seviyesi",
     "periodLabel": "Dönem",
     "verifiedAtLabel": "Doğrulama Tarihi",
     "attestedSkillsTitle": "Tanıklık Yapılan Yetkinlikler"

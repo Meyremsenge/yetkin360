@@ -39,12 +39,24 @@ export default function PublicVerificationPage() {
               <div>
                 <dt className="text-xs font-medium text-slate-500">{messages.publicVerification.organizationLabel}</dt>
                 <dd className="text-lg">{verification.organization_name}</dd>
-                <dd className="text-sm text-slate-500">{verification.organization_trust_level}</dd>
+                <dd className="text-sm text-slate-500">
+                  {messages.publicVerification.trustLevelLabel}: {verification.organization_trust_level}
+                </dd>
+                {verification.organization_domain && (
+                  <dd className="text-sm text-slate-500">
+                    {messages.publicVerification.domainLabel}: {verification.organization_domain}
+                  </dd>
+                )}
               </div>
               {verification.institution_name && (
                 <div>
                   <dt className="text-xs font-medium text-slate-500">{messages.publicVerification.institutionLabel}</dt>
                   <dd className="text-lg">{verification.institution_name}</dd>
+                  {verification.institution_trust_level && (
+                    <dd className="text-sm text-slate-500">
+                      {messages.publicVerification.trustLevelLabel}: {verification.institution_trust_level}
+                    </dd>
+                  )}
                 </div>
               )}
               {(verification.started_on || verification.ended_on) && (
