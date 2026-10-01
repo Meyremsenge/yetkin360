@@ -8,6 +8,7 @@ PLAN 2.6 (YET-84, YET-85): Manages evidence lifecycle.
 - AC-S6/AC-S7: Audit logging for creation + download
 """
 
+import re
 import uuid
 
 from sqlalchemy import select
@@ -19,8 +20,15 @@ from app.models import Evidence, Outbox, Deliverable, Engagement
 from app.schemas.evidence import EvidenceResponse, EvidenceDownloadUrlResponse
 from app.services.authorization import Principal, scoped_evidence, get_scoped_or_404
 from app.services.audit import log_audit_event
-from app.services.storage import generate_presigned_get_url
+from app.services.storage import (
+    CONTENT_TYPE_TO_EXT,
+    generate_presigned_get_url,
+    validate_content_type,
+    validate_file_size,
+)
 
+
+_UUID_RE = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 
 # Evidence kind allowlist (AC-8)
 ALLOWED_EVIDENCE_KINDS = {"REPOSITORY", "DOCUMENT", "IMAGE", "LINK", "CERTIFICATE"}
@@ -71,6 +79,24 @@ def create_evidence(
             "INVALID_STORAGE_KEY",
             "Kanıt referansı geçersiz. Başka bir kullanıcının dosyasını kullanmaya çalışıyorsunuz.",
         )
+
+    # YET-184: key must be exactly evidence/{talent_id}/{uuid}.{ext} as built by
+    # build_object_key — no nested paths, no client-chosen names — and the
+    # extension must match the declared mime type.
+    if not validate_content_type(mime_type):
+        raise ApiError(422, "UNSUPPORTED_CONTENT_TYPE", "Desteklenmeyen dosya türü. İzin verilen türler: PDF, JPEG, PNG, DOCX.")
+    if not validate_file_size(size_bytes):
+        raise ApiError(422, "FILE_TOO_LARGE", "Dosya çok büyük.")
+    key_pattern = rf"{re.escape(expected_prefix)}{_UUID_RE}\.{re.escape(CONTENT_TYPE_TO_EXT[mime_type])}"
+    if not re.fullmatch(key_pattern, storage_key):
+        raise ApiError(422, "INVALID_STORAGE_KEY", "Kanıt referansı geçersiz.")
+
+    # YET-184: one evidence record per stored object.
+    already_registered = get_scoped_or_404(
+        scoped_evidence(session, principal).where(Evidence.storage_key == storage_key), session
+    )
+    if already_registered is not None:
+        raise ApiError(409, "EVIDENCE_ALREADY_REGISTERED", "Bu dosya zaten kanıt olarak kaydedilmiş.")
 
     # AC-8: Validate kind allowlist
     if kind not in ALLOWED_EVIDENCE_KINDS:

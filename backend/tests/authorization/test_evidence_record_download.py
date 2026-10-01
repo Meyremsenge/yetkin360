@@ -19,6 +19,7 @@ Each test uses session fixture for isolated transaction + rollback.
 
 Parametric test matrix covers: actor kind × request body/evidence × expected HTTP code.
 """
+import uuid
 
 from unittest.mock import MagicMock, patch
 
@@ -158,7 +159,7 @@ class TestSuspendedAccount:
         response = client_with_auth.post(
             "/evidence",
             json={
-                "storage_key": f"evidence/{talent_a.id}/test.pdf",
+                "storage_key": f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
                 "kind": "DOCUMENT",
                 "mime_type": "application/pdf",
                 "size_bytes": 1024,
@@ -186,11 +187,12 @@ class TestAuthenticatedEvidenceCreation:
         AC-1: Authenticated talent receives 201 + evidence response schema.
         CSRF token required in header (POST is a write method).
         """
+        storage_key = f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf"
         set_auth_cookies(client_with_auth, user_talent_a)
         response = client_with_auth.post(
             "/evidence",
             json={
-                "storage_key": f"evidence/{talent_a.id}/test-uuid.pdf",
+                "storage_key": storage_key,
                 "kind": "DOCUMENT",
                 "mime_type": "application/pdf",
                 "size_bytes": 1024,
@@ -204,7 +206,7 @@ class TestAuthenticatedEvidenceCreation:
         assert body["owner_talent_id"] == str(talent_a.id)
         assert body["kind"] == "DOCUMENT"
         assert body["provenance"] == "SELF_UPLOADED"
-        assert body["storage_key"] == f"evidence/{talent_a.id}/test-uuid.pdf"
+        assert body["storage_key"] == storage_key
         assert body["mime_type"] == "application/pdf"
         assert body["size_bytes"] == 1024
         assert body["scan_status"] == "PENDING"
@@ -222,7 +224,7 @@ class TestAuthenticatedEvidenceCreation:
         response = client_with_auth.post(
             "/evidence",
             json={
-                "storage_key": f"evidence/{talent_b.id}/evil-uuid.pdf",  # Malicious prefix
+                "storage_key": f"evidence/{talent_b.id}/{uuid.uuid4()}.pdf",  # Malicious prefix
                 "kind": "DOCUMENT",
                 "mime_type": "application/pdf",
                 "size_bytes": 512,
@@ -252,7 +254,7 @@ class TestKindValidation:
         response = client_with_auth.post(
             "/evidence",
             json={
-                "storage_key": f"evidence/{talent_a.id}/test.pdf",
+                "storage_key": f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
                 "kind": kind,
                 "mime_type": "application/pdf",
                 "size_bytes": 1024,
@@ -268,7 +270,7 @@ class TestKindValidation:
         response = client_with_auth.post(
             "/evidence",
             json={
-                "storage_key": f"evidence/{talent_a.id}/test.pdf",
+                "storage_key": f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
                 "kind": kind,
                 "mime_type": "application/pdf",
                 "size_bytes": 1024,
@@ -329,7 +331,7 @@ class TestOwnershipValidation:
         response = create_evidence(
             session=session,
             principal=principal_b,
-            storage_key=f"evidence/{talent_b.id}/test-uuid.pdf",
+            storage_key=f"evidence/{talent_b.id}/{uuid.uuid4()}.pdf",
             kind="DOCUMENT",
             mime_type="application/pdf",
             size_bytes=1024,
@@ -365,7 +367,7 @@ class TestOwnershipValidation:
         response = create_evidence(
             session=session,
             principal=principal_b,
-            storage_key=f"evidence/{talent_b.id}/test-uuid.pdf",
+            storage_key=f"evidence/{talent_b.id}/{uuid.uuid4()}.pdf",
             kind="DOCUMENT",
             mime_type="application/pdf",
             size_bytes=1024,
@@ -419,7 +421,7 @@ class TestAdminAccessPrivateEvidence:
         response = create_evidence(
             session=session,
             principal=principal_a,
-            storage_key=f"evidence/{talent_a.id}/test-uuid.pdf",
+            storage_key=f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
             kind="DOCUMENT",
             mime_type="application/pdf",
             size_bytes=1024,
@@ -480,7 +482,7 @@ class TestScanStatusBlocksDownload:
         response = create_evidence(
             session=session,
             principal=principal_a,
-            storage_key=f"evidence/{talent_a.id}/test-uuid.pdf",
+            storage_key=f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
             kind="DOCUMENT",
             mime_type="application/pdf",
             size_bytes=1024,
@@ -534,7 +536,7 @@ class TestSuccessfulDownload:
         response = create_evidence(
             session=session,
             principal=principal_a,
-            storage_key=f"evidence/{talent_a.id}/test-uuid.pdf",
+            storage_key=f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
             kind="DOCUMENT",
             mime_type="application/pdf",
             size_bytes=1024,
@@ -594,7 +596,7 @@ class TestStorageUnavailable:
         response = create_evidence(
             session=session,
             principal=principal_a,
-            storage_key=f"evidence/{talent_a.id}/test-uuid.pdf",
+            storage_key=f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
             kind="DOCUMENT",
             mime_type="application/pdf",
             size_bytes=1024,
@@ -682,7 +684,7 @@ class TestRateLimit:
             response = client_with_auth.post(
                 "/evidence",
                 json={
-                    "storage_key": f"evidence/{talent_a.id}/test-{i}.pdf",
+                    "storage_key": f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
                     "kind": "DOCUMENT",
                     "mime_type": "application/pdf",
                     "size_bytes": 1024,
@@ -699,7 +701,7 @@ class TestRateLimit:
             response = client_with_auth.post(
                 "/evidence",
                 json={
-                    "storage_key": f"evidence/{talent_a.id}/test-{i}.pdf",
+                    "storage_key": f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
                     "kind": "DOCUMENT",
                     "mime_type": "application/pdf",
                     "size_bytes": 1024,
@@ -712,7 +714,7 @@ class TestRateLimit:
         response = client_with_auth.post(
             "/evidence",
             json={
-                "storage_key": f"evidence/{talent_a.id}/test-11.pdf",
+                "storage_key": f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
                 "kind": "DOCUMENT",
                 "mime_type": "application/pdf",
                 "size_bytes": 1024,
@@ -740,7 +742,7 @@ class TestRateLimit:
             response = create_evidence(
                 session=session,
                 principal=principal_a,
-                storage_key=f"evidence/{talent_a.id}/test-{i}.pdf",
+                storage_key=f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
                 kind="DOCUMENT",
                 mime_type="application/pdf",
                 size_bytes=1024,
@@ -825,7 +827,7 @@ class TestDeliverableOwnershipAuthorization:
         response = client_with_auth.post(
             "/evidence",
             json={
-                "storage_key": f"evidence/{talent_a.id}/test-uuid.pdf",
+                "storage_key": f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
                 "kind": "DOCUMENT",
                 "mime_type": "application/pdf",
                 "size_bytes": 1024,

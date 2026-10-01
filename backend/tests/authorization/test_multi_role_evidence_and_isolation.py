@@ -16,6 +16,7 @@ AC coverage:
 - AC-2 (satır 3): M1 → kendi talent kanıtı → 200/2xx (kendi kaydını görür)
 - AC-S2 (satır 28): Bozuk/süresi geçmiş kimlik → 401 (X-Debug-User-Id='not-a-uuid', var olmayan uuid)
 """
+import uuid
 
 import pytest
 from uuid import uuid4
@@ -149,7 +150,7 @@ class TestPrivateEvidenceIsolation:
         evidence_response = create_evidence(
             session=session,
             principal=principal_t1,
-            storage_key=f"evidence/{mre_talent_t1.id}/t1-private.pdf",
+            storage_key=f"evidence/{mre_talent_t1.id}/{uuid.uuid4()}.pdf",
             kind="DOCUMENT",
             mime_type="application/pdf",
             size_bytes=1024,
@@ -199,7 +200,7 @@ class TestPlatformAdminCannotAccessPrivateEvidence:
         evidence_response = create_evidence(
             session=session,
             principal=principal_t1,
-            storage_key=f"evidence/{mre_talent_t1.id}/t1-private-admin-test.pdf",
+            storage_key=f"evidence/{mre_talent_t1.id}/{uuid.uuid4()}.pdf",
             kind="DOCUMENT",
             mime_type="application/pdf",
             size_bytes=1024,
@@ -252,7 +253,7 @@ class TestOwnTalentEvidenceAccess:
         evidence_response = create_evidence(
             session=session,
             principal=principal_m1,
-            storage_key=f"evidence/{mre_talent_m1.id}/m1-own.pdf",
+            storage_key=f"evidence/{mre_talent_m1.id}/{uuid.uuid4()}.pdf",
             kind="DOCUMENT",
             mime_type="application/pdf",
             size_bytes=1024,
