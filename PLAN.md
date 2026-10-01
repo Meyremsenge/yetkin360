@@ -182,10 +182,17 @@ Hedef: jürinin göreceği yüz. Bu fazın sonunda canlı URL + gerçekçi veri 
       > Ayrı bulgu (bu maddenin kapsamı dışı): `require_email_verified()` hiçbir
       > router'da kullanılmıyor — e-posta doğrulama yazma kısıtı hiçbir uçta
       > uygulanmıyor, ayrı bir madde olarak açılmalı.
-- [ ] 3.7 Frontend: profil sayfası — kanıt dökümü (signal + verified experience) @fe
-- [ ] 3.8 Frontend: public profil `/p/[slug]` + doğrulama `/v/[token]` @fe
-- [ ] 3.9 Frontend: koordinatör dashboard @fe
-- [ ] 3.10 Frontend: kurum dashboard + admin ekranları @fe
+- [x] 3.7 Frontend: profil sayfası — kanıt dökümü (signal + verified experience) @fe
+      > `app/profil/evidence-section.tsx` + testi mevcut. Jira YET-111 Tamamlandı.
+- [x] 3.8 Frontend: public profil `/p/[slug]` + doğrulama `/v/[token]` @fe
+      > PR #27 birleştirildi; `app/p/[slug]`, `app/v/[token]` + testleri mevcut.
+- [x] 3.9 Frontend: koordinatör dashboard @fe
+      > commit 2818115; `app/kurum/[id]/panel` + `lib/api/institutions.ts` + testleri.
+      > `panel/page.test.tsx` "404 gösterilir (403 değil)" testi kırmızıydı;
+      > aralıklı değil, regex kaynaklıydı — YET-217'de (7bdfdc8) düzeltildi.
+- [x] 3.10 Frontend: kurum dashboard + admin ekranları @fe
+      > PR #31 birleştirildi; `app/admin/dogrulama-kuyrugu`, `app/admin/skiller`,
+      > `app/kurum/[id]/panel` + testleri mevcut.
 - [x] 3.11 Seed verisi: 20 öğrenci, 5 kurum, 15 tamamlanmış engagement @be1
       > commit ad183f6 tamamlandı. `backend/scripts/seed.py` — 20 öğrenci
       > (ogrenci1-20@seed.local), 5 kurum + 5 organizasyon, 15 tam VERIFIED
@@ -209,7 +216,8 @@ Hedef: jürinin göreceği yüz. Bu fazın sonunda canlı URL + gerçekçi veri 
       > fonksiyonlarını çağırırken kendi ayrı DB session'ını açıyor ve test
       > rollback izolasyonunu bypass ediyor — yerel dev DB'ye kalıcı satır
       > bırakıyor, ayrı bir madde olarak açılmalı.
-- [ ] 3.13 Erişilebilirlik geçişi: klavye, focus, kontrast, `aria-live` @fe
+- [x] 3.13 Erişilebilirlik geçişi: klavye, focus, kontrast, `aria-live` @fe
+      > PR #34 birleştirildi (commit fac4449).
 - [ ] 3.14 Deploy: VPS, HTTPS, canlı URL, yedekleme, log @be2
 - [ ] 3.15 Açık kaynak paketi: kurulum talimatı sıfırdan doğrulanır, sır taraması @all
 
