@@ -8,7 +8,8 @@ allowlist, file size validation, rate limiting, and error handling.
 import time
 
 import boto3
-from botocore.exceptions import ConnectTimeoutError, EndpointConnectionError
+from botocore.config import Config
+from botocore.exceptions import ClientError, ConnectTimeoutError, EndpointConnectionError
 
 from app.core.config import settings
 from app.core.errors import ApiError
@@ -211,6 +212,36 @@ def generate_presigned_post(
     )
 
     return presigned_post
+
+
+def fetch_object_bytes(bucket: str, object_key: str, max_bytes: int) -> bytes | None:
+    """
+    YET-195: Read an object (at most max_bytes + 1 bytes) for content inspection.
+
+    Network call — only the outbox worker calls this, never a request handler or
+    anything inside an open transaction. Returns None if the object does not exist.
+    Other storage errors propagate so the outbox retries the row.
+    """
+    s3_client = boto3.client(
+        "s3",
+        endpoint_url=settings.s3_endpoint_url,
+        aws_access_key_id=settings.s3_access_key,
+        aws_secret_access_key=settings.s3_secret_key,
+        region_name=settings.s3_region,
+        config=Config(connect_timeout=5, read_timeout=30, retries={"max_attempts": 2}),
+    )
+    try:
+        response = s3_client.get_object(Bucket=bucket, Key=object_key)
+    except ClientError as e:
+        if e.response.get("Error", {}).get("Code") in ("NoSuchKey", "404"):
+            return None
+        raise
+    body = response["Body"]
+    try:
+        # +1 byte so an oversized object is detectable without reading it all.
+        return body.read(max_bytes + 1)
+    finally:
+        body.close()
 
 
 def generate_presigned_get_url(

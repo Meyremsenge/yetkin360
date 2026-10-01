@@ -142,6 +142,43 @@ def create_evidence(
     return response
 
 
+def list_evidence(
+    session: Session,
+    principal: Principal,
+    deliverable_id: uuid.UUID | None = None,
+) -> list[EvidenceResponse]:
+    """
+    YET-195: The talent's own (non-deleted) evidence, newest first.
+
+    Scoped by scoped_evidence (owner only; PRIVATE evidence is closed to admins too).
+    A principal without a talent profile gets 403 TALENT_PROFILE_REQUIRED, same as
+    the other evidence endpoints.
+    """
+    if principal.talent_id is None:
+        raise ApiError(403, "TALENT_PROFILE_REQUIRED", "Bu işlem için talent profili gereklidir.")
+
+    query = scoped_evidence(session, principal).where(Evidence.deleted_at.is_(None))
+    if deliverable_id is not None:
+        query = query.where(Evidence.deliverable_id == deliverable_id)
+    rows = session.execute(query.order_by(Evidence.created_at.desc(), Evidence.id.desc())).scalars().all()
+    return [
+        EvidenceResponse(
+            id=e.id,
+            owner_talent_id=e.owner_talent_id,
+            kind=e.kind,
+            provenance=e.provenance,
+            storage_key=e.storage_key,
+            mime_type=e.mime_type,
+            size_bytes=e.size_bytes,
+            scan_status=e.scan_status,
+            visibility=e.visibility,
+            deliverable_id=e.deliverable_id,
+            created_at=e.created_at,
+        )
+        for e in rows
+    ]
+
+
 def get_download_url(
     session: Session,
     principal: Principal,

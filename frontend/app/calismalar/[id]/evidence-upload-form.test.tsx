@@ -166,4 +166,34 @@ describe("EvidenceUploadForm", () => {
     });
     expect(recordEvidence).not.toHaveBeenCalled();
   });
+
+  describe("tarama sonucu için yeniden okuma (YET-195)", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("PENDING kayıt varken liste periyodik yeniden okunur", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      vi.mocked(listEvidenceForDeliverable).mockResolvedValue([mockRecord]);
+
+      render(<EvidenceUploadForm deliverableId="del-1" />);
+      await waitFor(() => expect(listEvidenceForDeliverable).toHaveBeenCalledTimes(1));
+
+      await vi.advanceTimersByTimeAsync(3100);
+
+      expect(vi.mocked(listEvidenceForDeliverable).mock.calls.length).toBeGreaterThan(1);
+    });
+
+    it("bekleyen kayıt yoksa (CLEAN/FAILED) yeniden okuma yapılmaz", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      vi.mocked(listEvidenceForDeliverable).mockResolvedValue([{ ...mockRecord, scan_status: "CLEAN" }]);
+
+      render(<EvidenceUploadForm deliverableId="del-1" />);
+      await waitFor(() => expect(listEvidenceForDeliverable).toHaveBeenCalledTimes(1));
+
+      await vi.advanceTimersByTimeAsync(9000);
+
+      expect(listEvidenceForDeliverable).toHaveBeenCalledTimes(1);
+    });
+  });
 });

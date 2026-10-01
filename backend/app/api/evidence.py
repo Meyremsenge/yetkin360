@@ -13,7 +13,7 @@ GET /evidence/{id}/download-url generates presigned download URL with ownership 
 import uuid
 
 from botocore.exceptions import ConnectTimeoutError, EndpointConnectionError
-from fastapi import APIRouter, Depends, Path
+from fastapi import APIRouter, Depends, Path, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_principal, get_session, get_verified_principal
@@ -28,7 +28,7 @@ from app.schemas.evidence import (
     EvidenceDownloadUrlResponse,
 )
 from app.services.authorization import Principal
-from app.services.evidence import create_evidence, get_download_url
+from app.services.evidence import create_evidence, get_download_url, list_evidence
 from app.services.storage import (
     build_object_key,
     check_rate_limit,
@@ -250,6 +250,23 @@ def create_evidence_record(
     session.commit()
 
     return response
+
+
+@router.get("", response_model=list[EvidenceResponse])
+def list_my_evidence(
+    deliverable_id: uuid.UUID | None = Query(None, description="Only evidence of this deliverable"),
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> list[EvidenceResponse]:
+    """
+    YET-195: GET /evidence — the authenticated talent's own evidence, newest first.
+
+    Error Responses:
+        401 Unauthorized: No valid auth token
+        403 TALENT_PROFILE_REQUIRED: User has no talent profile
+    Other talents' evidence is never in scope (not listed, no error).
+    """
+    return list_evidence(session=session, principal=principal, deliverable_id=deliverable_id)
 
 
 @router.get("/{evidence_id}/download-url", response_model=EvidenceDownloadUrlResponse)

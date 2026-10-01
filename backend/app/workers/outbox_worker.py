@@ -326,8 +326,74 @@ def email_organization_member_invited_handler(payload: dict, outbox_id: int) -> 
     )
 
 
+def evidence_scan_requested_handler(payload: dict, outbox_id: int) -> None:
+    """
+    Handler for evidence.scan_requested topic (YET-195/YET-184).
+
+    Reads the stored object and checks it against the declared mime/size with
+    magic bytes (no AV engine). Three phases so no storage call runs inside a
+    transaction: load the row (short session) → read the object (no session) →
+    write the verdict (short session, only while still PENDING, so a redelivered
+    row is a no-op).
+
+    Args:
+      - payload: {"evidence_id", "storage_key", "bucket"} — the object location is
+        re-read from the evidence row, never trusted from the payload.
+      - outbox_id: row ID in outbox table
+
+    Storage errors other than "object missing" propagate so the row is retried.
+    """
+    import uuid as _uuid
+
+    from sqlalchemy import create_engine
+
+    from app.core.config import settings
+    from app.models import Evidence
+    from app.services.audit import log_audit_event
+    from app.services.evidence_scan import inspect_content
+    from app.services.storage import fetch_object_bytes
+
+    evidence_id = _uuid.UUID(payload["evidence_id"])
+    engine = create_engine(settings.database_url)
+    try:
+        with Session(engine) as session:
+            row = session.execute(
+                select(Evidence.scan_status, Evidence.storage_key, Evidence.mime_type, Evidence.size_bytes)
+                .where(Evidence.id == evidence_id)
+            ).first()
+        if row is None or row.scan_status != "PENDING":
+            return
+        storage_key, mime_type, size_bytes = row.storage_key, row.mime_type, row.size_bytes
+
+        data = fetch_object_bytes(settings.s3_bucket, storage_key, settings.evidence_max_size_bytes)
+        verdict = inspect_content(data, declared_mime=mime_type, declared_size=size_bytes)
+
+        with Session(engine) as session:
+            updated_id = session.execute(
+                update(Evidence)
+                .where(Evidence.id == evidence_id, Evidence.scan_status == "PENDING")
+                .values(scan_status=verdict.status, content_hash=verdict.content_hash)
+                .returning(Evidence.id)
+            ).scalar_one_or_none()
+            if updated_id is not None:
+                log_audit_event(
+                    session=session,
+                    actor_user_id=None,
+                    actor_ip=None,
+                    action="evidence.scanned",
+                    subject_type="evidence",
+                    subject_id=evidence_id,
+                    result="SUCCESS" if verdict.status == "CLEAN" else "DENIED",
+                    metadata={"scan_status": verdict.status, "reason": verdict.reason},
+                )
+            session.commit()
+    finally:
+        engine.dispose()
+
+
 # Handler dispatch table (expanded as new topics are introduced)
 DEFAULT_HANDLERS = {
+    "evidence.scan_requested": evidence_scan_requested_handler,
     "email.duplicate_registration_attempt": email_duplicate_registration_handler,
     "email.verify_email": email_verify_email_handler,
     "email.password_reset": email_password_reset_handler,
