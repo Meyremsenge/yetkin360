@@ -16,7 +16,7 @@ from app.models import (
     Skill,
     SkillSignal,
 )
-from app.services.authorization import Principal, get_scoped_or_404, scoped_engagements
+from app.services.authorization import Principal, engagement_relation, get_scoped_or_404, scoped_engagements
 from app.services.audit import log_audit_event
 from app.services.outbox import enqueue
 
@@ -281,8 +281,7 @@ def transition_engagement(
     if engagement.version != version:
         raise VersionConflictError("Version conflict: engagement has been modified since retrieval")
 
-    # Compute engagement relation (AC-S1: masking rule for self-dealing prevention)
-    from app.services.authorization import engagement_relation
+    # AC-S1: relation is masked for the subject (self-dealing prevention)
     rel = engagement_relation(principal, engagement)
 
     # Transition table (5 valid transitions)
@@ -459,13 +458,8 @@ def create_engagement_task(
     if engagement.status != "ACTIVE":
         raise PreconditionFailedError("Task can only be created on ACTIVE engagements")
 
-    # Compute engagement relation (AC-S1: masking rule for self-dealing prevention)
-    from app.services.authorization import engagement_relation
+    # AC-S1: relation is masked for the subject (self-dealing prevention)
     rel = engagement_relation(principal, engagement)
-
-    # AC-S1: talent cannot create tasks (even if org member/coordinator)
-    if rel.is_subject and not rel.has_org_side_link:
-        raise TransitionForbiddenError("Talent cannot create tasks")
 
     # Only org members and coordinators can create tasks
     if not (rel.is_org_member or rel.is_coordinator):
@@ -588,8 +582,7 @@ def create_deliverable(
     if engagement.status != "ACTIVE":
         raise PreconditionFailedError("Deliverable can only be submitted on ACTIVE engagements")
 
-    # Compute engagement relation (AC-S1: masking rule for self-dealing prevention)
-    from app.services.authorization import engagement_relation
+    # AC-S1: relation is masked for the subject (self-dealing prevention)
     rel = engagement_relation(principal, engagement)
 
     # AC-S2: Only TALENT can submit deliverables

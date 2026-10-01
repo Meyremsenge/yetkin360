@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import Engagement, Skill, Evaluation, EvaluationItem, SkillSignal
-from app.services.authorization import Principal, get_scoped_or_404, scoped_engagements
+from app.services.authorization import Principal, engagement_relation, get_scoped_or_404, scoped_engagements
 from app.services.audit import log_audit_event
 
 
@@ -109,8 +109,7 @@ def create_evaluation(
                 f"Engagement must be PENDING_EVALUATION or EVALUATED for TALENT_TO_ORG, got {engagement.status}"
             )
 
-    # Compute engagement relation (AC-S1: masking rule for self-dealing prevention)
-    from app.services.authorization import engagement_relation
+    # AC-S1: relation is masked for the subject (self-dealing prevention)
     rel = engagement_relation(principal, engagement)
 
     # AC-S3: Direction/role consistency check

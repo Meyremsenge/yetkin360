@@ -28,7 +28,7 @@ from app.models import (
     VerifiedExperience,
 )
 from app.models.outbox import Outbox
-from app.services.authorization import Principal, get_scoped_or_404, scoped_engagements
+from app.services.authorization import Principal, get_scoped_or_404, scoped_engagements, engagement_relation
 from app.services.audit import log_audit_event
 
 
@@ -194,13 +194,17 @@ def create_attestation(
         raise EngagementNotFoundError(f"Engagement {engagement_id} not found or not accessible")
 
     # Compute engagement relation (AC-S1: masking rule for self-dealing prevention)
-    from app.services.authorization import engagement_relation
     rel = engagement_relation(principal, engagement)
 
     # AC-4: TALENT forbidden to attest (S6 exception: return 403, not 404)
-    # Also check: talent without org-side membership cannot attest (pure talent case)
-    if rel.is_subject and not rel.has_org_side_link:
-        raise TransitionForbiddenError("Talent cannot submit attestations")
+    if rel.is_subject:
+        # If talent has no org-side membership, they cannot attest in any scenario
+        if not rel.has_org_side_link:
+            raise TransitionForbiddenError("Talent cannot submit attestations")
+        # If talent DOES have org-side membership (coordinator or org admin), they still cannot
+        # attest their own engagement (self-attestation prevention)
+        else:
+            raise SelfAttestationError("Cannot attest own engagement")
 
     # Role check per STATE_MACHINE.md T8: institution_id NOT NULL -> COORDINATOR only,
     # institution_id NULL -> ORG_ADMIN only. scoped_engagements() only enforces tenant
