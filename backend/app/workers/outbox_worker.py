@@ -4,26 +4,34 @@ Outbox worker: polling and processing transactional outbox.
 Implements AC-2 (select & process), AC-4 (failure handling), AC-5 (max_attempts),
 AC-6 (SKIP LOCKED), AC-S2 (logging without payload).
 
-The worker polls the outbox table for unprocessed rows (processed_at IS NULL),
-dispatches each to a registered handler based on topic, and marks them as
-processed (processed_at = now()) on success. On handler failure, increments
-attempts and retries later. Rows exceeding max_attempts are silently skipped.
+The worker polls the outbox table for due rows (processed_at IS NULL) whose
+topic has a registered handler, dispatches each to its handler outside any
+transaction, and records the result in a separate transaction. Failures are
+retried with exponential backoff; rows exceeding max_attempts are dead-lettered.
 
-Uses FOR UPDATE SKIP LOCKED to prevent double-processing in multi-instance
-deployments.
+Run it with: python -m app.workers.outbox_worker (loops until interrupted).
 """
 
 import logging
 import smtplib
-from datetime import datetime, timezone
+import time
+from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 
-from sqlalchemy import select
+from sqlalchemy import or_, select, update
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from app.models.outbox import Outbox
 
 logger = logging.getLogger(__name__)
+
+MAX_BACKOFF_SECONDS = 3600
+
+
+def _backoff_seconds(attempts: int, base_seconds: int) -> int:
+    """Delay before the next try after the Nth failed attempt: base, 2*base, 4*base, ..."""
+    return min(base_seconds * 2 ** (attempts - 1), MAX_BACKOFF_SECONDS)
 
 
 def process_batch(
@@ -31,73 +39,126 @@ def process_batch(
     handlers: dict,
     max_attempts: int = 5,
     batch_size: int = 10,
+    backoff_base_seconds: int = 30,
+    lease_seconds: int = 300,
 ) -> int:
     """
-    Process a batch of unprocessed outbox rows.
+    Process a batch of due outbox rows. No network call ever runs inside an
+    open transaction (CLAUDE.md / docs: outbox rule), so a batch is three
+    phases:
 
-    Selects up to batch_size rows where processed_at IS NULL and attempts < max_attempts,
-    ordered by created_at (FIFO), using FOR UPDATE SKIP LOCKED to prevent double-processing
-    in concurrent worker instances.
+      1. CLAIM (short transaction): select due rows with FOR UPDATE SKIP LOCKED
+         and push their next_attempt_at forward by lease_seconds, then commit.
+         The lease, not a held row lock, keeps other workers off the rows while
+         the handlers run; if this worker dies, the lease simply expires and
+         the row is retried (at-least-once delivery).
+      2. HANDLE (no transaction): call the handler for each claimed row.
+      3. RECORD (one short transaction per row): success sets processed_at and
+         redacts the payload; failure increments attempts and schedules the
+         next try with exponential backoff. A row reaching max_attempts is
+         dead-lettered (never selected again) and a warning is logged.
 
-    For each row, looks up the handler by topic in the handlers dict. If no handler is found,
-    the row is skipped silently (remains unprocessed, not counted). If a handler is found and
-    succeeds, sets processed_at = now(). If a handler raises an exception, increments attempts
-    and logs the error (without payload). Each row is processed and committed independently;
-    a handler failure does not affect other rows in the batch.
+    Only rows whose topic has a registered handler are selected. Rows for
+    topics without a handler stay untouched in the table, so they can never
+    occupy the head of the queue and starve deliverable rows, and a handler
+    added later picks them up.
 
-    Args:
-      - session: SQLAlchemy Session (within transaction)
-      - handlers: dict mapping topic -> handler callable (args: payload dict, outbox_id int)
-      - max_attempts: retry limit; rows with attempts >= max_attempts are not selected
-      - batch_size: max rows to process in one batch
-
-    Returns:
-      - int: number of rows successfully processed (processed_at set to now())
-
-    Implements AC-2, AC-4, AC-5, AC-6, AC-S2.
+    Returns the number of rows successfully processed.
     """
-    # Select unprocessed rows with FOR UPDATE SKIP LOCKED
+    if not handlers:
+        return 0
+
+    now = datetime.now(timezone.utc)
     rows = session.execute(
         select(Outbox)
         .where(Outbox.processed_at.is_(None))
         .where(Outbox.attempts < max_attempts)
-        .order_by(Outbox.created_at)
+        .where(Outbox.topic.in_(list(handlers)))
+        .where(or_(Outbox.next_attempt_at.is_(None), Outbox.next_attempt_at <= now))
+        .order_by(Outbox.created_at, Outbox.id)
         .limit(batch_size)
         .with_for_update(skip_locked=True)
     ).scalars().all()
 
-    processed_count = 0
-
+    claimed = [(row.id, row.topic, row.payload, row.attempts) for row in rows]
+    lease_until = now + timedelta(seconds=lease_seconds)
     for row in rows:
-        # Look up handler for this row's topic
-        handler = handlers.get(row.topic)
-        if handler is None:
-            # No handler registered — skip silently (row remains unprocessed)
+        row.next_attempt_at = lease_until
+    session.commit()
+
+    processed_count = 0
+    for outbox_id, topic, payload, attempts in claimed:
+        try:
+            handlers[topic](payload, outbox_id)
+        except Exception as e:
+            new_attempts = attempts + 1
+            session.execute(
+                update(Outbox)
+                .where(Outbox.id == outbox_id)
+                .values(
+                    attempts=new_attempts,
+                    next_attempt_at=datetime.now(timezone.utc)
+                    + timedelta(seconds=_backoff_seconds(new_attempts, backoff_base_seconds)),
+                )
+            )
+            session.commit()
+            # Never log the exception message: SMTP errors embed recipient
+            # addresses, and payloads carry tokens (docs/SECURITY.md log rule).
+            logger.error(
+                "Outbox handler failed: outbox_id=%s, topic=%s, error_type=%s, attempts=%s",
+                outbox_id, topic, type(e).__name__, new_attempts,
+            )
+            if new_attempts >= max_attempts:
+                logger.warning(
+                    "Outbox row dead-lettered: outbox_id=%s, topic=%s", outbox_id, topic
+                )
             continue
 
-        try:
-            # Call handler
-            handler(row.payload, row.id)
-            # On success, mark as processed and redact the payload — rows
-            # exempted from the PII guard (email.verify_email,
-            # email.password_reset) carry a raw bearer token that must not
-            # remain in the DB/backups once it has been delivered.
-            row.processed_at = datetime.now(timezone.utc)
-            row.payload = {}
-            session.flush()
-            session.commit()
-            processed_count += 1
-        except Exception as e:
-            # On failure, increment attempts and log (without payload)
-            row.attempts += 1
-            session.flush()
-            session.commit()
-            logger.error(
-                f"Outbox handler failed: outbox_id={row.id}, topic={row.topic}, "
-                f"error_type={type(e).__name__}, error_message={str(e)}"
-            )
+        # Rows exempted from the PII guard (email.verify_email,
+        # email.password_reset) carry a raw bearer token that must not remain
+        # in the DB/backups once it has been delivered.
+        session.execute(
+            update(Outbox)
+            .where(Outbox.id == outbox_id)
+            .values(processed_at=datetime.now(timezone.utc), payload={}, next_attempt_at=None)
+        )
+        session.commit()
+        processed_count += 1
 
     return processed_count
+
+
+def run_forever(
+    engine: Engine,
+    handlers: dict,
+    poll_interval_seconds: int,
+    max_attempts: int,
+    backoff_base_seconds: int,
+    max_iterations: int | None = None,
+) -> None:
+    """
+    Poll loop. Sleeps poll_interval_seconds only when a pass made no progress;
+    a pass that delivered rows loops again immediately to drain the backlog.
+    A loop-level error (e.g. the database restarting) is logged by type and
+    retried after the poll interval instead of killing the worker.
+    max_iterations exists for tests; production runs until interrupted.
+    """
+    iteration = 0
+    while max_iterations is None or iteration < max_iterations:
+        iteration += 1
+        processed = 0
+        try:
+            with Session(engine) as session:
+                processed = process_batch(
+                    session,
+                    handlers,
+                    max_attempts=max_attempts,
+                    backoff_base_seconds=backoff_base_seconds,
+                )
+        except Exception as e:
+            logger.error("Outbox worker pass failed: error_type=%s", type(e).__name__)
+        if processed == 0:
+            time.sleep(poll_interval_seconds)
 
 
 # ============================================================================
@@ -239,20 +300,32 @@ DEFAULT_HANDLERS = {
 
 if __name__ == "__main__":
     """
-    Standalone worker entry point for testing.
+    Worker entry point: python -m app.workers.outbox_worker (run from backend/).
 
-    Usage:
-      python -m app.workers.outbox_worker
-
-    In production, this would be run under systemd/supervisor.
-    See final analiz §39 (architecture).
+    Loops until interrupted (Ctrl+C). baslat.bat starts it in its own window;
+    in production run the same command under systemd/supervisor.
     """
-    from app.core.config import settings
     from sqlalchemy import create_engine
-    from sqlalchemy.orm import Session
 
+    from app.core.config import settings
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     engine = create_engine(settings.database_url)
-
-    with Session(engine) as session:
-        count = process_batch(session, DEFAULT_HANDLERS)
-        print(f"Processed {count} rows")
+    logger.info(
+        "Outbox worker started: poll_interval=%ss, max_attempts=%s, backend=%s",
+        settings.outbox_poll_interval_seconds,
+        settings.outbox_max_attempts,
+        settings.email_backend,
+    )
+    try:
+        run_forever(
+            engine,
+            DEFAULT_HANDLERS,
+            poll_interval_seconds=settings.outbox_poll_interval_seconds,
+            max_attempts=settings.outbox_max_attempts,
+            backoff_base_seconds=settings.outbox_backoff_base_seconds,
+        )
+    except KeyboardInterrupt:
+        logger.info("Outbox worker stopped.")
+    finally:
+        engine.dispose()

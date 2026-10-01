@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     # Outbox / Email — docs/ENV.md §6, PLAN 1.5 (yet-5-outbox-worker), PLAN 1.6
     outbox_poll_interval_seconds: int = 5
     outbox_max_attempts: int = 5
+    outbox_backoff_base_seconds: int = 30
     email_backend: str = "console"
     smtp_host: str = ""
     smtp_port: int = 587

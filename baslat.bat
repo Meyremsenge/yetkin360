@@ -158,6 +158,7 @@ REM 7) Backend ve frontend'i ayri pencerelerde baslat, tarayiciyi ac
 REM ------------------------------------------------------------
 echo [7/7] Sunucular baslatiliyor...
 start "Yetkin360 - Backend 8000" /d "%~dp0backend" cmd /k ".venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000"
+start "Yetkin360 - Outbox Worker" /d "%~dp0backend" cmd /k ".venv\Scripts\python.exe -m app.workers.outbox_worker"
 timeout /t 3 /nobreak >nul
 start "Yetkin360 - Frontend 3000" /d "%~dp0frontend" cmd /k "npm run dev"
 
@@ -195,7 +196,10 @@ echo     Organizasyon : org1-admin@seed.local .. org5-admin@seed.local
 echo     Sifre, hepsi : SeedTest123!
 echo     Platform admin: admin@yetkin360.local - sifre .env icindeki SEED_ADMIN_PASSWORD
 echo.
-echo   Bu pencereyi kapatabilirsin, backend/frontend ayri pencerelerde
+echo   E-posta kuyrugu: Outbox Worker penceresi dogrulama/sifre sifirlama
+echo   e-postalarini gonderir. EMAIL_BACKEND=console iken linkler o pencerede yazilir.
+echo.
+echo   Bu pencereyi kapatabilirsin, backend/frontend/worker ayri pencerelerde
 echo   calismaya devam eder. Durdurmak icin o pencereleri kapat.
 echo ============================================================
 pause

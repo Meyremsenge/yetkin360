@@ -95,7 +95,8 @@ Gönderim `outbox` worker üzerinden, **asla transaction içinde değil**
 |---|---|---|
 | `EMAIL_BACKEND` | `console` | `console` \| `smtp`. MVP'de konsola yazılır |
 | `OUTBOX_POLL_INTERVAL_SECONDS` | `5` | Worker polling aralığı (saniye) |
-| `OUTBOX_MAX_ATTEMPTS` | `5` | Maksimum yeniden deneme sayısı |
+| `OUTBOX_MAX_ATTEMPTS` | `5` | Maksimum yeniden deneme sayısı; aşılan satır dead-letter olur (seçilmez, tabloda kalır) |
+| `OUTBOX_BACKOFF_BASE_SECONDS` | `30` | Başarısız denemeden sonra bekleme: 30, 60, 120, 240 sn (üstel) |
 | `SMTP_HOST` | *(boş)* | |
 | `SMTP_PORT` | `587` | |
 | `SMTP_USER` | *(boş)* | |
