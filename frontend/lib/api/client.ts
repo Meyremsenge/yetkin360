@@ -275,6 +275,15 @@ export async function verifyEmail(token: string): Promise<void> {
 }
 
 /**
+ * YET-196: Resend the verification e-mail for the signed-in, unverified user.
+ * Calls POST /auth/resend-verification. Always 204 (already-verified and
+ * rate-limited calls are silent no-ops server-side); throws ApiError on 401/403.
+ */
+export async function resendVerification(): Promise<void> {
+  await apiFetch("/auth/resend-verification", { method: "POST" });
+}
+
+/**
  * AC-7/AC-S2: Forgot password. Calls POST /auth/forgot-password.
  * Returns undefined on 204 (always, even for non-existent emails); throws ApiError on 429/etc.
  */

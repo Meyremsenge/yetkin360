@@ -16,7 +16,7 @@ from botocore.exceptions import ConnectTimeoutError, EndpointConnectionError
 from fastapi import APIRouter, Depends, Path
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_principal, get_session
+from app.api.deps import get_current_principal, get_session, get_verified_principal
 from app.core.deps import require_csrf
 from app.core.config import settings
 from app.core.errors import ApiError
@@ -43,7 +43,7 @@ router = APIRouter(prefix="/evidence", tags=["evidence"])
 @router.post("/upload-url", response_model=EvidenceUploadUrlResponse)
 def upload_url(
     request_body: EvidenceUploadUrlRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> EvidenceUploadUrlResponse:
@@ -163,7 +163,7 @@ def upload_url(
 @router.post("", response_model=EvidenceResponse, status_code=201)
 def create_evidence_record(
     request_body: EvidenceCreateRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> EvidenceResponse:

@@ -152,6 +152,19 @@ def logout(
     _clear_auth_cookies(response)
 
 
+@router.post("/resend-verification", status_code=204)
+def resend_verification(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> None:
+    # Same ordering as /auth/logout: get_current_user (401) first, then CSRF (403).
+    # Always 204: already-verified and rate-limited calls are silent no-ops
+    # (see auth_service.resend_email_verification).
+    require_csrf(request)
+    auth_service.resend_email_verification(session, current_user.id, _client_ip(request))
+
+
 @router.post("/verify-email", status_code=204)
 def verify_email(body: VerifyEmailRequest, session: Session = Depends(get_session)) -> None:
     try:

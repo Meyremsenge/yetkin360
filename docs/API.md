@@ -191,6 +191,7 @@ Kesin, test edilebilir matris → [AUTHORIZATION.md](AUTHORIZATION.md).
 | `POST` | `/auth/refresh` | — | — (refresh cookie'den) | `204` + **yenilenmiş cookie'ler** | `401 INVALID_REFRESH_TOKEN` |
 | `POST` | `/auth/logout` | `AUTH` | — | `204` + cookie'ler silinir | — |
 | `POST` | `/auth/verify-email` | — | `token` | `204` | `400 INVALID_TOKEN`, `410 TOKEN_EXPIRED` |
+| `POST` | `/auth/resend-verification` | oturum + CSRF | — | `204` (her zaman) | `401`, `403 CSRF_FAILED` |
 | `POST` | `/auth/forgot-password` | — | `email` | `204` (her zaman) | `429` |
 | `POST` | `/auth/reset-password` | — | `token`, `new_password` | `204` | `400 INVALID_TOKEN`, `410 TOKEN_EXPIRED` |
 
@@ -213,6 +214,10 @@ iptal edebilsin diye `/auth/refresh` ile sınırlı değildir (YET-185). Eski
   varlığını sızdırmadığı için 404 kuralının istisnasıdır.
 - `/auth/refresh` kullanılmış bir token alırsa → **token ailesinin tamamı
   iptal edilir**, `401 INVALID_REFRESH_TOKEN`, `audit_events`'e kayıt düşer.
+- `/auth/resend-verification` doğrulanmamış oturum sahibine yeni link gönderir ve önceki kullanılmamış
+  linkleri geçersiz kılar. Zaten doğrulanmış hesap ya da sınır aşımı (1/dakika, 5/saat — kayıt
+  token'ı dahil) sessiz no-op'tur: yine `204`, yeni token/outbox satırı yok. Alıcı her zaman hesabın
+  kendi adresidir (oturumdan; istekten gelmez).
 - `/auth/forgot-password` **e-posta kayıtlı olmasa da `204`** döner. Aksi hâlde
   hangi e-postaların kayıtlı olduğu sızar (kullanıcı numaralandırma).
 - `/auth/register` aynı prensiple **kayıtlı bir e-postayla çağrılsa da her

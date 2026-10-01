@@ -6,7 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_principal, get_current_user, get_session
+from app.api.deps import (
+    get_current_principal,
+    get_current_user,
+    get_session,
+    get_verified_principal,
+)
 from app.core.deps import require_csrf
 from app.models import User
 from app.services.authorization import Principal, get_scoped_or_404, scoped_talent_profiles
@@ -155,7 +160,7 @@ def get_me(
 @router.patch("/talents/me", response_model=TalentProfileResponse)
 def patch_talents_me(
     payload: UpdateTalentProfileRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> TalentProfileResponse:

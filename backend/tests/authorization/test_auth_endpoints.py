@@ -88,6 +88,7 @@ class TestRegister:
 
 
 class TestLogin:
+    @pytest.mark.unverified_users
     def test_login_success_sets_httponly_cookies_not_body(self, client, existing_user):
         response = client.post(
             "/auth/login", json={"email": "existing-auth@example.com", "password": "Str0ngPassw0rd!"}

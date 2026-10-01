@@ -15,7 +15,7 @@ DO NOT run in production without careful consideration.
 
 import sys
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -793,6 +793,27 @@ def seed_engagements(session: Session) -> None:
     print(f"Engagements seed complete: {inserted_count} inserted")
 
 
+def seed_verify_users(session: Session) -> int:
+    """
+    YET-196: write endpoints require a verified e-mail, and seed users never
+    receive their verification mail. Mark every @seed.local user verified so the
+    demo accounts can write. Also repairs seed users created before this existed
+    (the seed is idempotent and skips existing users). Returns rows updated.
+    """
+    if settings.environment == "production":
+        raise RuntimeError("Seed script cannot run in production environment")
+
+    result = session.execute(
+        update(User)
+        .where(User.email.like("%@seed.local"))
+        .where(User.email_verified_at.is_(None))
+        .values(email_verified_at=datetime.now(timezone.utc))
+    )
+    count = result.rowcount  # type: ignore[attr-defined]
+    print(f"Seed users verified: {count} updated")
+    return count
+
+
 if __name__ == "__main__":
     session = _SessionLocal()
     try:
@@ -807,6 +828,8 @@ if __name__ == "__main__":
         seed_institutions_and_organizations(session)
 
         seed_engagements(session)
+
+        seed_verify_users(session)
 
         # Final commit for all seed data (AC-4: single transaction)
         session.commit()

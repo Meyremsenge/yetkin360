@@ -38,10 +38,47 @@ from sqlalchemy.orm import Session
 from alembic.config import Config as AlembicConfig
 from alembic import command
 
+from datetime import datetime, timezone
+
+from sqlalchemy import event
+
 from app.api.deps import get_session
 from app.core.deps import get_current_user as core_get_current_user
 from app.models import TalentProfile, User
 from app.main import app
+
+
+# ============================================================================
+# E-mail verification in the test world (YET-196, docs/AUTHORIZATION.md G6)
+#
+# Write endpoints now reject users whose e-mail is not verified, so every User
+# a test inserts is verified by default - one place instead of ~200 `User(`
+# call sites. Tests that need the real, unverified state (registration flow,
+# the enforcement tests) opt out with @pytest.mark.unverified_users.
+# ============================================================================
+
+_AUTO_VERIFY_USERS = {"enabled": True}
+
+
+@event.listens_for(User, "before_insert")
+def _verify_users_by_default(mapper, connection, target) -> None:
+    if _AUTO_VERIFY_USERS["enabled"] and target.email_verified_at is None:
+        target.email_verified_at = datetime.now(timezone.utc)
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "unverified_users: do not auto-verify the e-mail of users inserted by this test",
+    )
+
+
+@pytest.fixture(autouse=True)
+def _auto_verify_users(request):
+    enabled = request.node.get_closest_marker("unverified_users") is None
+    _AUTO_VERIFY_USERS["enabled"] = enabled
+    yield
+    _AUTO_VERIFY_USERS["enabled"] = True
 
 
 # ============================================================================

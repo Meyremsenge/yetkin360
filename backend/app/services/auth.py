@@ -13,7 +13,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -41,6 +41,11 @@ from app.services.outbox import enqueue
 
 EMAIL_VERIFICATION_TOKEN_TTL_HOURS = 24
 PASSWORD_RESET_TOKEN_TTL_HOURS = 1
+
+# Resend limits are derived from the tokens table itself (created_at), so they
+# hold across processes and restarts and need no in-memory state.
+RESEND_VERIFICATION_COOLDOWN_SECONDS = 60
+RESEND_VERIFICATION_MAX_PER_HOUR = 5
 
 FAILED_LOGIN_LOCK_THRESHOLD = 10
 FAILED_LOGIN_LOCK_MINUTES = 15
@@ -206,6 +211,60 @@ def _issue_email_verification_token(session: Session, user_id: uuid.UUID) -> Non
         topic="email.verify_email",
         payload={"user_id": str(user_id), "raw_token": raw_token},
     )
+
+
+def resend_email_verification(session: Session, user_id: uuid.UUID, actor_ip: str | None) -> bool:
+    """
+    Issue a fresh verification token for an authenticated, unverified user
+    (docs/API.md §2.1; HATA.md IS-08: the 24h token otherwise expires and
+    leaves the account unverified for good).
+
+    Returns True when a token was issued. Returns False — a silent no-op for the
+    caller, who always answers 204 — when the e-mail is already verified or a
+    limit is hit (1/minute, 5/hour, counted from the tokens table, which
+    includes the registration token). A silent no-op keeps an attacker from
+    flooding the outbox or learning the limit state; the recipient is always
+    the account's own address, resolved by the worker from the user id.
+
+    Previous unused tokens are invalidated (used_at) so only the newest link
+    works. The user row is locked FOR UPDATE to serialise concurrent resends.
+    """
+    user = session.execute(
+        select(User).where(User.id == user_id).with_for_update()
+    ).scalars().first()
+    if user is None or user.email_verified_at is not None:
+        return False
+
+    now = datetime.now(timezone.utc)
+    recent = session.execute(
+        select(EmailVerificationToken.created_at)
+        .where(EmailVerificationToken.user_id == user_id)
+        .where(EmailVerificationToken.created_at > now - timedelta(hours=1))
+        .order_by(EmailVerificationToken.created_at.desc())
+    ).scalars().all()
+    if recent and recent[0] > now - timedelta(seconds=RESEND_VERIFICATION_COOLDOWN_SECONDS):
+        return False
+    if len(recent) >= RESEND_VERIFICATION_MAX_PER_HOUR:
+        return False
+
+    session.execute(
+        update(EmailVerificationToken)
+        .where(EmailVerificationToken.user_id == user_id)
+        .where(EmailVerificationToken.used_at.is_(None))
+        .values(used_at=now)
+    )
+    _issue_email_verification_token(session, user_id)
+
+    log_audit_event(
+        session=session,
+        actor_user_id=user_id,
+        actor_ip=actor_ip,
+        action="EMAIL_VERIFICATION_RESENT",
+        subject_type="user",
+        subject_id=user_id,
+        result="SUCCESS",
+    )
+    return True
 
 
 def request_password_reset(session: Session, email: str) -> None:

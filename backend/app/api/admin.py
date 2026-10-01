@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_principal, get_session
+from app.api.deps import get_current_principal, get_session, get_verified_principal
 from app.core.deps import require_csrf
 from app.core.errors import ApiError
 from app.services.audit import log_audit_event
@@ -135,7 +135,7 @@ def get_verification_queue(
 def update_verification_level(
     organization_id: uuid.UUID,
     payload: VerificationLevelUpdate,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> OrganizationSummary:
@@ -189,7 +189,7 @@ def list_skills_endpoint(
 @router.post("/skills", response_model=SkillResponse, status_code=201)
 def create_skill_endpoint(
     payload: SkillCreateRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> SkillResponse:
@@ -225,7 +225,7 @@ def create_skill_endpoint(
 def update_skill_endpoint(
     skill_id: uuid.UUID,
     payload: SkillUpdateRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> SkillResponse:
@@ -261,7 +261,7 @@ def update_skill_endpoint(
 @router.post("/skills/{skill_id}/deprecate", response_model=SkillResponse)
 def deprecate_skill_endpoint(
     skill_id: uuid.UUID,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> SkillResponse:
@@ -287,7 +287,7 @@ def deprecate_skill_endpoint(
 def merge_skill_endpoint(
     skill_id: uuid.UUID,
     payload: SkillMergeRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> SkillResponse:
