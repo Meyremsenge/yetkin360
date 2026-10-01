@@ -132,6 +132,12 @@ if errorlevel 1 (
     echo   UYARI: Seed basarisiz oldu, devam ediliyor. Yukaridaki hatayi incele.
 )
 
+echo   MinIO bucket kontrol ediliyor, idempotent...
+".venv\Scripts\python.exe" -m scripts.ensure_bucket
+if errorlevel 1 (
+    echo   UYARI: Bucket hazirlanamadi, kanit yukleme calismaz. Yukaridaki hatayi incele.
+)
+
 cd /d "%~dp0"
 echo   Backend hazir.
 echo.
