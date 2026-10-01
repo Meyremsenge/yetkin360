@@ -257,13 +257,17 @@ def verify_domain(
     # Update last_verify_attempt_at for rate-limit tracking
     org.last_verify_attempt_at = datetime.now(timezone.utc)
     session.flush()
+
+    # YET-189: read everything the DNS step needs BEFORE commit. Commit expires ORM
+    # attributes; touching them afterwards would autobegin a new transaction and the
+    # DNS call (up to `timeout` s) would run while holding a pooled connection.
+    domain = org.domain
+    txt_record = f"yetkin360_verify_{org.domain_verification_token}"
     session.commit()
 
-    txt_record = f"yetkin360_verify_{org.domain_verification_token}"
-
-    # AC-6/AC-7/AC-8: Attempt DNS TXT lookup
+    # AC-6/AC-7/AC-8: Attempt DNS TXT lookup (no open transaction here)
     try:
-        answers = resolver.resolve(org.domain, "TXT", lifetime=timeout)
+        answers = resolver.resolve(domain, "TXT", lifetime=timeout)
         # Check if our verification token is in the TXT records
         for rdata in answers:
             # Not all Rdata subtypes carry .strings (only TXT-like records do);
@@ -274,7 +278,7 @@ def verify_domain(
                     conflicting_org = session.execute(
                         select(Organization).where(
                             and_(
-                                Organization.domain == org.domain,
+                                Organization.domain == domain,
                                 Organization.verification_level == "T2",
                                 Organization.id != organization_id,
                                 Organization.deleted_at.is_(None),
@@ -283,7 +287,7 @@ def verify_domain(
                     ).scalar_one_or_none()
                     if conflicting_org:
                         raise DomainAlreadyVerifiedError(
-                            f"Domain {org.domain} is already verified in another organization"
+                            f"Domain {domain} is already verified in another organization"
                         )
 
                     # Found! Update organization to T2
