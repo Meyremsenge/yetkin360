@@ -203,7 +203,9 @@ Kesin, test edilebilir matris → [AUTHORIZATION.md](AUTHORIZATION.md).
 | `csrf_token` | ❌ (JS okumalı) | oturum | Double-submit için rastgele değer |
 
 Üçü de `Secure` + `SameSite=Lax`. `refresh_token` cookie'sinin `Path` değeri
-`/auth/refresh` — diğer isteklerde ağa çıkmaz.
+`/auth` — yalnız `/auth/*` uçlarına gider; `/auth/logout` da token ailesini
+iptal edebilsin diye `/auth/refresh` ile sınırlı değildir (YET-185). Eski
+`/auth/refresh` yollu cookie login/refresh/logout sırasında silinir.
 
 **Kritik davranışlar:**
 - Yazma metotlarında (`POST`/`PATCH`/`DELETE`) `X-CSRF-Token` başlığı

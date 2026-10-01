@@ -542,7 +542,9 @@ def logout(session: Session, refresh_token_value: str | None, actor_user_id: uui
         token = session.execute(
             select(RefreshToken).where(RefreshToken.token_hash == token_hash)
         ).scalars().first()
-        if token is not None:
+        # Only the caller's own family: a foreign token must not let one user
+        # kill another user's session.
+        if token is not None and token.user_id == actor_user_id:
             now = datetime.now(timezone.utc)
             family_tokens = session.execute(
                 select(RefreshToken).where(

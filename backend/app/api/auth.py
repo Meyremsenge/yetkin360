@@ -33,6 +33,13 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 _ACCESS_TOKEN_MAX_AGE = 15 * 60
 _REFRESH_TOKEN_MAX_AGE = 30 * 24 * 60 * 60
 
+# The refresh cookie must reach both /auth/refresh and /auth/logout (the latter
+# revokes the token family), so its Path is /auth. Sessions issued before
+# YET-185 carry the old, narrower path; it is deleted wherever the cookie is
+# set or cleared so the two copies never coexist.
+_REFRESH_COOKIE_PATH = "/auth"
+_LEGACY_REFRESH_COOKIE_PATH = "/auth/refresh"
+
 
 def _client_ip(request: Request) -> str | None:
     """audit_events.actor_ip is INET — reject anything that isn't a real address."""
@@ -62,8 +69,9 @@ def _set_auth_cookies(response: Response, tokens: auth_service.IssuedTokens) -> 
         httponly=True,
         secure=settings.cookie_secure,
         samesite="lax",
-        path="/auth/refresh",
+        path=_REFRESH_COOKIE_PATH,
     )
+    response.delete_cookie("refresh_token", path=_LEGACY_REFRESH_COOKIE_PATH)
     response.set_cookie(
         "csrf_token",
         tokens.csrf_token,
@@ -77,7 +85,8 @@ def _set_auth_cookies(response: Response, tokens: auth_service.IssuedTokens) -> 
 
 def _clear_auth_cookies(response: Response) -> None:
     response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/auth/refresh")
+    response.delete_cookie("refresh_token", path=_REFRESH_COOKIE_PATH)
+    response.delete_cookie("refresh_token", path=_LEGACY_REFRESH_COOKIE_PATH)
     response.delete_cookie("csrf_token", path="/")
 
 
