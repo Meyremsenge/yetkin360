@@ -6,7 +6,7 @@ from pathlib import Path
 
 # CRITICAL: Initialize test database URL BEFORE importing any app.* modules.
 # This ensures all engines (app, alembic, workers) use the test DB, not dev DB.
-from tests._testdb import resolve_test_database_url, assert_safe_test_url, maintenance_url
+from tests._testdb import resolve_test_database_url, assert_safe_test_url, maintenance_url, session_override
 from app.core.config import settings
 
 # Derive or override test database URL.
@@ -124,17 +124,13 @@ def client(request, session):
     TestClient with dependency overrides for database session and authentication.
 
     Overrides:
-    1. get_session to use test session (isolated transaction per test)
+    1. get_session to use test session with production commit/rollback semantics
     2. get_current_user to read X-Debug-User-Id header for tests (no real JWT needed)
 
     Tests pass X-Debug-User-Id header explicitly to set auth context.
     """
     # Use injected session fixture to ensure proper fixture ordering
     test_session = session
-
-    def override_get_session():
-        """Override get_session to use test session."""
-        return test_session
 
     def override_get_current_user(x_debug_user_id: str | None = Header(default=None)):
         """
@@ -157,7 +153,7 @@ def client(request, session):
 
         return user
 
-    app.dependency_overrides[get_session] = override_get_session
+    app.dependency_overrides[get_session] = session_override(test_session)
     app.dependency_overrides[core_get_current_user] = override_get_current_user
 
     test_client = TestClient(app)

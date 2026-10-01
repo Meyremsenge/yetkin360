@@ -20,11 +20,12 @@ from app.core.deps import get_session
 from app.core.security import hash_email_token, hash_password, hash_refresh_token
 from app.main import app
 from app.models import AuditEvent, EmailVerificationToken, PasswordResetToken, RefreshToken, TalentProfile, User
+from tests._testdb import session_override
 
 
 @pytest.fixture
 def client(session):
-    app.dependency_overrides[get_session] = lambda: session
+    app.dependency_overrides[get_session] = session_override(session)
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.pop(get_session, None)

@@ -5,11 +5,15 @@ Exports:
 - resolve_test_database_url(database_url, test_database_url=None)
 - assert_safe_test_url(url)
 - maintenance_url(url)
+- session_override(session) — factory for generator-based session override
 
 Used by conftest.py to derive test database URL from dev URL and verify safety.
 """
 
+from collections.abc import Generator
+
 from sqlalchemy.engine import make_url
+from sqlalchemy.orm import Session
 
 
 def resolve_test_database_url(
@@ -58,3 +62,22 @@ def maintenance_url(url: str) -> str:
     parsed_url = make_url(url)
     maint_url = parsed_url.set(database="postgres")
     return maint_url.render_as_string(hide_password=False)
+
+
+def session_override(session: Session):
+    """
+    Factory: return a generator that mimics production get_session semantics.
+    Commits fixture setup via savepoint (remains until test ends), then yields.
+    On success: commits request changes; on exception: rolls back and re-raises.
+    Does not close session (test fixture manages lifecycle).
+    """
+    def override() -> Generator[Session, None, None]:
+        session.commit()  # Pin test setup as committed
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+
+    return override

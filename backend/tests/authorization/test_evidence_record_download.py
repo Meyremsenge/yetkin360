@@ -30,6 +30,7 @@ from app.api.deps import get_session
 from app.core.security import encode_access_token
 from app.main import app
 from app.models import User
+from tests._testdb import session_override
 
 # NOTE: These imports will fail during red phase (TDD) and cause collection error (FAILED).
 # This is expected and correct — tests must show red (FAILED), not SKIP or pass silently.
@@ -49,10 +50,7 @@ def client_with_auth(session):
     TestClient with session override + real access token cookies.
     Tests must call set_auth_cookies(client, user) to authenticate.
     """
-    def override_get_session():
-        return session
-
-    app.dependency_overrides[get_session] = override_get_session
+    app.dependency_overrides[get_session] = session_override(session)
 
     with TestClient(app) as c:
         yield c
