@@ -141,17 +141,25 @@ def create_engagement(
     except ValueError:
         raise InstitutionMismatchError(f"Invalid institution_id format: {institution_id}")
 
-    # Default-deny: only TALENT, ORG_MEMBER, ORG_ADMIN can create engagements
-    if principal.kind not in ("TALENT", "ORG_MEMBER", "ORG_ADMIN"):
-        raise TalentNotFoundError("Not authorized to create engagements")
+    # Default-deny: check authorization via membership lists, not kind
+    # own_talent: principal can create for their own talent_id
+    own_talent = (
+        principal.talent_id is not None
+        and principal.talent_id == talent_uuid
+    )
+    # has_org_membership: principal is member or admin of the organization
+    has_org_membership = org_uuid in principal.org_ids
 
-    # Validate talent exists and is accessible to principal
-    # AC-S1: TALENT can only create for their own talent_id
-    # AC-S1: ORG_MEMBER can create for any talent_id, but must check tenant isolation
-    if principal.kind == "TALENT":
-        # TALENT can only create engagement for themselves
-        if principal.talent_id != talent_uuid:
-            raise TalentNotFoundError(f"Talent {talent_id} not found or not accessible")
+    if not (own_talent or has_org_membership):
+        # Authorization check failed: determine which error to raise
+        if principal.org_ids:
+            # Principal has organization memberships but not this one
+            raise OrganizationNotFoundError(
+                f"Organization {organization_id} not found or not accessible"
+            )
+        else:
+            # Principal has no organization memberships
+            raise TalentNotFoundError("Not authorized to create engagements")
 
     # Verify talent exists
     talent = session.execute(
@@ -160,14 +168,6 @@ def create_engagement(
 
     if not talent:
         raise TalentNotFoundError(f"Talent {talent_id} not found")
-
-    # Validate organization exists and is accessible to principal
-    # AC-S2: ORG_MEMBER can only create for their own organizations
-    if principal.kind in ("ORG_MEMBER", "ORG_ADMIN"):
-        if org_uuid not in principal.org_ids:
-            raise OrganizationNotFoundError(
-                f"Organization {organization_id} not found or not accessible"
-            )
 
     org = session.execute(
         select(Organization).where(Organization.id == org_uuid)
@@ -281,57 +281,41 @@ def transition_engagement(
     if engagement.version != version:
         raise VersionConflictError("Version conflict: engagement has been modified since retrieval")
 
+    # Compute engagement relation (AC-S1: masking rule for self-dealing prevention)
+    from app.services.authorization import engagement_relation
+    rel = engagement_relation(principal, engagement)
+
     # Transition table (5 valid transitions)
     # Each entry: from_status -> to_status -> (allowed_roles, preconditions, authorization check)
     transition_table: dict[tuple[str, str], TransitionSpec] = {
         ("DRAFT", "PENDING_APPROVAL"): {
             "preconditions": ["institution_id_not_null"],
             "can_transition": lambda: (
-                (principal.kind == "TALENT" and principal.talent_id == engagement.talent_id)
-                or (
-                    principal.kind in ("ORG_MEMBER", "ORG_ADMIN")
-                    and engagement.organization_id in principal.org_ids
-                )
+                rel.is_subject or rel.is_org_member
             ),
         },
         ("PENDING_APPROVAL", "ACTIVE"): {
             "preconditions": [],
             "can_transition": lambda: (
-                principal.kind == "COORDINATOR"
-                and engagement.institution_id in principal.institution_ids
+                rel.is_coordinator
             ),
         },
         ("PENDING_APPROVAL", "REJECTED"): {
             "preconditions": ["reason_not_empty"],
             "can_transition": lambda: (
-                principal.kind == "COORDINATOR"
-                and engagement.institution_id in principal.institution_ids
+                rel.is_coordinator
             ),
         },
         ("ACTIVE", "CANCELLED"): {
             "preconditions": ["reason_not_empty"],
             "can_transition": lambda: (
-                (
-                    principal.kind == "ORG_ADMIN"
-                    and engagement.organization_id in principal.org_admin_ids
-                )
-                or (
-                    principal.kind == "COORDINATOR"
-                    and engagement.institution_id in principal.institution_ids
-                )
+                rel.is_org_admin or rel.is_coordinator
             ),
         },
         ("ACTIVE", "PENDING_EVALUATION"): {
             "preconditions": ["has_deliverable"],
             "can_transition": lambda: (
-                (
-                    principal.kind in ("ORG_MEMBER", "ORG_ADMIN")
-                    and engagement.organization_id in principal.org_ids
-                )
-                or (
-                    principal.kind == "COORDINATOR"
-                    and engagement.institution_id in principal.institution_ids
-                )
+                rel.is_org_member or rel.is_coordinator
             ),
         },
     }
@@ -475,13 +459,20 @@ def create_engagement_task(
     if engagement.status != "ACTIVE":
         raise PreconditionFailedError("Task can only be created on ACTIVE engagements")
 
-    # AC-S1: TALENT cannot create tasks (even on their own engagement)
-    if principal.kind == "TALENT":
+    # Compute engagement relation (AC-S1: masking rule for self-dealing prevention)
+    from app.services.authorization import engagement_relation
+    rel = engagement_relation(principal, engagement)
+
+    # AC-S1: talent cannot create tasks (even if org member/coordinator)
+    if rel.is_subject and not rel.has_org_side_link:
         raise TransitionForbiddenError("Talent cannot create tasks")
 
-    # AC-1: Only COORDINATOR/ORG_MEMBER/ORG_ADMIN can create tasks
-    if principal.kind not in ("COORDINATOR", "ORG_MEMBER", "ORG_ADMIN"):
-        raise TransitionForbiddenError("Not authorized to create tasks")
+    # Only org members and coordinators can create tasks
+    if not (rel.is_org_member or rel.is_coordinator):
+        if rel.is_subject:
+            raise TransitionForbiddenError("Talent cannot create tasks")
+        else:
+            raise TransitionForbiddenError("Not authorized to create tasks")
 
     # AC-7: Validate skill_id BEFORE writing anything
     skill_id_uuid = None
@@ -597,13 +588,13 @@ def create_deliverable(
     if engagement.status != "ACTIVE":
         raise PreconditionFailedError("Deliverable can only be submitted on ACTIVE engagements")
 
-    # AC-S2: Only TALENT can submit deliverables
-    if principal.kind != "TALENT":
-        raise TransitionForbiddenError("Only talent can submit deliverables")
+    # Compute engagement relation (AC-S1: masking rule for self-dealing prevention)
+    from app.services.authorization import engagement_relation
+    rel = engagement_relation(principal, engagement)
 
-    # AC-2: TALENT must be the one the engagement refers to
-    if principal.talent_id != engagement.talent_id:
-        raise EngagementNotFoundError(f"Engagement {engagement_id} not found")
+    # AC-S2: Only TALENT can submit deliverables
+    if not rel.is_subject:
+        raise TransitionForbiddenError("Only talent can submit deliverables")
 
     # AC-7: Validate skill_id BEFORE writing anything
     skill_id_uuid = None
@@ -704,9 +695,6 @@ def get_coordinator_dashboard(
     # Authorization: Only COORDINATOR and INST_ADMIN can access dashboard
     # Per-institution check: institution_id must be in principal.institution_ids
     if principal.user_id is None:
-        raise ValueError("Not authorized to access dashboard")
-
-    if principal.kind not in ("COORDINATOR", "INST_ADMIN"):
         raise ValueError("Not authorized to access dashboard")
 
     if inst_uuid not in principal.institution_ids:

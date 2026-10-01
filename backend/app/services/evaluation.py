@@ -109,25 +109,29 @@ def create_evaluation(
                 f"Engagement must be PENDING_EVALUATION or EVALUATED for TALENT_TO_ORG, got {engagement.status}"
             )
 
+    # Compute engagement relation (AC-S1: masking rule for self-dealing prevention)
+    from app.services.authorization import engagement_relation
+    rel = engagement_relation(principal, engagement)
+
     # AC-S3: Direction/role consistency check
-    # TALENT can only POST TALENT_TO_ORG; ORG_MEMBER/ORG_ADMIN can only POST ORG_TO_TALENT
-    if principal.kind == "TALENT":
+    # TALENT can only POST TALENT_TO_ORG; ORG_MEMBER can only POST ORG_TO_TALENT
+    if rel.is_subject:
         if direction != "TALENT_TO_ORG":
             raise TransitionForbiddenError(
                 "Talent can only submit TALENT_TO_ORG evaluations"
             )
-    elif principal.kind in ("ORG_MEMBER", "ORG_ADMIN"):
+    elif rel.is_org_member:
         if direction != "ORG_TO_TALENT":
             raise TransitionForbiddenError(
                 "Organization members can only submit ORG_TO_TALENT evaluations"
             )
-    elif principal.kind == "COORDINATOR":
+    elif rel.is_coordinator:
         # Coordinators have no evaluation permission
         raise TransitionForbiddenError(
             "Coordinators cannot submit evaluations"
         )
     else:
-        # ADMIN and others
+        # Not authorized
         raise TransitionForbiddenError(
             "Not authorized to submit evaluations"
         )
@@ -196,7 +200,7 @@ def create_evaluation(
                 source_type="EVALUATION",
                 source_id=evaluation.id,
                 strength=strength,
-                attested_by_org_id=engagement.organization_id if principal.kind in ("ORG_MEMBER", "ORG_ADMIN") else None,
+                attested_by_org_id=engagement.organization_id if rel.is_org_member else None,
                 occurred_at=now,
                 superseded_by_id=None,
             )

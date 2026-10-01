@@ -39,7 +39,9 @@ def get_current_principal(
     talent = session.query(TalentProfile).filter_by(user_id=user.id).first()
     talent_id = talent.id if talent else None
 
-    # Infer kind based on memberships/profile (highest privilege level)
+    # Infer kind based on memberships/profile (highest privilege level, display only)
+    # Note: kind is display-only and never used in authorization decisions (AC-6);
+    # authorization uses membership ID lists (org_ids, org_admin_ids, etc.)
     if institution_admin_ids:
         kind = "INST_ADMIN"
     elif institution_ids:

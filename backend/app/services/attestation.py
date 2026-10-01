@@ -137,7 +137,7 @@ def _check_competence_preconditions(
     # If institution_id NOT NULL, attestor must be COORDINATOR of that institution
     if engagement.institution_id is not None:
         # Principal must be COORDINATOR of this institution
-        is_coordinator = principal.kind == "COORDINATOR" and engagement.institution_id in principal.institution_ids
+        is_coordinator = engagement.institution_id in principal.coordinator_institution_ids
         if not is_coordinator:
             downgrade_reasons.append("COORDINATOR_CONFIRMATION_MISSING")
 
@@ -193,8 +193,13 @@ def create_attestation(
     if engagement is None:
         raise EngagementNotFoundError(f"Engagement {engagement_id} not found or not accessible")
 
+    # Compute engagement relation (AC-S1: masking rule for self-dealing prevention)
+    from app.services.authorization import engagement_relation
+    rel = engagement_relation(principal, engagement)
+
     # AC-4: TALENT forbidden to attest (S6 exception: return 403, not 404)
-    if principal.kind == "TALENT":
+    # Also check: talent without org-side membership cannot attest (pure talent case)
+    if rel.is_subject and not rel.has_org_side_link:
         raise TransitionForbiddenError("Talent cannot submit attestations")
 
     # Role check per STATE_MACHINE.md T8: institution_id NOT NULL -> COORDINATOR only,
@@ -204,13 +209,13 @@ def create_attestation(
     # scoped_engagements but not authorized for THIS action; not TALENT, so not the S6 403 case).
     if engagement.institution_id is not None:
         # institution_id NOT NULL: only COORDINATOR of this institution can attest
-        if not (principal.kind == "COORDINATOR" and engagement.institution_id in principal.institution_ids):
+        if not rel.is_coordinator:
             raise EngagementNotFoundError(
                 f"Engagement {engagement_id} not accessible for attestation (role not authorized)"
             )
     else:
         # institution_id NULL: only ORG_ADMIN of this organization can attest
-        if not (principal.kind == "ORG_ADMIN" and engagement.organization_id in principal.org_admin_ids):
+        if not rel.is_org_admin:
             raise EngagementNotFoundError(
                 f"Engagement {engagement_id} not accessible for attestation (role not authorized)"
             )

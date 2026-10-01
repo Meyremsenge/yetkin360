@@ -244,7 +244,7 @@ def invite_member_endpoint(
         raise HTTPException(status_code=404, detail="Organization not found")
 
     # Check if principal is ADMIN of this organization
-    if principal.kind != "ORG_ADMIN" or organization_id not in principal.org_admin_ids:
+    if organization_id not in principal.org_admin_ids:
         raise HTTPException(status_code=404, detail="Organization not found")
 
     try:
@@ -338,7 +338,7 @@ def verify_domain_endpoint(
         raise HTTPException(status_code=404, detail="Organization not found")
 
     # Check if principal is ADMIN of this organization
-    if principal.kind != "ORG_ADMIN" or organization_id not in principal.org_admin_ids:
+    if organization_id not in principal.org_admin_ids:
         raise HTTPException(status_code=404, detail="Organization not found")
 
     # AC-S5: Validate domain format before DNS lookup (prevent SSRF)
