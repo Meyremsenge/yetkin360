@@ -9,6 +9,7 @@ import {
   listEvidenceForDeliverable,
 } from "@/lib/api/evidence";
 import type { EvidenceRecord } from "@/lib/api/evidence";
+import messages from "@/messages/tr.json";
 
 vi.mock("@/lib/api/evidence", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api/evidence")>();
@@ -161,7 +162,7 @@ describe("EvidenceUploadForm", () => {
     await user.upload(input, makeFile("rapor.pdf", "application/pdf"));
 
     await waitFor(() => {
-      expect(screen.getByText("Bir hata oluştu. Lütfen daha sonra tekrar deneyin.")).toBeTruthy();
+      expect(screen.getByText(messages.errors.generic)).toBeTruthy();
     });
     expect(recordEvidence).not.toHaveBeenCalled();
   });

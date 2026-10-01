@@ -1,0 +1,97 @@
+{
+  "task": "yet-217-test-izolasyonu",
+  "reviewed_at": "2026-10-01",
+  "summary": "Test paketi kırmızıdan yeşile döndü (backend 838/0, authz 360 korundu, frontend 823/0) ve dev DB'ye iz kalmıyor. Kritik/yüksek bulgu yok; orta seviyede iki test boşluğu (panel regex'i zayıfladı, davranış sözleşmesi satır 2/3 ve AC-2 doğrudan test edilmedi) ve birkaç küçük bakım kusuru var.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "test-gap",
+      "file": "frontend/app/kurum/[id]/panel/page.test.tsx",
+      "issue": "404 testinin 'yetki sızıntısı yok' assert'i /erişiminiz yok|yetkiniz yok/i ile daraltıldı; 'Erişim reddedildi', 'Bu kuruma erişim yetkiniz bulunmuyor' gibi diğer 403-tarzı ifadeleri yakalamaz.",
+      "better_approach": "Negatif assert'i beklenen tek mesaja bağla: hata bölgesinin metni yalnız 'Kurum bulunamadı.' olsun (role=alert/ilgili kapsayıcı içinde), AppShell dışında kalsın.",
+      "reason": "Test kuralı: assert gevşetilmez (.claude/rules/testing.md). Regex yalnız AppShell'deki 'Yetkinlik Yönetimi'ni dışlamak için değil, tüm sayfayı kapsadığı için aşırı genişti; çözüm kapsamı daraltmak olmalıydı, ifade listesini daraltmak değil. Güvenlik niyeti: 404, 403 mesajı sızdırmaz (atdd AC-6)."
+    },
+    {
+      "severity": "medium",
+      "category": "test-gap",
+      "file": "backend/tests/test_db_isolation.py",
+      "issue": "Davranış sözleşmesi satır 2 (sunucuya bağlanılamıyor → açık hata), satır 3 (eski şema) ve AC-2 (boş ↔ seed'li DB aynı sonuç) için doğrudan test yok; yalnız URL yardımcıları ve canlı DB adı test ediliyor.",
+      "better_approach": "conftest'in bağlantı-hata dalını (OperationalError → pytest.exit mesajı) küçük bir birim testle sına; AC-2 için en azından 'test DB her koşuda boş başlar' (örn. talent_profiles sayısı 0) iddiasını bir testle sabitle.",
+      "reason": "atdd.md Davranış Sözleşmesi: 'Tabloda olmayan hata durumu test edilmeyen hata durumudur'. verify_report AC-2 kanıtını dolaylı (paket yeşil) gösteriyor."
+    },
+    {
+      "severity": "medium",
+      "category": "reliability",
+      "file": "backend/tests/conftest.py",
+      "issue": "is_local = dev_url != test_url: dev DB adı 'test' ile biterse (örn. 'mytest') drop/create atlanır, alembic upgrade dev DB'ye uygulanır ve testler commit ettiği satırları orada bırakır (test_auth_*_real_session). Ayrıca CI dışı bu durumda izolasyon sessizce kalkar.",
+      "better_approach": "Yerel/CI ayrımını ad yerine açık sinyalle yap (CI=true ortam değişkeni) veya dev adı 'test' ile bitiyorsa reddet.",
+      "reason": "atdd.md sözleşme satır 8 'sessizce dev DB'ye düşmek YASAK'; koruma yalnız ad sonekine dayanıyor."
+    },
+    {
+      "severity": "low",
+      "category": "maintainability",
+      "file": "backend/tests/conftest.py",
+      "issue": "Bağlantı hatası tespiti 'OperationalError' in type(e).__name__ string eşlemesi; ayrıca 'raise RuntimeError(f\"Migration failed: {e}\")' zincirleme (from e) olmadan orijinal traceback'i gizler.",
+      "better_approach": "from sqlalchemy.exc import OperationalError; except OperationalError; migration hatasında 'raise ... from e' veya hiç yakalama (alembic hatası zaten açık).",
+      "reason": "Okunabilirlik ve hata ayıklama; except Exception yutma/yeniden-sarma deseni gereksiz."
+    },
+    {
+      "severity": "low",
+      "category": "caveman",
+      "file": "backend/tests/test_db_isolation.py",
+      "issue": "~300 satır, 13 test; 'already_test_suffix', 'exact_test_name', 'rejects_partial_match', 'special_db_name', 'preserves_query_params' büyük ölçüde aynı davranışı tekrar sınıyor. _testdb.py'de de uzun docstring'ler var.",
+      "better_approach": "pytest.mark.parametrize ile tek tabloda ~5 test; docstring'leri kısalt.",
+      "reason": "CAVEMAN: en küçük yeterli test seti; mevcut proje testleri düz ve kısa."
+    },
+    {
+      "severity": "low",
+      "category": "readability",
+      "file": "backend/tests/conftest.py",
+      "issue": "Bölüm başlığı 'create/upgrade at session start, clean at end' ama sonunda temizlik yok (test DB sonraki koşuda drop ediliyor); modül docstring'i hâlâ 'institution tests'; '# ruff: noqa: E402' import bloğunun ortasında.",
+      "better_approach": "Başlığı düzelt, docstring'i güncelle, noqa direktifini dosyanın başına al.",
+      "reason": "Yanıltıcı yorum; ruff dosya-seviyesi direktifler konumdan bağımsız çalışsa da okuyucu için yanıltıcı."
+    },
+    {
+      "severity": "low",
+      "category": "scope",
+      "file": "backend/alembic/env.py",
+      "issue": "plan.md'de olmayan değişiklik: fileConfig(..., disable_existing_loggers=False).",
+      "better_approach": "Değişiklik kalsın; commit mesajında ve PR'da ayrıca belirtilsin.",
+      "reason": "Kanıtlı kök neden (logger.disabled=True, caplog boş; test_worker_logs_error_without_payload) ve atdd AC-1'i karşılamak için gerekli; migration dosyası değil. Kapsam genişlemesi küçük ve belgeli."
+    }
+  ],
+  "strengths": [
+    "Tek noktadan çözüm: settings.database_url conftest'te değiştirilerek 8+ test dosyası, uygulama engine'leri ve alembic otomatik test DB'sine yönlendi; test dosyaları tek tek düzenlenmedi.",
+    "Koruma: DB adı 'test' ile bitmiyorsa RuntimeError, parola hata mesajında yok; dev DB satır sayıları koşu öncesi/sonrası birebir aynı (kanıtlı).",
+    "Testler silinmedi/skip edilmedi; bayat metin testleri messages.errors.generic'e bağlandı (tr.json değişince bayatlamaz).",
+    "Kök neden analizleri kanıtlı: panel testi 'aralıklı' değil deterministikti; logger devre dışı kalması fileConfig ile yeniden üretildi.",
+    "ci.yml'e yalnız tek satır eklendi; backend CI zaten izole (DB adı 'test')."
+  ],
+  "risks": [
+    "Frontend evaluation.ts hâlâ localStorage mock'u (dosya başlığı 'backend ucu HİÇ YOK' diyor) oysa backend değerlendirme ucu var; testin getEngagement'ı mock'lanması bu eksik bağlamayı görünmez kılabilir (ayrı iş, bu görevin kapsamı dışı).",
+    "AppShell'in koordinatöre 'Yetkinlik Yönetimi' bağlantısı göstermesi ayrı UX/yetki-sızıntısı bulgusu olabilir (yalnız UX, güvenlik sınırı değil).",
+    "ci.yml'deki 4 'yalnız CI' sahte-değer secrets bulgusu YET-240 kapsamında duruyor.",
+    "CI'da frontend vitest ilk kez koşacak; ortam farklılığından kaynaklı yeni kırıklar çıkabilir (yerelde 823/823)."
+  ],
+  "caveman_review": {
+    "complexity": "medium",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 1,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": true
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve-with-changes"
+}
