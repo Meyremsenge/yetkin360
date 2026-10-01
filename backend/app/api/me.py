@@ -48,6 +48,7 @@ class UserResponse(BaseModel):
 
     id: uuid.UUID
     email: str
+    email_verified: bool
 
     class Config:
         from_attributes = True
@@ -145,7 +146,11 @@ def get_me(
     ]
 
     return GetMeResponse(
-        user=UserResponse(id=user.id, email=user.email),
+        user=UserResponse(
+            id=user.id,
+            email=user.email,
+            email_verified=user.email_verified_at is not None,
+        ),
         talent_profile=TalentProfileResponse.from_orm(context["talent_profile"]),
         organizations=org_responses,
         institutions=inst_responses,

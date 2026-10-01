@@ -233,6 +233,21 @@ def test_unverified_user_can_still_read_logout_and_refresh(world):
     assert client.post("/auth/logout", headers=csrf).status_code == 204
 
 
+def test_me_reports_email_verified_state(world):
+    unverified_id, unverified_email = world.make_user(verified=False)
+    verified_id, verified_email = world.make_user(verified=True)
+
+    client, _ = world.login(unverified_email)
+    body = client.get("/me").json()
+    assert body["user"]["id"] == str(unverified_id)
+    assert body["user"]["email_verified"] is False
+
+    client, _ = world.login(verified_email)
+    body = client.get("/me").json()
+    assert body["user"]["id"] == str(verified_id)
+    assert body["user"]["email_verified"] is True
+
+
 # ---------------------------------------------------------------------------
 # POST /auth/resend-verification
 # ---------------------------------------------------------------------------

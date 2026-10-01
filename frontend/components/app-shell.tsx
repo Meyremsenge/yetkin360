@@ -4,6 +4,7 @@ import { ReactNode } from "react";
 import Link from "next/link";
 import { useSession, useLogout } from "@/lib/session/use-session";
 import { ErrorBanner } from "@/components/error-banner";
+import { EmailVerificationBanner } from "@/components/email-verification-banner";
 import { Button } from "@/components/ui/button";
 import {
   NetworkError,
@@ -108,6 +109,13 @@ export function AppShell({ children }: { children: ReactNode }) {
               />
             );
           })()}
+        </div>
+      )}
+
+      {/* YET-196: unverified e-mail -> explain the 401 and offer a new link */}
+      {session.data && session.data.user.email_verified === false && (
+        <div className="mb-4 mx-4 mt-4">
+          <EmailVerificationBanner />
         </div>
       )}
 

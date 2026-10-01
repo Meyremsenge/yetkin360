@@ -8,6 +8,13 @@
     "loading": "Yükleniyor...",
     "noOrganizations": "Henüz bir kuruluşunuz yok. Lütfen yöneticinize başvurun."
   },
+  "emailVerificationBanner": {
+    "message": "E-posta adresiniz doğrulanmadı. Doğrulanana kadar kayıt oluşturamaz veya değişiklik yapamazsınız.",
+    "resend": "Doğrulama bağlantısını yeniden gönder",
+    "sending": "Gönderiliyor...",
+    "sent": "İstek alındı. E-postanızı kontrol edin; bağlantı gelmezse bir dakika sonra tekrar deneyin.",
+    "failed": "Bağlantı gönderilemedi. Lütfen tekrar deneyin."
+  },
   "session": {
     "expired": "Oturumunuz sona erdi. Lütfen tekrar giriş yapınız.",
     "loadFailed": "Bilgileriniz şu an yüklenemedi.",
