@@ -30,8 +30,6 @@ from app.services import auth as auth_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-_ACCESS_TOKEN_MAX_AGE = 15 * 60
-_REFRESH_TOKEN_MAX_AGE = 30 * 24 * 60 * 60
 
 # The refresh cookie must reach both /auth/refresh and /auth/logout (the latter
 # revokes the token family), so its Path is /auth. Sessions issued before
@@ -53,10 +51,14 @@ def _client_ip(request: Request) -> str | None:
 
 
 def _set_auth_cookies(response: Response, tokens: auth_service.IssuedTokens) -> None:
+    # YET-228: cookie lifetimes follow the same settings the JWT / refresh row
+    # use, read at call time so the two can never drift apart.
+    access_max_age = settings.access_token_ttl_minutes * 60
+    refresh_max_age = settings.refresh_token_ttl_days * 24 * 60 * 60
     response.set_cookie(
         "access_token",
         tokens.access_token,
-        max_age=_ACCESS_TOKEN_MAX_AGE,
+        max_age=access_max_age,
         httponly=True,
         secure=settings.cookie_secure,
         samesite="lax",
@@ -65,7 +67,7 @@ def _set_auth_cookies(response: Response, tokens: auth_service.IssuedTokens) -> 
     response.set_cookie(
         "refresh_token",
         tokens.refresh_token,
-        max_age=_REFRESH_TOKEN_MAX_AGE,
+        max_age=refresh_max_age,
         httponly=True,
         secure=settings.cookie_secure,
         samesite="lax",
@@ -75,7 +77,7 @@ def _set_auth_cookies(response: Response, tokens: auth_service.IssuedTokens) -> 
     response.set_cookie(
         "csrf_token",
         tokens.csrf_token,
-        max_age=_REFRESH_TOKEN_MAX_AGE,
+        max_age=refresh_max_age,
         httponly=False,
         secure=settings.cookie_secure,
         samesite="lax",
