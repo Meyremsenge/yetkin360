@@ -18,7 +18,12 @@ from app.core.deps import require_csrf
 from app.core.errors import ApiError
 from app.services.audit import log_audit_event
 from app.services.authorization import Principal
-from app.services.organization import list_verification_queue, set_verification_level
+from app.services.organization import (
+    NotPendingError,
+    list_verification_queue,
+    reject_verification,
+    set_verification_level,
+)
 from app.services.skill import (
     DuplicateSkillSlugError,
     InvalidSkillReferenceError,
@@ -63,6 +68,10 @@ class VerificationQueueResponse(BaseModel):
 
 class VerificationLevelUpdate(BaseModel):
     verification_level: VerificationLevel
+    note: Optional[str] = Field(None, max_length=1000)
+
+
+class VerificationReject(BaseModel):
     note: Optional[str] = Field(None, max_length=1000)
 
 
@@ -140,8 +149,8 @@ def update_verification_level(
     _csrf: None = Depends(require_csrf),
 ) -> OrganizationSummary:
     """
-    Approve (level yükselt) veya reddet (level'ı değiştirmeden not düş).
-    Her çağrı audit_events'e yazılır — sonuç değişmese bile.
+    Seviyeyi ayarla (onay = yükseltme). Reddetmek için verification-reject ucu kullanılır.
+    Her çağrı audit_events'e yazılır; serbest metin `note` yazılmaz, yalnız uzunluğu.
     """
     _require_admin(principal)
 
@@ -162,7 +171,42 @@ def update_verification_level(
         subject_type="organization",
         subject_id=organization_id,
         result="SUCCESS",
-        metadata={"verification_level": payload.verification_level, "note": payload.note},
+        metadata={
+            "verification_level": payload.verification_level,
+            "note_length": len(payload.note or ""),
+        },
+    )
+
+    return OrganizationSummary.model_validate(org)
+
+
+@router.post("/organizations/{organization_id}/verification-reject", response_model=OrganizationSummary)
+def reject_verification_endpoint(
+    organization_id: uuid.UUID,
+    payload: VerificationReject,
+    principal: Principal = Depends(get_verified_principal),
+    session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
+) -> OrganizationSummary:
+    """Bekleyen T3 başvurusunu reddet: kurum kuyruktan çıkar, seviye ve verified_at değişmez (YET-198)."""
+    _require_admin(principal)
+
+    try:
+        org = reject_verification(session, organization_id=organization_id)
+    except NotPendingError:
+        raise ApiError(409, "NOT_PENDING", "Kurum doğrulama kuyruğunda değil.")
+    if org is None:
+        raise ApiError(404, "NOT_FOUND", "Kurum bulunamadı.")
+
+    log_audit_event(
+        session=session,
+        actor_user_id=principal.user_id,
+        actor_ip=None,
+        action="ADMIN_REJECT_VERIFICATION",
+        subject_type="organization",
+        subject_id=organization_id,
+        result="SUCCESS",
+        metadata={"note_length": len(payload.note or "")},
     )
 
     return OrganizationSummary.model_validate(org)

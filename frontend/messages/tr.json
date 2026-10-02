@@ -226,6 +226,8 @@
     "empty": "Bekleyen doğrulama isteği yok",
     "notFound": "Kaynak bulunamadı.",
     "updated": "Doğrulama seviyesi güncellendi",
+    "rejected": "Başvuru reddedildi",
+    "notPending": "Kurum artık doğrulama kuyruğunda değil.",
     "headers": {
       "name": "Kurum Adı",
       "legalId": "Ticari Kayıt",
@@ -235,7 +237,8 @@
     },
     "form": {
       "levelLabel": "Doğrulama Seviyesi",
-      "confirm": "Onayla"
+      "confirm": "Onayla",
+      "reject": "Reddet"
     }
   },
   "adminSkills": {

@@ -505,7 +505,8 @@ tek ekrandaki kanıtı:
 | Metot | Yol | İstek | Cevap | Hatalar |
 |---|---|---|---|---|
 | `GET` | `/admin/verification-queue` | `limit?`, `offset?` | `200` — bekleyen kurum doğrulamaları | — |
-| `POST` | `/admin/organizations/{id}/verification-level` | `verification_level`, `note?` | `200` | `404`, `422` |
+| `POST` | `/admin/organizations/{id}/verification-level` | `verification_level`, `note?` | `200` — `verified_at` yalnız seviye yükselince güncellenir | `404`, `422` |
+| `POST` | `/admin/organizations/{id}/verification-reject` | `note?` | `200` — kurum kuyruktan çıkar, seviye değişmez | `404`, `409 NOT_PENDING` |
 
 - Admin uçları **offset sayfalama** kullanabilir (§1.6).
 - Her doğrulama seviyesi değişikliği `audit_events` üretir.

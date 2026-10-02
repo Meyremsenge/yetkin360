@@ -315,6 +315,13 @@ def verify_domain(
         }
 
 
+class NotPendingError(Exception):
+    """Raised when rejecting an organization that is not in the verification queue."""
+
+
+_LEVEL_RANK = {"T1": 1, "T2": 2, "T3": 3, "T4": 4}
+
+
 def list_verification_queue(session: Session, limit: int = 50, offset: int = 0) -> list[Organization]:
     """
     List organizations awaiting T3 review (admin-only — PLAN 3.6/YET-136).
@@ -322,6 +329,7 @@ def list_verification_queue(session: Session, limit: int = 50, offset: int = 0) 
     A T2 organization with a legal_id set is treated as "applied for T3"
     (docs/DOMAIN.md §3.4: T3 requires MERSİS/vergi no, simplified to legal_id
     in this schema — see AUTHORIZATION.md §2.4). Oldest first (fairness).
+    Rejected applications (verification_rejected_at set) are excluded (YET-198).
     """
     stmt = (
         select(Organization)
@@ -330,6 +338,7 @@ def list_verification_queue(session: Session, limit: int = 50, offset: int = 0) 
             Organization.legal_id.isnot(None),
             Organization.status == "ACTIVE",
             Organization.deleted_at.is_(None),
+            Organization.verification_rejected_at.is_(None),
         )
         .order_by(Organization.created_at.asc())
         .offset(offset)
@@ -346,9 +355,10 @@ def set_verification_level(
 ) -> Optional[Organization]:
     """
     Set an organization's verification_level as a platform admin decision
-    (admin-only — PLAN 3.6/YET-136). Covers both "approve" (e.g. T2 → T3)
-    and "reject" (level left unchanged) — the caller logs the note/reason
-    as an audit event regardless of outcome.
+    (admin-only — PLAN 3.6/YET-136). Rejecting is a separate action
+    (reject_verification). verified_at/verified_by and the rejection mark are
+    touched only when the level is RAISED; same value or downgrade changes
+    nothing but the level itself (YET-198).
 
     Returns None if the organization does not exist.
     """
@@ -356,8 +366,34 @@ def set_verification_level(
     if org is None or org.deleted_at is not None:
         return None
 
+    if _LEVEL_RANK[verification_level] > _LEVEL_RANK[org.verification_level]:
+        org.verified_at = datetime.now(timezone.utc)
+        org.verified_by_user_id = admin_user_id
+        org.verification_rejected_at = None
     org.verification_level = verification_level
-    org.verified_at = datetime.now(timezone.utc)
-    org.verified_by_user_id = admin_user_id
+    session.flush()
+    return org
+
+
+def reject_verification(session: Session, organization_id: uuid.UUID) -> Optional[Organization]:
+    """
+    Reject a pending T3 application (admin-only — YET-198): the organization
+    leaves the queue; level, verified_at and verified_by stay untouched.
+
+    Returns None if the organization does not exist; raises NotPendingError if
+    it is not currently in the queue (not T2 + legal_id, or already rejected).
+    """
+    org = session.get(Organization, organization_id)
+    if org is None or org.deleted_at is not None:
+        return None
+    if (
+        org.verification_level != "T2"
+        or org.legal_id is None
+        or org.status != "ACTIVE"
+        or org.verification_rejected_at is not None
+    ):
+        raise NotPendingError(str(organization_id))
+
+    org.verification_rejected_at = datetime.now(timezone.utc)
     session.flush()
     return org
