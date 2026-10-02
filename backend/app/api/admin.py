@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -33,6 +33,8 @@ from app.services.skill import (
     merge_skill,
     update_skill,
 )
+
+MAX_PAGE_SIZE = 200
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -129,8 +131,8 @@ class SkillsListResponse(BaseModel):
 
 @router.get("/verification-queue", response_model=VerificationQueueResponse)
 def get_verification_queue(
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(50, ge=1, le=MAX_PAGE_SIZE),
+    offset: int = Query(0, ge=0),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
 ) -> VerificationQueueResponse:
@@ -219,8 +221,8 @@ def reject_verification_endpoint(
 
 @router.get("/skills", response_model=SkillsListResponse)
 def list_skills_endpoint(
-    limit: int = 200,
-    offset: int = 0,
+    limit: int = Query(200, ge=1, le=MAX_PAGE_SIZE),
+    offset: int = Query(0, ge=0),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
 ) -> SkillsListResponse:
