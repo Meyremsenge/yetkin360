@@ -13,7 +13,9 @@ from app.core.errors import ApiError
 from app.core.security import decode_access_token
 from app.models import User
 
-_engine = create_engine(settings.database_url)
+# pool_pre_ping: after a DB restart, stale pooled connections are replaced on
+# checkout instead of failing the first requests with a 500 (YET-234).
+_engine = create_engine(settings.database_url, pool_pre_ping=True)
 _SessionLocal = sessionmaker(bind=_engine)
 
 
