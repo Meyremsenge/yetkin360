@@ -51,9 +51,11 @@ class Settings(BaseSettings):
     evidence_max_size_bytes: int = 10485760
 
     # İlk platform admin — yalnız scripts/seed.py tarafından kullanılır (PLAN 3.6).
-    # Self-servis admin-olma ucu yoktur; prod'da bu değerler .env üzerinden değiştirilir.
+    # Self-servis admin-olma ucu yoktur. Parola için bilerek varsayılan yok (YET-229):
+    # tahmin edilebilir bir fallback admin hesabına dönüşebilir; seed_admin boş,
+    # placeholder veya kısa parolayı reddeder, .env'de SEED_ADMIN_PASSWORD verilmeli.
     seed_admin_email: str = "admin@yetkin360.local"
-    seed_admin_password: str = "DEGISTIR_admin_parola"
+    seed_admin_password: str = ""
 
 
 settings = Settings()  # type: ignore[call-arg]  # values come from .env

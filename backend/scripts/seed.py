@@ -320,6 +320,10 @@ def seed_skills(session: Session) -> None:
     print(f"Skill seed complete: {inserted_count} inserted, {skipped_count} already exist")
 
 
+MIN_ADMIN_PASSWORD_LENGTH = 12
+ADMIN_PASSWORD_PLACEHOLDER_PREFIX = "DEGISTIR_"
+
+
 def seed_admin(session: Session) -> None:
     """
     Idempotently seed the first platform admin (PLAN 3.6 — YET-110).
@@ -335,6 +339,19 @@ def seed_admin(session: Session) -> None:
     if existing:
         print(f"Admin seed skip: {settings.seed_admin_email} already exists")
         return
+
+    # YET-229: never create the platform admin with an empty, placeholder or
+    # short password. Checked after the skip above so existing databases are
+    # unaffected. The password value is never printed.
+    admin_password = settings.seed_admin_password
+    if (
+        len(admin_password) < MIN_ADMIN_PASSWORD_LENGTH
+        or admin_password.startswith(ADMIN_PASSWORD_PLACEHOLDER_PREFIX)
+    ):
+        raise RuntimeError(
+            "SEED_ADMIN_PASSWORD is missing, still a placeholder, or shorter than "
+            f"{MIN_ADMIN_PASSWORD_LENGTH} characters; set a strong value in .env"
+        )
 
     admin = User(
         email=settings.seed_admin_email,
