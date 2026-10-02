@@ -13,6 +13,7 @@ from app.models import (
     TalentProfile,
     User,
 )
+from app.services.authorization import Principal, scoped_own_institution_link_requests
 
 
 class DuplicateDomainError(Exception):
@@ -262,3 +263,130 @@ def approve_institution_link(
 
     session.flush()
     return link_request
+
+
+def reject_institution_link(
+    request_id: uuid.UUID,
+    institution_id: uuid.UUID,
+    rejecter_user_id: uuid.UUID,
+    session: Session,
+) -> InstitutionLinkRequest:
+    """
+    Reject link request: mark REJECTED. Does NOT touch TalentProfile.institution_id
+    (symmetric to approve_institution_link, minus the talent-linking side effect).
+
+    AC (YET-197/IS-10): POST /institutions/{id}/link-requests/{request_id}/reject.
+
+    Args:
+        request_id: InstitutionLinkRequest ID
+        institution_id: Institution the caller is authorized for (AC-5/AC-S2 —
+            the request must belong to THIS institution)
+        rejecter_user_id: User rejecting (for audit)
+        session: Database session
+
+    Returns:
+        InstitutionLinkRequest (status=REJECTED, decided_at/decided_by set)
+
+    Raises:
+        ValueError: If request not found, not in this institution, or not PENDING
+    """
+    link_request = session.execute(
+        select(InstitutionLinkRequest).where(
+            InstitutionLinkRequest.id == request_id,
+            InstitutionLinkRequest.institution_id == institution_id,
+        )
+    ).scalar_one_or_none()
+
+    if not link_request:
+        raise ValueError(f"Link request {request_id} not found")
+
+    if link_request.status != "PENDING":
+        raise ValueError(
+            f"Link request {request_id} is not PENDING (current status: {link_request.status})"
+        )
+
+    link_request.status = "REJECTED"
+    link_request.decided_at = datetime.now(timezone.utc)
+    link_request.decided_by_user_id = rejecter_user_id
+
+    session.flush()
+    return link_request
+
+
+def list_pending_link_requests(institution_id: uuid.UUID, session: Session) -> list[dict]:
+    """
+    List PENDING link requests for an institution, with the requesting talent's name.
+
+    AC (YET-197/IS-10): GET /institutions/{id}/link-requests. Authorization (institution_id
+    belongs to the caller) is enforced by the caller (API layer) — this function trusts
+    institution_id as given, same convention as approve_institution_link/reject_institution_link.
+
+    Args:
+        institution_id: Target institution
+        session: Database session
+
+    Returns:
+        List of dicts: id, talent_profile_id, talent_full_name, status, requested_at
+        (oldest first — coordinators triage in request order)
+    """
+    rows = session.execute(
+        select(InstitutionLinkRequest, TalentProfile)
+        .join(TalentProfile, InstitutionLinkRequest.talent_profile_id == TalentProfile.id)
+        .where(
+            InstitutionLinkRequest.institution_id == institution_id,
+            InstitutionLinkRequest.status == "PENDING",
+        )
+        .order_by(InstitutionLinkRequest.requested_at.asc())
+    ).all()
+    return [
+        {
+            "id": str(req.id),
+            "talent_profile_id": str(req.talent_profile_id),
+            "talent_full_name": talent.full_name,
+            "status": req.status,
+            "requested_at": req.requested_at.isoformat(),
+        }
+        for req, talent in rows
+    ]
+
+
+def list_my_link_requests(session: Session, principal: Principal) -> list[dict]:
+    """
+    List the authenticated talent's own link requests (all statuses), newest first.
+
+    AC (YET-197/IS-10): GET /talents/me/institution-link-requests. Uses
+    scoped_own_institution_link_requests for the BOLA-safe base query (talent
+    can only ever see their own talent_profile_id's requests).
+
+    Args:
+        session: Database session
+        principal: Authenticated Principal (must have talent_id — caller's responsibility)
+
+    Returns:
+        List of dicts: id, institution_id, institution_name, status, requested_at, decided_at
+    """
+    requests = session.execute(
+        scoped_own_institution_link_requests(session, principal).order_by(
+            InstitutionLinkRequest.requested_at.desc()
+        )
+    ).scalars().all()
+
+    institution_ids = {r.institution_id for r in requests}
+    name_by_id = {
+        inst.id: inst.name
+        for inst in session.execute(
+            select(Institution).where(Institution.id.in_(institution_ids))
+        ).scalars().all()
+    }
+
+    return [
+        {
+            "id": str(r.id),
+            "institution_id": str(r.institution_id),
+            "institution_name": name_by_id.get(r.institution_id, ""),
+            "status": r.status,
+            "requested_at": r.requested_at.isoformat(),
+            "decided_at": r.decided_at.isoformat() if r.decided_at else None,
+        }
+        for r in requests
+    ]

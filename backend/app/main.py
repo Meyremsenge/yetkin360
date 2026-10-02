@@ -7,6 +7,7 @@ from app.api.admin import router as admin_router
 from app.api.auth import router as auth_router
 from app.api.engagements import router as engagements_router, attestations_router
 from app.api.evidence import router as evidence_router
+from app.api.institution_link_requests import router as institution_link_requests_router
 from app.api.institutions import router as institutions_router
 from app.api.me import router as me_router
 from app.api.organizations import router as organizations_router
@@ -32,6 +33,7 @@ app.include_router(auth_router)
 app.include_router(engagements_router)
 app.include_router(attestations_router)
 app.include_router(evidence_router)
+app.include_router(institution_link_requests_router)
 app.include_router(institutions_router)
 app.include_router(me_router)
 app.include_router(organizations_router)

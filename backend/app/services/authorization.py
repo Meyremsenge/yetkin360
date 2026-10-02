@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
-from app.models import Attestation, Engagement, Evidence, Institution, Organization, SkillClaim, SkillSignal, TalentProfile, User, VerifiedExperience
+from app.models import Attestation, Engagement, Evidence, Institution, InstitutionLinkRequest, Organization, SkillClaim, SkillSignal, TalentProfile, User, VerifiedExperience
 
 
 @dataclass
@@ -233,6 +233,28 @@ def scoped_evidence(session: Session, principal: Principal) -> Select:
         return select(Evidence).where(Evidence.owner_talent_id == principal.talent_id)
     # All other kinds (including admin): no evidence in scope
     return select(Evidence).where(Evidence.id.in_([]))
+
+
+def scoped_own_institution_link_requests(session: Session, principal: Principal) -> Select:
+    """
+    Return a SQLAlchemy Select query for a talent's own InstitutionLinkRequest rows.
+
+    Owner can see ALL their requests regardless of status (PENDING/APPROVED/REJECTED).
+    Used by GET /talents/me/institution-link-requests.
+
+    Args:
+      - session: SQLAlchemy Session
+      - principal: Principal object (must have talent_id)
+
+    Returns:
+      - sqlalchemy.sql.Select: Query returning InstitutionLinkRequest rows for this talent
+
+    Implements YET-197/IS-10 (owner isolation — BOLA across talents).
+    """
+    if principal.talent_id is not None:
+        return select(InstitutionLinkRequest).where(InstitutionLinkRequest.talent_profile_id == principal.talent_id)
+    # All other kinds: no link requests in scope
+    return select(InstitutionLinkRequest).where(InstitutionLinkRequest.id.in_([]))
 
 
 def get_scoped_or_404(scoped_select: Select, session: Session):
