@@ -19,12 +19,18 @@ from app.core.config import settings
 
 app = FastAPI(title="Yetkin360 API")
 
+# Explicit lists: a wildcard is incompatible with credentials and widens the
+# surface needlessly. Methods mirror the routes in app/api; headers are the
+# ones the frontend sends (client.ts) — CSRF name must match core/deps.py.
+CORS_ALLOWED_METHODS = ["GET", "POST", "PATCH", "DELETE"]
+CORS_ALLOWED_HEADERS = ["Content-Type", "X-CSRF-Token"]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins.split(","),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=CORS_ALLOWED_METHODS,
+    allow_headers=CORS_ALLOWED_HEADERS,
 )
 
 app.include_router(admin_router)
