@@ -378,6 +378,7 @@ class TestOwnershipValidation:
         # Manually set scan_status to CLEAN
         evidence = session.query(Evidence).filter_by(id=evidence_id).first()
         evidence.scan_status = "CLEAN"
+        evidence.storage_etag = "etag-1"  # what the scan recorded; download re-checks it
         session.flush()
 
         # Talent A tries to download
@@ -547,12 +548,14 @@ class TestSuccessfulDownload:
         # Set scan_status to CLEAN
         evidence = session.query(Evidence).filter_by(id=evidence_id).first()
         evidence.scan_status = "CLEAN"
+        evidence.storage_etag = "etag-1"  # what the scan recorded; download re-checks it
         session.flush()
 
         # Mock MinIO presigned URL
         with patch("app.services.storage.boto3.client") as mock_boto:
             mock_s3 = MagicMock()
             mock_boto.return_value = mock_s3
+            mock_s3.head_object.return_value = {"ETag": '"etag-1"'}
             mock_s3.generate_presigned_url.return_value = "https://minio.example.com/download-url"
 
             # Download
@@ -607,12 +610,14 @@ class TestStorageUnavailable:
         # Set scan_status to CLEAN
         evidence = session.query(Evidence).filter_by(id=evidence_id).first()
         evidence.scan_status = "CLEAN"
+        evidence.storage_etag = "etag-1"  # what the scan recorded; download re-checks it
         session.flush()
 
         # Mock MinIO connection error
         with patch("app.services.storage.boto3.client") as mock_boto:
             mock_s3 = MagicMock()
             mock_boto.return_value = mock_s3
+            mock_s3.head_object.return_value = {"ETag": '"etag-1"'}
             mock_s3.generate_presigned_url.side_effect = EndpointConnectionError(
                 endpoint_url="http://minio:9000"
             )
@@ -749,6 +754,7 @@ class TestRateLimit:
             )
             evidence = session.query(Evidence).filter_by(id=response.id).first()
             evidence.scan_status = "CLEAN"
+            evidence.storage_etag = "etag-1"  # what the scan recorded; download re-checks it
             session.flush()
             evidences.append(evidence.id)
 
@@ -756,6 +762,7 @@ class TestRateLimit:
         with patch("app.services.storage.boto3.client") as mock_boto:
             mock_s3 = MagicMock()
             mock_boto.return_value = mock_s3
+            mock_s3.head_object.return_value = {"ETag": '"etag-1"'}
             mock_s3.generate_presigned_url.return_value = "https://minio.example.com/download"
 
             set_auth_cookies(client_with_auth, user_talent_a)

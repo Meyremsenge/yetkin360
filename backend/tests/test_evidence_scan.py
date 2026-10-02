@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models import AuditEvent, Evidence
+from app.services.storage import StoredObject
 from app.services.evidence_scan import (
     MAX_DOCX_ENTRIES,
     detect_content_type,
@@ -133,14 +134,14 @@ def handler_env(session, monkeypatch):
     )
     reads: list[tuple[str, str]] = []
 
-    def install_storage(data):
+    def install_storage(data, etag="etag-1"):
         def fake_fetch(bucket, key, max_bytes):
             reads.append((bucket, key))
             if isinstance(data, Exception):
                 raise data
-            return data
+            return None if data is None else StoredObject(data=data, etag=etag)
 
-        monkeypatch.setattr("app.services.storage.fetch_object_bytes", fake_fetch)
+        monkeypatch.setattr("app.services.storage.fetch_object", fake_fetch)
 
     return install_storage, reads
 
@@ -188,6 +189,7 @@ class TestScanHandler:
         got = _reload(session, ev)
         assert got.scan_status == "CLEAN"
         assert got.content_hash and len(got.content_hash) == 64
+        assert got.storage_etag == "etag-1"  # what the download path re-checks (TOCTOU)
         # Location comes from the evidence row + settings, not the payload.
         assert reads == [(settings.s3_bucket, ev.storage_key)]
 
@@ -221,6 +223,7 @@ class TestScanHandler:
 
         got = _reload(session, ev)
         assert got.scan_status == "FAILED" and got.content_hash is None
+        assert got.storage_etag is None  # only a CLEAN verdict keeps an ETag
         audit = session.execute(
             select(AuditEvent).where(AuditEvent.action == "evidence.scanned", AuditEvent.subject_id == ev.id)
         ).scalar_one()
@@ -264,9 +267,9 @@ class TestScanHandler:
             session.execute(
                 sqlalchemy.update(Evidence).where(Evidence.id == ev.id).values(scan_status="FAILED")
             )
-            return PDF
+            return StoredObject(data=PDF, etag="etag-1")
 
-        monkeypatch.setattr("app.services.storage.fetch_object_bytes", racing_fetch)
+        monkeypatch.setattr("app.services.storage.fetch_object", racing_fetch)
 
         outbox_worker.evidence_scan_requested_handler(_payload(ev), 1)
 

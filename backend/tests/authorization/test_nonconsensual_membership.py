@@ -83,6 +83,7 @@ def victim_records(session, victim):
         provenance="SELF_UPLOADED",
         visibility="PRIVATE",
         scan_status="CLEAN",
+        storage_etag="etag-1",
         storage_key=f"{uuid4()}.pdf",
         mime_type="application/pdf",
         size_bytes=10,
@@ -180,6 +181,7 @@ class TestVictimKeepsTalentFunctions:
         with patch("app.services.storage.boto3.client") as mock_boto:
             mock_boto.return_value = MagicMock()
             mock_boto.return_value.generate_presigned_url.return_value = "https://m.example/x"
+            mock_boto.return_value.head_object.return_value = {"ETag": '"etag-1"'}
             r = client.get(f"/evidence/{evidence.id}/download-url", headers=_h(v_user))
         assert r.status_code == 200
         assert r.json()["download_url"] == "https://m.example/x"

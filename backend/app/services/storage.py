@@ -6,6 +6,7 @@ allowlist, file size validation, rate limiting, and error handling.
 """
 
 import time
+from typing import NamedTuple
 
 import boto3
 from botocore.config import Config
@@ -214,22 +215,51 @@ def generate_presigned_post(
     return presigned_post
 
 
-def fetch_object_bytes(bucket: str, object_key: str, max_bytes: int) -> bytes | None:
-    """
-    YET-195: Read an object (at most max_bytes + 1 bytes) for content inspection.
+class StoredObject(NamedTuple):
+    """Bytes read from storage plus the ETag of that same GET response."""
 
-    Network call — only the outbox worker calls this, never a request handler or
-    anything inside an open transaction. Returns None if the object does not exist.
-    Other storage errors propagate so the outbox retries the row.
-    """
-    s3_client = boto3.client(
+    data: bytes
+    etag: str | None
+
+
+def _normalize_etag(raw: str | None) -> str | None:
+    """S3 returns the ETag quoted ("abc..."); store and compare it unquoted."""
+    if not raw:
+        return None
+    return raw.strip('"') or None
+
+
+def _storage_unavailable() -> ApiError:
+    return ApiError(
+        503,
+        "STORAGE_UNAVAILABLE",
+        "Dosya depolama servisi şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.",
+    )
+
+
+def _object_store_client(read_timeout: int):
+    return boto3.client(
         "s3",
         endpoint_url=settings.s3_endpoint_url,
         aws_access_key_id=settings.s3_access_key,
         aws_secret_access_key=settings.s3_secret_key,
         region_name=settings.s3_region,
-        config=Config(connect_timeout=5, read_timeout=30, retries={"max_attempts": 2}),
+        config=Config(connect_timeout=5, read_timeout=read_timeout, retries={"max_attempts": 2}),
     )
+
+
+def fetch_object(bucket: str, object_key: str, max_bytes: int) -> StoredObject | None:
+    """
+    YET-195: Read an object (at most max_bytes + 1 bytes) for content inspection.
+
+    The ETag comes from the same GET response as the bytes, so it describes exactly
+    what was inspected (the download path compares against it, TOCTOU re-check).
+
+    Network call — only the outbox worker calls this, never a request handler or
+    anything inside an open transaction. Returns None if the object does not exist.
+    Other storage errors propagate so the outbox retries the row.
+    """
+    s3_client = _object_store_client(read_timeout=30)
     try:
         response = s3_client.get_object(Bucket=bucket, Key=object_key)
     except ClientError as e:
@@ -239,9 +269,31 @@ def fetch_object_bytes(bucket: str, object_key: str, max_bytes: int) -> bytes | 
     body = response["Body"]
     try:
         # +1 byte so an oversized object is detectable without reading it all.
-        return body.read(max_bytes + 1)
+        data = body.read(max_bytes + 1)
     finally:
         body.close()
+    return StoredObject(data=data, etag=_normalize_etag(response.get("ETag")))
+
+
+def head_object_etag(bucket: str, object_key: str) -> str | None:
+    """
+    Current ETag of a stored object, or None if it does not exist (or reports no ETag).
+
+    Network call — callers must not hold an open transaction.
+
+    Raises:
+        ApiError(503, "STORAGE_UNAVAILABLE") on any other storage failure (fail closed).
+    """
+    s3_client = _object_store_client(read_timeout=10)
+    try:
+        response = s3_client.head_object(Bucket=bucket, Key=object_key)
+    except ClientError as e:
+        if e.response.get("Error", {}).get("Code") in ("NoSuchKey", "404", "NotFound"):
+            return None
+        raise _storage_unavailable() from e
+    except (EndpointConnectionError, ConnectTimeoutError) as e:
+        raise _storage_unavailable() from e
+    return _normalize_etag(response.get("ETag"))
 
 
 def generate_presigned_get_url(
@@ -284,10 +336,6 @@ def generate_presigned_get_url(
             ExpiresIn=ttl,
         )
     except (EndpointConnectionError, ConnectTimeoutError):
-        raise ApiError(
-            503,
-            "STORAGE_UNAVAILABLE",
-            "Dosya depolama servisi şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.",
-        )
+        raise _storage_unavailable()
 
     return presigned_url

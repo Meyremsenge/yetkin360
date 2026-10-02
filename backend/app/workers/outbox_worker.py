@@ -351,7 +351,7 @@ def evidence_scan_requested_handler(payload: dict, outbox_id: int) -> None:
     from app.models import Evidence
     from app.services.audit import log_audit_event
     from app.services.evidence_scan import inspect_content
-    from app.services.storage import fetch_object_bytes
+    from app.services.storage import fetch_object
 
     evidence_id = _uuid.UUID(payload["evidence_id"])
     engine = create_engine(settings.database_url)
@@ -365,14 +365,19 @@ def evidence_scan_requested_handler(payload: dict, outbox_id: int) -> None:
             return
         storage_key, mime_type, size_bytes = row.storage_key, row.mime_type, row.size_bytes
 
-        data = fetch_object_bytes(settings.s3_bucket, storage_key, settings.evidence_max_size_bytes)
-        verdict = inspect_content(data, declared_mime=mime_type, declared_size=size_bytes)
+        stored = fetch_object(settings.s3_bucket, storage_key, settings.evidence_max_size_bytes)
+        verdict = inspect_content(
+            stored.data if stored else None, declared_mime=mime_type, declared_size=size_bytes
+        )
+        # The ETag of the inspected bytes is kept only for a CLEAN verdict: the download
+        # path re-checks it, so content swapped in after this scan is never served.
+        etag = stored.etag if stored and verdict.status == "CLEAN" else None
 
         with Session(engine) as session:
             updated_id = session.execute(
                 update(Evidence)
                 .where(Evidence.id == evidence_id, Evidence.scan_status == "PENDING")
-                .values(scan_status=verdict.status, content_hash=verdict.content_hash)
+                .values(scan_status=verdict.status, content_hash=verdict.content_hash, storage_etag=etag)
                 .returning(Evidence.id)
             ).scalar_one_or_none()
             if updated_id is not None:

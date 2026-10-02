@@ -24,6 +24,7 @@ from app.services.audit import log_audit_event
 from app.services.storage import (
     CONTENT_TYPE_TO_EXT,
     generate_presigned_get_url,
+    head_object_etag,
     validate_content_type,
     validate_file_size,
 )
@@ -242,6 +243,8 @@ def get_download_url(
         ApiError(404) if evidence not found or not in scope (ownership/visibility check)
         ApiError(403) if principal is admin trying to download PRIVATE evidence
         ApiError(409, "SCAN_NOT_CLEAN") if scan_status is not CLEAN
+        ApiError(409, "EVIDENCE_CONTENT_CHANGED") if the stored object's ETag differs from
+            the one recorded by the scan (or none was recorded)
         ApiError(503, "STORAGE_UNAVAILABLE") if MinIO unreachable
     """
     # AC-6, AC-S2: Get evidence, scoped to principal (ownership check)
@@ -272,11 +275,35 @@ def get_download_url(
             f"Dosya taranıyor veya kanıt kullanılamaz. Durum: {evidence.scan_status}",
         )
 
+    # TOCTOU defence: the object must still be the one the scan inspected. Capture what
+    # we need and end the read transaction first — the HEAD is a network call and must
+    # not run inside an open transaction.
+    evidence_pk, storage_key, scanned_etag = evidence.id, evidence.storage_key, evidence.storage_etag
+    session.commit()
+    current_etag = head_object_etag(settings.s3_bucket, storage_key)
+    if scanned_etag is None or current_etag != scanned_etag:
+        log_audit_event(
+            session=session,
+            actor_user_id=principal.user_id,
+            actor_ip=None,
+            action="evidence.download_blocked",
+            subject_type="evidence",
+            subject_id=evidence_pk,
+            result="DENIED",
+            metadata={"reason": "content_changed_since_scan"},
+        )
+        session.commit()  # the 409 below would otherwise roll the audit row back
+        raise ApiError(
+            409,
+            "EVIDENCE_CONTENT_CHANGED",
+            "Dosya içeriği taramadan sonra değişmiş. Dosyayı yeniden yükleyip kanıt olarak kaydedin.",
+        )
+
     # AC-5, AC-10, AC-11: Generate presigned GET URL (300 seconds TTL)
     # generate_presigned_get_url handles storage errors internally (ApiError 503)
     download_url = generate_presigned_get_url(
         bucket=settings.s3_bucket,
-        object_key=evidence.storage_key,
+        object_key=storage_key,
         ttl=settings.evidence_download_url_ttl_seconds,
     )
 
@@ -287,7 +314,7 @@ def get_download_url(
         actor_ip=None,  # IP passed from endpoint layer if available
         action="evidence.downloaded",
         subject_type="evidence",
-        subject_id=evidence.id,
+        subject_id=evidence_pk,
         result="SUCCESS",
     )
 

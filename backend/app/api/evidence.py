@@ -295,7 +295,7 @@ def get_evidence_download_url(
         404 Not Found:
             - Evidence not found (AC-9)
             - Evidence belongs to different talent (AC-6, AC-S2)
-        409 Conflict: scan_status is not CLEAN (AC-7)
+        409 Conflict: scan_status is not CLEAN (AC-7), or EVIDENCE_CONTENT_CHANGED (object differs from the scanned one)
         429 Too Many Requests: > 10 requests per minute (AC-S5)
         503 Service Unavailable: MinIO unreachable (AC-11)
 
