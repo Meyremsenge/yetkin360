@@ -206,9 +206,11 @@ def create_evidence_record(
         401 Unauthorized: No valid auth token, or suspended account (AC-2, AC-13 — suspended users are rejected at the auth layer before reaching this endpoint)
         403 CSRF Failed: CSRF token mismatch or missing
         403 Talent Profile Required: User has no talent profile (AC-12)
-        404 Not Found: deliverable_id provided but doesn't belong to principal's engagements (AC-4)
+        404 Not Found: storage_key outside the caller's own prefix (AC-3, AC-S1), or deliverable_id
+            doesn't belong to principal's engagements (AC-4)
+        409 Conflict: EVIDENCE_ALREADY_REGISTERED — the object already has an evidence record
         422 Unprocessable Entity:
-            - INVALID_STORAGE_KEY: storage_key prefix doesn't match principal.talent_id (AC-3, AC-S1)
+            - INVALID_STORAGE_KEY: storage_key under own prefix but malformed (not {uuid}.{ext}, ext != mime)
             - (Pydantic validation errors for kind, mime_type, size_bytes)
         429 Too Many Requests: > 10 requests per minute (AC-S5)
         503 Service Unavailable: (Unlikely in this endpoint, but handled for consistency)
@@ -217,7 +219,7 @@ def create_evidence_record(
         AC-1: Creates evidence record with scan_status=PENDING, visibility=PRIVATE, provenance=SELF_UPLOADED
         AC-1: Writes outbox message (evidence.scan_requested) in same transaction
         AC-2: Unauthenticated → 401
-        AC-3: Invalid storage_key prefix → 422 INVALID_STORAGE_KEY (elevation defense)
+        AC-3: storage_key outside own prefix → 404 NOT_FOUND (elevation defense, no existence leak)
         AC-4: deliverable_id ownership check (Deliverable→Engagement→talent_id), 404 if mismatch
         AC-8: kind must be in allowlist (Pydantic CHECK constraint)
         AC-12: No talent profile → 403 TALENT_PROFILE_REQUIRED

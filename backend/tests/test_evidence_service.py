@@ -236,7 +236,7 @@ class TestStorageKeyValidation:
     def test_storage_key_invalid_prefix_raises_error(self, session, user_talent_a, talent_a, user_talent_b, talent_b):
         """
         AC-S1 (Elevation): Storage key with different talent_id prefix
-        returns 422 + INVALID_STORAGE_KEY.
+        returns 404 + NOT_FOUND (someone else's object; no existence oracle).
         """
         principal = Principal(
             user_id=user_talent_a.id,
@@ -262,12 +262,12 @@ class TestStorageKeyValidation:
                 size_bytes=1024,
             )
 
-        assert exc_info.value.status_code == 422
-        assert exc_info.value.detail["code"] == "INVALID_STORAGE_KEY"
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail["code"] == "NOT_FOUND"
 
     def test_storage_key_no_prefix_raises_error(self, session, user_talent_a, talent_a):
         """
-        AC-S1: Storage key without evidence/ prefix returns 422 + INVALID_STORAGE_KEY.
+        AC-S1: Storage key without the caller's evidence/{talent_id}/ prefix returns 404 + NOT_FOUND.
         """
         principal = Principal(
             user_id=user_talent_a.id,
@@ -290,8 +290,8 @@ class TestStorageKeyValidation:
                 size_bytes=1024,
             )
 
-        assert exc_info.value.status_code == 422
-        assert exc_info.value.detail["code"] == "INVALID_STORAGE_KEY"
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail["code"] == "NOT_FOUND"
 
 
 # ============================================================================

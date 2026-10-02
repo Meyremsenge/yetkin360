@@ -64,7 +64,10 @@ def create_evidence(
         EvidenceResponse: Created evidence record
 
     Raises:
-        ApiError(422, "INVALID_STORAGE_KEY") if storage_key prefix doesn't match principal.talent_id
+        ApiError(404, "NOT_FOUND") if storage_key is not under the principal's own prefix
+            (someone else's object — never confirm it exists)
+        ApiError(422, "INVALID_STORAGE_KEY") if the key is under the own prefix but malformed
+        ApiError(409, "EVIDENCE_ALREADY_REGISTERED") if the object already has an evidence record
         ApiError(403, "TALENT_PROFILE_REQUIRED") if principal.talent_id is None
         ApiError(404, "NOT_FOUND") if deliverable_id provided but ownership check fails (AC-4)
     """
@@ -72,14 +75,12 @@ def create_evidence(
     if principal.talent_id is None:
         raise ApiError(403, "TALENT_PROFILE_REQUIRED", "Bu işlem için talent profili gereklidir.")
 
-    # AC-S1: Validate storage_key prefix (elevation defense)
+    # AC-S1: Validate storage_key prefix (elevation defense). A key outside the caller's
+    # own prefix is someone else's (or no) object: 404, same as any unauthorized access,
+    # so the response never confirms whether the object exists.
     expected_prefix = f"evidence/{principal.talent_id}/"
     if not storage_key.startswith(expected_prefix):
-        raise ApiError(
-            422,
-            "INVALID_STORAGE_KEY",
-            "Kanıt referansı geçersiz. Başka bir kullanıcının dosyasını kullanmaya çalışıyorsunuz.",
-        )
+        raise ApiError(404, "NOT_FOUND", "Kanıt bulunamadı.")
 
     # YET-184: key must be exactly evidence/{talent_id}/{uuid}.{ext} as built by
     # build_object_key — no nested paths, no client-chosen names — and the

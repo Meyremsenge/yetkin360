@@ -218,7 +218,7 @@ class TestAuthenticatedEvidenceCreation:
     ):
         """
         AC-S1 (Elevation): Talent A, even if storage_key in request body has
-        talent_b prefix, should get 422 + INVALID_STORAGE_KEY.
+        talent_b prefix, should get 404 + NOT_FOUND (someone else's object).
         """
         set_auth_cookies(client_with_auth, user_talent_a)
         response = client_with_auth.post(
@@ -231,9 +231,9 @@ class TestAuthenticatedEvidenceCreation:
             },
             headers={"X-CSRF-Token": "test-csrf-token"},
         )
-        assert response.status_code == 422
+        assert response.status_code == 404
         body = response.json()
-        assert body.get("code") == "INVALID_STORAGE_KEY"
+        assert body.get("code") == "NOT_FOUND"
 
 
 # ============================================================================
@@ -644,7 +644,7 @@ class TestInfoDisclosureProtection:
         not MinIO/bucket details.
         """
         set_auth_cookies(client_with_auth, user_talent_a)
-        # Trigger a 422 error with invalid storage key prefix
+        # Trigger a 404 error with a storage key outside the caller's own prefix
         response = client_with_auth.post(
             "/evidence",
             json={
@@ -655,7 +655,7 @@ class TestInfoDisclosureProtection:
             },
             headers={"X-CSRF-Token": "test-csrf-token"},
         )
-        assert response.status_code == 422
+        assert response.status_code == 404
         body = response.json()
 
         # Verify no leakage

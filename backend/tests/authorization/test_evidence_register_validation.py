@@ -34,6 +34,32 @@ class TestRegisterEvidenceValidation:
     def test_other_talents_key_prefix_is_rejected(self, evidence_api, user_talent_a, talent_a, talent_b):
         login(evidence_api, user_talent_a)
         response = evidence_api.post("/evidence", json=_body(talent_b), headers=CSRF)
+        assert response.status_code == 404
+        assert response.json()["code"] == "NOT_FOUND"
+
+    def test_foreign_key_answer_is_identical_whether_or_not_the_object_exists(
+        self, evidence_api, session, user_talent_a, talent_a, talent_b
+    ):
+        """No existence oracle: a registered foreign object, a fresh foreign key and a garbage key all look alike."""
+        theirs = add_evidence(session, talent_b)
+        login(evidence_api, user_talent_a)
+        keys = [theirs.storage_key, f"evidence/{talent_b.id}/{uuid.uuid4()}.pdf", "evidence/not-a-talent/x.pdf"]
+
+        answers = {
+            (r.status_code, r.json()['code'], r.json()['message'])
+            for r in (
+                evidence_api.post("/evidence", json=_body(talent_a, storage_key=k), headers=CSRF) for k in keys
+            )
+        }
+
+        assert len(answers) == 1
+        assert next(iter(answers))[0] == 404
+
+    def test_malformed_key_under_own_prefix_stays_422(self, evidence_api, user_talent_a, talent_a):
+        """Only keys outside the caller's own prefix turn into 404; own-prefix format errors are the caller's to fix."""
+        login(evidence_api, user_talent_a)
+        key = f"evidence/{talent_a.id}/not-a-uuid.pdf"
+        response = evidence_api.post("/evidence", json=_body(talent_a, storage_key=key), headers=CSRF)
         assert response.status_code == 422
         assert response.json()["code"] == "INVALID_STORAGE_KEY"
 
@@ -100,8 +126,8 @@ class TestRegisterEvidenceValidation:
         theirs = add_evidence(session, talent_b)
         login(evidence_api, user_talent_a)
         response = evidence_api.post("/evidence", json=_body(talent_a, storage_key=theirs.storage_key), headers=CSRF)
-        assert response.status_code == 422  # wrong prefix; decided from the key alone, so no existence oracle
-        assert response.json()["code"] == "INVALID_STORAGE_KEY"
+        assert response.status_code == 404  # wrong prefix; decided from the key alone, so no existence oracle
+        assert response.json()["code"] == "NOT_FOUND"
 
     def test_unauthenticated_register_returns_401(self, evidence_api, talent_a):
         assert evidence_api.post("/evidence", json=_body(talent_a), headers=CSRF).status_code == 401
