@@ -185,9 +185,11 @@ class TestEvidenceCreation:
         )
 
         # Verify audit event
+        # Filter by this evidence: committed rows from other tests (audit is append-only) must not match.
         audit = session.query(AuditEvent).filter_by(
             action="evidence.created",
-            subject_type="evidence"
+            subject_type="evidence",
+            subject_id=response.id,
         ).first()
         assert audit is not None
         assert audit.subject_id == response.id

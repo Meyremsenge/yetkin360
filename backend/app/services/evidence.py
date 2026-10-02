@@ -12,6 +12,7 @@ import re
 import uuid
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -126,7 +127,15 @@ def create_evidence(
         deliverable_id=deliverable_id,
     )
     session.add(evidence)
-    session.flush()  # Generate ID for outbox reference
+    try:
+        # Savepoint: a losing concurrent registration must not poison the outer transaction.
+        with session.begin_nested():
+            session.flush()  # Generate ID for outbox reference
+    except IntegrityError as exc:
+        # The pre-check above is racy; the UNIQUE constraint is the real guard (YET-184).
+        if "uq_evidence_storage_key" not in str(exc.orig):
+            raise
+        raise ApiError(409, "EVIDENCE_ALREADY_REGISTERED", "Bu dosya zaten kanıt olarak kaydedilmiş.") from exc
 
     # AC-1: Write outbox message for worker to scan evidence
     outbox_record = Outbox(
