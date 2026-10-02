@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Repo root, resolved from this file — not from the current working directory.
@@ -19,6 +20,17 @@ class Settings(BaseSettings):
     database_url: str
     frontend_origin: str = "http://localhost:3000"
     allowed_origins: str = "http://localhost:3000"
+
+    @field_validator("allowed_origins")
+    @classmethod
+    def _validate_allowed_origins(cls, value: str) -> str:
+        """Comma-separated origins: strip blanks, refuse wildcard (CORS uses credentials)."""
+        origins = [origin.strip() for origin in value.split(",") if origin.strip()]
+        if not origins:
+            raise ValueError("ALLOWED_ORIGINS must list at least one origin")
+        if "*" in origins:
+            raise ValueError("ALLOWED_ORIGINS must not contain '*' (credentials are enabled)")
+        return ",".join(origins)
 
     # Auth — docs/SECURITY.md §6, final analiz §15.3.
     # No default for secret_key: a fallback value would silently ship to production.

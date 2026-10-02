@@ -4,7 +4,9 @@ while credentials are enabled."""
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.config import settings
+from pydantic import ValidationError
+
+from app.core.config import Settings, settings
 from app.main import app
 
 ORIGIN = settings.allowed_origins.split(",")[0]
@@ -73,3 +75,27 @@ def test_disallowed_origin_gets_no_cors_grant(cors_client):
 
     assert "access-control-allow-origin" not in response.headers
     assert response.status_code == 400
+
+
+def _settings(allowed_origins: str):
+    return Settings(
+        _env_file=None,
+        database_url="postgresql://u:p@localhost/db",
+        secret_key="x" * 32,
+        s3_endpoint_url="http://localhost:9000",
+        s3_access_key="a",
+        s3_secret_key="b",
+        allowed_origins=allowed_origins,
+    )
+
+
+@pytest.mark.parametrize("value", ["*", " * ", "http://localhost:3000,*", "", " , "])
+def test_wildcard_or_empty_allowed_origins_is_rejected_at_startup(value):
+    with pytest.raises(ValidationError):
+        _settings(value)
+
+
+def test_allowed_origins_are_stripped():
+    cfg = _settings(" http://localhost:3000 , https://app.example ")
+
+    assert cfg.allowed_origins.split(",") == ["http://localhost:3000", "https://app.example"]
