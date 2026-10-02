@@ -1,22 +1,72 @@
 "use client";
 
+import { useState } from "react";
 import { useParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { ErrorBanner } from "@/components/error-banner";
-import { getCoordinatorDashboard } from "@/lib/api/institutions";
+import { Button } from "@/components/ui/button";
+import {
+  approveLinkRequest,
+  getCoordinatorDashboard,
+  listPendingLinkRequests,
+  rejectLinkRequest,
+} from "@/lib/api/institutions";
 import { ApiError, NetworkError, SessionExpiredError } from "@/lib/api/errors";
 import messages from "@/messages/tr.json";
 
 export default function KurumPanelPage() {
   const params = useParams<{ id: string }>();
   const institutionId = params.id;
+  const queryClient = useQueryClient();
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   // AC-6/AC-S1: Cache key must include institutionId for tenant isolation
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["institution-dashboard", institutionId],
     queryFn: () => getCoordinatorDashboard(institutionId),
   });
+
+  // YET-197/IS-10: pending institution link requests (coordinator view)
+  const linkRequestsQuery = useQuery({
+    queryKey: ["institution-link-requests", institutionId],
+    queryFn: () => listPendingLinkRequests(institutionId),
+  });
+
+  const invalidateLinkRequests = () => {
+    queryClient.invalidateQueries({ queryKey: ["institution-link-requests", institutionId] });
+    // Approval can affect dashboard membership-adjacent state; keep it fresh too.
+    queryClient.invalidateQueries({ queryKey: ["institution-dashboard", institutionId] });
+  };
+
+  const approveMutation = useMutation({
+    mutationFn: (requestId: string) => approveLinkRequest(institutionId, requestId),
+    onSuccess: () => {
+      setActionError(null);
+      setActionMessage(messages.kurumPanel.linkRequestApprovedMessage);
+      invalidateLinkRequests();
+    },
+    onError: () => {
+      setActionMessage(null);
+      setActionError(messages.kurumPanel.linkRequestActionError);
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: (requestId: string) => rejectLinkRequest(institutionId, requestId),
+    onSuccess: () => {
+      setActionError(null);
+      setActionMessage(messages.kurumPanel.linkRequestRejectedMessage);
+      invalidateLinkRequests();
+    },
+    onError: () => {
+      setActionMessage(null);
+      setActionError(messages.kurumPanel.linkRequestActionError);
+    },
+  });
+
+  const isActionPending = approveMutation.isPending || rejectMutation.isPending;
 
   return (
     <AppShell>
@@ -119,6 +169,66 @@ export default function KurumPanelPage() {
                           {new Date(item.ended_on).toLocaleString("tr-TR")}
                         </div>
                       )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            {/* YET-197/IS-10: Pending institution link requests */}
+            <section className="mt-8">
+              <h2 className="text-lg font-bold mb-3">{messages.kurumPanel.linkRequestsTitle}</h2>
+
+              {actionError && (
+                <div
+                  role="alert"
+                  aria-live="polite"
+                  className="mb-3 rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-600"
+                >
+                  {actionError}
+                </div>
+              )}
+              {actionMessage && (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="mb-3 rounded-md bg-green-50 border border-green-200 p-3 text-sm text-green-600"
+                >
+                  {actionMessage}
+                </div>
+              )}
+
+              {linkRequestsQuery.isLoading ? (
+                <p className="text-slate-600">{messages.shell.loading}</p>
+              ) : linkRequestsQuery.isError ? (
+                <p className="text-sm text-red-600">{messages.kurumPanel.linkRequestActionError}</p>
+              ) : linkRequestsQuery.data && linkRequestsQuery.data.items.length === 0 ? (
+                <p className="text-sm text-slate-600 bg-slate-50 rounded-md border border-slate-200 p-4">
+                  {messages.kurumPanel.emptyLinkRequestsMessage}
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {linkRequestsQuery.data?.items.map((item) => (
+                    <li
+                      key={item.id}
+                      className="flex items-center justify-between bg-white p-4 rounded-md border border-slate-200 text-sm"
+                    >
+                      <div className="font-medium text-slate-900">{item.talent_full_name}</div>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => approveMutation.mutate(item.id)}
+                          disabled={isActionPending}
+                        >
+                          {messages.kurumPanel.approveButton}
+                        </Button>
+                        <Button
+                          onClick={() => rejectMutation.mutate(item.id)}
+                          disabled={isActionPending}
+                          className="bg-red-600 hover:bg-red-700"
+                        >
+                          {messages.kurumPanel.rejectButton}
+                        </Button>
+                      </div>
                     </li>
                   ))}
                 </ul>

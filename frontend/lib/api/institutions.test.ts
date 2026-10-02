@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { getCoordinatorDashboard } from "./institutions";
+import {
+  getCoordinatorDashboard,
+  requestInstitutionLink,
+  approveLinkRequest,
+  rejectLinkRequest,
+  listPendingLinkRequests,
+  listMyLinkRequests,
+} from "./institutions";
 import * as client from "./client";
 import { ApiError, NetworkError } from "./errors";
 
@@ -315,5 +322,127 @@ describe("lib/api/institutions", () => {
         expect(err.code).toBe("UNAUTHENTICATED");
       }
     }
+  });
+
+  /**
+   * YET-197/IS-10: Yeni link-request client fonksiyonları.
+   */
+  describe("requestInstitutionLink", () => {
+    it("başarılı istek POST /institutions/{id}/link-requests çağırır", async () => {
+      mockApiFetch.mockResolvedValueOnce(undefined);
+
+      await requestInstitutionLink("inst-1");
+
+      expect(mockApiFetch).toHaveBeenCalledWith("/institutions/inst-1/link-requests", { method: "POST" });
+    });
+
+    it("409 - zaten bekleyen talep varsa ApiError fırlatır", async () => {
+      const error = new ApiError({ status: 409, code: "HTTP_ERROR", message: "Pending link request already exists", requestId: null });
+      mockApiFetch.mockRejectedValueOnce(error);
+
+      await expect(requestInstitutionLink("inst-1")).rejects.toMatchObject({ status: 409 });
+    });
+  });
+
+  describe("approveLinkRequest", () => {
+    it("başarılı istek POST .../approve çağırır", async () => {
+      mockApiFetch.mockResolvedValueOnce(undefined);
+
+      await approveLinkRequest("inst-1", "req-1");
+
+      expect(mockApiFetch).toHaveBeenCalledWith("/institutions/inst-1/link-requests/req-1/approve", { method: "POST" });
+    });
+
+    it("404 - yetkisiz/bulunamayan kurum için ApiError fırlatır", async () => {
+      const error = new ApiError({ status: 404, code: "HTTP_ERROR", message: "Institution not found", requestId: null });
+      mockApiFetch.mockRejectedValueOnce(error);
+
+      await expect(approveLinkRequest("inst-b", "req-1")).rejects.toMatchObject({ status: 404 });
+    });
+  });
+
+  describe("rejectLinkRequest", () => {
+    it("başarılı istek POST .../reject çağırır", async () => {
+      mockApiFetch.mockResolvedValueOnce(undefined);
+
+      await rejectLinkRequest("inst-1", "req-1");
+
+      expect(mockApiFetch).toHaveBeenCalledWith("/institutions/inst-1/link-requests/req-1/reject", { method: "POST" });
+    });
+
+    it("422 - zaten karar verilmiş talep için ApiError fırlatır", async () => {
+      const error = new ApiError({ status: 422, code: "HTTP_ERROR", message: "Link request is not PENDING", requestId: null });
+      mockApiFetch.mockRejectedValueOnce(error);
+
+      await expect(rejectLinkRequest("inst-1", "req-1")).rejects.toMatchObject({ status: 422 });
+    });
+  });
+
+  describe("listPendingLinkRequests", () => {
+    it("happy path - items listesi döner", async () => {
+      const response = {
+        items: [
+          { id: "req-1", talent_profile_id: "t-1", talent_full_name: "Ayşe Yılmaz", status: "PENDING", requested_at: "2026-10-01T00:00:00Z" },
+        ],
+      };
+      mockApiFetch.mockResolvedValueOnce(response);
+
+      const result = await listPendingLinkRequests("inst-1");
+
+      expect(result).toEqual(response);
+      expect(mockApiFetch).toHaveBeenCalledWith("/institutions/inst-1/link-requests");
+    });
+
+    it("boş liste - 200 + items: []", async () => {
+      mockApiFetch.mockResolvedValueOnce({ items: [] });
+
+      const result = await listPendingLinkRequests("inst-1");
+
+      expect(result?.items).toEqual([]);
+    });
+
+    it("404 - çapraz kiracı erişimi ApiError fırlatır", async () => {
+      const error = new ApiError({ status: 404, code: "HTTP_ERROR", message: "Institution not found", requestId: null });
+      mockApiFetch.mockRejectedValueOnce(error);
+
+      await expect(listPendingLinkRequests("inst-b")).rejects.toMatchObject({ status: 404 });
+    });
+  });
+
+  describe("listMyLinkRequests", () => {
+    it("happy path - talent'ın kendi geçmişi döner", async () => {
+      const response = {
+        items: [
+          {
+            id: "req-1",
+            institution_id: "inst-1",
+            institution_name: "Test Üniversitesi",
+            status: "PENDING",
+            requested_at: "2026-10-01T00:00:00Z",
+            decided_at: null,
+          },
+        ],
+      };
+      mockApiFetch.mockResolvedValueOnce(response);
+
+      const result = await listMyLinkRequests();
+
+      expect(result).toEqual(response);
+      expect(mockApiFetch).toHaveBeenCalledWith("/talents/me/institution-link-requests");
+    });
+
+    it("404 - talent profili yoksa ApiError fırlatır", async () => {
+      const error = new ApiError({ status: 404, code: "TALENT_PROFILE_NOT_FOUND", message: "Talent profili bulunamadı.", requestId: null });
+      mockApiFetch.mockRejectedValueOnce(error);
+
+      await expect(listMyLinkRequests()).rejects.toMatchObject({ status: 404, code: "TALENT_PROFILE_NOT_FOUND" });
+    });
+
+    it("401 - oturumsuz istek ApiError fırlatır", async () => {
+      const error = new ApiError({ status: 401, code: "UNAUTHORIZED", message: "Kimlik doğrulama gerekli.", requestId: null });
+      mockApiFetch.mockRejectedValueOnce(error);
+
+      await expect(listMyLinkRequests()).rejects.toMatchObject({ status: 401 });
+    });
   });
 });
