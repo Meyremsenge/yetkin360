@@ -50,6 +50,12 @@ RESEND_VERIFICATION_MAX_PER_HOUR = 5
 FAILED_LOGIN_LOCK_THRESHOLD = 10
 FAILED_LOGIN_LOCK_MINUTES = 15
 
+# YET-183: Argon2 must run on every register/login branch, otherwise response
+# time reveals whether an e-mail is registered. Verifying against this hash
+# (made by the real hasher, so same cost parameters) is the stand-in when
+# there is no stored hash to check.
+_DUMMY_PASSWORD_HASH = hash_password(uuid.uuid4().hex)
+
 
 class InvalidCredentials(Exception):
     pass
@@ -144,6 +150,9 @@ def register_user(session: Session, email: str, password: str, full_name: str) -
     the email.duplicate_registration_attempt topic, which the outbox worker
     will process asynchronously without blocking this transaction.
     """
+    # Hash before branching so both paths pay the same Argon2 cost (YET-183).
+    password_hash = hash_password(password)
+
     existing = session.execute(select(User).where(User.email == email)).scalars().first()
     if existing is not None:
         log_audit_event(
@@ -164,7 +173,7 @@ def register_user(session: Session, email: str, password: str, full_name: str) -
         )
         return RegisteredUser(user_id=uuid.uuid4())
 
-    user = User(email=email, password_hash=hash_password(password))
+    user = User(email=email, password_hash=password_hash)
     session.add(user)
     session.flush()
 
@@ -436,6 +445,8 @@ def authenticate(session: Session, email: str, password: str, actor_ip: str | No
     # before password verification. Raise same error as wrong password to
     # prevent enumeration. (AC-5, AC-S2)
     if user is not None and user.status in ('SUSPENDED', 'DELETED'):
+        # YET-183: same Argon2 cost as the other rejection paths (result unused).
+        verify_password(password, _DUMMY_PASSWORD_HASH)
         log_audit_event(
             session=session,
             actor_user_id=user.id,
@@ -476,7 +487,11 @@ def authenticate(session: Session, email: str, password: str, actor_ip: str | No
             session.commit()
             raise AccountLocked()
 
-    if user is None or not verify_password(password, user.password_hash):
+    # YET-183: unknown e-mail still pays for one Argon2 verification.
+    password_ok = verify_password(
+        password, user.password_hash if user is not None else _DUMMY_PASSWORD_HASH
+    )
+    if user is None or not password_ok:
         if user is not None:
             user.failed_login_count += 1
             if user.failed_login_count >= FAILED_LOGIN_LOCK_THRESHOLD:
