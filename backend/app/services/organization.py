@@ -56,12 +56,23 @@ class RateLimitError(Exception):
 # ============================================================================
 
 
+# Mailbox providers anyone can register on; owning an address there proves nothing about an organization.
 FREE_EMAIL_DOMAINS = {
     "gmail.com",
     "hotmail.com",
     "outlook.com",
     "yahoo.com",
+    "yandex.com",
+    "icloud.com",
+    "hotmail.com.tr",
+    "outlook.com.tr",
+    "protonmail.com",
+    "mail.ru",
+    "yahoo.com.tr",
 }
+
+# Levels that already vouch for a domain; a second org may not claim it (GUV-09).
+_DOMAIN_VERIFIED_LEVELS = ("T2", "T3", "T4")
 
 
 def create_organization(
@@ -275,29 +286,34 @@ def verify_domain(
             for txt_string in getattr(rdata, "strings", ()):
                 if txt_string.decode().strip() == txt_record:
                     # AC-9: Check if domain is already verified in another organization
-                    conflicting_org = session.execute(
-                        select(Organization).where(
+                    conflicting_org_id = session.execute(
+                        select(Organization.id)
+                        .where(
                             and_(
                                 Organization.domain == domain,
-                                Organization.verification_level == "T2",
+                                Organization.verification_level.in_(_DOMAIN_VERIFIED_LEVELS),
                                 Organization.id != organization_id,
                                 Organization.deleted_at.is_(None),
                             )
                         )
+                        .limit(1)
                     ).scalar_one_or_none()
-                    if conflicting_org:
+                    if conflicting_org_id is not None:
                         raise DomainAlreadyVerifiedError(
                             f"Domain {domain} is already verified in another organization"
                         )
 
-                    # Found! Update organization to T2
-                    org.verification_level = "T2"
-                    org.verified_at = datetime.now(timezone.utc)
-                    # verified_by_user_id is set by the router (caller context)
+                    # Found! Promote T1 to T2; an org already at T2+ keeps its level (never downgrade)
+                    promoted = org.verification_level == "T1"
+                    if promoted:
+                        org.verification_level = "T2"
+                        org.verified_at = datetime.now(timezone.utc)
+                    # verified_by_user_id is set by the router (caller context) when promoted
                     session.flush()
                     return {
                         "dns_txt_record": txt_record,
                         "status": "verified",
+                        "promoted": promoted,
                     }
 
         # TXT record not found, but DNS query succeeded

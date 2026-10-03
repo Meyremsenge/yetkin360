@@ -384,10 +384,11 @@ def verify_domain_endpoint(
             session=session,
         )
 
-        # If verification succeeded (T2), set verified_by_user_id
+        # If verification succeeded, record who promoted the org to T2 (an org already at T2+ keeps its record)
         if result["status"] == "verified":
-            org.verified_by_user_id = principal.user_id
-            session.flush()
+            if result.get("promoted"):
+                org.verified_by_user_id = principal.user_id
+                session.flush()
 
             # Log success (AC-S7)
             log_audit_event(
@@ -398,7 +399,7 @@ def verify_domain_endpoint(
                 subject_type="organization",
                 subject_id=organization_id,
                 result="SUCCESS",
-                metadata={"domain": org.domain, "verification_level": "T2"},
+                metadata={"domain": org.domain, "verification_level": org.verification_level},
             )
         else:
             # Log pending (AC-S7)
