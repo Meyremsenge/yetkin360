@@ -152,6 +152,24 @@ MIME + boyut kontrolü yeterli, ClamAV'i sonraya bırakın").
 
 Limit aşımında `429 RATE_LIMITED` döner ([API.md](API.md) §1.5).
 
+**Kimlik uçları (YET-186, `auth_rate_limits` tablosu, sabit pencere):**
+
+| Uç | IP | Hesap (gönderilen e-posta) |
+|---|---|---|
+| `POST /auth/login` | 5/dk | 10/saat |
+| `POST /auth/register` | 3/saat | 3/saat |
+| `POST /auth/forgot-password` | 10/saat | 3/saat |
+| `POST /auth/reset-password` | 20/saat | — |
+| `POST /auth/verify-email` | 20/saat | — |
+| `POST /auth/refresh` | 60/dk | — |
+
+- Yanıt `429 RATE_LIMITED` + `Retry-After` (saniye). Hesap sayacı, hesap var/yok fark etmeksizin gönderilen e-postaya göre tutulur; yanıt numaralandırmaya izin vermez.
+- Anahtarlar `HMAC-SHA256(SECRET_KEY, "kova:değer")`; tabloda ham IP/e-posta yoktur. IPv6 istemciler /64 önekiyle gruplanır.
+- Sıra: önce hız sınırı (429), sonra YET-175 hesap kilidi (423).
+- Bilinen bedel: hesap sayacı, kurbanın e-postasına istek yağdıran saldırganın o hesabın login/şifre sıfırlama isteğini bir süre kısıtlamasına izin verir (e-posta bombardımanını önlemenin karşılığı).
+- Dağıtım: IP, `request.client.host`'tan okunur; Caddy arkasında uvicorn `--proxy-headers --forwarded-allow-ips` ile çalıştırılmalıdır, aksi halde herkes tek kovaya düşer ([ENV.md](ENV.md)).
+- Kanıt yükleme sınırı hâlâ bellek-içidir (çoklu worker'da etkisiz); DB sayacına taşınması ayrı iş.
+
 > ❓ AÇIK SORU: Public uçlar (`/public/p/{slug}`, `/public/v/{token}`) için
 > limit tablosunda satır yok. Bunlar kimlik doğrulaması istemediği için
 > IP bazlı bir limit gerekiyor (jüri demosunda da çalışmalı). Öneri:

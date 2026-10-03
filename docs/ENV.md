@@ -59,6 +59,7 @@ Kararların gerekçesi → [SECURITY.md](SECURITY.md) §5.
 | `CSRF_ENABLED` | `true` | Double-submit token |
 | `MAX_FAILED_LOGINS` | `5` | Aşılınca hesap kilitlenir |
 | `ACCOUNT_LOCK_MINUTES` | `15` | Kilit süresi |
+| `RATE_LIMIT_ENABLED` | `true` | Kimlik uçlarında DB tabanlı hız sınırı (YET-186, [SECURITY.md](SECURITY.md) §3). Yalnız yerel geliştirmede `false` yapılabilir; production'da açık kalır. IP anahtarı `request.client.host`'tur: Caddy arkasında uvicorn `--proxy-headers --forwarded-allow-ips=<caddy-ip>` ile çalıştırılmazsa tüm istekler tek IP sayılır |
 
 ## 4. CORS
 
@@ -231,6 +232,7 @@ Deploy öncesi ([PLAN.md](../PLAN.md) 3.14) doğrulanır:
 
 - [ ] `DEBUG=false`
 - [ ] `COOKIE_SECURE=true`
+- [ ] `RATE_LIMIT_ENABLED=true` ve uvicorn `--proxy-headers --forwarded-allow-ips` ayarlı (gerçek istemci IP'si görünüyor)
 - [ ] `S3_USE_SSL=true`
 - [ ] `SECRET_KEY` yeniden üretilmiş (geliştirme değeri **kullanılmaz**)
 - [ ] `POSTGRES_PASSWORD` ve `S3_*` anahtarları güçlü ve benzersiz

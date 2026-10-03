@@ -107,7 +107,7 @@ Aşağıdaki kodlar her uçta oluşabilir; uç tablolarında tekrarlanmaz.
 | `404` | `NOT_FOUND` | Kaynak yok **veya** erişim yok |
 | `409` | `CONFLICT` | Optimistic locking çakışması, benzersizlik ihlali |
 | `413` | `PAYLOAD_TOO_LARGE` | Dosya/gövde boyut sınırı aşıldı |
-| `429` | `RATE_LIMITED` | Hız sınırı aşıldı (bkz. [SECURITY.md](SECURITY.md)) |
+| `429` | `RATE_LIMITED` | Hız sınırı aşıldı; `Retry-After` başlığı (saniye) döner (bkz. [SECURITY.md](SECURITY.md)) |
 | `500` | `INTERNAL_ERROR` | Beklenmeyen hata. Detay yalnız logda |
 
 ### 1.6 Sayfalama

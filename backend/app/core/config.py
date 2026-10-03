@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     access_token_ttl_minutes: int = 15
     refresh_token_ttl_days: int = 30
     cookie_secure: bool = True  # False only for local HTTP development
+    # YET-186: identity-endpoint rate limits (docs/SECURITY.md §3). Off only for
+    # local development; the test suite turns it off by default.
+    rate_limit_enabled: bool = True
 
     # Outbox / Email — docs/ENV.md §6, PLAN 1.5 (yet-5-outbox-worker), PLAN 1.6
     outbox_poll_interval_seconds: int = 5

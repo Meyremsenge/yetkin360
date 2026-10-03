@@ -27,6 +27,7 @@ from app.schemas.auth import (
     VerifyEmailRequest,
 )
 from app.services import auth as auth_service
+from app.services import rate_limit
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -48,6 +49,26 @@ def _client_ip(request: Request) -> str | None:
     except ValueError:
         return None
     return request.client.host
+
+
+def _throttle(
+    session: Session,
+    request: Request,
+    ip_rule: rate_limit.Rule,
+    account_rule: rate_limit.Rule | None = None,
+    email: str | None = None,
+) -> None:
+    """YET-186: runs before any other work; the answer never depends on whether the account exists."""
+    client_host = request.client.host if request.client is not None else None
+    try:
+        rate_limit.enforce(session, ip_rule, client_host, account_rule, email)
+    except rate_limit.RateLimitExceeded as exc:
+        raise ApiError(
+            429,
+            "RATE_LIMITED",
+            "Çok fazla deneme yapıldı. Lütfen daha sonra tekrar deneyin.",
+            headers={"Retry-After": str(exc.retry_after)},
+        )
 
 
 def _set_auth_cookies(response: Response, tokens: auth_service.IssuedTokens) -> None:
@@ -93,9 +114,12 @@ def _clear_auth_cookies(response: Response) -> None:
 
 
 @router.post("/register", status_code=201, response_model=RegisterResponse)
-def register(body: RegisterRequest, session: Session = Depends(get_session)) -> RegisterResponse:
+def register(
+    body: RegisterRequest, request: Request, session: Session = Depends(get_session)
+) -> RegisterResponse:
     # docs/SECURITY.md §4 senaryo 10: always 201, never leaks whether the
     # email was already registered (see register_user's docstring).
+    _throttle(session, request, rate_limit.REGISTER_IP, rate_limit.REGISTER_ACCOUNT, body.email)
     result = auth_service.register_user(session, body.email, body.password, body.full_name)
     return RegisterResponse(user_id=result.user_id)
 
@@ -107,6 +131,8 @@ def login(
     response: Response,
     session: Session = Depends(get_session),
 ) -> LoginResponse:
+    # Rate limit (429) is checked before the YET-175 lock (423).
+    _throttle(session, request, rate_limit.LOGIN_IP, rate_limit.LOGIN_ACCOUNT, body.email)
     try:
         result = auth_service.authenticate(session, body.email, body.password, _client_ip(request))
     except auth_service.AccountLocked:
@@ -120,6 +146,7 @@ def login(
 
 @router.post("/refresh", status_code=204)
 def refresh(request: Request, response: Response, session: Session = Depends(get_session)) -> None:
+    _throttle(session, request, rate_limit.REFRESH_IP)
     refresh_token_value = request.cookies.get("refresh_token")
     if refresh_token_value is None:
         raise ApiError(401, "INVALID_REFRESH_TOKEN", "Oturum yenilenemedi.")
@@ -168,7 +195,10 @@ def resend_verification(
 
 
 @router.post("/verify-email", status_code=204)
-def verify_email(body: VerifyEmailRequest, session: Session = Depends(get_session)) -> None:
+def verify_email(
+    body: VerifyEmailRequest, request: Request, session: Session = Depends(get_session)
+) -> None:
+    _throttle(session, request, rate_limit.VERIFY_EMAIL_IP)
     try:
         auth_service.verify_email(session, body.token)
     except auth_service.InvalidEmailToken:
@@ -178,14 +208,23 @@ def verify_email(body: VerifyEmailRequest, session: Session = Depends(get_sessio
 
 
 @router.post("/forgot-password", status_code=204)
-def forgot_password(body: ForgotPasswordRequest, session: Session = Depends(get_session)) -> None:
+def forgot_password(
+    body: ForgotPasswordRequest, request: Request, session: Session = Depends(get_session)
+) -> None:
     # docs/API.md §2.1: always 204, whether or not the email is registered
-    # (enumeration guard — same principle as /auth/register).
+    # (enumeration guard — same principle as /auth/register). The 429 limits are
+    # keyed on the submitted address, so they do not depend on the account existing.
+    _throttle(
+        session, request, rate_limit.FORGOT_PASSWORD_IP, rate_limit.FORGOT_PASSWORD_ACCOUNT, body.email
+    )
     auth_service.request_password_reset(session, body.email)
 
 
 @router.post("/reset-password", status_code=204)
-def reset_password(body: ResetPasswordRequest, session: Session = Depends(get_session)) -> None:
+def reset_password(
+    body: ResetPasswordRequest, request: Request, session: Session = Depends(get_session)
+) -> None:
+    _throttle(session, request, rate_limit.RESET_PASSWORD_IP)
     try:
         auth_service.reset_password(session, body.token, body.new_password)
     except auth_service.InvalidEmailToken:

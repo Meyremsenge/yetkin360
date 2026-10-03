@@ -71,6 +71,23 @@ def pytest_configure(config):
         "markers",
         "unverified_users: do not auto-verify the e-mail of users inserted by this test",
     )
+    config.addinivalue_line(
+        "markers",
+        "rate_limited: run with the identity-endpoint rate limiter enabled (YET-186)",
+    )
+
+
+@pytest.fixture(autouse=True)
+def _rate_limiter_switch(request):
+    """
+    YET-186: the identity-endpoint limiter (5 logins/min/IP, ...) would trip the
+    many tests that log in or register repeatedly inside one test, so it is off
+    by default. Tests of the limiter itself opt in with @pytest.mark.rate_limited.
+    """
+    previous = settings.rate_limit_enabled
+    settings.rate_limit_enabled = request.node.get_closest_marker("rate_limited") is not None
+    yield
+    settings.rate_limit_enabled = previous
 
 
 @pytest.fixture(autouse=True)
