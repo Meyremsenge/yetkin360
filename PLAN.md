@@ -232,6 +232,9 @@ Hedef: jürinin göreceği yüz. Bu fazın sonunda canlı URL + gerçekçi veri 
 - [ ] 3.15b Bağımlılık güvenlik yükseltmesi: `pyjwt`→2.13.0, `starlette`→1.3.1,
   `postcss` (frontend, high severity), `pytest`→9.0.3 (dev-only, düşük
   öncelik) — kaynak: YET-119 verify_report.md @be2
+  > Backend kısmı YET-219 ile yapıldı (commit c748101): `pyjwt` 2.15.1,
+  > `fastapi` 0.141.1 (`starlette` 1.6.0 transitif), `pytest` 9.0.3.
+  > Açık kalan: yalnız frontend `postcss`.
 
 **Aşağıdaki 5 madde 2026-09-27 frontend↔backend entegrasyon denetiminde bulundu
 — önceki maddelerin "kapsam dışı" notlarında iz bırakılmış ama hiçbiri resmi
