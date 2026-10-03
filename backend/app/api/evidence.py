@@ -13,10 +13,10 @@ GET /evidence/{id}/download-url generates presigned download URL with ownership 
 import uuid
 
 from botocore.exceptions import ConnectTimeoutError, EndpointConnectionError
-from fastapi import APIRouter, Depends, Path
+from fastapi import APIRouter, Depends, Path, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_principal, get_session
+from app.api.deps import get_current_principal, get_session, get_verified_principal
 from app.core.deps import require_csrf
 from app.core.config import settings
 from app.core.errors import ApiError
@@ -28,7 +28,7 @@ from app.schemas.evidence import (
     EvidenceDownloadUrlResponse,
 )
 from app.services.authorization import Principal
-from app.services.evidence import create_evidence, get_download_url
+from app.services.evidence import create_evidence, get_download_url, list_evidence
 from app.services.storage import (
     build_object_key,
     check_rate_limit,
@@ -43,7 +43,7 @@ router = APIRouter(prefix="/evidence", tags=["evidence"])
 @router.post("/upload-url", response_model=EvidenceUploadUrlResponse)
 def upload_url(
     request_body: EvidenceUploadUrlRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> EvidenceUploadUrlResponse:
@@ -163,7 +163,7 @@ def upload_url(
 @router.post("", response_model=EvidenceResponse, status_code=201)
 def create_evidence_record(
     request_body: EvidenceCreateRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> EvidenceResponse:
@@ -206,9 +206,11 @@ def create_evidence_record(
         401 Unauthorized: No valid auth token, or suspended account (AC-2, AC-13 — suspended users are rejected at the auth layer before reaching this endpoint)
         403 CSRF Failed: CSRF token mismatch or missing
         403 Talent Profile Required: User has no talent profile (AC-12)
-        404 Not Found: deliverable_id provided but doesn't belong to principal's engagements (AC-4)
+        404 Not Found: storage_key outside the caller's own prefix (AC-3, AC-S1), or deliverable_id
+            doesn't belong to principal's engagements (AC-4)
+        409 Conflict: EVIDENCE_ALREADY_REGISTERED — the object already has an evidence record
         422 Unprocessable Entity:
-            - INVALID_STORAGE_KEY: storage_key prefix doesn't match principal.talent_id (AC-3, AC-S1)
+            - INVALID_STORAGE_KEY: storage_key under own prefix but malformed (not {uuid}.{ext}, ext != mime)
             - (Pydantic validation errors for kind, mime_type, size_bytes)
         429 Too Many Requests: > 10 requests per minute (AC-S5)
         503 Service Unavailable: (Unlikely in this endpoint, but handled for consistency)
@@ -217,7 +219,7 @@ def create_evidence_record(
         AC-1: Creates evidence record with scan_status=PENDING, visibility=PRIVATE, provenance=SELF_UPLOADED
         AC-1: Writes outbox message (evidence.scan_requested) in same transaction
         AC-2: Unauthenticated → 401
-        AC-3: Invalid storage_key prefix → 422 INVALID_STORAGE_KEY (elevation defense)
+        AC-3: storage_key outside own prefix → 404 NOT_FOUND (elevation defense, no existence leak)
         AC-4: deliverable_id ownership check (Deliverable→Engagement→talent_id), 404 if mismatch
         AC-8: kind must be in allowlist (Pydantic CHECK constraint)
         AC-12: No talent profile → 403 TALENT_PROFILE_REQUIRED
@@ -252,6 +254,23 @@ def create_evidence_record(
     return response
 
 
+@router.get("", response_model=list[EvidenceResponse])
+def list_my_evidence(
+    deliverable_id: uuid.UUID | None = Query(None, description="Only evidence of this deliverable"),
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> list[EvidenceResponse]:
+    """
+    YET-195: GET /evidence — the authenticated talent's own evidence, newest first.
+
+    Error Responses:
+        401 Unauthorized: No valid auth token
+        403 TALENT_PROFILE_REQUIRED: User has no talent profile
+    Other talents' evidence is never in scope (not listed, no error).
+    """
+    return list_evidence(session=session, principal=principal, deliverable_id=deliverable_id)
+
+
 @router.get("/{evidence_id}/download-url", response_model=EvidenceDownloadUrlResponse)
 def get_evidence_download_url(
     evidence_id: uuid.UUID = Path(..., description="Evidence UUID"),
@@ -276,7 +295,7 @@ def get_evidence_download_url(
         404 Not Found:
             - Evidence not found (AC-9)
             - Evidence belongs to different talent (AC-6, AC-S2)
-        409 Conflict: scan_status is not CLEAN (AC-7)
+        409 Conflict: scan_status is not CLEAN (AC-7), or EVIDENCE_CONTENT_CHANGED (object differs from the scanned one)
         429 Too Many Requests: > 10 requests per minute (AC-S5)
         503 Service Unavailable: MinIO unreachable (AC-11)
 

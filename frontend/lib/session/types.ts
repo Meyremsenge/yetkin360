@@ -25,6 +25,7 @@ export interface MeResponse {
     id: string;
     email?: string;
     full_name?: string;
+    email_verified?: boolean;
   };
   talent_profile?: TalentProfile | null;
   organizations: unknown[];

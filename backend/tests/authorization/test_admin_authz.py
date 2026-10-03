@@ -254,3 +254,27 @@ class TestSkillManagement:
             json={"merged_into_id": str(uuid.uuid4())},
         )
         assert response.status_code == 422, response.text
+
+
+# ============================================================================
+# YET-231: limit/offset sınırları
+# ============================================================================
+
+
+class TestPaginationBounds:
+    @pytest.mark.parametrize("path", ["/admin/verification-queue", "/admin/skills"])
+    @pytest.mark.parametrize(
+        "query", ["limit=1000000", "limit=201", "limit=0", "limit=-1", "offset=-1"]
+    )
+    def test_out_of_range_pagination_422(self, client, platform_admin, path, query):
+        response = client.get(
+            f"{path}?{query}", headers={"X-Debug-User-Id": str(platform_admin.id)}
+        )
+        assert response.status_code == 422, response.text
+
+    @pytest.mark.parametrize("path", ["/admin/verification-queue", "/admin/skills"])
+    def test_max_limit_accepted(self, client, platform_admin, path):
+        response = client.get(
+            f"{path}?limit=200&offset=0", headers={"X-Debug-User-Id": str(platform_admin.id)}
+        )
+        assert response.status_code == 200, response.text

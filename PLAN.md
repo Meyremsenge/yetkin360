@@ -182,10 +182,17 @@ Hedef: jürinin göreceği yüz. Bu fazın sonunda canlı URL + gerçekçi veri 
       > Ayrı bulgu (bu maddenin kapsamı dışı): `require_email_verified()` hiçbir
       > router'da kullanılmıyor — e-posta doğrulama yazma kısıtı hiçbir uçta
       > uygulanmıyor, ayrı bir madde olarak açılmalı.
-- [ ] 3.7 Frontend: profil sayfası — kanıt dökümü (signal + verified experience) @fe
-- [ ] 3.8 Frontend: public profil `/p/[slug]` + doğrulama `/v/[token]` @fe
-- [ ] 3.9 Frontend: koordinatör dashboard @fe
-- [ ] 3.10 Frontend: kurum dashboard + admin ekranları @fe
+- [x] 3.7 Frontend: profil sayfası — kanıt dökümü (signal + verified experience) @fe
+      > `app/profil/evidence-section.tsx` + testi mevcut. Jira YET-111 Tamamlandı.
+- [x] 3.8 Frontend: public profil `/p/[slug]` + doğrulama `/v/[token]` @fe
+      > PR #27 birleştirildi; `app/p/[slug]`, `app/v/[token]` + testleri mevcut.
+- [x] 3.9 Frontend: koordinatör dashboard @fe
+      > commit 2818115; `app/kurum/[id]/panel` + `lib/api/institutions.ts` + testleri.
+      > `panel/page.test.tsx` "404 gösterilir (403 değil)" testi kırmızıydı;
+      > aralıklı değil, regex kaynaklıydı — YET-217'de (7bdfdc8) düzeltildi.
+- [x] 3.10 Frontend: kurum dashboard + admin ekranları @fe
+      > PR #31 birleştirildi; `app/admin/dogrulama-kuyrugu`, `app/admin/skiller`,
+      > `app/kurum/[id]/panel` + testleri mevcut.
 - [x] 3.11 Seed verisi: 20 öğrenci, 5 kurum, 15 tamamlanmış engagement @be1
       > commit ad183f6 tamamlandı. `backend/scripts/seed.py` — 20 öğrenci
       > (ogrenci1-20@seed.local), 5 kurum + 5 organizasyon, 15 tam VERIFIED
@@ -209,7 +216,8 @@ Hedef: jürinin göreceği yüz. Bu fazın sonunda canlı URL + gerçekçi veri 
       > fonksiyonlarını çağırırken kendi ayrı DB session'ını açıyor ve test
       > rollback izolasyonunu bypass ediyor — yerel dev DB'ye kalıcı satır
       > bırakıyor, ayrı bir madde olarak açılmalı.
-- [ ] 3.13 Erişilebilirlik geçişi: klavye, focus, kontrast, `aria-live` @fe
+- [x] 3.13 Erişilebilirlik geçişi: klavye, focus, kontrast, `aria-live` @fe
+      > PR #34 birleştirildi (commit fac4449).
 - [ ] 3.14 Deploy: VPS, HTTPS, canlı URL, yedekleme, log @be2
 - [ ] 3.15 Açık kaynak paketi: kurulum talimatı sıfırdan doğrulanır, sır taraması @all
   > YET-119 `verify` adımında (2026-09-28) `security-scan` ile bulundu: backend
@@ -224,6 +232,9 @@ Hedef: jürinin göreceği yüz. Bu fazın sonunda canlı URL + gerçekçi veri 
 - [ ] 3.15b Bağımlılık güvenlik yükseltmesi: `pyjwt`→2.13.0, `starlette`→1.3.1,
   `postcss` (frontend, high severity), `pytest`→9.0.3 (dev-only, düşük
   öncelik) — kaynak: YET-119 verify_report.md @be2
+  > Backend kısmı YET-219 ile yapıldı (commit c748101): `pyjwt` 2.15.1,
+  > `fastapi` 0.141.1 (`starlette` 1.6.0 transitif), `pytest` 9.0.3.
+  > Açık kalan: yalnız frontend `postcss`.
 
 **Aşağıdaki 5 madde 2026-09-27 frontend↔backend entegrasyon denetiminde bulundu
 — önceki maddelerin "kapsam dışı" notlarında iz bırakılmış ama hiçbiri resmi
@@ -264,7 +275,7 @@ PLAN maddesi olarak açılmamıştı. Detay: `HATA.md`.**
       > 3.17-3.19 kapandıktan sonra: `grep -rn "USE_MOCK\|localStorage\." frontend/lib/api/`
       > sıfır sonuç dönmeli (test dosyaları hariç). Bu madde kapanmadan 2.14
       > (uçtan uca duman testi) güvenilir sayılmaz.
-- [ ] 3.24 Giriş kilitleme sayacı kalıcı olsun (HATA_DUZELTME_PROMPT A-01, GUV-01, L-03) @be2
+- [x] 3.24 Giriş kilitleme sayacı kalıcı olsun (HATA_DUZELTME_PROMPT A-01, GUV-01, L-03) @be2
 - [ ] 3.25 Logout refresh token ailesini iptal etsin (HATA_DUZELTME_PROMPT A-02, GUV-06, L-04) @be2
 - [ ] 3.26 MinIO bucket, healthcheck, depolama hataları, .env.example (HATA_DUZELTME_PROMPT A-03, OPS-03) @be2
 - [ ] 3.27 Outbox worker: döngü, tıkanma, e-posta linkleri (HATA_DUZELTME_PROMPT A-04, OPS-01, OPS-02) @be2

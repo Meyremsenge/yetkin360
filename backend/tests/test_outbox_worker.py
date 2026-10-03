@@ -238,18 +238,20 @@ def test_worker_multiple_failures_keep_incrementing_attempts(session):
 
     handlers = {topic: mock_handler_failure}
 
+    # backoff_base_seconds=0 so each run is immediately due again (backoff itself
+    # is covered in test_outbox_worker_delivery.py).
     # First run
-    process_batch(session, handlers, max_attempts=5, batch_size=10)
+    process_batch(session, handlers, max_attempts=5, batch_size=10, backoff_base_seconds=0)
     row = session.execute(select(Outbox).filter_by(id=row_id)).scalar_one()
     assert row.attempts == 1
 
     # Second run
-    process_batch(session, handlers, max_attempts=5, batch_size=10)
+    process_batch(session, handlers, max_attempts=5, batch_size=10, backoff_base_seconds=0)
     row = session.execute(select(Outbox).filter_by(id=row_id)).scalar_one()
     assert row.attempts == 2
 
     # Third run
-    process_batch(session, handlers, max_attempts=5, batch_size=10)
+    process_batch(session, handlers, max_attempts=5, batch_size=10, backoff_base_seconds=0)
     row = session.execute(select(Outbox).filter_by(id=row_id)).scalar_one()
     assert row.attempts == 3
 

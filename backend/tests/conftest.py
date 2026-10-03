@@ -1,16 +1,159 @@
-"""Pytest fixtures and configuration for institution tests."""
+"""Pytest fixtures and test-database bootstrap for the backend test suite."""
 
+# ruff: noqa: E402
+import os
+from pathlib import Path
+
+# CRITICAL: Initialize test database URL BEFORE importing any app.* modules.
+# This ensures all engines (app, alembic, workers) use the test DB, not dev DB.
+from tests._testdb import resolve_test_database_url, assert_safe_test_url, maintenance_url, session_override
+from app.core.config import settings
+
+# Derive or override test database URL.
+dev_url = settings.database_url
+test_url = resolve_test_database_url(dev_url, os.environ.get("TEST_DATABASE_URL"))
+assert_safe_test_url(test_url)
+
+# Safety check: refuse to run against a dev DB whose name ends with 'test'.
+# This guards against running tests on mytest, prodtest, etc. in local development.
+# CI is exempted (os.environ.get("CI") is set).
+if dev_url == test_url and dev_url.endswith("test") and not os.environ.get("CI"):
+    raise RuntimeError(
+        "refusing to run against a dev DB whose name ends with 'test'; "
+        "set TEST_DATABASE_URL or rename your dev database"
+    )
+
+# Switch all connections to test DB (settings is a singleton; alembic/env.py reads it).
+settings.database_url = test_url
+os.environ["DATABASE_URL"] = test_url
+
+# Imports must follow the test-DB URL switch, otherwise app engines bind to dev DB.
 import pytest
 from fastapi import Header, HTTPException
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
+from alembic.config import Config as AlembicConfig
+from alembic import command
+
+from datetime import datetime, timezone
+
+from sqlalchemy import event
 
 from app.api.deps import get_session
-from app.core.config import settings
 from app.core.deps import get_current_user as core_get_current_user
 from app.models import TalentProfile, User
 from app.main import app
+
+
+# ============================================================================
+# E-mail verification in the test world (YET-196, docs/AUTHORIZATION.md G6)
+#
+# Write endpoints now reject users whose e-mail is not verified, so every User
+# a test inserts is verified by default - one place instead of ~200 `User(`
+# call sites. Tests that need the real, unverified state (registration flow,
+# the enforcement tests) opt out with @pytest.mark.unverified_users.
+# ============================================================================
+
+_AUTO_VERIFY_USERS = {"enabled": True}
+
+
+@event.listens_for(User, "before_insert")
+def _verify_users_by_default(mapper, connection, target) -> None:
+    if _AUTO_VERIFY_USERS["enabled"] and target.email_verified_at is None:
+        target.email_verified_at = datetime.now(timezone.utc)
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "unverified_users: do not auto-verify the e-mail of users inserted by this test",
+    )
+    config.addinivalue_line(
+        "markers",
+        "rate_limited: run with the identity-endpoint rate limiter enabled (YET-186)",
+    )
+
+
+@pytest.fixture(autouse=True)
+def _rate_limiter_switch(request):
+    """
+    YET-186: the identity-endpoint limiter (5 logins/min/IP, ...) would trip the
+    many tests that log in or register repeatedly inside one test, so it is off
+    by default. Tests of the limiter itself opt in with @pytest.mark.rate_limited.
+    """
+    previous = settings.rate_limit_enabled
+    settings.rate_limit_enabled = request.node.get_closest_marker("rate_limited") is not None
+    yield
+    settings.rate_limit_enabled = previous
+
+
+@pytest.fixture(autouse=True)
+def _auto_verify_users(request):
+    enabled = request.node.get_closest_marker("unverified_users") is None
+    _AUTO_VERIFY_USERS["enabled"] = enabled
+    yield
+    _AUTO_VERIFY_USERS["enabled"] = True
+
+
+# ============================================================================
+# Test database lifecycle: create/upgrade at session start, drop and recreate on the next local run
+# ============================================================================
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _test_database():
+    """
+    Session-scope fixture: initialize test database.
+
+    For local development (dev_url != test_url):
+    - Connect to "postgres" maintenance database
+    - Drop test DB if it exists (with FORCE to disconnect stale sessions)
+    - Create test DB
+    - Apply all migrations via alembic upgrade head
+
+    For CI (dev_url == test_url, already "test"):
+    - Skip drop/create (DB name is already "test")
+    - Just apply migrations (idempotent)
+
+    Raises:
+        RuntimeError: if cannot connect to the test database server.
+    """
+    # Determine if we need to drop/create (local) or skip (CI)
+    is_local = dev_url != test_url
+
+    if is_local:
+        # Local: use maintenance database to drop/create test DB
+        maint_url = maintenance_url(test_url)
+        maint_engine = create_engine(maint_url)
+        try:
+            with maint_engine.connect() as conn:
+                # Use AUTOCOMMIT mode to execute DDL (CREATE/DROP DATABASE)
+                conn = conn.execution_options(isolation_level="AUTOCOMMIT")
+                # Extract DB name safely (already verified by assert_safe_test_url)
+                test_db_name = make_url(test_url).database
+                # Drop if exists (WITH FORCE disconnects stale sessions, PG ≥ 13)
+                conn.execute(text(f'DROP DATABASE IF EXISTS "{test_db_name}" WITH (FORCE)'))
+                conn.execute(text(f'CREATE DATABASE "{test_db_name}"'))
+        except OperationalError:
+            pytest.exit(
+                f"Cannot connect to test database server at {make_url(maint_url).host}:{make_url(maint_url).port}; "
+                f"start it with: docker compose up -d",
+                returncode=2
+            )
+        finally:
+            maint_engine.dispose()
+
+    # Apply migrations (idempotent)
+    backend_path = Path(__file__).resolve().parent.parent
+    alembic_ini = backend_path / "alembic.ini"
+    cfg = AlembicConfig(str(alembic_ini))
+    # Ensure script_location is absolute (cwd-independent)
+    cfg.set_main_option("sqlalchemy.url", test_url)
+    cfg.set_main_option("script_location", str(backend_path / "alembic"))
+    command.upgrade(cfg, "head")
 
 
 @pytest.fixture
@@ -35,17 +178,13 @@ def client(request, session):
     TestClient with dependency overrides for database session and authentication.
 
     Overrides:
-    1. get_session to use test session (isolated transaction per test)
+    1. get_session to use test session with production commit/rollback semantics
     2. get_current_user to read X-Debug-User-Id header for tests (no real JWT needed)
 
     Tests pass X-Debug-User-Id header explicitly to set auth context.
     """
     # Use injected session fixture to ensure proper fixture ordering
     test_session = session
-
-    def override_get_session():
-        """Override get_session to use test session."""
-        return test_session
 
     def override_get_current_user(x_debug_user_id: str | None = Header(default=None)):
         """
@@ -68,7 +207,7 @@ def client(request, session):
 
         return user
 
-    app.dependency_overrides[get_session] = override_get_session
+    app.dependency_overrides[get_session] = session_override(test_session)
     app.dependency_overrides[core_get_current_user] = override_get_current_user
 
     test_client = TestClient(app)

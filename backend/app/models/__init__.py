@@ -1,6 +1,7 @@
 from app.models.attestation import Attestation
 from app.models.audit import AuditEvent
 from app.models.auth import RefreshToken
+from app.models.auth_rate_limit import AuthRateLimit
 from app.models.base import Base
 from app.models.email_tokens import EmailVerificationToken, PasswordResetToken
 from app.models.engagement import Engagement
@@ -43,6 +44,7 @@ __all__ = [
     "VerifiedExperience",
     "AuditEvent",
     "RefreshToken",
+    "AuthRateLimit",
     "EmailVerificationToken",
     "PasswordResetToken",
     "Outbox",

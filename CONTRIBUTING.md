@@ -67,6 +67,38 @@ Sözleşme yazılır → `@fe` mock ile ilerler → backend gerçeğini bağlar.
 
 > **Testi atlamak tasarruf değil, gizlenmiş hatadır.**
 
+### Test veritabanı
+
+Backend testleri geliştirme veritabanına **dokunmaz**. Testler başladığında:
+
+1. **Otomatik oluşturma** — conftest.py boş test veritabanını sıfırdan oluşturur.
+2. **Şema kurulumu** — `alembic upgrade head` ile tüm migration'lar uygulanır.
+3. **Temizlik** — her test kendi verisini kurar; test sonunda rollback ile silinir.
+
+Koşmak için:
+```bash
+docker compose up -d  # PostgreSQL + MinIO başlatır
+cd backend
+pytest -q
+```
+
+Testler dev veritabanını **değiştirmez**. CI'da test DB adı zaten `test` olarak ayarlanmıştır
+(GitHub Actions üzerine PostgreSQL servisi sağlar).
+
+Ortam değişkeni `TEST_DATABASE_URL` ile test DB'si geçersiz kılınabilir — ancak **adı `test` ile
+bitmelidir** (güvenlik kuralı: dev DB'ye yanlışlıkla dokunmaya karşı koruma):
+
+```bash
+# Yerel olarak farklı test DB'si kullanma (adı "test" ile bitmeli)
+TEST_DATABASE_URL="postgresql+psycopg://user:pass@localhost:5432/custom_test" pytest -q
+```
+
+Frontend testleri:
+```bash
+cd frontend
+npm run test
+```
+
 ### 5. PR açın
 
 ```bash

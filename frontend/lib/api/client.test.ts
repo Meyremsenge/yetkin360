@@ -766,6 +766,21 @@ describe("apiFetch", () => {
       expect(result).toBeUndefined();
     });
 
+    it("YET-196: resendVerification() calls POST /auth/resend-verification → 204", async () => {
+      await loadClient();
+      const { resendVerification } = await import("@/lib/api/client");
+      const fetchMock = vi.mocked(global.fetch);
+      fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+      const result = await resendVerification();
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/auth/resend-verification"),
+        expect.objectContaining({ method: "POST" })
+      );
+      expect(result).toBeUndefined();
+    });
+
     it("AC-6: verifyEmail returns 400 INVALID_TOKEN → ApiError", async () => {
       const { apiFetch, ApiError } = await loadClient();
       const fetchMock = vi.mocked(global.fetch);

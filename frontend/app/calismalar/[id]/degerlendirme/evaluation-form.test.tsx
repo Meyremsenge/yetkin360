@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { EvaluationForm } from "./evaluation-form";
 import { submitEvaluation } from "@/lib/api/evaluation";
 import { ApiError } from "@/lib/api/errors";
+import messages from "@/messages/tr.json";
 
 vi.mock("@/lib/api/evaluation", () => ({
   submitEvaluation: vi.fn(),
@@ -129,7 +130,7 @@ describe("EvaluationForm", () => {
     await user.click(screen.getByText("Değerlendirmeyi Gönder"));
 
     await waitFor(() => {
-      expect(screen.getByText("Bir hata oluştu. Lütfen daha sonra tekrar deneyin.")).toBeTruthy();
+      expect(screen.getByText(messages.errors.generic)).toBeTruthy();
     });
   });
 });

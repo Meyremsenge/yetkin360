@@ -1,0 +1,82 @@
+{
+  "task": "a01-giris-kilitleme",
+  "reviewed_at": "2026-09-28T00:00:00Z",
+  "summary": "authenticate() ve refresh_tokens() düzeltmeleri atdd.md'nin fonksiyonel ve güvenlik AC'lerinin tamamını karşılıyor, testler gerçek DB semantiğiyle doğrulanmış ve geçiyor. İlk turda bulunan 4 bulgunun (1 medium reliability, 2 low) tümü kullanıcı onayıyla düzeltildi ve yeniden doğrulandı: L-03 status kontrolü artık REUSE_DETECTED mantığından SONRA çalışıyor (aile-revoke ve hırsızlık audit'i artık her koşulda tetikleniyor), yeni bir regresyon testi eklendi, audit tutarsızlığı ve atdd.md'deki dokümantasyon artığı giderildi. Tüm gate'ler (lint, mypy, authorization suite, tam test paketi) düzeltme sonrası tekrar PASS.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "reliability",
+      "file": "backend/app/services/auth.py",
+      "issue": "refresh_tokens() içinde L-03 status kontrolü (satır 486-490) token'ın revoked_at/expires_at kontrolünden (satır 492+) ÖNCE yerleştirilmiş. Senaryo: bir saldırgan zaten rotate edilmiş (revoked_at IS NOT NULL) bir çalıntı refresh token kullanıyor VE token sahibinin hesabı bu arada SUSPENDED/DELETED olmuş. Normalde bu durum REUSE_DETECTED dalına girip tüm token ailesini revoke etmeli ve REFRESH_TOKEN_REUSE_DETECTED audit'i yazmalı (docs/SECURITY.md §5, hırsızlık sinyali). Ama yeni status kontrolü daha erken çalıştığı için fonksiyon InvalidRefreshToken ile erken çıkıyor — aile revoke'u ve hırsızlık audit'i hiç tetiklenmiyor. Aynı sorun expired token + SUSPENDED kombinasyonunda da geçerli.",
+      "better_approach": "Status kontrolünü revoked_at/expires_at kontrolünden SONRA yap (ya da REUSE_DETECTED/expired dallarının içine, en başa taşı) — böylece hırsızlık tespiti ve aile-revoke her zaman önce çalışır, status reddi bundan sonra (token geçerliyse ama sahibi SUSPENDED/DELETED ise) devreye girer.",
+      "reason": "atdd.md'nin Hedef bölümü ve mevcut kod docstring'i (docs/SECURITY.md §5) REUSE tespitini kritik bir güvenlik sinyali olarak tanımlıyor; L-03 eklemesi bunu farkında olmadan gölgeleyebiliyor. atdd.md Kapsam Dışı listesinde bu etkileşim hiç ele alınmamış — muhtemelen gözden kaçmış, kasıtlı bir kapsam dışı bırakma değil.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "low",
+      "category": "test-gap",
+      "file": "backend/tests/authorization/test_auth_endpoints.py",
+      "issue": "Yukarıdaki bulguyu (SUSPENDED/DELETED kullanıcı + zaten revoke edilmiş/expired refresh token kombinasyonu) sınayan hiçbir test yok. test_login_refresh_token_denied_for_suspended_user yalnızca 'token geçerli + kullanıcı SUSPENDED' durumunu test ediyor, 'token zaten revoke edilmiş + kullanıcı SUSPENDED' durumunu değil.",
+      "better_approach": "Yukarıdaki bulgu düzeltilirse, aynı test dosyasına REUSE_DETECTED + SUSPENDED kombinasyonunu sınayan bir test eklenmeli: aile revoke'unun ve REFRESH_TOKEN_REUSE_DETECTED audit'inin hâlâ gerçekleştiğini doğrulamalı.",
+      "reason": "Davranış Sözleşmesi tablosunda (atdd.md satır 112) 'Refresh token'ın kullanıcısı ACTIVE/PENDING değil' satırı var ama bu satırın REUSE_DETECTED ile kesişimi hiç ele alınmamış — sözleşmede olmayan bir etkileşim, test edilmeyen bir hata durumudur (red-team talimatının Reliability bölümü).",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "low",
+      "category": "maintainability",
+      "file": "backend/app/services/auth.py",
+      "issue": "authenticate()'in SUSPENDED/DELETED dalında (satır 382) log_audit_event çağrısına actor_user_id=None geçiliyor, oysa aynı fonksiyonun diğer tüm DENIED/SUCCESS audit çağrılarında (satır 405, 428, 450) kullanıcı bulunduğunda actor_user_id=user.id kullanılıyor. Burada da user zaten bulunmuş durumda (satır 379'daki 'user is not None' kontrolünden geçmiş).",
+      "better_approach": "actor_user_id=None yerine actor_user_id=user.id kullan, fonksiyonun geri kalanıyla tutarlı olsun.",
+      "reason": "İşlevsel bir Acceptance Criteria'yı etkilemiyor (subject_id zaten doğru, hiçbir test actor_user_id'yi bu dalda sınamıyor) ama audit_events'in 'kim yaptı' izleme amacını (CLAUDE.md Repudiation/audit amacı) zayıflatıyor — SUSPENDED bir hesaba giriş denemesi audit'i, denemeyi yapan kullanıcı biliniyorken anonim gibi kaydediliyor.",
+      "outcome": "fixed"
+    },
+    {
+      "severity": "low",
+      "category": "readability",
+      "file": "obss_project/artifacts/a01-giris-kilitleme/atdd.md",
+      "issue": "Acceptance Criteria listesinde threat-model AC-S1/AC-S2 eklenirken (10. ve 11. madde) sondaki '(AC-9)' referansı (satır 96) yanlışlıkla ayrı bir satıra düşmüş — AC-9 zaten 9. maddede (satır 81-85) tanımlı, satır 96'daki tekrar boşta kalan bir düzenleme artığı.",
+      "better_approach": "Satır 96'daki yalnız '(AC-9)' satırını sil — 9. maddenin kendi metnine ait, oraya ait değil.",
+      "reason": "Kod veya test davranışını etkilemiyor, salt dokümantasyon temizliği; gelecekte atdd.md'yi okuyan biri için kafa karıştırıcı.",
+      "outcome": "fixed"
+    }
+  ],
+  "strengths": [
+    "Erken commit deseni (refresh_tokens()'taki REUSE_DETECTED emsaline uygun) tüm ilgili dallarda tutarlı uygulanmış ve yorum satırlarıyla gerekçelendirilmiş.",
+    "AC-9 (rollback semantiği) gerçek get_session davranışını taklit eden ayrı bir test dosyasıyla (test_auth_login_real_session.py, override'sız TestClient) doğrulanmış — savepoint fixture'ının maskeleyebileceği bir hata sınıfı gerçekten kapatılmış.",
+    "Threat-model'in ürettiği iki güvenlik AC'si (AC-S1: audit metadata PII guard, AC-S2: numaralandırma koruması byte-byte karşılaştırma) hem savepoint hem gerçek-session testleriyle iki kez doğrulanmış.",
+    "Doğrulama sürecinde bulunan 3 bağımsız hata (test dosyası kopyalama hatası, append-only ihlali, flaky sıralama) code-copilot/verify aşamalarında tespit edilip düzeltilmiş ve code_diff.md'de şeffaf biçimde raporlanmış.",
+    "Kapsam disiplini iyi: IP hız sınırı, MFA, CAPTCHA gibi atdd.md'nin açıkça kapsam dışı bıraktığı hiçbir şey eklenmemiş."
+  ],
+  "risks": [
+    "Yukarıdaki medium bulgu (REUSE_DETECTED'ın L-03 tarafından gölgelenmesi) production'da gerçek bir hırsızlık tespiti senaryosunda sessizce devre dışı kalabilir — düşük olasılık (SUSPENDED/DELETED + eşzamanlı çalıntı token) ama etkisi yüksek (aile-çapında revoke atlanır).",
+    "atdd.md'nin kabul ettiği DoS riski (AC-S3, hedefli hesap kilitleme) bu görevle büyümüyor ama mekanizma artık gerçekten çalıştığı için (rollback'e dayanıklı) bu riskin pratik etkisi öncekinden daha belirgin hale geldi — A-10'un önceliği bu görevle birlikte artmış olabilir, kullanıcıya hatırlatılmalı."
+  ],
+  "caveman_review": {
+    "complexity": "low",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve",
+  "post_fix_verification": {
+    "ruff_check": "PASS (All checks passed!)",
+    "mypy": "PASS (Success: no issues found in 64 source files)",
+    "pytest_authorization": "PASS (360 passed, 4 skipped, 0 failed — +1 yeni test)",
+    "pytest_full_suite": "PASS (812 passed, 13 failed = bilinen kırık liste ile birebir, 5 skipped — yeni kırık yok, +1 yeni test)",
+    "new_test_stability": "test_refresh_reused_token_with_suspended_user_still_revokes_family 3 kez ardışık çalıştırıldı, stabil"
+  }
+}

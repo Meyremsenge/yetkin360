@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_principal, get_session
+from app.api.deps import get_current_principal, get_session, get_verified_principal
 from app.core.deps import require_csrf
 from app.core.errors import ApiError
 from app.models import Institution, InstitutionLinkRequest
@@ -132,7 +132,7 @@ class DashboardResponse(BaseModel):
 @router.post("/", status_code=201, response_model=InstitutionResponse)
 def create_institution_endpoint(
     payload: InstitutionCreate,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> Institution:
@@ -182,7 +182,7 @@ def create_institution_endpoint(
 def invite_member_endpoint(
     institution_id: uuid.UUID,
     payload: InstitutionMemberInvite,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ):
@@ -308,7 +308,7 @@ def invite_member_endpoint(
 @router.post("/{institution_id}/link-requests", status_code=201, response_model=InstitutionLinkRequestResponse)
 def request_institution_link_endpoint(
     institution_id: uuid.UUID,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> InstitutionLinkRequest:
@@ -361,7 +361,7 @@ def request_institution_link_endpoint(
 def approve_link_request_endpoint(
     institution_id: uuid.UUID,
     request_id: uuid.UUID,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> InstitutionLinkRequest:
@@ -482,7 +482,7 @@ def get_coordinator_dashboard_endpoint(
 def create_reminders_endpoint(
     institution_id: uuid.UUID,
     payload: ReminderCreate,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> ReminderResponse:

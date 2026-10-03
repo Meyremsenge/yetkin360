@@ -357,6 +357,7 @@ hangi uca karşılık geldiğini gösterir.
 | `GET /public/v/{token}` | — | F4, F5, F6 |
 | `GET /admin/verification-queue` | `ADMIN` | — |
 | `POST /admin/organizations/{id}/verification-level` | `ADMIN` | G2 |
+| `POST /admin/organizations/{id}/verification-reject` | `ADMIN` | G2 |
 
 > ❓ AÇIK SORU: `POST /engagements` — engagement'ı kim başlatabilir? §34 hem
 > kurumun hem öğrencinin oluşturabileceğini ima ediyor ama §10.2 durum makinesi

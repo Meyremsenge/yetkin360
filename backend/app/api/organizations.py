@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_principal, get_session
+from app.api.deps import get_current_principal, get_session, get_verified_principal
 from app.core.deps import require_csrf
 from app.core.errors import ApiError
 from app.models import Organization
@@ -137,7 +137,7 @@ def validate_hostname(domain: str) -> bool:
 @router.post("/", status_code=201, response_model=OrganizationResponse)
 def create_organization_endpoint(
     payload: OrganizationCreate,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> Organization:
@@ -206,7 +206,7 @@ def create_organization_endpoint(
 def invite_member_endpoint(
     organization_id: uuid.UUID,
     payload: OrganizationMemberInvite,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ):
@@ -245,7 +245,7 @@ def invite_member_endpoint(
         raise ApiError(404, "NOT_FOUND", "Organizasyon bulunamadı")
 
     # Check if principal is ADMIN of this organization
-    if principal.kind != "ORG_ADMIN" or organization_id not in principal.org_admin_ids:
+    if organization_id not in principal.org_admin_ids:
         raise ApiError(404, "NOT_FOUND", "Organizasyon bulunamadı")
 
     # Invite member (isolate exception handling to invite_org_member only)
@@ -331,7 +331,7 @@ def invite_member_endpoint(
 def verify_domain_endpoint(
     organization_id: uuid.UUID,
     payload: DomainVerifyRequest = DomainVerifyRequest(),
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ):
@@ -371,7 +371,7 @@ def verify_domain_endpoint(
         raise HTTPException(status_code=404, detail="Organization not found")
 
     # Check if principal is ADMIN of this organization
-    if principal.kind != "ORG_ADMIN" or organization_id not in principal.org_admin_ids:
+    if organization_id not in principal.org_admin_ids:
         raise HTTPException(status_code=404, detail="Organization not found")
 
     # AC-S5: Validate domain format before DNS lookup (prevent SSRF)

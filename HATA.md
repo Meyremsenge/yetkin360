@@ -143,7 +143,7 @@ linkini yeniden gönderme, T4 ve T9/T10 geçişleri (bkz. IS-03, IS-10).
 
 ## 4. Güvenlik bulguları
 
-### GUV-01 — Giriş kilitleme hiç çalışmıyor · KRİTİK · [CANLI]
+### GUV-01 — Giriş kilitleme hiç çalışmıyor · KRİTİK · [CANLI] — ✅ DÜZELTİLDİ (PLAN 3.24, dal fix/3.24-giris-kilitleme)
 
 **Konum:** [backend/app/services/auth.py:363-389](backend/app/services/auth.py#L363-L389),
 [backend/app/core/deps.py:20-29](backend/app/core/deps.py#L20-L29)
@@ -710,7 +710,7 @@ uyarısı olarak görünecek.
 |---|---|---|
 | L-01 | `institution.py:120` | Kurum ADMIN'i başka admin'lerin (ve kendi) rolünü düşürebilir; son admin'i kaldırma koruması yok; üyelikten çıkarma ucu yok |
 | L-02 | `organizations.py` | Organizasyon alan adı oluşturulduktan sonra değiştirilemez (PATCH yok); alan adı yoksa `verify-domain` 400 |
-| L-03 | `auth.py` login/refresh | `SUSPENDED/DELETED` kullanıcıya login ve refresh yine token üretiyor (sonraki istekte 401 alsa da) |
+| L-03 | `auth.py` login/refresh | `SUSPENDED/DELETED` kullanıcıya login ve refresh yine token üretiyor (sonraki istekte 401 alsa da) — ✅ DÜZELTİLDİ (PLAN 3.24, dal fix/3.24-giris-kilitleme) |
 | L-04 | `api/auth.py:33` | Cookie `max_age` sabit 15 dk / 30 gün; `settings` TTL'i değişirse JWT ile cookie ayrışır |
 | L-05 | `public.py` | Public profil `talent_id` (iç UUID) döndürüyor; ORG üyesi bunu `POST /engagements`'ta kullanabilir (GUV-08). `/v/{token}` silinmiş (`deleted_at`) talent'ı filtrelemiyor |
 | L-06 | `me.py` | `PATCH /talents/me` `updated_at`'i elle set ediyor; `TimestampMixin` ile çakışma riski |

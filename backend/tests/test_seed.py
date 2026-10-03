@@ -558,3 +558,90 @@ def test_ac4_engagement_creation_error_propagates_not_swallowed(session):
         # seed_engagements() should raise the exception, not silently catch and continue
         with pytest.raises(RuntimeError, match="Simulated evaluation creation failure"):
             seed_engagements(session)
+
+
+# ============================================================================
+# YET-190 (AUTHZ-02, K3-a): her kurumda gerçek COORDINATOR üyesi var
+# ============================================================================
+
+
+def _seed_all(session):
+    seed_skills(session)
+    session.commit()
+    seed_talents(session)
+    session.commit()
+    seed_institutions_and_organizations(session)
+    session.commit()
+    seed_engagements(session)
+    session.commit()
+
+
+def test_yet190_every_institution_has_exactly_one_seed_coordinator(session):
+    from app.models import InstitutionMember
+
+    _seed_all(session)
+
+    institutions = session.query(Institution).all()
+    assert len(institutions) == 5
+    for i in range(1, 6):
+        inst = session.query(Institution).filter_by(domain=f"inst{i}.seed.local").one()
+        coordinators = (
+            session.query(User)
+            .join(InstitutionMember, InstitutionMember.user_id == User.id)
+            .filter(
+                InstitutionMember.institution_id == inst.id,
+                InstitutionMember.role == "COORDINATOR",
+            )
+            .all()
+        )
+        assert [u.email for u in coordinators] == [f"kurum{i}-koordinator@seed.local"]
+        admins = (
+            session.query(InstitutionMember)
+            .filter_by(institution_id=inst.id, role="ADMIN")
+            .count()
+        )
+        assert admins == 1
+
+
+def test_yet190_verified_engagements_are_attested_by_institution_coordinator(session):
+    from app.models import InstitutionMember
+
+    _seed_all(session)
+
+    attestations = session.query(Attestation).all()
+    assert len(attestations) == 15
+    for att in attestations:
+        engagement = session.query(Engagement).filter_by(id=att.engagement_id).one()
+        member = (
+            session.query(InstitutionMember)
+            .filter_by(
+                institution_id=engagement.institution_id, user_id=att.attestor_user_id
+            )
+            .one()
+        )
+        assert member.role == "COORDINATOR"
+
+
+def test_yet190_coordinator_seed_is_idempotent_and_repairs_admin_only_db(session):
+    from app.models import InstitutionMember
+
+    _seed_all(session)
+    member_count = session.query(func.count(InstitutionMember.id)).scalar()
+    user_count = session.query(func.count(User.id)).scalar()
+    assert member_count == 10  # 5 admins + 5 coordinators
+
+    # A database seeded before YET-190 has only the admins: removing the
+    # coordinator memberships simulates it (membership rows are not append-only).
+    session.query(InstitutionMember).filter_by(role="COORDINATOR").delete()
+    session.commit()
+    assert session.query(func.count(InstitutionMember.id)).scalar() == 5
+
+    seed_institutions_and_organizations(session)
+    session.commit()
+    assert session.query(func.count(InstitutionMember.id)).scalar() == member_count
+    assert session.query(func.count(User.id)).scalar() == user_count
+
+    seed_institutions_and_organizations(session)
+    session.commit()
+    assert session.query(func.count(InstitutionMember.id)).scalar() == member_count
+    assert session.query(func.count(User.id)).scalar() == user_count

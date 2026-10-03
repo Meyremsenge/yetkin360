@@ -8,6 +8,13 @@
     "loading": "Yükleniyor...",
     "noOrganizations": "Henüz bir kuruluşunuz yok. Lütfen yöneticinize başvurun."
   },
+  "emailVerificationBanner": {
+    "message": "E-posta adresiniz doğrulanmadı. Doğrulanana kadar kayıt oluşturamaz veya değişiklik yapamazsınız.",
+    "resend": "Doğrulama bağlantısını yeniden gönder",
+    "sending": "Gönderiliyor...",
+    "sent": "İstek alındı. E-postanızı kontrol edin; bağlantı gelmezse bir dakika sonra tekrar deneyin.",
+    "failed": "Bağlantı gönderilemedi. Lütfen tekrar deneyin."
+  },
   "session": {
     "expired": "Oturumunuz sona erdi. Lütfen tekrar giriş yapınız.",
     "loadFailed": "Bilgileriniz şu an yüklenemedi.",
@@ -199,6 +206,8 @@
     "notFound": "Kayıt bulunamadı",
     "organizationLabel": "Kurum",
     "institutionLabel": "Eğitim Kurumu",
+    "domainLabel": "Doğrulanmış alan adı",
+    "trustLevelLabel": "Doğrulama seviyesi",
     "periodLabel": "Dönem",
     "verifiedAtLabel": "Doğrulama Tarihi",
     "attestedSkillsTitle": "Tanıklık Yapılan Yetkinlikler"
@@ -217,6 +226,8 @@
     "empty": "Bekleyen doğrulama isteği yok",
     "notFound": "Kaynak bulunamadı.",
     "updated": "Doğrulama seviyesi güncellendi",
+    "rejected": "Başvuru reddedildi",
+    "notPending": "Kurum artık doğrulama kuyruğunda değil.",
     "headers": {
       "name": "Kurum Adı",
       "legalId": "Ticari Kayıt",
@@ -226,7 +237,8 @@
     },
     "form": {
       "levelLabel": "Doğrulama Seviyesi",
-      "confirm": "Onayla"
+      "confirm": "Onayla",
+      "reject": "Reddet"
     }
   },
   "adminSkills": {

@@ -15,10 +15,11 @@ Schema:
   - mime_type: MIME type declared by client
   - size_bytes: file size declared by client
   - content_hash: NULL (computed by worker during scanning)
+  - storage_etag: NULL (object ETag recorded by the scan; re-verified before download)
   - deleted_at: NULL until soft-delete (30-day grace period)
   - created_at, updated_at: TimestampMixin timestamps
 
-Mutable fields: scan_status, content_hash (updated by worker), deleted_at (soft delete).
+Mutable fields: scan_status, content_hash, storage_etag (updated by worker), deleted_at (soft delete).
 Append-only: evidence + outbox + audit_events written atomically, no UPDATE/DELETE on evidence itself.
 """
 
@@ -32,6 +33,7 @@ from sqlalchemy import (
     Integer,
     CheckConstraint,
     Index,
+    UniqueConstraint,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -44,6 +46,8 @@ class Evidence(Base, TimestampMixin):
 
     __tablename__ = "evidence"
     __table_args__ = (
+        # YET-184: one evidence record per stored object (race-proof, not just an app check)
+        UniqueConstraint("storage_key", name="uq_evidence_storage_key"),
         # Kind allowlist: CHECK constraint at DB level
         CheckConstraint(
             "kind IN ('REPOSITORY', 'DOCUMENT', 'IMAGE', 'LINK', 'CERTIFICATE')",
@@ -100,6 +104,10 @@ class Evidence(Base, TimestampMixin):
 
     # Content hash computed during scanning (NULL until worker processes)
     content_hash: Mapped[str | None] = mapped_column(String(255))
+
+    # Object ETag seen by the scan (NULL until scanned). The download path re-checks it
+    # with a HEAD so content swapped in after the scan (TOCTOU) is never served as CLEAN.
+    storage_etag: Mapped[str | None] = mapped_column(String(128))
 
     # Soft delete: NULL until 30-day grace period expires
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
