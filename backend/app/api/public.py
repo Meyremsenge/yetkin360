@@ -71,7 +71,6 @@ class PublicVerifiedExperienceResponse(BaseModel):
 class PublicTalentProfileResponse(BaseModel):
     """Response schema for GET /public/talents/{slug}."""
 
-    talent_id: uuid.UUID
     display_name: str
     verified_experiences: list[PublicVerifiedExperienceResponse]
 
@@ -95,7 +94,7 @@ def get_public_profile(
       - slug: public_slug value (string)
 
     Returns (200):
-      - {talent_id, display_name, verified_experiences[]}
+      - {display_name, verified_experiences[]} (no internal talent_id: YET-230)
       - verified_experiences filtered to visibility='PUBLIC' only
 
     Returns (404):
@@ -124,9 +123,8 @@ def get_public_profile(
     # AC-5 (AC-S3): filter to PUBLIC visibility only
     public_experiences = filter_public_experiences(verified_experiences)
 
-    # Build response (AC-4/AC-S2: PII fields excluded — only talent_id, display_name, verified_experiences)
+    # Build response (AC-4/AC-S2: PII and internal ids excluded — only display_name, verified_experiences)
     return PublicTalentProfileResponse(
-        talent_id=talent_profile.id,
         display_name=talent_profile.full_name,
         verified_experiences=[
             PublicVerifiedExperienceResponse.from_orm(exp) for exp in public_experiences
