@@ -43,6 +43,17 @@ describe("lib/api/engagements", () => {
       expect(availableTransitions("CANCELLED")).toEqual([]);
       expect(availableTransitions("PENDING_EVALUATION")).toEqual([]);
     });
+
+    it("EVALUATED/VERIFIED/DISPUTED/RESOLVED için genel /transitions ucundan aday yok (YET-194/IS-04)", () => {
+      // EVALUATED: sistem tarafından otomatik tetiklenir (değerlendirme gönderimi).
+      // VERIFIED: ayrı bir uçtan yapılır (POST .../attestations), /transitions değil.
+      // DISPUTED/RESOLVED: docs/STATE_MACHINE.md §7 — backend'de hiç gerçeklenmemiş.
+      // Üçü de bu yüzden burada [] döner; UI'da yanlış bir geçiş düğmesi oluşmasın.
+      expect(availableTransitions("EVALUATED")).toEqual([]);
+      expect(availableTransitions("VERIFIED")).toEqual([]);
+      expect(availableTransitions("DISPUTED")).toEqual([]);
+      expect(availableTransitions("RESOLVED")).toEqual([]);
+    });
   });
 
   describe("isReasonRequired", () => {

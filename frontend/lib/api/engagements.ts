@@ -20,7 +20,11 @@ export type EngagementStatus =
   | "ACTIVE"
   | "REJECTED"
   | "CANCELLED"
-  | "PENDING_EVALUATION";
+  | "PENDING_EVALUATION"
+  | "EVALUATED"
+  | "VERIFIED"
+  | "DISPUTED"
+  | "RESOLVED";
 
 export type EngagementKind = "INTERNSHIP" | "CAPSTONE" | "SHORT_PROJECT" | "PART_TIME";
 
@@ -67,6 +71,16 @@ export interface TransitionPayload {
 // Rol bilgisi /me'den gelmediği için SADECE durum bazlı aday geçişler hesaplanıyor;
 // gerçek yetki sunucuda uygulanır (bkz. dosya başındaki BACKEND GAP notu).
 // ============================================================================
+// PENDING_EVALUATION sonrası (EVALUATED/VERIFIED/DISPUTED/RESOLVED) bilinçli
+// olarak hepsi boş dizi: docs/STATE_MACHINE.md §4 T7-T10.
+//  - T7 (→EVALUATED): sistem tarafından otomatik tetiklenir (değerlendirme
+//    gönderimi, bkz. lib/api/evaluation.ts) — bu genel /transitions ucundan
+//    GEÇMEZ, dolayısıyla burada aday olarak sunulamaz.
+//  - T8 (EVALUATED→VERIFIED): ayrı bir uçtan yapılır (POST .../attestations,
+//    bkz. backend/app/api/engagements.py T8 yorumu) — bu da /transitions
+//    değil, dolayısıyla burada aday değil.
+//  - T9/T10 (DISPUTED/RESOLVED): STATE_MACHINE.md §7'de "vakit kalırsa" —
+//    backend'de hiç gerçeklenmemiş (ne /transitions'ta ne ayrı bir uçta).
 const NEXT_STATUSES: Record<EngagementStatus, EngagementStatus[]> = {
   DRAFT: ["PENDING_APPROVAL"],
   PENDING_APPROVAL: ["ACTIVE", "REJECTED"],
@@ -74,6 +88,10 @@ const NEXT_STATUSES: Record<EngagementStatus, EngagementStatus[]> = {
   REJECTED: [],
   CANCELLED: [],
   PENDING_EVALUATION: [],
+  EVALUATED: [],
+  VERIFIED: [],
+  DISPUTED: [],
+  RESOLVED: [],
 };
 
 const REASON_REQUIRED = new Set<EngagementStatus>(["REJECTED", "CANCELLED"]);

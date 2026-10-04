@@ -161,7 +161,11 @@
       "ACTIVE": "Aktif",
       "REJECTED": "Reddedildi",
       "CANCELLED": "İptal Edildi",
-      "PENDING_EVALUATION": "Değerlendirme Bekliyor"
+      "PENDING_EVALUATION": "Değerlendirme Bekliyor",
+      "EVALUATED": "Değerlendirildi",
+      "VERIFIED": "Doğrulandı",
+      "DISPUTED": "İtiraz Edildi",
+      "RESOLVED": "İtiraz Çözüldü"
     },
     "transitionAction": {
       "DRAFT": "Taslak",
@@ -169,7 +173,11 @@
       "ACTIVE": "Onayla ve Aktifleştir",
       "REJECTED": "Reddet",
       "CANCELLED": "İptal Et",
-      "PENDING_EVALUATION": "Değerlendirmeye Gönder"
+      "PENDING_EVALUATION": "Değerlendirmeye Gönder",
+      "EVALUATED": "Değerlendirmeyi Tamamla",
+      "VERIFIED": "Doğrula",
+      "DISPUTED": "İtiraz Et",
+      "RESOLVED": "İtirazı Çöz"
     },
     "evaluationFormLink": "Değerlendirme Formu",
     "evaluationSubmittedBadge": "Değerlendirme gönderildi"
