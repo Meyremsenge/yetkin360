@@ -240,6 +240,7 @@ token (30 gün).**
 | CSRF | `SameSite=Lax` + double-submit token | Cookie tabanlı auth'un zorunlu eşlikçisi |
 | Şifre | **Argon2id** | OWASP'ın mevcut önerisi. bcrypt'in 72 bayt sınırı ve GPU direnci zayıflığı yok |
 | Kilitleme | `failed_login_count` + `locked_until` | Brute force |
+| Dağıtım topolojisi | **Tek origin** (HTTPS reverse proxy), cookie'ler `Domain`'siz | Double-submit için `csrf_token` JS ile okunur, middleware `access_token`'ı görür; ayrı alt alan adlarında ikisi de kırılır. `Domain=.x` kardeş alt alan adlarına cookie açar. Production'da `COOKIE_SECURE=false`, `DEBUG=true`, http/localhost origin veya bilinmeyen `ENVIRONMENT` açılışı reddeder (YET-207, [ENV.md](ENV.md) §4) |
 
 ---
 
