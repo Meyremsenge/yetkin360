@@ -18,7 +18,6 @@ This is expected behavior. Tests verify acceptance criteria compliance.
 """
 
 from datetime import date
-from uuid import UUID
 
 import pytest
 
@@ -302,12 +301,12 @@ class TestHappyPathPublicProfile:
         Scenario:
         - TalentProfile with visibility='PUBLIC' and public_slug='alice-public-slug'
         - Two VerifiedExperience records: one PUBLIC, one PRIVATE
-        - Expected: 200 + {talent_id, display_name, verified_experiences[]}
+        - Expected: 200 + {display_name, verified_experiences[]} (no internal talent_id, YET-230)
         - verified_experiences list contains ONLY PUBLIC visibility records
 
         Acceptance Criteria:
         - Status code: 200
-        - Response contains talent_id, display_name (from full_name)
+        - Response contains display_name (from full_name)
         - verified_experiences list has 1 entry (PUBLIC only, PRIVATE filtered)
         """
         response = client.get("/public/talents/alice-public-slug")
@@ -317,12 +316,11 @@ class TestHappyPathPublicProfile:
         data = response.json()
 
         # Assert: response structure
-        assert "talent_id" in data
+        assert "talent_id" not in data
         assert "display_name" in data
         assert "verified_experiences" in data
 
-        # Assert: talent_id and display_name values
-        assert str(data["talent_id"]) == str(talent_profile_public.id)
+        # Assert: display_name value
         assert data["display_name"] == "Alice Public Talent"
 
         # Assert: verified_experiences list
@@ -369,7 +367,7 @@ class TestHappyPathPublicProfile:
         - Check response keys to ensure email, user_id, institution_id etc. are NOT present
 
         Acceptance Criteria:
-        - Response keys: talent_id, display_name, verified_experiences (ONLY)
+        - Response keys: display_name, verified_experiences (ONLY)
         - NO email, password_hash, institution_id, user_id, or other PII
         - NO attestations, skill_signals fields
         """
@@ -383,7 +381,7 @@ class TestHappyPathPublicProfile:
         response_keys = set(data.keys())
 
         # Assert: only expected keys
-        expected_keys = {"talent_id", "display_name", "verified_experiences"}
+        expected_keys = {"display_name", "verified_experiences"}
         assert response_keys == expected_keys, (
             f"Unexpected keys in response. Expected {expected_keys}, got {response_keys}. "
             f"This is a PII/internal field leakage vulnerability."
@@ -783,26 +781,15 @@ class TestResponseSchema:
         assert ve["claim_type"] in ["PARTICIPATION", "CONTRIBUTION", "COMPETENCE", "CONDUCT"]
         assert isinstance(ve["created_at"], str)  # ISO 8601 datetime
 
-    def test_talent_id_is_uuid_string(
+    def test_talent_id_is_not_exposed(
         self,
         client,
         session,
         talent_profile_public,
     ):
-        """talent_id in response should be a valid UUID string."""
+        """YET-230: the internal talent UUID must not appear anywhere in the response."""
         response = client.get("/public/talents/alice-public-slug")
 
         assert response.status_code == 200
-
-        data = response.json()
-
-        talent_id = data["talent_id"]
-
-        # Verify it's a string
-        assert isinstance(talent_id, str)
-
-        # Verify it parses as UUID
-        try:
-            UUID(talent_id)
-        except ValueError:
-            pytest.fail(f"talent_id '{talent_id}' is not a valid UUID")
+        assert "talent_id" not in response.json()
+        assert str(talent_profile_public.id) not in response.text

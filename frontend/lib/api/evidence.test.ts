@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { apiFetch } from "./client";
 import {
   validateFile,
   requestUploadUrl,
@@ -7,9 +8,11 @@ import {
   listEvidenceForDeliverable,
 } from "./evidence";
 
+vi.mock("./client", () => ({ apiFetch: vi.fn() }));
+
 /**
- * PLAN 2.12: Kanıt (evidence) yükleme mock katmanı testleri.
- * Store localStorage'da tutulduğu için her testte sıfırlanır.
+ * PLAN 2.12 + YET-195: Kanıt yükleme API katmanı testleri — gerçek backend uçlarına
+ * giden çağrılar (apiFetch / fetch sahte; ağ yok). Artık localStorage mock'u yok.
  */
 
 function makeFile(content: string, name: string, type: string): File {
@@ -18,8 +21,11 @@ function makeFile(content: string, name: string, type: string): File {
 
 describe("lib/api/evidence", () => {
   beforeEach(() => {
-    localStorage.clear();
-    vi.useRealTimers();
+    vi.mocked(apiFetch).mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   describe("validateFile", () => {
@@ -59,83 +65,109 @@ describe("lib/api/evidence", () => {
     });
   });
 
-  describe("requestUploadUrl + uploadFileToStorage (mock)", () => {
-    it("upload_url/upload_fields/object_key/expires_in şeklinde bir yanıt döner", async () => {
+  describe("requestUploadUrl", () => {
+    it("POST /evidence/upload-url'i dosya adı, içerik türü ve boyutla çağırır", async () => {
       const file = makeFile("x", "resume.pdf", "application/pdf");
+      const apiResponse = {
+        upload_url: "http://minio/bucket",
+        upload_fields: { key: "evidence/t/u.pdf" },
+        object_key: "evidence/t/u.pdf",
+        expires_in: 900,
+      };
+      vi.mocked(apiFetch).mockResolvedValueOnce(apiResponse);
+
       const response = await requestUploadUrl(file);
 
-      expect(response.upload_url).toBeTruthy();
-      expect(response.object_key).toContain("evidence/");
-      expect(response.expires_in).toBe(900);
-      expect(typeof response.upload_fields).toBe("object");
+      expect(response).toEqual(apiResponse);
+      expect(apiFetch).toHaveBeenCalledWith("/evidence/upload-url", {
+        method: "POST",
+        body: { filename: "resume.pdf", content_type: "application/pdf", size_bytes: 1 },
+      });
     });
 
-    it("depolamaya yükleme hatasız tamamlanır", async () => {
-      const file = makeFile("x", "resume.pdf", "application/pdf");
-      const response = await requestUploadUrl(file);
-
-      await expect(
-        uploadFileToStorage(response.upload_url, response.upload_fields, file)
-      ).resolves.toBeUndefined();
+    it("boş yanıt → hata fırlatır", async () => {
+      vi.mocked(apiFetch).mockResolvedValueOnce(undefined);
+      await expect(requestUploadUrl(makeFile("x", "a.pdf", "application/pdf"))).rejects.toThrow();
     });
   });
 
-  describe("recordEvidence + listEvidenceForDeliverable (mock, localStorage)", () => {
-    it("kayıt scan_status=PENDING ile oluşturulur ve deliverable'a göre filtrelenir", async () => {
+  describe("uploadFileToStorage", () => {
+    it("alanları FormData'ya ekler, dosyayı EN SONA koyar ve POST eder", async () => {
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 204 });
+      vi.stubGlobal("fetch", fetchMock);
+      const file = makeFile("x", "resume.pdf", "application/pdf");
+
+      await uploadFileToStorage("http://minio/bucket", { key: "k", policy: "p" }, file);
+
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe("http://minio/bucket");
+      expect(init.method).toBe("POST");
+      const keys = Array.from((init.body as FormData).keys());
+      expect(keys).toEqual(["key", "policy", "file"]);
+    });
+
+    it("depolama hata dönerse STORAGE_UPLOAD_FAILED fırlatır", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403 }));
+      await expect(
+        uploadFileToStorage("http://minio/bucket", {}, makeFile("x", "a.pdf", "application/pdf"))
+      ).rejects.toMatchObject({ code: "STORAGE_UPLOAD_FAILED", status: 403 });
+    });
+  });
+
+  describe("recordEvidence + listEvidenceForDeliverable", () => {
+    const apiItem = {
+      id: "ev-1",
+      kind: "DOCUMENT",
+      provenance: "SELF_UPLOADED",
+      storage_key: "evidence/t/u.pdf",
+      mime_type: "application/pdf",
+      size_bytes: 1024,
+      scan_status: "PENDING",
+      deliverable_id: "del-1",
+      created_at: "2026-10-02T00:00:00Z",
+    };
+
+    it("POST /evidence storage_key ile çağrılır ve object_key'e eşlenir", async () => {
+      vi.mocked(apiFetch).mockResolvedValueOnce(apiItem);
+
       const record = await recordEvidence({
         deliverable_id: "del-1",
-        object_key: "evidence/x/y.pdf",
+        object_key: "evidence/t/u.pdf",
         kind: "DOCUMENT",
         mime_type: "application/pdf",
         size_bytes: 1024,
       });
 
+      expect(apiFetch).toHaveBeenCalledWith("/evidence", {
+        method: "POST",
+        body: {
+          storage_key: "evidence/t/u.pdf",
+          kind: "DOCUMENT",
+          mime_type: "application/pdf",
+          size_bytes: 1024,
+          deliverable_id: "del-1",
+        },
+      });
+      expect(record.object_key).toBe("evidence/t/u.pdf");
       expect(record.scan_status).toBe("PENDING");
-      expect(record.deliverable_id).toBe("del-1");
-
-      const listForDel1 = await listEvidenceForDeliverable("del-1");
-      expect(listForDel1).toHaveLength(1);
-      expect(listForDel1[0].id).toBe(record.id);
-
-      const listForOtherDel = await listEvidenceForDeliverable("del-2");
-      expect(listForOtherDel).toHaveLength(0);
     });
 
-    it("kalıcılık: yeniden okununca da kayıt localStorage'dan gelir", async () => {
-      await recordEvidence({
-        deliverable_id: "del-1",
-        object_key: "evidence/x/y.pdf",
-        kind: "DOCUMENT",
-        mime_type: "application/pdf",
-        size_bytes: 1024,
-      });
+    it("GET /evidence?deliverable_id= listeler ve scan_status'u olduğu gibi taşır", async () => {
+      vi.mocked(apiFetch).mockResolvedValueOnce([apiItem, { ...apiItem, id: "ev-2", scan_status: "FAILED" }]);
 
-      const reread = await listEvidenceForDeliverable("del-1");
-      expect(reread).toHaveLength(1);
+      const list = await listEvidenceForDeliverable("del 1");
+
+      expect(apiFetch).toHaveBeenCalledWith("/evidence?deliverable_id=del%201");
+      expect(list.map((e) => [e.id, e.scan_status])).toEqual([
+        ["ev-1", "PENDING"],
+        ["ev-2", "FAILED"],
+      ]);
     });
 
-    it("bir süre sonra scan_status PENDING'den CLEAN'e döner (mock tarama simülasyonu, deterministik)", async () => {
-      vi.useFakeTimers();
-
-      // recordEvidence() içindeki delay(300) de fake timer'a bağlı — önce onu ilerletip
-      // sonucu alıyoruz, sonra tarama simülasyonunun setTimeout(4000)'ini ilerletiyoruz.
-      const recordPromise = recordEvidence({
-        deliverable_id: "del-1",
-        object_key: "evidence/x/y.pdf",
-        kind: "DOCUMENT",
-        mime_type: "application/pdf",
-        size_bytes: 1024,
-      });
-      await vi.advanceTimersByTimeAsync(300);
-      const record = await recordPromise;
-      expect(record.scan_status).toBe("PENDING");
-
-      await vi.advanceTimersByTimeAsync(4000);
-
-      const [resolved] = await listEvidenceForDeliverable("del-1");
-      expect(resolved.scan_status).toBe("CLEAN");
-
-      vi.useRealTimers();
+    it("localStorage'a hiçbir şey yazmaz (ENT-02 kök nedeni)", async () => {
+      vi.mocked(apiFetch).mockResolvedValueOnce([apiItem]);
+      await listEvidenceForDeliverable("del-1");
+      expect(localStorage.length).toBe(0);
     });
   });
 });

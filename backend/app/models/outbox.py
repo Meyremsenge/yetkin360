@@ -47,3 +47,6 @@ class Outbox(Base):
     )
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     attempts: Mapped[int] = mapped_column(nullable=False, default=0)
+    # NULL = eligible now. Set to a future time while a worker holds the row
+    # (claim lease) or after a failed attempt (retry backoff).
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -79,6 +79,20 @@ export async function updateVerificationLevel(
 }
 
 /**
+ * Reject a pending verification application (org leaves the queue, level unchanged).
+ * POST /admin/organizations/{id}/verification-reject
+ */
+export async function rejectVerification(organizationId: string): Promise<Organization | undefined> {
+  return (await apiFetch<Organization>(
+    `/admin/organizations/${organizationId}/verification-reject`,
+    {
+      method: "POST",
+      body: {},
+    }
+  )) as Organization | undefined;
+}
+
+/**
  * Create a new skill.
  * POST /admin/skills
  * AC-5: Happy path — returns new Skill

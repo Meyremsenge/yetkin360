@@ -7,17 +7,20 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_principal, get_session
+from app.api.deps import get_current_principal, get_session, get_verified_principal
 from app.core.deps import require_csrf
+from app.core.errors import ApiError
 from app.models import Organization
 from app.services.authorization import Principal, get_scoped_or_404, scoped_organizations
 from app.services.audit import log_audit_event
 from app.services.organization import (
     AlreadyMemberError,
     DomainAlreadyVerifiedError,
+    DomainLockedError,
     DuplicateLegalIdError,
     FreeEmailDomainError,
     RateLimitError,
+    change_organization_domain,
     create_organization,
     invite_org_member,
     verify_domain,
@@ -38,6 +41,12 @@ class OrganizationCreate(BaseModel):
     name: str = Field(..., min_length=1)
     domain: str | None = None
     legal_id: str | None = None
+
+
+class OrganizationDomainUpdate(BaseModel):
+    """Request schema for PATCH /organizations/{id}: the domain can be changed, not cleared."""
+
+    domain: str
 
 
 class OrganizationResponse(BaseModel):
@@ -136,7 +145,7 @@ def validate_hostname(domain: str) -> bool:
 @router.post("/", status_code=201, response_model=OrganizationResponse)
 def create_organization_endpoint(
     payload: OrganizationCreate,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> Organization:
@@ -197,25 +206,85 @@ def create_organization_endpoint(
 
 
 # ============================================================================
+# YET-237 / L-02: Change organization domain
+# ============================================================================
+
+
+@router.patch("/{organization_id}", status_code=200, response_model=OrganizationResponse)
+def change_domain_endpoint(
+    organization_id: uuid.UUID,
+    payload: OrganizationDomainUpdate,
+    principal: Principal = Depends(get_verified_principal),
+    session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
+) -> Organization:
+    """
+    Change the organization's domain (org ADMIN only).
+
+    T1: changes. T2: changes and drops to T1 (re-verify via DNS). T3/T4: locked.
+    Same value is a 200 no-op.
+
+    Status codes:
+        200: Changed (or same value)
+        400: FREE_EMAIL_DOMAIN
+        404: Organization not found / caller is not an ADMIN of it
+        409: ALAN_ADI_KILITLI (T3/T4) / DOMAIN_ALREADY_VERIFIED (held by another org)
+        422: Invalid domain format
+    """
+    scoped = scoped_organizations(session, principal)
+    org = get_scoped_or_404(scoped.where(Organization.id == organization_id), session)
+    if not org or organization_id not in principal.org_admin_ids:
+        raise ApiError(404, "NOT_FOUND", "Organizasyon bulunamadı")
+
+    new_domain = payload.domain.strip()
+    if not validate_hostname(new_domain):
+        raise ApiError(422, "INVALID_DOMAIN_FORMAT", "Geçersiz alan adı biçimi")
+
+    try:
+        changed, level_before = change_organization_domain(org, new_domain, session)
+    except DomainLockedError:
+        raise ApiError(409, "ALAN_ADI_KILITLI", "Doğrulanmış kurumun alan adı değiştirilemez")
+    except FreeEmailDomainError:
+        raise ApiError(400, "FREE_EMAIL_DOMAIN", "Ücretsiz e-posta sağlayıcısı alan adı olamaz")
+    except DomainAlreadyVerifiedError:
+        raise ApiError(409, "DOMAIN_ALREADY_VERIFIED", "Alan adı başka bir kurumda doğrulanmış")
+
+    if changed:
+        log_audit_event(
+            session=session,
+            actor_user_id=principal.user_id,
+            actor_ip=None,
+            action="ORGANIZATION_DOMAIN_CHANGED",
+            subject_type="organization",
+            subject_id=organization_id,
+            result="SUCCESS",
+            metadata={"from_level": level_before, "to_level": org.verification_level},
+        )
+
+    return org
+
+
+# ============================================================================
 # AC-3: Invite Member to Organization
 # ============================================================================
 
 
-@router.post("/{organization_id}/members", status_code=201, response_model=OrganizationMemberResponse)
+@router.post("/{organization_id}/members", status_code=202)
 def invite_member_endpoint(
     organization_id: uuid.UUID,
     payload: OrganizationMemberInvite,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ):
     """
-    AC-3: Invite user to organization (ADMIN-only action).
-    AC-4: Duplicate membership → 409 ALREADY_MEMBER.
+    AC-1/AC-2/AC-4: Invite user to organization (ADMIN-only action).
+    AC-1: Bilinen e-posta → 202 {"status": "queued"}, üyelik + outbox enqueue + audit
+    AC-2: Bilinmeyen e-posta → 202 {"status": "queued"}, hiç üyelik oluşmaz, yalnız audit
+    AC-4: Zaten üye → 202 (rol değişmez)
+    AC-3: Geçersiz rol → 422 INVALID_ROLE
     AC-S1: Tenant isolation — non-ADMIN or out-of-scope gets 404.
-    AC-S2: role must be ADMIN or MEMBER only.
-    AC-S6: outbox event added in same transaction.
-    AC-S7: Audit logged.
+    AC-S6/AC-S7: outbox + audit same transaction.
 
     Args:
         organization_id: Target organization
@@ -224,29 +293,30 @@ def invite_member_endpoint(
         session: Database session
 
     Returns:
-        OrganizationMember
+        {"status": "queued"}
 
     Status codes:
-        201: Member invited
+        202: Invitation queued (whether member created or not)
         404: Organization not found or not authorized
-        409: User already a member
         422: Invalid role
     """
-    # AC-S2: Validate role
+    # AC-3: Validate role (HAND, not Pydantic Literal)
     if payload.role not in ("ADMIN", "MEMBER"):
-        raise HTTPException(status_code=422, detail="INVALID_ROLE")
+        raise ApiError(422, "INVALID_ROLE", "Geçerli rol değeri: ADMIN veya MEMBER")
 
     # AC-S1: Check organization exists and is in principal's scope + is ADMIN
     scoped = scoped_organizations(session, principal)
     org_query = scoped.where(Organization.id == organization_id)
     org = get_scoped_or_404(org_query, session)
     if not org:
-        raise HTTPException(status_code=404, detail="Organization not found")
+        raise ApiError(404, "NOT_FOUND", "Organizasyon bulunamadı")
 
     # Check if principal is ADMIN of this organization
-    if principal.kind != "ORG_ADMIN" or organization_id not in principal.org_admin_ids:
-        raise HTTPException(status_code=404, detail="Organization not found")
+    if organization_id not in principal.org_admin_ids:
+        raise ApiError(404, "NOT_FOUND", "Organizasyon bulunamadı")
 
+    # Invite member (isolate exception handling to invite_org_member only)
+    member = None
     try:
         member = invite_org_member(
             organization_id=organization_id,
@@ -254,9 +324,41 @@ def invite_member_endpoint(
             role=payload.role,
             session=session,
         )
-        session.flush()
+    except AlreadyMemberError:
+        # AC-4: Zaten üye → 202 (rol değişmez, hiçbir şey yapılmaz)
+        log_audit_event(
+            session=session,
+            actor_user_id=principal.user_id,
+            actor_ip=None,
+            action="INVITE_ORG_MEMBER",
+            subject_type="organization",
+            subject_id=organization_id,
+            result="SUCCESS",
+            metadata={
+                "organization_id": str(organization_id),
+                "role": payload.role,
+                "reason": "already_member",
+            },
+        )
+    except ValueError:
+        # AC-2: Bilinmeyen e-posta → 202 (hiçbir üyelik oluşmaz, yalnız audit)
+        log_audit_event(
+            session=session,
+            actor_user_id=principal.user_id,
+            actor_ip=None,
+            action="INVITE_ORG_MEMBER",
+            subject_type="organization",
+            subject_id=organization_id,
+            result="SUCCESS",
+            metadata={
+                "organization_id": str(organization_id),
+                "role": payload.role,
+                "reason": "user_not_found",
+            },
+        )
 
-        # AC-S6: Enqueue email invitation in same transaction (PII guard: use user_id, not email)
+    # AC-1: Member created successfully → enqueue + audit (outside invite_org_member exception handler)
+    if member:
         enqueue(
             session=session,
             topic="email.organization_member_invited",
@@ -268,7 +370,7 @@ def invite_member_endpoint(
             },
         )
 
-        # Log audit event (AC-S7)
+        # Log audit event
         log_audit_event(
             session=session,
             actor_user_id=principal.user_id,
@@ -284,9 +386,7 @@ def invite_member_endpoint(
             },
         )
 
-        return member
-    except AlreadyMemberError:
-        raise HTTPException(status_code=409, detail="ALREADY_MEMBER")
+    return {"status": "queued"}
 
 
 # ============================================================================
@@ -298,7 +398,7 @@ def invite_member_endpoint(
 def verify_domain_endpoint(
     organization_id: uuid.UUID,
     payload: DomainVerifyRequest = DomainVerifyRequest(),
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ):
@@ -338,7 +438,7 @@ def verify_domain_endpoint(
         raise HTTPException(status_code=404, detail="Organization not found")
 
     # Check if principal is ADMIN of this organization
-    if principal.kind != "ORG_ADMIN" or organization_id not in principal.org_admin_ids:
+    if organization_id not in principal.org_admin_ids:
         raise HTTPException(status_code=404, detail="Organization not found")
 
     # AC-S5: Validate domain format before DNS lookup (prevent SSRF)
@@ -351,10 +451,11 @@ def verify_domain_endpoint(
             session=session,
         )
 
-        # If verification succeeded (T2), set verified_by_user_id
+        # If verification succeeded, record who promoted the org to T2 (an org already at T2+ keeps its record)
         if result["status"] == "verified":
-            org.verified_by_user_id = principal.user_id
-            session.flush()
+            if result.get("promoted"):
+                org.verified_by_user_id = principal.user_id
+                session.flush()
 
             # Log success (AC-S7)
             log_audit_event(
@@ -365,7 +466,7 @@ def verify_domain_endpoint(
                 subject_type="organization",
                 subject_id=organization_id,
                 result="SUCCESS",
-                metadata={"domain": org.domain, "verification_level": "T2"},
+                metadata={"domain": org.domain, "verification_level": org.verification_level},
             )
         else:
             # Log pending (AC-S7)

@@ -4,7 +4,7 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_session as core_get_session
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, require_email_verified
 from app.models import InstitutionMember, OrganizationMember, TalentProfile, User
 from app.services.authorization import Principal
 
@@ -39,7 +39,9 @@ def get_current_principal(
     talent = session.query(TalentProfile).filter_by(user_id=user.id).first()
     talent_id = talent.id if talent else None
 
-    # Infer kind based on memberships/profile (highest privilege level)
+    # Infer kind based on memberships/profile (highest privilege level, display only)
+    # Note: kind is display-only and never used in authorization decisions (AC-6);
+    # authorization uses membership ID lists (org_ids, org_admin_ids, etc.)
     if institution_admin_ids:
         kind = "INST_ADMIN"
     elif institution_ids:
@@ -64,3 +66,19 @@ def get_current_principal(
         is_platform_admin=user.is_platform_admin,
         is_suspended=user.status == "SUSPENDED",
     )
+
+
+def get_verified_principal(
+    _verified: User = Depends(require_email_verified),
+    principal: Principal = Depends(get_current_principal),
+) -> Principal:
+    """
+    get_current_principal for WRITE endpoints (docs/AUTHORIZATION.md G6).
+
+    Unauthenticated -> 401 UNAUTHENTICATED; authenticated but unverified e-mail
+    -> 401 EMAIL_NOT_VERIFIED. The check runs before the principal is built,
+    so it also precedes every resource lookup (no existence leak). Read
+    endpoints, /auth/logout and /auth/refresh keep using get_current_principal
+    / get_current_user.
+    """
+    return principal

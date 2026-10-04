@@ -137,9 +137,16 @@ attestation + verified experience + skill signal üretilir.
 
 Hedef: jürinin göreceği yüz. Bu fazın sonunda canlı URL + gerçekçi veri olmalı.
 
-- [ ] 3.1 Public profil ucu + `visibility` kuralları @be1
-- [ ] 3.2 Public doğrulama linki `GET /public/v/{token}` @be1
-- [ ] 3.3 Koordinatör dashboard ucu (durum takibi + bekleyen değerlendirme) @be1
+- [x] 3.1 Public profil ucu + `visibility` kuralları @be1
+      > YET-105 tamamlandı (PR #24, commit a65e670). `app/api/public.py` +
+      > `visibility_service.py`. PLAN.md'de işaretlenmemişti — kod/test main'de
+      > tam, sadece belge senkronu eksikti (2026-09-27 entegrasyon denetiminde bulundu).
+- [x] 3.2 Public doğrulama linki `GET /public/v/{token}` @be1
+      > YET-106 tamamlandı (PR #25, commit f2279a0). `verified_experiences.public_token`
+      > migration'ı dahil. PLAN.md'de işaretlenmemişti (2026-09-27 entegrasyon denetiminde bulundu).
+- [x] 3.3 Koordinatör dashboard ucu (durum takibi + bekleyen değerlendirme) @be1
+      > YET-107 tamamlandı (commit 35a494c). `GET /institutions/{id}/dashboard`.
+      > PLAN.md'de işaretlenmemişti (2026-09-27 entegrasyon denetiminde bulundu).
 - [x] 3.4 Toplu hatırlatma ucu (`POST /institutions/{id}/reminders`) @be2
       > YET-108/130/131/132 tamamlandı. `services/reminder.py` +
       > `POST /institutions/{id}/reminders`; `scoped_institutions()`/
@@ -175,11 +182,22 @@ Hedef: jürinin göreceği yüz. Bu fazın sonunda canlı URL + gerçekçi veri 
       > Ayrı bulgu (bu maddenin kapsamı dışı): `require_email_verified()` hiçbir
       > router'da kullanılmıyor — e-posta doğrulama yazma kısıtı hiçbir uçta
       > uygulanmıyor, ayrı bir madde olarak açılmalı.
-- [ ] 3.7 Frontend: profil sayfası — kanıt dökümü (signal + verified experience) @fe
-- [ ] 3.8 Frontend: public profil `/p/[slug]` + doğrulama `/v/[token]` @fe
-- [ ] 3.9 Frontend: koordinatör dashboard @fe
-- [ ] 3.10 Frontend: kurum dashboard + admin ekranları @fe
-- [ ] 3.11 Seed verisi: 20 öğrenci, 5 kurum, 15 tamamlanmış engagement @be1
+- [x] 3.7 Frontend: profil sayfası — kanıt dökümü (signal + verified experience) @fe
+      > `app/profil/evidence-section.tsx` + testi mevcut. Jira YET-111 Tamamlandı.
+- [x] 3.8 Frontend: public profil `/p/[slug]` + doğrulama `/v/[token]` @fe
+      > PR #27 birleştirildi; `app/p/[slug]`, `app/v/[token]` + testleri mevcut.
+- [x] 3.9 Frontend: koordinatör dashboard @fe
+      > commit 2818115; `app/kurum/[id]/panel` + `lib/api/institutions.ts` + testleri.
+      > `panel/page.test.tsx` "404 gösterilir (403 değil)" testi kırmızıydı;
+      > aralıklı değil, regex kaynaklıydı — YET-217'de (7bdfdc8) düzeltildi.
+- [x] 3.10 Frontend: kurum dashboard + admin ekranları @fe
+      > PR #31 birleştirildi; `app/admin/dogrulama-kuyrugu`, `app/admin/skiller`,
+      > `app/kurum/[id]/panel` + testleri mevcut.
+- [x] 3.11 Seed verisi: 20 öğrenci, 5 kurum, 15 tamamlanmış engagement @be1
+      > commit ad183f6 tamamlandı. `backend/scripts/seed.py` — 20 öğrenci
+      > (ogrenci1-20@seed.local), 5 kurum + 5 organizasyon, 15 tam VERIFIED
+      > engagement (Attestation/VerifiedExperience zinciriyle), idempotent.
+      > PLAN.md'de işaretlenmemişti (2026-09-27 entegrasyon denetiminde bulundu).
 - [x] 3.12 Güvenlik geçişi: BOLA taraması, 404-yerine-403 doğrulaması @be2
       > YET-116/154/155 tamamlandı (PR #32). Tüm `api/*.py` ve `services/*.py`
       > `scoped_*()`/`can()` kullanımı için tarandı — `institutions.py`'de router
@@ -198,9 +216,92 @@ Hedef: jürinin göreceği yüz. Bu fazın sonunda canlı URL + gerçekçi veri 
       > fonksiyonlarını çağırırken kendi ayrı DB session'ını açıyor ve test
       > rollback izolasyonunu bypass ediyor — yerel dev DB'ye kalıcı satır
       > bırakıyor, ayrı bir madde olarak açılmalı.
-- [ ] 3.13 Erişilebilirlik geçişi: klavye, focus, kontrast, `aria-live` @fe
+- [x] 3.13 Erişilebilirlik geçişi: klavye, focus, kontrast, `aria-live` @fe
+      > PR #34 birleştirildi (commit fac4449).
 - [ ] 3.14 Deploy: VPS, HTTPS, canlı URL, yedekleme, log @be2
 - [ ] 3.15 Açık kaynak paketi: kurulum talimatı sıfırdan doğrulanır, sır taraması @all
+  > YET-119 `verify` adımında (2026-09-28) `security-scan` ile bulundu: backend
+  > `pyjwt` 2.10.1 (birden fazla advisory, PYSEC-2026-120/175/176/177/178/179 —
+  > 2.12.0/2.13.0'a yükselt) ve `starlette` 0.41.3 (PYSEC-2026-161/248/249/
+  > 1941/1942/2280/2281 — 1.3.1'e yükselt); frontend `postcss` (high severity
+  > XSS advisory). `pytest` 8.3.4 için de bir advisory var (9.0.3, dev-only,
+  > düşük öncelik). Bağımlılık sürüm yükseltmesi CLAUDE.md gereği açık onay
+  > istediği ve bu görevin kapsamı dışında kaldığı için ayrı madde olarak
+  > açıldı (bkz. 3.15b). Not: 3.33 de "bağımlılık yükseltmeleri" içeriyor —
+  > 3.15b bu spesifik CVE'lerin kaynağı, 3.33 kapsadığında bu madde kapatılabilir.
+- [ ] 3.15b Bağımlılık güvenlik yükseltmesi: `pyjwt`→2.13.0, `starlette`→1.3.1,
+  `postcss` (frontend, high severity), `pytest`→9.0.3 (dev-only, düşük
+  öncelik) — kaynak: YET-119 verify_report.md @be2
+  > Backend kısmı YET-219 ile yapıldı (commit c748101): `pyjwt` 2.15.1,
+  > `fastapi` 0.141.1 (`starlette` 1.6.0 transitif), `pytest` 9.0.3.
+  > Açık kalan: yalnız frontend `postcss`.
+
+**Aşağıdaki 5 madde 2026-09-27 frontend↔backend entegrasyon denetiminde bulundu
+— önceki maddelerin "kapsam dışı" notlarında iz bırakılmış ama hiçbiri resmi
+PLAN maddesi olarak açılmamıştı. Detay: `HATA.md`.**
+
+- [ ] 3.17 Evidence upload akışının mock'tan gerçek backend'e bağlanması @fe
+      > `frontend/lib/api/evidence.ts`: `USE_MOCK_UPLOAD_URL`/`USE_MOCK_STORAGE_UPLOAD`
+      > hâlâ `true`, `recordEvidence()` her koşulda localStorage. Backend'de
+      > `POST /evidence/upload-url` VE `POST /evidence` ikisi de tamamlanmış (2.5/2.6) —
+      > dosya başındaki "Adım 3 backend'de HİÇ YOK" yorumu artık YANLIŞ/güncel değil.
+      > Aktif kullanılan bir bileşende (`calismalar/[id]/evidence-upload-form.tsx`)
+      > kullanıcı dosya yüklediğini sanıp hiçbir şey backend'e gitmiyor. bkz. HATA.md §1.
+- [ ] 3.18 Değerlendirme formunun mock'tan gerçek backend'e bağlanması @fe
+      > `frontend/lib/api/evaluation.ts`: `submitEvaluation()` tamamen localStorage,
+      > dosya başı yorumu "backend'de HİÇ YOK" diyor ama `POST /engagements/{id}/evaluation`
+      > 2.7'de (YET-69) tamamlandı. Ayrıca mock 422/409 hata kodu ayrımı yapıyor,
+      > gerçek backend ikisini de 409 CONFLICT döndürüyor — bağlarken hata kodu
+      > eşlemesi düzeltilmeli. `private_note` localStorage'a düz metin yazılıyor,
+      > bu da ayrıca bkz. 3.19. bkz. HATA.md §2.
+- [ ] 3.19 localStorage'a PII/hassas veri yazılmaması + auth kuralına uyum @fe
+      > `.claude/rules/frontend.md`: "Auth: httpOnly cookie — `localStorage` kullanılmaz."
+      > `evidence.ts` ve `evaluation.ts` (private_note dahil) kalıcı state için
+      > localStorage kullanıyor — 3.17/3.18 ile birlikte çözülecek, ayrı doğrulama
+      > gerektirir (localStorage temizliği + XSS maruziyeti kontrolü). bkz. HATA.md §2, §5.
+- [ ] 3.20 `.env.example` NEXT_PUBLIC_API_BASE_URL düzeltmesi @be1
+      > `.env.example`: `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1` yazıyor
+      > ama backend'de `/api/v1` prefix'i YOK (router'lar doğrudan `/auth`, `/engagements`
+      > vb.) — `frontend/lib/api/client.ts` default'u da zaten prefix'siz
+      > (`http://localhost:8000`) ve doğru. `.env.example`'dan kopyalayan biri kırık
+      > bir base URL alır. Açık kaynak paketi (3.15) öncesi düzeltilmeli. bkz. HATA.md §3.
+- [ ] 3.21 `require_email_verified()` hiçbir router'da uygulanmıyor @be2
+      > 3.12'nin notu: e-posta doğrulama yazma kısıtı hiçbir uçta zorlanmıyor.
+      > Güvenlik/kapsam kararı gerektirir (hangi uçlarda zorunlu olacağı netleşmeli).
+- [ ] 3.22 `tests/test_seed.py` rollback izolasyonunu bypass ediyor @be1
+      > 3.12'nin notu: seed fonksiyonlarını çağırırken ayrı DB session açıyor,
+      > yerel dev DB'ye kalıcı satır bırakıyor. Test izolasyon hatası, veri hatası değil.
+- [ ] 3.23 Faz 2/3 backend↔frontend GET/mock eşleşmesi son doğrulama @all
+      > 3.17-3.19 kapandıktan sonra: `grep -rn "USE_MOCK\|localStorage\." frontend/lib/api/`
+      > sıfır sonuç dönmeli (test dosyaları hariç). Bu madde kapanmadan 2.14
+      > (uçtan uca duman testi) güvenilir sayılmaz.
+- [x] 3.24 Giriş kilitleme sayacı kalıcı olsun (HATA_DUZELTME_PROMPT A-01, GUV-01, L-03) @be2
+- [ ] 3.25 Logout refresh token ailesini iptal etsin (HATA_DUZELTME_PROMPT A-02, GUV-06, L-04) @be2
+- [ ] 3.26 MinIO bucket, healthcheck, depolama hataları, .env.example (HATA_DUZELTME_PROMPT A-03, OPS-03) @be2
+- [ ] 3.27 Outbox worker: döngü, tıkanma, e-posta linkleri (HATA_DUZELTME_PROMPT A-04, OPS-01, OPS-02) @be2
+- [ ] 3.28 Seed demo düzeltmesi: COORDINATOR, T2 organizasyon, doğrulanmış e-posta (HATA_DUZELTME_PROMPT A-05, AUTHZ-02, IS-02) @be2
+- [ ] 3.29 Kanıt backend'i: tarama, liste ucu, kayıt sertleştirme (HATA_DUZELTME_PROMPT A-06, IS-07, GUV-12) @be2
+- [ ] 3.30 Çoklu rol: kapsam sorguları `kind`'dan bağımsız (HATA_DUZELTME_PROMPT A-08, AUTHZ-01, GUV-02, AUTHZ-02, L-08) @be2
+- [ ] 3.31 Davet uçları: 500, numaralandırma, rol doğrulama (HATA_DUZELTME_PROMPT A-09, GUV-07, GUV-02, L-01) @be2
+- [ ] 3.32 Kayıt zamanlama + kimlik uçlarına hız sınırı (HATA_DUZELTME_PROMPT A-10, GUV-10, GUV-11) @be2
+- [ ] 3.33 Bağımlılık yükseltmeleri + secrets baseline (HATA_DUZELTME_PROMPT A-11, DEP-01, L-16) @be2
+- [ ] 3.34 DB kısıtları: append-only trigger, claimed_level, timestamptz (HATA_DUZELTME_PROMPT A-12, VER-01, VER-02, VER-03) @be2
+- [ ] 3.35 Backend test izolasyonu + fixture rollback semantiği (HATA_DUZELTME_PROMPT A-13, TEST-01, TEST-02) @be2
+- [ ] 3.36 Hata yanıt biçimi, 307'ler, prod ayarları (HATA_DUZELTME_PROMPT A-14, OPS-04, ENT-06, L-07, L-11, L-12, L-14) @be2
+- [ ] 3.37 Alan adı gaspı, DNS transaction, hatırlatma sınırları (HATA_DUZELTME_PROMPT A-15, GUV-09, AUTHZ-04, GUV-13) @be2
+- [ ] 3.38 Refresh sonrası CSRF başlığı yeniden okunsun (HATA_DUZELTME_PROMPT B-01, ENT-03, L-13) @fe
+- [ ] 3.39 `/me` rol bilgisi, admin linkleri, durum etiketleri, 307 (HATA_DUZELTME_PROMPT B-02, ENT-04, ENT-05, IS-04, ENT-06) @fe
+- [ ] 3.40 Engagement tarihleri (oluşturma + PATCH) (HATA_DUZELTME_PROMPT B-03, IS-02) @be1
+- [ ] 3.41 Public token, VE görünürlüğü, geri çekme okuma filtresi (HATA_DUZELTME_PROMPT B-04, IS-01, GUV-05, GUV-03, L-05) @be1
+- [ ] 3.42 Skill sinyal ve tanıklık kuralları (HATA_DUZELTME_PROMPT B-05, GUV-04, IS-05, IS-06) @be1
+- [ ] 3.43 Durum makinesi dokümana uysun (HATA_DUZELTME_PROMPT B-06, AUTHZ-03, IS-03, GUV-08) @be1
+- [ ] 3.44 Değerlendirme formunun mock'tan gerçek backend'e bağlanması (HATA_DUZELTME_PROMPT B-07, ENT-02) @fe
+- [ ] 3.45 Engagement oluşturma + teslim ekranları (HATA_DUZELTME_PROMPT B-08, ENT-01) @fe
+- [ ] 3.46 Kanıt yükleme gerçek backend'e (HATA_DUZELTME_PROMPT B-09, ENT-02) @fe
+- [ ] 3.47 Tanıklık, geri çekme, deneyim paylaşımı ekranları (HATA_DUZELTME_PROMPT B-10, ENT-01, IS-01) @fe
+- [ ] 3.48 Frontend testleri + CI'da vitest (HATA_DUZELTME_PROMPT B-11, TEST-01) @fe
+- [ ] 3.49 Kurum bağlanma talepleri + admin kuyruğu reddi (HATA_DUZELTME_PROMPT B-12, IS-10, IS-11) @fe
+- [ ] 3.50 Profil düzeltmeleri, skill yönetimi, frontend bağımlılığı (HATA_DUZELTME_PROMPT B-13, IS-09, DEP-02, L-06, L-10) @fe
 - [ ] 3.16 Kod dondurma — Faz 4'e yeni özellik girmez @all
 
 ---

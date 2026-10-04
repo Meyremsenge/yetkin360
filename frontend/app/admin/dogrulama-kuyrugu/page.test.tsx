@@ -200,6 +200,48 @@ describe("DogrulamaKuyruguPage (/admin/dogrulama-kuyrugu)", () => {
     });
   });
 
+  it("YET-198: Reddet — kurum kuyruktan çıkar, rejectVerification çağrılır, seviye güncelleme çağrılmaz", async () => {
+    vi.mocked(adminApi.getVerificationQueue).mockResolvedValueOnce(mockVerificationQueue);
+    vi.mocked(adminApi.rejectVerification).mockResolvedValueOnce(mockOrganization);
+
+    const user = userEvent.setup();
+    renderWithQueryClient(<DogrulamaKuyruguPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Tech Startup Inc.")).toBeTruthy();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Reddet Tech Startup Inc." }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Tech Startup Inc.")).toBeNull();
+    });
+    expect(screen.getByText("Startup Inc.")).toBeTruthy();
+    expect(screen.getByText("Başvuru reddedildi")).toBeTruthy();
+    expect(adminApi.rejectVerification).toHaveBeenCalledWith("org-1");
+    expect(adminApi.updateVerificationLevel).not.toHaveBeenCalled();
+  });
+
+  it("YET-198: Reddet 409 — 'artık kuyrukta değil' uyarısı, satır listede kalır", async () => {
+    vi.mocked(adminApi.getVerificationQueue).mockResolvedValueOnce(mockVerificationQueue);
+    vi.mocked(adminApi.rejectVerification).mockRejectedValueOnce(
+      new ApiError({ status: 409, code: "NOT_PENDING", message: "Kurum doğrulama kuyruğunda değil.", requestId: null })
+    );
+
+    const user = userEvent.setup();
+    renderWithQueryClient(<DogrulamaKuyruguPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Tech Startup Inc.")).toBeTruthy();
+    });
+    await user.click(screen.getByRole("button", { name: "Reddet Tech Startup Inc." }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert").textContent).toContain("artık doğrulama kuyruğunda değil");
+    });
+    expect(screen.getByText("Tech Startup Inc.")).toBeTruthy();
+  });
+
   // =========================================================================
   // AC-3: Admin olmayan kullanıcı 404 → satır-içi uyarı
   // =========================================================================

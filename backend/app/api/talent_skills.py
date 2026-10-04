@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_principal, get_session
+from app.api.deps import get_current_principal, get_session, get_verified_principal
 from app.core.deps import require_csrf
 from app.services.authorization import Principal
 from app.services.skill_claim import (
@@ -81,7 +81,7 @@ class PostSkillClaimResponse(BaseModel):
 @router.post("", response_model=PostSkillClaimResponse, status_code=201)
 def post_skills(
     payload: PostSkillClaimRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> PostSkillClaimResponse:
@@ -188,7 +188,7 @@ def get_skills(
 @router.delete("/{skill_id}", status_code=204)
 def delete_skills(
     skill_id: str,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> None:

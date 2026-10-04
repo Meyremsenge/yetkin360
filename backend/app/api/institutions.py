@@ -7,13 +7,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_principal, get_session
+from app.api.deps import get_current_principal, get_session, get_verified_principal
 from app.core.deps import require_csrf
+from app.core.errors import ApiError
 from app.models import Institution, InstitutionLinkRequest
 from app.schemas.reminder import ReminderCreate, ReminderResponse
 from app.services.authorization import Principal, get_scoped_or_404, scoped_institutions
+from app.services.audit import log_audit_event
 from app.services.institution import (
-    DuplicateDomainError,
+    AlreadyMemberError,
     DuplicateLinkRequestError,
     approve_institution_link,
     create_institution,
@@ -22,6 +24,7 @@ from app.services.institution import (
     request_institution_link,
 )
 from app.services.engagement import get_coordinator_dashboard
+from app.services.outbox import enqueue
 from app.services.reminder import create_reminders
 
 router = APIRouter(prefix="/institutions", tags=["institutions"])
@@ -128,7 +131,7 @@ class DashboardResponse(BaseModel):
 @router.post("/", status_code=201, response_model=InstitutionResponse)
 def create_institution_endpoint(
     payload: InstitutionCreate,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> Institution:
@@ -136,16 +139,15 @@ def create_institution_endpoint(
     AC-1: Create institution. Caller becomes ADMIN.
 
     Args:
-        payload: name (required), domain (optional)
+        payload: name (required), domain (accepted but ignored: GUV-09, unverified)
         principal: Authenticated principal
         session: Database session
 
     Returns:
-        Institution (T1, ACTIVE)
+        Institution (T1, ACTIVE, domain None)
 
     Status codes:
         201: Institution created
-        409: Duplicate domain
         422: Invalid input
         401: Unauthenticated
     """
@@ -156,17 +158,17 @@ def create_institution_endpoint(
     if not payload.name or not payload.name.strip():
         raise HTTPException(status_code=422, detail="Name is required")
 
-    try:
-        institution = create_institution(
-            name=payload.name,
-            domain=payload.domain,
-            caller_user_id=principal.user_id,
-            session=session,
-        )
-        session.flush()  # Persist changes within transaction
-        return institution
-    except DuplicateDomainError:
-        raise HTTPException(status_code=409, detail="DOMAIN_TAKEN")
+    # GUV-09: payload.domain is unverified, attacker-chosen text and the column is UNIQUE, so
+    # storing it would let the first caller lock out the real institution. Never reserve it here;
+    # only the seed / a platform admin sets an institution domain (trusted service callers).
+    institution = create_institution(
+        name=payload.name,
+        domain=None,
+        caller_user_id=principal.user_id,
+        session=session,
+    )
+    session.flush()  # Persist changes within transaction
+    return institution
 
 
 # ============================================================================
@@ -174,17 +176,22 @@ def create_institution_endpoint(
 # ============================================================================
 
 
-@router.post("/{institution_id}/members", status_code=201, response_model=InstitutionMemberResponse)
+@router.post("/{institution_id}/members", status_code=202)
 def invite_member_endpoint(
     institution_id: uuid.UUID,
     payload: InstitutionMemberInvite,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ):
     """
-    AC-2: Invite user to institution (ADMIN-only action, AC-4/AC-S1).
-    AC-5/AC-S2: Tenant isolation — COORDINATOR or out-of-scope ADMIN gets 404.
+    AC-1/AC-2/AC-4/AC-6: Invite user to institution (ADMIN-only action).
+    AC-1: Bilinen e-posta → 202 {"status": "queued"}, üyelik + outbox enqueue + audit
+    AC-2: Bilinmeyen e-posta → 202 {"status": "queued"}, hiç üyelik oluşmaz, yalnız audit
+    AC-3: Geçersiz rol → 422 INVALID_ROLE
+    AC-4: Zaten üye → 202 (rol değişmez)
+    AC-5/AC-8: Tenant isolation — COORDINATOR or out-of-scope ADMIN gets 404.
+    AC-6: Audit event yazılması (yeni)
 
     Args:
         institution_id: Target institution
@@ -193,27 +200,32 @@ def invite_member_endpoint(
         session: Database session
 
     Returns:
-        InstitutionMember (created or updated)
+        {"status": "queued"}
 
     Status codes:
-        201: Member invited
-        404: Institution not found or user not authorized (no distinction)
-        422: Invalid input
+        202: Invitation queued (whether member created or not)
+        404: Institution not found or user not authorized
+        422: Invalid role
     """
-    # Authorization: Principal must be ADMIN of THIS institution (not just any admin).
+    # AC-3: Validate role (HAND, not Pydantic Literal)
+    if payload.role not in ("ADMIN", "COORDINATOR"):
+        raise ApiError(422, "INVALID_ROLE", "Geçerli rol değeri: ADMIN veya COORDINATOR")
+
+    # AC-8: Authorization: Principal must be ADMIN of THIS institution (not just any admin).
     # Per-kurum check: institution_id must be in principal.institution_admin_ids.
     if institution_id not in principal.institution_admin_ids:
         # Not admin of this institution. Return 404 (not 403, to hide resource existence).
-        raise HTTPException(status_code=404, detail="Institution not found")
+        raise ApiError(404, "NOT_FOUND", "Kurum bulunamadı")
 
-    # Verify institution exists and is in scope (defense-in-depth)
+    # AC-8: Verify institution exists and is in scope (defense-in-depth)
     scoped = scoped_institutions(session, principal).where(Institution.id == institution_id)
     institution = get_scoped_or_404(scoped, session)
 
     if not institution:
-        raise HTTPException(status_code=404, detail="Institution not found")
+        raise ApiError(404, "NOT_FOUND", "Kurum bulunamadı")
 
-    # Invite member
+    # Invite member (isolate exception handling to invite_member only)
+    member = None
     try:
         member = invite_member(
             institution_id=institution_id,
@@ -221,10 +233,69 @@ def invite_member_endpoint(
             role=payload.role,
             session=session,
         )
-        session.flush()  # Persist changes within transaction
-        return member
+    except AlreadyMemberError:
+        # AC-4: Zaten üye → 202 (rol değişmez, hiçbir şey yapılmaz)
+        log_audit_event(
+            session=session,
+            actor_user_id=principal.user_id,
+            actor_ip=None,
+            action="INVITE_INSTITUTION_MEMBER",
+            subject_type="institution",
+            subject_id=institution_id,
+            result="SUCCESS",
+            metadata={
+                "institution_id": str(institution_id),
+                "role": payload.role,
+                "reason": "already_member",
+            },
+        )
     except ValueError:
-        raise HTTPException(status_code=422, detail="User not found")
+        # AC-2: Bilinmeyen e-posta → 202 (hiçbir üyelik oluşmaz, yalnız audit)
+        log_audit_event(
+            session=session,
+            actor_user_id=principal.user_id,
+            actor_ip=None,
+            action="INVITE_INSTITUTION_MEMBER",
+            subject_type="institution",
+            subject_id=institution_id,
+            result="SUCCESS",
+            metadata={
+                "institution_id": str(institution_id),
+                "role": payload.role,
+                "reason": "user_not_found",
+            },
+        )
+
+    # AC-1: Member created successfully → enqueue + audit (outside invite_member exception handler)
+    if member:
+        enqueue(
+            session=session,
+            topic="email.institution_member_invited",
+            payload={
+                "user_id": str(member.user_id),
+                "institution_id": str(institution_id),
+                "institution_name": institution.name,
+                "role": payload.role,
+            },
+        )
+
+        # AC-6: Log audit event
+        log_audit_event(
+            session=session,
+            actor_user_id=principal.user_id,
+            actor_ip=None,
+            action="INVITE_INSTITUTION_MEMBER",
+            subject_type="institution_member",
+            subject_id=member.id,
+            result="SUCCESS",
+            metadata={
+                "institution_id": str(institution_id),
+                "invited_user_id": str(member.user_id),
+                "role": payload.role,
+            },
+        )
+
+    return {"status": "queued"}
 
 
 # ============================================================================
@@ -235,7 +306,7 @@ def invite_member_endpoint(
 @router.post("/{institution_id}/link-requests", status_code=201, response_model=InstitutionLinkRequestResponse)
 def request_institution_link_endpoint(
     institution_id: uuid.UUID,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> InstitutionLinkRequest:
@@ -288,7 +359,7 @@ def request_institution_link_endpoint(
 def approve_link_request_endpoint(
     institution_id: uuid.UUID,
     request_id: uuid.UUID,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> InstitutionLinkRequest:
@@ -409,7 +480,7 @@ def get_coordinator_dashboard_endpoint(
 def create_reminders_endpoint(
     institution_id: uuid.UUID,
     payload: ReminderCreate,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> ReminderResponse:

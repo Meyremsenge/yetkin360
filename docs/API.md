@@ -94,6 +94,12 @@ Doğrulama hatalarında ek alan:
 
 **Kural:** İç hata (stack trace, SQL, dosya yolu) asla `message` alanına çıkmaz.
 
+`request_id` her istekte sunucu tarafından üretilir (istemcinin `X-Request-ID` başlığı
+dikkate alınmaz), aynı değer `X-Request-ID` yanıt başlığında ve sunucu hata logunda bulunur.
+Bilinmeyen yol `404 NOT_FOUND`, yanlış yöntem `405 METHOD_NOT_ALLOWED` (`Allow` başlığıyla),
+işlenmeyen istisna `500 INTERNAL_ERROR` döner; üçü de yukarıdaki gövdeyi taşır.
+`ENVIRONMENT=production` iken `/docs`, `/redoc` ve `/openapi.json` kapalıdır (404).
+
 ### 1.5 Ortak hata kodları
 
 Aşağıdaki kodlar her uçta oluşabilir; uç tablolarında tekrarlanmaz.
@@ -107,7 +113,7 @@ Aşağıdaki kodlar her uçta oluşabilir; uç tablolarında tekrarlanmaz.
 | `404` | `NOT_FOUND` | Kaynak yok **veya** erişim yok |
 | `409` | `CONFLICT` | Optimistic locking çakışması, benzersizlik ihlali |
 | `413` | `PAYLOAD_TOO_LARGE` | Dosya/gövde boyut sınırı aşıldı |
-| `429` | `RATE_LIMITED` | Hız sınırı aşıldı (bkz. [SECURITY.md](SECURITY.md)) |
+| `429` | `RATE_LIMITED` | Hız sınırı aşıldı; `Retry-After` başlığı (saniye) döner (bkz. [SECURITY.md](SECURITY.md)) |
 | `500` | `INTERNAL_ERROR` | Beklenmeyen hata. Detay yalnız logda |
 
 ### 1.6 Sayfalama
@@ -191,6 +197,7 @@ Kesin, test edilebilir matris → [AUTHORIZATION.md](AUTHORIZATION.md).
 | `POST` | `/auth/refresh` | — | — (refresh cookie'den) | `204` + **yenilenmiş cookie'ler** | `401 INVALID_REFRESH_TOKEN` |
 | `POST` | `/auth/logout` | `AUTH` | — | `204` + cookie'ler silinir | — |
 | `POST` | `/auth/verify-email` | — | `token` | `204` | `400 INVALID_TOKEN`, `410 TOKEN_EXPIRED` |
+| `POST` | `/auth/resend-verification` | oturum + CSRF | — | `204` (her zaman) | `401`, `403 CSRF_FAILED` |
 | `POST` | `/auth/forgot-password` | — | `email` | `204` (her zaman) | `429` |
 | `POST` | `/auth/reset-password` | — | `token`, `new_password` | `204` | `400 INVALID_TOKEN`, `410 TOKEN_EXPIRED` |
 
@@ -203,7 +210,9 @@ Kesin, test edilebilir matris → [AUTHORIZATION.md](AUTHORIZATION.md).
 | `csrf_token` | ❌ (JS okumalı) | oturum | Double-submit için rastgele değer |
 
 Üçü de `Secure` + `SameSite=Lax`. `refresh_token` cookie'sinin `Path` değeri
-`/auth/refresh` — diğer isteklerde ağa çıkmaz.
+`/auth` — yalnız `/auth/*` uçlarına gider; `/auth/logout` da token ailesini
+iptal edebilsin diye `/auth/refresh` ile sınırlı değildir (YET-185). Eski
+`/auth/refresh` yollu cookie login/refresh/logout sırasında silinir.
 
 **Kritik davranışlar:**
 - Yazma metotlarında (`POST`/`PATCH`/`DELETE`) `X-CSRF-Token` başlığı
@@ -211,6 +220,10 @@ Kesin, test edilebilir matris → [AUTHORIZATION.md](AUTHORIZATION.md).
   varlığını sızdırmadığı için 404 kuralının istisnasıdır.
 - `/auth/refresh` kullanılmış bir token alırsa → **token ailesinin tamamı
   iptal edilir**, `401 INVALID_REFRESH_TOKEN`, `audit_events`'e kayıt düşer.
+- `/auth/resend-verification` doğrulanmamış oturum sahibine yeni link gönderir ve önceki kullanılmamış
+  linkleri geçersiz kılar. Zaten doğrulanmış hesap ya da sınır aşımı (1/dakika, 5/saat — kayıt
+  token'ı dahil) sessiz no-op'tur: yine `204`, yeni token/outbox satırı yok. Alıcı her zaman hesabın
+  kendi adresidir (oturumdan; istekten gelmez).
 - `/auth/forgot-password` **e-posta kayıtlı olmasa da `204`** döner. Aksi hâlde
   hangi e-postaların kayıtlı olduğu sızar (kullanıcı numaralandırma).
 - `/auth/register` aynı prensiple **kayıtlı bir e-postayla çağrılsa da her
@@ -300,7 +313,7 @@ Her sinyal kaynağıyla birlikte döner:
 |---|---|---|---|---|---|
 | `POST` | `/organizations` | `AUTH` | `name`, `domain?`, `legal_id?` | `201` — kurum (`verification_level: T1`) | `409 LEGAL_ID_TAKEN` |
 | `GET` | `/organizations/{id}` | `AUTH` | — | `200` — kurum | `404` |
-| `POST` | `/organizations/{id}/members` | `ORG:ADMIN` | `email`, `role` | `201` — davet | `404`, `409 ALREADY_MEMBER` |
+| `POST` | `/organizations/{id}/members` | `ORG:ADMIN` | `email`, `role` | `202` — `{"status": "queued"}` | `404`, `422 INVALID_ROLE` |
 | `POST` | `/organizations/{id}/verify-domain` | `ORG:ADMIN` | — | `200` — `dns_txt_record`, `status` | `404`, `400 FREE_EMAIL_DOMAIN` |
 
 **Domain doğrulama (T1 → T2):** Uç bir DNS TXT kaydı üretir. Kurum bu kaydı
@@ -317,6 +330,7 @@ onayından gelir.
 |---|---|---|---|---|---|
 | `GET` | `/institutions/{id}/dashboard` | `INST:COORD` | — | `200` — özet sayaçlar | `404` |
 | `GET` | `/institutions/{id}/engagements` | `INST:COORD` | `status?`, `limit?`, `cursor?` | `200` — `items[]` | `404` |
+| `POST` | `/institutions/{id}/members` | `INST:ADMIN` | `email`, `role` | `202` — `{"status": "queued"}` | `404`, `422 INVALID_ROLE` |
 | `POST` | `/institutions/{id}/reminders` | `INST:COORD` | `engagement_ids[]`, `template` | `202` — `queued_count` | `404`, `429` |
 
 **Dashboard cevabı** — koordinatörün "durumu bir bakışta gör" ihtiyacı:
@@ -498,7 +512,8 @@ tek ekrandaki kanıtı:
 | Metot | Yol | İstek | Cevap | Hatalar |
 |---|---|---|---|---|
 | `GET` | `/admin/verification-queue` | `limit?`, `offset?` | `200` — bekleyen kurum doğrulamaları | — |
-| `POST` | `/admin/organizations/{id}/verification-level` | `verification_level`, `note?` | `200` | `404`, `422` |
+| `POST` | `/admin/organizations/{id}/verification-level` | `verification_level`, `note?` | `200` — `verified_at` yalnız seviye yükselince güncellenir | `404`, `422` |
+| `POST` | `/admin/organizations/{id}/verification-reject` | `note?` | `200` — kurum kuyruktan çıkar, seviye değişmez | `404`, `409 NOT_PENDING` |
 
 - Admin uçları **offset sayfalama** kullanabilir (§1.6).
 - Her doğrulama seviyesi değişikliği `audit_events` üretir.

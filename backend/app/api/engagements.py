@@ -3,11 +3,11 @@
 from datetime import datetime
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_principal, get_session
+from app.api.deps import get_current_principal, get_session, get_verified_principal
 from app.core.deps import require_csrf
 from app.services.authorization import Principal
 from app.services.engagement import (
@@ -53,7 +53,9 @@ class PostEngagementRequest(BaseModel):
 
     talent_id: str = Field(..., description="UUID of talent")
     organization_id: str = Field(..., description="UUID of organization")
-    kind: Literal["INTERNSHIP", "CAPSTONE", "SHORT_PROJECT", "PART_TIME"] = Field(..., description="Engagement kind")
+    kind: Literal["INTERNSHIP", "CAPSTONE", "SHORT_PROJECT", "PART_TIME"] = Field(
+        ..., description="Engagement kind"
+    )
     title: str = Field(..., min_length=1, description="Engagement title")
     institution_id: str | None = Field(None, description="Optional UUID of institution")
     confidential: bool = Field(False, description="Whether engagement is confidential")
@@ -86,7 +88,9 @@ class TransitionEngagementRequest(BaseModel):
 
     to_status: str = Field(..., description="Target status")
     version: int = Field(..., description="Current version for optimistic locking")
-    reason: str | None = Field(None, description="Optional reason for REJECTED/CANCELLED transitions")
+    reason: str | None = Field(
+        None, description="Optional reason for REJECTED/CANCELLED transitions"
+    )
 
     class Config:
         from_attributes = True
@@ -98,7 +102,9 @@ class PostTaskRequest(BaseModel):
     title: str = Field(..., min_length=1, description="Task title")
     description: str | None = Field(None, description="Optional task description")
     due_at: datetime | None = Field(None, description="Optional due date")
-    skill_id: str | None = Field(None, description="Optional UUID of skill for SkillSignal generation")
+    skill_id: str | None = Field(
+        None, description="Optional UUID of skill for SkillSignal generation"
+    )
 
     class Config:
         from_attributes = True
@@ -127,7 +133,9 @@ class PostDeliverableRequest(BaseModel):
 
     title: str = Field(..., min_length=1, description="Deliverable title")
     description: str | None = Field(None, description="Optional deliverable description")
-    skill_id: str | None = Field(None, description="Optional UUID of skill for SkillSignal generation")
+    skill_id: str | None = Field(
+        None, description="Optional UUID of skill for SkillSignal generation"
+    )
 
     class Config:
         from_attributes = True
@@ -151,6 +159,84 @@ class PostDeliverableResponse(BaseModel):
 
 
 # ============================================================================
+# AC-1, AC-2: GET /engagements and GET /engagements/{id} (List and Detail)
+# ============================================================================
+
+
+class TaskSummaryResponse(BaseModel):
+    """Simplified task schema for detail response (AC-4)."""
+
+    id: str
+    title: str
+    status: str
+
+    class Config:
+        from_attributes = True
+
+
+class DeliverableSummaryResponse(BaseModel):
+    """Simplified deliverable schema for detail response (AC-4)."""
+
+    id: str
+    title: str
+    submitted_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class EngagementSummaryResponse(BaseModel):
+    """Summary schema for list response (AC-1, AC-2, AC-3, AC-8)."""
+
+    id: str
+    title: str
+    kind: str
+    status: str
+    organization_name: str
+    version: int
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class EngagementListResponse(BaseModel):
+    """Response schema for GET /engagements (list)."""
+
+    items: list[EngagementSummaryResponse]
+
+    class Config:
+        from_attributes = True
+
+
+class EngagementDetailResponse(BaseModel):
+    """Response schema for GET /engagements/{id} (detail with tasks and deliverables)."""
+
+    # Summary fields
+    id: str
+    title: str
+    kind: str
+    status: str
+    organization_name: str
+    version: int
+    updated_at: datetime
+
+    # Detail fields
+    talent_id: str
+    organization_id: str
+    institution_id: str | None
+    reason: str | None
+    created_at: datetime
+
+    # Related data
+    tasks: list[TaskSummaryResponse]
+    deliverables: list[DeliverableSummaryResponse]
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================================
 # AC-1: POST /engagements
 # ============================================================================
 
@@ -158,7 +244,7 @@ class PostDeliverableResponse(BaseModel):
 @router.post("", response_model=PostEngagementResponse, status_code=201)
 def post_engagements(
     payload: PostEngagementRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> PostEngagementResponse:
@@ -249,6 +335,168 @@ def post_engagements(
 
 
 # ============================================================================
+# AC-1, AC-2, AC-3, AC-7, AC-8: GET /engagements (List with pagination)
+# ============================================================================
+
+
+@router.get("", response_model=EngagementListResponse)
+def get_engagements(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> EngagementListResponse:
+    """
+    AC-1, AC-2, AC-3, AC-8: List engagements scoped to principal.
+
+    Returns:
+        200 + {items: [{id, title, kind, status, organization_name, version, updated_at}]}
+
+    Errors:
+        - 401 UNAUTHORIZED: Unauthenticated
+        - 422 UNPROCESSABLE_ENTITY: Invalid limit/offset (ge=1, le=200 for limit; ge=0 for offset)
+
+    Scope:
+        - TALENT: Returns engagements where talent_id == principal.talent_id
+        - ORG_MEMBER/ORG_ADMIN: Returns engagements where organization_id in principal.org_ids
+        - COORDINATOR/INST_ADMIN: Returns engagements where institution_id in principal.institution_ids
+        - All others: Empty list
+
+    Security:
+        - AC-2: Tenant isolation via scoped_engagements()
+        - AC-7: Empty scope returns 200 {"items": []}, not 404
+        - AC-8: Pagination with limit/offset (offset/limit from query params)
+    """
+    if principal.user_id is None:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "code": "UNAUTHORIZED",
+                "message": "Kimlik doğrulama gerekli.",
+                "request_id": None,
+            },
+        )
+
+    from app.services.engagement import list_engagements
+
+    # Fetch engagements as (Engagement, organization_name) tuples
+    engagement_tuples = list_engagements(
+        session=session,
+        principal=principal,
+        limit=limit,
+        offset=offset,
+    )
+
+    # Build response items
+    items = [
+        EngagementSummaryResponse(
+            id=str(eng.id),
+            title=eng.title,
+            kind=eng.kind,
+            status=eng.status,
+            organization_name=org_name,
+            version=eng.version,
+            updated_at=eng.updated_at,
+        )
+        for eng, org_name in engagement_tuples
+    ]
+
+    return EngagementListResponse(items=items)
+
+
+# ============================================================================
+# AC-4, AC-5, AC-6, AC-S1, AC-S2: GET /engagements/{id} (Detail with tasks/deliverables)
+# ============================================================================
+
+
+@router.get("/{engagement_id}", response_model=EngagementDetailResponse)
+def get_engagement_detail(
+    engagement_id: str,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> EngagementDetailResponse:
+    """
+    AC-4, AC-5, AC-6: Get engagement detail (with tasks and deliverables).
+
+    Returns:
+        200 + {id, title, kind, status, organization_name, version, updated_at,
+               talent_id, organization_id, institution_id, reason, created_at,
+               tasks: [{id, title, status}], deliverables: [{id, title, submitted_at}]}
+
+    Errors:
+        - 404 NOT_FOUND: Engagement not found or not accessible
+        - 401 UNAUTHORIZED: Unauthenticated
+
+    Security:
+        - AC-5: Out-of-scope engagement → 404 (not 403, no data leakage)
+        - AC-6: Nonexistent engagement → 404 (same as out-of-scope, var/yok ayırt yok)
+        - AC-S1: TALENT cannot access other TALENT's engagement → 404
+        - AC-S2: ORG_MEMBER cannot access other ORG's engagement → 404
+    """
+    if principal.user_id is None:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "code": "UNAUTHORIZED",
+                "message": "Kimlik doğrulama gerekli.",
+                "request_id": None,
+            },
+        )
+
+    try:
+        from app.services.engagement import get_engagement_detail, EngagementNotFoundError
+
+        # Fetch engagement with organization name, tasks, and deliverables
+        engagement, organization_name, tasks, deliverables = get_engagement_detail(
+            session=session,
+            principal=principal,
+            engagement_id=engagement_id,
+        )
+
+        # Build response
+        return EngagementDetailResponse(
+            id=str(engagement.id),
+            title=engagement.title,
+            kind=engagement.kind,
+            status=engagement.status,
+            organization_name=organization_name or "",
+            version=engagement.version,
+            updated_at=engagement.updated_at,
+            talent_id=str(engagement.talent_id),
+            organization_id=str(engagement.organization_id),
+            institution_id=str(engagement.institution_id) if engagement.institution_id else None,
+            reason=engagement.reason,
+            created_at=engagement.created_at,
+            tasks=[
+                TaskSummaryResponse(
+                    id=str(task.id),
+                    title=task.title,
+                    status=task.status,
+                )
+                for task in tasks
+            ],
+            deliverables=[
+                DeliverableSummaryResponse(
+                    id=str(deliv.id),
+                    title=deliv.title,
+                    submitted_at=deliv.submitted_at,
+                )
+                for deliv in deliverables
+            ],
+        )
+
+    except EngagementNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "NOT_FOUND",
+                "message": "Engagement bulunamadı.",
+                "request_id": None,
+            },
+        )
+
+
+# ============================================================================
 # PLAN 2.2: POST /engagements/{id}/transitions (Engagement state machine)
 # ============================================================================
 
@@ -257,7 +505,7 @@ def post_engagements(
 def post_engagement_transitions(
     engagement_id: str,
     payload: TransitionEngagementRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> PostEngagementResponse:
@@ -381,7 +629,7 @@ def post_engagement_transitions(
 def post_engagement_tasks(
     engagement_id: str,
     payload: PostTaskRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> PostTaskResponse:
@@ -480,11 +728,13 @@ def post_engagement_tasks(
 # ============================================================================
 
 
-@router.post("/{engagement_id}/deliverables", response_model=PostDeliverableResponse, status_code=201)
+@router.post(
+    "/{engagement_id}/deliverables", response_model=PostDeliverableResponse, status_code=201
+)
 def post_engagement_deliverables(
     engagement_id: str,
     payload: PostDeliverableRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> PostDeliverableResponse:
@@ -586,7 +836,7 @@ def post_engagement_deliverables(
 def post_engagement_evaluation(
     engagement_id: str,
     payload: EvaluationCreate,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> EvaluationResponse:
@@ -625,12 +875,14 @@ def post_engagement_evaluation(
         # Build items list from request (convert skill_id UUID to string for service layer)
         items = []
         for item in payload.items:
-            items.append({
-                "criterion": item.criterion,
-                "skill_id": str(item.skill_id) if item.skill_id else None,
-                "rating": item.rating,
-                "comment": item.comment,
-            })
+            items.append(
+                {
+                    "criterion": item.criterion,
+                    "skill_id": str(item.skill_id) if item.skill_id else None,
+                    "rating": item.rating,
+                    "comment": item.comment,
+                }
+            )
 
         evaluation = create_evaluation(
             session=session,
@@ -728,7 +980,9 @@ class AttestationCreateRequest(BaseModel):
         ..., description="Requested claim type"
     )
     version: int = Field(..., description="Current engagement version (optimistic locking)")
-    skill_id: str | None = Field(None, description="Optional UUID of skill for SkillSignal creation")
+    skill_id: str | None = Field(
+        None, description="Optional UUID of skill for SkillSignal creation"
+    )
 
     class Config:
         from_attributes = True
@@ -751,7 +1005,7 @@ class AttestationResponse(BaseModel):
 def post_engagement_attestation(
     engagement_id: str,
     payload: AttestationCreateRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> AttestationResponse:
@@ -900,11 +1154,13 @@ class RevokeAttestationResponse(BaseModel):
         from_attributes = True
 
 
-@attestations_router.post("/{attestation_id}/revoke", response_model=RevokeAttestationResponse, status_code=200)
+@attestations_router.post(
+    "/{attestation_id}/revoke", response_model=RevokeAttestationResponse, status_code=200
+)
 def revoke_attestation_endpoint(
     attestation_id: str,
     payload: RevokeAttestationRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> RevokeAttestationResponse:

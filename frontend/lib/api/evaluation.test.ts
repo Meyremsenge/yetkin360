@@ -1,6 +1,57 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { submitEvaluation, hasSubmittedEvaluation } from "./evaluation";
 import type { EvaluationFormData } from "@/lib/evaluation/schemas";
+
+vi.mock("./engagements", async () => {
+  const { ApiError } = await import("./errors");
+
+  return {
+    getEngagement: vi.fn(async (id: string) => {
+      if (id === "mock-eng-5") {
+        return {
+          id: "mock-eng-5",
+          title: "Mock Engagement 5",
+          kind: "INTERNSHIP",
+          status: "PENDING_EVALUATION",
+          organization_name: "Mock Org",
+          version: 1,
+          updated_at: new Date().toISOString(),
+          talent_id: "talent-1",
+          organization_id: "org-1",
+          institution_id: null,
+          reason: null,
+          created_at: new Date().toISOString(),
+          tasks: [],
+          deliverables: [],
+        };
+      }
+      if (id === "mock-eng-3") {
+        return {
+          id: "mock-eng-3",
+          title: "Mock Engagement 3",
+          kind: "INTERNSHIP",
+          status: "ACTIVE",
+          organization_name: "Mock Org",
+          version: 1,
+          updated_at: new Date().toISOString(),
+          talent_id: "talent-1",
+          organization_id: "org-1",
+          institution_id: null,
+          reason: null,
+          created_at: new Date().toISOString(),
+          tasks: [],
+          deliverables: [],
+        };
+      }
+      throw new ApiError({
+        status: 404,
+        code: "NOT_FOUND",
+        message: "Engagement bulunamadı.",
+        requestId: null,
+      });
+    }),
+  };
+});
 
 /**
  * PLAN 2.13: Kurum tarafı değerlendirme mock API testleri.

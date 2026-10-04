@@ -40,6 +40,10 @@ SECRET_EXCLUDE_RE = (
     r"(^|/|\\)(\.git|\.venv|venv|node_modules|__pycache__|\.pytest_cache|"
     r"\.mypy_cache|\.ruff_cache|dist|build|\.next|coverage|"
     r"\.secrets\.baseline)(/|\\|$)"
+    # Gitignored files are not repo content: tsconfig.tsbuildinfo is hash noise
+    # (YET-240) and the local .env holds real secrets whose hashes must never
+    # land in a committed baseline. .env.example stays scanned.
+    r"|(^|/|\\)\.env$|\.tsbuildinfo$"
 )
 
 BASELINE_NAME = ".secrets.baseline"

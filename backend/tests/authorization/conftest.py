@@ -13,28 +13,12 @@ this package, pytest.exit() with error.
 """
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.models import Organization, OrganizationMember, TalentProfile, User
 
 
-@pytest.fixture
-def session():
-    """Fixture: real Postgres transaction per test, rollback at end.
-
-    Migrated from backend/tests/test_authorization.py (YET-2).
-    Each test runs in its own savepoint; rollback isolates tests.
-    """
-    engine = create_engine(settings.database_url)
-    connection = engine.connect()
-    transaction = connection.begin()
-    with Session(bind=connection, join_transaction_mode="create_savepoint") as s:
-        yield s
-    transaction.rollback()
-    connection.close()
-    engine.dispose()
+# NOTE: session fixture is provided by tests/conftest.py (parent conftest)
+# Do not override here to maintain transaction isolation consistency
 
 
 # ============================================================================
@@ -133,9 +117,7 @@ def user_talent_b(session):
 def talent_a(session, user_talent_a):
     """Talent profile A (belongs to user_talent_a)."""
     profile = TalentProfile(
-        user_id=user_talent_a.id,
-        full_name="Test Talent A",
-        visibility="PRIVATE"
+        user_id=user_talent_a.id, full_name="Test Talent A", visibility="PRIVATE"
     )
     session.add(profile)
     session.flush()
@@ -146,9 +128,7 @@ def talent_a(session, user_talent_a):
 def talent_b(session, user_talent_b):
     """Talent profile B (belongs to user_talent_b)."""
     profile = TalentProfile(
-        user_id=user_talent_b.id,
-        full_name="Test Talent B",
-        visibility="PRIVATE"
+        user_id=user_talent_b.id, full_name="Test Talent B", visibility="PRIVATE"
     )
     session.add(profile)
     session.flush()
@@ -186,5 +166,20 @@ def pytest_collection_modifyitems(config, items):
             "tests/authorization/ package is empty — no test matrix defined. "
             "This violates AC-5 (empty matrix = FAIL). "
             "Add parametrize-d test cases to test_matrix.py or test_can_defaults.py.",
-            returncode=1
+            returncode=1,
         )
+
+
+@pytest.fixture
+def evidence_api(session):
+    """TestClient on the rolled-back test session (YET-195/184 evidence API tests)."""
+    from fastapi.testclient import TestClient
+
+    from app.api.deps import get_session
+    from app.main import app
+    from tests._testdb import session_override
+
+    app.dependency_overrides[get_session] = session_override(session)
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.clear()

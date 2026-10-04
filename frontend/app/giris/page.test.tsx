@@ -112,7 +112,7 @@ describe("LoginPage (giris/page.tsx) — Form Gerçek İmplementasyon", () => {
       });
 
       await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith("/");
+        expect(mockPush).toHaveBeenCalledWith("/calismalar");
       });
     });
 
@@ -140,7 +140,7 @@ describe("LoginPage (giris/page.tsx) — Form Gerçek İmplementasyon", () => {
       });
     });
 
-    it("AC-S5: next='//evil.com' (protocol-relative open redirect) → sanitize edilip '/'e yönlendirilir", async () => {
+    it("AC-S5: next='//evil.com' (protocol-relative open redirect) → sanitize edilip '/calismalar'a yönlendirilir", async () => {
       const mockLogin = vi.spyOn(clientModule, "login");
       mockLogin.mockResolvedValueOnce({ user_id: "123", role: "user", email_verified: true });
 
@@ -160,12 +160,12 @@ describe("LoginPage (giris/page.tsx) — Form Gerçek İmplementasyon", () => {
       await user.click(submitButton);
 
       await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith("/");
+        expect(mockPush).toHaveBeenCalledWith("/calismalar");
       });
       expect(mockPush).not.toHaveBeenCalledWith(expect.stringContaining("evil.com"));
     });
 
-    it("AC-S5: next='https://evil.com' (protokol tabanlı open redirect) → '/'e yönlendirilir", async () => {
+    it("AC-S5: next='https://evil.com' (protokol tabanlı open redirect) → '/calismalar'a yönlendirilir", async () => {
       const mockLogin = vi.spyOn(clientModule, "login");
       mockLogin.mockResolvedValueOnce({ user_id: "123", role: "user", email_verified: true });
 
@@ -185,12 +185,12 @@ describe("LoginPage (giris/page.tsx) — Form Gerçek İmplementasyon", () => {
       await user.click(submitButton);
 
       await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith("/");
+        expect(mockPush).toHaveBeenCalledWith("/calismalar");
       });
       expect(mockPush).not.toHaveBeenCalledWith(expect.stringContaining("evil.com"));
     });
 
-    it("AC-S5: next='javascript:alert(1)' (javascript: protokolü) → '/'e yönlendirilir", async () => {
+    it("AC-S5: next='javascript:alert(1)' (javascript: protokolü) → '/calismalar'a yönlendirilir", async () => {
       const mockLogin = vi.spyOn(clientModule, "login");
       mockLogin.mockResolvedValueOnce({ user_id: "123", role: "user", email_verified: true });
 
@@ -210,12 +210,12 @@ describe("LoginPage (giris/page.tsx) — Form Gerçek İmplementasyon", () => {
       await user.click(submitButton);
 
       await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith("/");
+        expect(mockPush).toHaveBeenCalledWith("/calismalar");
       });
       expect(mockPush).not.toHaveBeenCalledWith(expect.stringContaining("javascript"));
     });
 
-    it("AC-S5: next='/\\\\evil.com' (backslash bypass) → '/'e yönlendirilir", async () => {
+    it("AC-S5: next='/\\\\evil.com' (backslash bypass) → '/calismalar'a yönlendirilir", async () => {
       const mockLogin = vi.spyOn(clientModule, "login");
       mockLogin.mockResolvedValueOnce({ user_id: "123", role: "user", email_verified: true });
 
@@ -235,7 +235,7 @@ describe("LoginPage (giris/page.tsx) — Form Gerçek İmplementasyon", () => {
       await user.click(submitButton);
 
       await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith("/");
+        expect(mockPush).toHaveBeenCalledWith("/calismalar");
       });
       expect(mockPush).not.toHaveBeenCalledWith(expect.stringContaining("evil.com"));
     });

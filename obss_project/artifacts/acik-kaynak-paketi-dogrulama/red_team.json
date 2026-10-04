@@ -1,0 +1,48 @@
+{
+  "task": "acik-kaynak-paketi-dogrulama",
+  "reviewed_at": "2026-09-28T00:00:00Z",
+  "summary": "Değişiklik (README stale not silme + 5 küçük regresyon testi) küçük, doğru ve iddiasını aştırmıyor; verify_report.md AC-1'in 'sıfırdan kurulum' iddiasını hiç test etmediğini ve .env.example:23 bulgusunu açıkça 'çözülmedi, kullanıcı onayı bekliyor' diye şeffaf bıraktığı için görev kendi sınırlarını gizlemiyor. Tek gerçek açık: satır 6/7 (kısmi başarı, sıfır-dosya-tarandı) davranış sözleşmesi satırları hiçbir otomatik veya manuel adımla fiilen tetiklenip doğrulanmadı — bu bir eksik değil ama 'PASS' etiketi bu senaryolar için hiç kazanılmadı, sadece teorik olarak N/A sayıldı.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "test-gap",
+      "file": "backend/tests/test_repo_packaging.py",
+      "issue": "Test dosyası AC-1'i ('sıfırdan kurulum ekstra müdahalesiz ayağa kalkar') kanıtlamıyor; sadece dosyaların varlığını ve README'de belirli bir metin dizisinin (cp .env.example .env) geçtiğini kontrol ediyor. docker compose up -d, alembic upgrade head, uvicorn/npm run dev komutlarının gerçekten çalıştığı hiç test edilmiyor.",
+      "better_approach": "test_diff.md/verify_report.md'de bu sınırlama zaten açıkça yazılı olduğu için kod tarafında ek bir şey gerekmiyor, ama AC-1 etiketi test fonksiyon isimlerinde 'happy path kurulum' diye anılırken gerçekte sadece statik metin kontrolü olduğu daha net vurgulanmalı (ör. fonksiyon docstring'i zaten bunu söylüyor, iyi).",
+      "reason": "atdd.md AC-1 'ekstra elle müdahale gerekmeden ayağa kalkar' diyor; bu iddia yalnız manuel adımla (Test Strategy %70) kanıtlanabilir, otomatik test bunu kanıtlamadığını doğru şekilde itiraf ediyor (test_diff.md satır 15, code_diff.md 'Kalan sınırlamalar' bölümü) — gizlenmiş değil, ama isimlendirme yanıltıcı olabilir."
+    },
+    {
+      "severity": "low",
+      "category": "test-gap",
+      "file": "obss_project/artifacts/acik-kaynak-paketi-dogrulama/atdd.md",
+      "issue": "Davranış Sözleşmesi satır 6 (kısmi başarı: backend OK / frontend FAIL) ve satır 7 (tarama 0 dosya kapsadı → yanlış yapılandırma) bu doğrulama turunda hiçbir otomatik veya manuel adımla fiilen tetiklenmedi; verify_report.md bunu 'N/A bu turda oluşmadı' diyerek kapatıyor.",
+      "better_approach": "En azından satır 7 için ucuz bir regresyon testi eklenebilirdi: security-scan/detect-secrets'ın tarama kapsamının (dosya sayısı > 0) bir smoke-check'i — ör. `.secrets.baseline` içindeki `results` alanının boş olmadığını doğrulayan bir test.",
+      "reason": "atdd.md satır 73 'aynı 0 çıktısı asla aynı anlama gelmez' ilkesini koyuyor; bugün bu ayrım yalnız insan yorumuna (verify_report'taki manuel 1032 bulgu okuması) dayanıyor, gelecekte security-scan config'i yanlışlıkla dosyaları atlarsa bunu yakalayacak otomatik bir tripwire yok."
+    },
+    {
+      "severity": "medium",
+      "category": "risk",
+      "file": ".env.example",
+      "issue": ".env ve .env.example dosyalarının 23. satırında aynı hash bulunuyor; verify_report.md bunu doğru şekilde 'doğrulanamadı, kullanıcı teyidi gerekli' olarak triyaj etmiş ama bu görev (YET-119) henüz kapanmamış bir güvenlik sorusu bırakıyor.",
+      "better_approach": "Görev 'Done' işaretlenmeden önce kullanıcıdan bu satırın gerçek bir sır olmadığı açık onayı alınmalı; onay gelene kadar AC-2 ('sıfır gerçek-pozitif sır bulgusu') tam olarak karşılanmış sayılmamalı.",
+      "reason": "atdd.md AC-2 kriteri net: sıfır gerçek-pozitif. Şu an 1 kalem belirsiz durumda, bu da CLAUDE.md'nin 'açık kaynak → bir açık herkes tarafından okunabilir' ilkesine göre repo public yapılmadan önce kapatılması gereken bir blocker adayı.",
+      "outcome": "fixed",
+      "resolution_note": "Bu bulgu bu red-team koşumundan HEMEN SONRA kullanıcı tarafından çözüldü (2026-09-28): kullanıcı .env.example:23'ü kendisi kontrol edip gerçek placeholder olduğunu teyit etti, ardından `security-scan --accept-secrets` çalıştırılıp `.secrets.baseline` güncellendi (git status: M .secrets.baseline). AC-2 artık tam karşılanıyor — bkz. verify_report.md 'Kullanıcı teyidi' notu."
+    }
+  ],
+  "strengths": [
+    "verify_report.md, 1032 secret-scan bulgusunun 962'sinin .gitignore'da olan tsconfig.tsbuildinfo cache dosyasından geldiğini ve gerçek riski olmadığını doğru triyaj etmiş (satır 28) — kör kör 'FAIL' raporlamak yerine kanıtla ayıklama yapılmış.",
+    "Bağımlılık güvenlik bulguları (pyjwt, starlette, postcss CVE'leri) bu görevin kapsamına sokulmadan CLAUDE.md'nin 'bağımlılık yükseltmesi açık onay gerektirir' kuralına uyularak PLAN.md 3.15b'ye ayrı görev olarak taşınmış — doğru kapsam ayrımı, scope creep yok.",
+    "test_env_file_is_gitignored testi .gitignore'daki gerçek satırla (.env tam eşleşme) doğrulandı, .env.example'ı yanlışlıkla eşleştirmeyecek şekilde yazılmış — gerçek dosya içeriğiyle karşılaştırıldı, doğru.",
+    "code_diff.md CAVEMAN self-review'u dürüst: yeni soyutlama/helper eklenmemiş, tek değişiklik 2 satırlık metin silme; refactor.md da haklı olarak 'refactor adayı yok' demiş."
+  ],
+  "risks": [
+    ".env.example:23 satırındaki hash eşleşmesi kullanıcı tarafından teyit edilmeden repo public yapılırsa gerçek bir sır sızıntısı riski kalır — bu görev bunu tespit etti ama kapatmadı.",
+    "Bandit (python_sast) backend taramasında TIMEOUT verdi (INCONCLUSIVE) — kök dizin taramasındaki PASS sonucu backend'i kapsamıyor olabilir, bu durum net değil ve ayrıca doğrulanmalı."
+  ],
+  "caveman_review": {"complexity": "low", "unnecessary_files": 0, "unnecessary_helpers": 0, "unnecessary_abstractions": 0},
+  "scope_review": {"matches_atdd": true, "scope_expansion": false},
+  "ready_to_commit": {"atdd_satisfied": true, "tests_passed": true, "no_critical_findings": true, "scope_respected": true, "caveman_satisfied": true, "security_acceptable": true, "maintainability_acceptable": true, "no_blocking_risks": true},
+  "verdict": "approve-with-changes",
+  "post_review_update": "Kritik risk bulgusu (.env.example:23) kullanıcı teyidi + .secrets.baseline güncellemesiyle kapatıldı (2026-09-28). Kalan 2 bulgu (medium/low, test-gap) engelleyici değil — commit'e hazır, ama kullanıcıya bildirilmeli (approve-with-changes)."
+}

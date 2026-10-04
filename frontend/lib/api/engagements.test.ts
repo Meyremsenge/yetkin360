@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   availableTransitions,
   isReasonRequired,
@@ -6,19 +6,23 @@ import {
   getEngagement,
   transitionEngagement,
 } from "./engagements";
-import type { EngagementDetail, EngagementStatus } from "./engagements";
+import type { EngagementDetail, EngagementStatus, EngagementSummary } from "./engagements";
+import * as client from "./client";
+import { ApiError } from "./errors";
+
+vi.mock("./client");
+
+const mockApiFetch = vi.mocked(client.apiFetch);
 
 /**
- * PLAN 2.11/2.12: Engagement API katmanı (localStorage mock store) testleri.
+ * PLAN 2.11/2.12: Engagement API katmanı testleri.
  *
- * Store localStorage'da tutulduğu için (bkz. lib/api/engagements.ts dosya başı notu —
- * sekmeler arası paylaşım için bilinçli tercih), her testte `localStorage.clear()` ile
- * sıfırdan seed'e dönülür; aksi halde testler arası state sızar.
+ * API çağrıları apiFetch() ile mock'lanıyor. Gerçek backend entegrasyonu başında mock'lar kaldırılacak.
  */
 
 describe("lib/api/engagements", () => {
   beforeEach(() => {
-    localStorage.clear();
+    vi.clearAllMocks();
   });
 
   describe("availableTransitions", () => {
@@ -65,120 +69,347 @@ describe("lib/api/engagements", () => {
     });
   });
 
-  describe("listEngagements (mock)", () => {
-    it("mock verideki tüm engagement'ları özet olarak döner", async () => {
+  /**
+   * AC-1: listEngagements → apiFetch("/engagements") çağrısı yapılır
+   * Dönen değer AYNEN response'u yansıtır.
+   */
+  describe("listEngagements (apiFetch mock)", () => {
+    it("AC-1: apiFetch('/engagements') çağrılır ve {items: [...]} döner", async () => {
+      const mockResponse: { items: EngagementSummary[] } = {
+        items: [
+          {
+            id: "eng-1",
+            title: "Frontend Staj",
+            kind: "INTERNSHIP",
+            status: "ACTIVE",
+            organization_name: "Acme A.Ş.",
+            version: 1,
+            updated_at: "2026-09-27T10:00:00Z",
+          },
+        ],
+      };
+
+      mockApiFetch.mockResolvedValueOnce(mockResponse);
+
       const result = await listEngagements();
-      expect(result.items.length).toBeGreaterThan(0);
+
+      expect(result).toEqual(mockResponse);
       expect(result.items[0]).toHaveProperty("id");
       expect(result.items[0]).toHaveProperty("status");
       expect(result.items[0]).not.toHaveProperty("tasks");
+      expect(mockApiFetch).toHaveBeenCalledWith("/engagements");
+    });
+
+    it("AC-1: Çok sayıda engagement'ı döner", async () => {
+      const mockResponse: { items: EngagementSummary[] } = {
+        items: [
+          {
+            id: "eng-1",
+            title: "Engagement 1",
+            kind: "INTERNSHIP",
+            status: "ACTIVE",
+            organization_name: "Org 1",
+            version: 1,
+            updated_at: "2026-09-27T10:00:00Z",
+          },
+          {
+            id: "eng-2",
+            title: "Engagement 2",
+            kind: "CAPSTONE",
+            status: "PENDING_APPROVAL",
+            organization_name: "Org 2",
+            version: 1,
+            updated_at: "2026-09-27T11:00:00Z",
+          },
+        ],
+      };
+
+      mockApiFetch.mockResolvedValueOnce(mockResponse);
+
+      const result = await listEngagements();
+
+      expect(result.items).toHaveLength(2);
+      expect(result.items[0].id).toBe("eng-1");
+      expect(result.items[1].id).toBe("eng-2");
+      expect(mockApiFetch).toHaveBeenCalledWith("/engagements");
+    });
+
+    it("AC-7: Boş liste → {items: []} döner (hata değil)", async () => {
+      const emptyResponse: { items: EngagementSummary[] } = {
+        items: [],
+      };
+
+      mockApiFetch.mockResolvedValueOnce(emptyResponse);
+
+      const result = await listEngagements();
+
+      expect(result).toEqual({ items: [] });
+      expect(result.items).toHaveLength(0);
+      expect(mockApiFetch).toHaveBeenCalledWith("/engagements");
     });
   });
 
-  describe("getEngagement (mock)", () => {
-    it("var olan mock ID için detay (tasks/deliverables dahil) döner", async () => {
-      const engagement = await getEngagement("mock-eng-3");
-      expect(engagement.id).toBe("mock-eng-3");
-      expect(engagement.status).toBe("ACTIVE");
-      expect(engagement.tasks.length).toBeGreaterThan(0);
-      expect(engagement.deliverables.length).toBeGreaterThan(0);
+  /**
+   * AC-4: getEngagement(id) → apiFetch("/engagements/{id}") çağrısı yapılır
+   * tasks ve deliverables dahil tam detay döner.
+   * AC-5/AC-6: 404 hatasında ApiError fırlatılır (403 değil).
+   */
+  describe("getEngagement (apiFetch mock)", () => {
+    it("AC-4: apiFetch('/engagements/{id}') çağrılır, tasks/deliverables dahil döner", async () => {
+      const mockDetail: EngagementDetail = {
+        id: "eng-1",
+        title: "Frontend Staj",
+        kind: "INTERNSHIP",
+        status: "ACTIVE",
+        organization_name: "Acme A.Ş.",
+        talent_id: "talent-1",
+        organization_id: "org-1",
+        institution_id: "inst-1",
+        reason: null,
+        version: 1,
+        created_at: "2026-09-01T09:00:00Z",
+        updated_at: "2026-09-27T10:00:00Z",
+        tasks: [{ id: "task-1", title: "Tasarım görev", status: "DONE" }],
+        deliverables: [
+          { id: "del-1", title: "Tasarım dosyası", submitted_at: "2026-09-20T15:00:00Z" },
+        ],
+      };
+
+      mockApiFetch.mockResolvedValueOnce(mockDetail);
+
+      const result = await getEngagement("eng-1");
+
+      expect(result).toEqual(mockDetail);
+      expect(result.id).toBe("eng-1");
+      expect(result.status).toBe("ACTIVE");
+      expect(result.tasks).toHaveLength(1);
+      expect(result.deliverables).toHaveLength(1);
+      expect(result.talent_id).toBe("talent-1");
+      expect(result.organization_id).toBe("org-1");
+      expect(result.institution_id).toBe("inst-1");
+      expect(mockApiFetch).toHaveBeenCalledWith("/engagements/eng-1");
     });
 
-    it("olmayan ID için 404 NOT_FOUND ApiError fırlatır (yetkisiz erişim gibi görünür)", async () => {
-      await expect(getEngagement("does-not-exist")).rejects.toMatchObject({
+    it("AC-4: Detay response'u tüm alanları içerir", async () => {
+      const mockDetail: EngagementDetail = {
+        id: "eng-2",
+        title: "Backend Projesi",
+        kind: "CAPSTONE",
+        status: "PENDING_EVALUATION",
+        organization_name: "Veri Bilimi Ltd.",
+        talent_id: "talent-2",
+        organization_id: "org-2",
+        institution_id: null,
+        reason: "Başarıyla tamamlandı",
+        version: 3,
+        created_at: "2026-08-15T08:00:00Z",
+        updated_at: "2026-09-25T14:00:00Z",
+        tasks: [
+          { id: "task-1", title: "Backend API", status: "DONE" },
+          { id: "task-2", title: "Test yazma", status: "IN_PROGRESS" },
+        ],
+        deliverables: [
+          { id: "del-1", title: "API dokümanı", submitted_at: "2026-09-18T10:00:00Z" },
+          { id: "del-2", title: "Test raporu", submitted_at: "2026-09-24T16:00:00Z" },
+        ],
+      };
+
+      mockApiFetch.mockResolvedValueOnce(mockDetail);
+
+      const result = await getEngagement("eng-2");
+
+      expect(result.talent_id).toBe("talent-2");
+      expect(result.organization_id).toBe("org-2");
+      expect(result.institution_id).toBeNull();
+      expect(result.reason).toBe("Başarıyla tamamlandı");
+      expect(result.created_at).toBe("2026-08-15T08:00:00Z");
+      expect(result.tasks).toHaveLength(2);
+      expect(result.deliverables).toHaveLength(2);
+      expect(mockApiFetch).toHaveBeenCalledWith("/engagements/eng-2");
+    });
+
+    it("AC-5: Var olmayan ID → 404 ApiError fırlatılır", async () => {
+      const notFoundError = new ApiError({
+        status: 404,
+        code: "NOT_FOUND",
+        message: "Engagement bulunamadı.",
+        requestId: null,
+      });
+
+      mockApiFetch.mockRejectedValueOnce(notFoundError);
+
+      await expect(getEngagement("nonexistent-id")).rejects.toMatchObject({
         status: 404,
         code: "NOT_FOUND",
       });
+      expect(mockApiFetch).toHaveBeenCalledWith("/engagements/nonexistent-id");
+    });
+
+    it("AC-6: Kapsam dışı ID (başka tenant) → 404 ApiError fırlatılır (403 değil)", async () => {
+      const forbiddenError = new ApiError({
+        status: 404,
+        code: "NOT_FOUND",
+        message: "Engagement bulunamadı.",
+        requestId: null,
+      });
+
+      mockApiFetch.mockRejectedValueOnce(forbiddenError);
+
+      await expect(getEngagement("eng-other-tenant")).rejects.toMatchObject({
+        status: 404,
+        code: "NOT_FOUND",
+      });
+
+      expect(mockApiFetch).toHaveBeenCalledWith("/engagements/eng-other-tenant");
+    });
+
+    it("Davranış Sözleşmesi: 404 kodu tam olarak 404 olmalı, 403 değil", async () => {
+      const error = new ApiError({
+        status: 404,
+        code: "NOT_FOUND",
+        message: "Engagement bulunamadı.",
+        requestId: null,
+      });
+      mockApiFetch.mockRejectedValueOnce(error);
+
+      try {
+        await getEngagement("eng-404");
+        expect.fail("Should have thrown");
+      } catch (err) {
+        if (err instanceof ApiError) {
+          expect(err.status).toBe(404); // Tam eşleşme, 403 değil
+          expect(err.code).toBe("NOT_FOUND");
+        }
+      }
+
+      expect(mockApiFetch).toHaveBeenCalledWith("/engagements/eng-404");
     });
   });
 
-  describe("transitionEngagement (mock durum makinesi)", () => {
-    it("geçerli geçiş: DRAFT → PENDING_APPROVAL başarılı, version artar", async () => {
-      const before = await getEngagement("mock-eng-1");
-      expect(before.status).toBe("DRAFT");
+  /**
+   * AC-8: transitionEngagement → apiFetch("/engagements/{id}/transitions", {method: "POST", ...}) çağrısı yapılır
+   * Dönen EngagementDetail tam olarak response'u yansıtır.
+   */
+  describe("transitionEngagement (apiFetch mock)", () => {
+    it("AC-8: apiFetch('/engagements/{id}/transitions') POST çağrısı yapılır, updated detail döner", async () => {
+      const updatedDetail: EngagementDetail = {
+        id: "eng-1",
+        title: "Frontend Staj",
+        kind: "INTERNSHIP",
+        status: "PENDING_APPROVAL",
+        organization_name: "Acme A.Ş.",
+        talent_id: "talent-1",
+        organization_id: "org-1",
+        institution_id: "inst-1",
+        reason: null,
+        version: 2,
+        created_at: "2026-09-01T09:00:00Z",
+        updated_at: "2026-09-27T11:00:00Z",
+        tasks: [{ id: "task-1", title: "Tasarım görev", status: "DONE" }],
+        deliverables: [
+          { id: "del-1", title: "Tasarım dosyası", submitted_at: "2026-09-20T15:00:00Z" },
+        ],
+      };
 
-      const updated = await transitionEngagement("mock-eng-1", {
+      mockApiFetch.mockResolvedValueOnce(updatedDetail);
+
+      const result = await transitionEngagement("eng-1", {
         to_status: "PENDING_APPROVAL",
-        version: before.version,
+        version: 1,
       });
 
-      expect(updated.status).toBe("PENDING_APPROVAL");
-      expect(updated.version).toBe(before.version + 1);
-
-      // Kalıcılık: yeniden okununca da güncel durum gelmeli (localStorage'a yazıldı).
-      const reread = await getEngagement("mock-eng-1");
-      expect(reread.status).toBe("PENDING_APPROVAL");
-      expect(reread.version).toBe(before.version + 1);
-    });
-
-    it("version uyuşmazlığı → 409 CONFLICT", async () => {
-      const before = await getEngagement("mock-eng-1");
-
-      await expect(
-        transitionEngagement("mock-eng-1", {
+      expect(result).toEqual(updatedDetail);
+      expect(result.status).toBe("PENDING_APPROVAL");
+      expect(result.version).toBe(2);
+      expect(mockApiFetch).toHaveBeenCalledWith("/engagements/eng-1/transitions", {
+        method: "POST",
+        body: {
           to_status: "PENDING_APPROVAL",
-          version: before.version + 99,
-        })
-      ).rejects.toMatchObject({ status: 409, code: "CONFLICT" });
-    });
-
-    it("iki 'sekme' senaryosu: ilk geçiş başarılı, eski version ile ikinci deneme 409 alır", async () => {
-      // Her iki "sekme" de aynı localStorage'ı (aynı origin) paylaşır — burada bunu
-      // iki bağımsız getEngagement çağrısıyla simüle ediyoruz.
-      const tabA = await getEngagement("mock-eng-3");
-      const tabB = await getEngagement("mock-eng-3");
-      expect(tabA.version).toBe(tabB.version);
-
-      const afterTabA = await transitionEngagement("mock-eng-3", {
-        to_status: "PENDING_EVALUATION",
-        version: tabA.version,
+          version: 1,
+        },
       });
-      expect(afterTabA.status).toBe("PENDING_EVALUATION");
-
-      // tabB hâlâ eski version'ı taşıyor — bu artık geçersiz.
-      await expect(
-        transitionEngagement("mock-eng-3", {
-          to_status: "CANCELLED",
-          version: tabB.version,
-          reason: "Sekme B'nin denemesi",
-        })
-      ).rejects.toMatchObject({ status: 409, code: "CONFLICT" });
     });
 
-    it("tanımsız geçiş (DRAFT → ACTIVE) → 422 ILLEGAL_TRANSITION", async () => {
-      const before = await getEngagement("mock-eng-1");
+    it("AC-8: reason alanı ile geçiş (CANCELLED) başarılı olur", async () => {
+      const cancelledDetail: EngagementDetail = {
+        id: "eng-2",
+        title: "Backend Projesi",
+        kind: "CAPSTONE",
+        status: "CANCELLED",
+        organization_name: "Veri Bilimi Ltd.",
+        talent_id: "talent-2",
+        organization_id: "org-2",
+        institution_id: null,
+        reason: "Kurum tarafından iptal edildi.",
+        version: 3,
+        created_at: "2026-08-15T08:00:00Z",
+        updated_at: "2026-09-27T12:00:00Z",
+        tasks: [],
+        deliverables: [],
+      };
+
+      mockApiFetch.mockResolvedValueOnce(cancelledDetail);
+
+      const result = await transitionEngagement("eng-2", {
+        to_status: "CANCELLED",
+        version: 2,
+        reason: "Kurum tarafından iptal edildi.",
+      });
+
+      expect(result.status).toBe("CANCELLED");
+      expect(result.reason).toBe("Kurum tarafından iptal edildi.");
+      expect(mockApiFetch).toHaveBeenCalledWith("/engagements/eng-2/transitions", {
+        method: "POST",
+        body: {
+          to_status: "CANCELLED",
+          version: 2,
+          reason: "Kurum tarafından iptal edildi.",
+        },
+      });
+    });
+
+    it("AC-8: Version conflict (409) ApiError fırlatılır", async () => {
+      const conflictError = new ApiError({
+        status: 409,
+        code: "CONFLICT",
+        message: "Engagement güncellenmiş, version uyuşmazlığı.",
+        requestId: null,
+      });
+
+      mockApiFetch.mockRejectedValueOnce(conflictError);
 
       await expect(
-        transitionEngagement("mock-eng-1", {
+        transitionEngagement("eng-1", {
+          to_status: "PENDING_APPROVAL",
+          version: 1,
+        })
+      ).rejects.toMatchObject({ status: 409, code: "CONFLICT" });
+
+      expect(mockApiFetch).toHaveBeenCalledWith("/engagements/eng-1/transitions", {
+        method: "POST",
+        body: {
+          to_status: "PENDING_APPROVAL",
+          version: 1,
+        },
+      });
+    });
+
+    it("AC-8: İllegal geçiş (422) ApiError fırlatılır", async () => {
+      const illegalError = new ApiError({
+        status: 422,
+        code: "ILLEGAL_TRANSITION",
+        message: "Bu geçiş tanımlı değildir.",
+        requestId: null,
+      });
+
+      mockApiFetch.mockRejectedValueOnce(illegalError);
+
+      await expect(
+        transitionEngagement("eng-1", {
           to_status: "ACTIVE" as EngagementStatus,
-          version: before.version,
+          version: 1,
         })
       ).rejects.toMatchObject({ status: 422, code: "ILLEGAL_TRANSITION" });
-    });
-
-    it("gerekçe zorunlu geçişte reason eksikse → 422 PRECONDITION_FAILED", async () => {
-      const before: EngagementDetail = await getEngagement("mock-eng-3");
-      expect(before.status).toBe("ACTIVE");
-
-      await expect(
-        transitionEngagement("mock-eng-3", {
-          to_status: "CANCELLED",
-          version: before.version,
-        })
-      ).rejects.toMatchObject({ status: 422, code: "PRECONDITION_FAILED" });
-    });
-
-    it("gerekçe verilirse CANCELLED geçişi başarılı olur ve reason kaydedilir", async () => {
-      const before = await getEngagement("mock-eng-3");
-
-      const updated = await transitionEngagement("mock-eng-3", {
-        to_status: "CANCELLED",
-        version: before.version,
-        reason: "Kurum tarafından sonlandırıldı.",
-      });
-
-      expect(updated.status).toBe("CANCELLED");
-      expect(updated.reason).toBe("Kurum tarafından sonlandırıldı.");
     });
   });
 });
