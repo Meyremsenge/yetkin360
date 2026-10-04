@@ -126,6 +126,7 @@ class Organization(Base, TimestampMixin):
     verification_level: Mapped[str] = mapped_column(String, nullable=False, server_default="T1")
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     verified_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    verification_rejected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_verify_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String, nullable=False, server_default="ACTIVE")
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

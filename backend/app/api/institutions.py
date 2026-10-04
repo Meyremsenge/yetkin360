@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_principal, get_session
+from app.api.deps import get_current_principal, get_session, get_verified_principal
 from app.core.deps import require_csrf
 from app.core.errors import ApiError
 from app.models import Institution, InstitutionLinkRequest
@@ -16,7 +16,6 @@ from app.services.authorization import Principal, get_scoped_or_404, scoped_inst
 from app.services.audit import log_audit_event
 from app.services.institution import (
     AlreadyMemberError,
-    DuplicateDomainError,
     DuplicateLinkRequestError,
     approve_institution_link,
     create_institution,
@@ -150,7 +149,7 @@ class DashboardResponse(BaseModel):
 @router.post("/", status_code=201, response_model=InstitutionResponse)
 def create_institution_endpoint(
     payload: InstitutionCreate,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> Institution:
@@ -158,16 +157,15 @@ def create_institution_endpoint(
     AC-1: Create institution. Caller becomes ADMIN.
 
     Args:
-        payload: name (required), domain (optional)
+        payload: name (required), domain (accepted but ignored: GUV-09, unverified)
         principal: Authenticated principal
         session: Database session
 
     Returns:
-        Institution (T1, ACTIVE)
+        Institution (T1, ACTIVE, domain None)
 
     Status codes:
         201: Institution created
-        409: Duplicate domain
         422: Invalid input
         401: Unauthenticated
     """
@@ -178,17 +176,17 @@ def create_institution_endpoint(
     if not payload.name or not payload.name.strip():
         raise HTTPException(status_code=422, detail="Name is required")
 
-    try:
-        institution = create_institution(
-            name=payload.name,
-            domain=payload.domain,
-            caller_user_id=principal.user_id,
-            session=session,
-        )
-        session.flush()  # Persist changes within transaction
-        return institution
-    except DuplicateDomainError:
-        raise HTTPException(status_code=409, detail="DOMAIN_TAKEN")
+    # GUV-09: payload.domain is unverified, attacker-chosen text and the column is UNIQUE, so
+    # storing it would let the first caller lock out the real institution. Never reserve it here;
+    # only the seed / a platform admin sets an institution domain (trusted service callers).
+    institution = create_institution(
+        name=payload.name,
+        domain=None,
+        caller_user_id=principal.user_id,
+        session=session,
+    )
+    session.flush()  # Persist changes within transaction
+    return institution
 
 
 # ============================================================================
@@ -200,7 +198,7 @@ def create_institution_endpoint(
 def invite_member_endpoint(
     institution_id: uuid.UUID,
     payload: InstitutionMemberInvite,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ):
@@ -326,7 +324,7 @@ def invite_member_endpoint(
 @router.post("/{institution_id}/link-requests", status_code=201, response_model=InstitutionLinkRequestResponse)
 def request_institution_link_endpoint(
     institution_id: uuid.UUID,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> InstitutionLinkRequest:
@@ -379,7 +377,7 @@ def request_institution_link_endpoint(
 def approve_link_request_endpoint(
     institution_id: uuid.UUID,
     request_id: uuid.UUID,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> InstitutionLinkRequest:
@@ -442,7 +440,7 @@ def approve_link_request_endpoint(
 def reject_link_request_endpoint(
     institution_id: uuid.UUID,
     request_id: uuid.UUID,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> InstitutionLinkRequest:
@@ -602,7 +600,7 @@ def get_coordinator_dashboard_endpoint(
 def create_reminders_endpoint(
     institution_id: uuid.UUID,
     payload: ReminderCreate,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> ReminderResponse:

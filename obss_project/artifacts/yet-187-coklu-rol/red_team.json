@@ -1,0 +1,104 @@
+{
+  "task": "yet-187-coklu-rol",
+  "reviewed_at": "2026-10-01",
+  "summary": "Bağımsız inceleme (ayrı ajan, salt okuma): başka kiracıya/talent'a sızıntı bulunmadı; INST_ADMIN davranışı korunmuş; maske tüm eylem noktalarında tutarlı. create_engagement genişlemesi kasıtlı sonuç (AC-2), atdd'ye yazıldı. Test boşlukları (satır 8/10/15, assert'siz/parse yutan statik tarama, yanlış adlı test) giderildi.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "security",
+      "file": "backend/app/services/engagement.py:146-162",
+      "issue": "create_engagement yetkisi 'own_talent OR org üyeliği' oldu; org üyesi/koordinatör/INST_ADMIN kullanıcı kendi talent_id'siyle üyesi olmadığı org'a da engagement açabiliyor (eskiden yalnız kind=TALENT).",
+      "better_approach": "Eski semantiği korumak (org üyesi için org_uuid in org_ids zorunlu) ya da değişikliği açıkça belgelemek.",
+      "reason": "Karar: KASITLI KABUL. Her kullanıcının talent profili var; org üyesi talent'ın talent işlevlerini kaybetmemesi YET-187'nin amacı (AC-2). Saf talent'ın yapabildiğinin ötesinde yeni yetki yok. atdd.md'ye açık davranış değişikliği olarak yazıldı; test docstring'i düzeltildi. Self-dealing org-tarafı eylemlerinde maskeyle kapalı. YET-177 (Sybil) kapsamı ayrı."
+    },
+    {
+      "severity": "medium",
+      "category": "test-gap",
+      "file": "backend/tests/authorization/test_multi_role_scope_matrix.py",
+      "issue": "'mevcut sözleşme' notu org üyeleri için yanlıştı.",
+      "better_approach": "Docstring'i AC-2 sonucu olarak düzelt.",
+      "reason": "GİDERİLDİ (docstring düzeltildi)."
+    },
+    {
+      "severity": "medium",
+      "category": "test-gap",
+      "file": "backend/tests/authorization/test_no_kind_authz.py",
+      "issue": "Statik AC-6 taraması alias'ları (self.principal.kind, getattr) kaçırıyor ve parse hatasını sessizce yutuyordu.",
+      "better_approach": "Alias ve getattr yakalama; parse hatasında başarısız ol.",
+      "reason": "GİDERİLDİ (alias/getattr yakalama + hata yutulmuyor + yeni birim testler). Kalan: tarama hâlâ ad tabanlı, kind alanı Principal'da duruyor (AÇIK TAKİP)."
+    },
+    {
+      "severity": "medium",
+      "category": "test-gap",
+      "file": "backend/tests/authorization/test_multi_role_authorization.py",
+      "issue": "Matris satır 8 (X'in her yazma eylemi), satır 10/31 (DB yeniden okuma) ve satır 15 (listeleme uçları) eksikti.",
+      "better_approach": "Parametrik X-yazma tablosu, DB sayısı karşılaştırması, listeleme izolasyon testi.",
+      "reason": "GİDERİLDİ (TestOutOfScopeWriteOperations, DB doğrulaması, test_multi_role_listing_isolation.py)."
+    },
+    {
+      "severity": "low",
+      "category": "risk",
+      "file": "backend/app/services/attestation.py:196-207",
+      "issue": "SelfAttestationError artık status/version kontrollerinden önce atılıyor; ikinci self-attestation kontrolü (≈239-245) fiilen erişilemez.",
+      "better_approach": "Tek kontrol, doğru sırada.",
+      "reason": "KABUL (sıra değişimi talent'ın kendi engagement'ında yalnız daha erken ve aynı 409'u verir; ikinci kontrol savunma derinliği, DB CHECK de var). AÇIK TAKİP olarak sadeleştirme."
+    },
+    {
+      "severity": "low",
+      "category": "risk",
+      "file": "git:fb6541b",
+      "issue": "HEAD commit'i ara durum: mesajı '1 başarısız (test hatalı)' diyor, testsiz, Haiku ortak yazarlı.",
+      "better_approach": "Düzeltme commit'i; force-push yok.",
+      "reason": "Kullanıcı kararı delege etti: commit olduğu gibi kalır, üstüne yeni commit atılır, mesaj düzeltilir."
+    },
+    {
+      "severity": "low",
+      "category": "caveman",
+      "file": "backend/app/services/authorization.py:300-324",
+      "issue": "scoped_engagements'ta tek-koşul/çoklu-koşul dalları gereksiz; eski kind tabanlı docstring'ler kaldı (engagements.py, engagement.py).",
+      "better_approach": "or_ tek elemanla da geçerli; docstring'leri üyelik terimleriyle güncelle.",
+      "reason": "AÇIK TAKİP (düşük önem, ölçülebilir hata yok; refactor kapsamını genişletmemek için dokunulmadı)."
+    },
+    {
+      "severity": "low",
+      "category": "readability",
+      "file": "backend/tests/authorization/test_multi_role_authorization.py",
+      "issue": "Adı '404' olup 403 assert eden test ve yanlış AC etiketleri.",
+      "better_approach": "Yeniden adlandır, AC numaralarını atdd'ye hizala.",
+      "reason": "GİDERİLDİ."
+    }
+  ],
+  "strengths": [
+    "Maske tek yardımcıda (engagement_relation); transition tablosu, create_task, deliverable, evaluation, attestation hepsi onu kullanıyor; app/ içinde principal.kind okuması yok.",
+    "INST_ADMIN davranışı korunmuş (coordinator_institution_ids admin kurumları dışlıyor).",
+    "ADMIN-only uçlar org bazlı (org_admin_ids) ve 404 dönüyor; roller arası sızıntı testle doğrulandı.",
+    "Mutasyon kanıtı: yeni testler eski kodda 18 kırmızı (+1 import hatası); AC-1, AC-3, AC-S1, AC-6 yakalanıyor.",
+    "Kapsam disiplini: migration/frontend/yeni endpoint yok."
+  ],
+  "risks": [
+    "AC-6 koruması ad tabanlı AST taraması; kind alanı Principal'da kalıyor (gelecek alias regresyonu için kısmi koruma).",
+    "Üyelik status (PENDING davet) Principal'a yansıyor; bu iş değiştirmedi (YET-236/176 alanı).",
+    "create_engagement: org üyesi talent'ın herhangi bir org ile kendi adına engagement açabilmesi bilinçli davranış değişikliği."
+  ],
+  "caveman_review": {
+    "complexity": "medium",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 1,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve-with-changes"
+}

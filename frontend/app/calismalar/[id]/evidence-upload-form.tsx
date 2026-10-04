@@ -17,10 +17,11 @@ import messages from "@/messages/tr.json";
  * PLAN 2.12/YET-98/YET-99: 3 adımlı kanıt yükleme akışı (upload-url → depolama → kayıt)
  * + ilerleme göstergesi + hata durumları (dosya reddi, tarama bekleniyor).
  *
- * Adımların tamamı mock (bkz. lib/api/evidence.ts dosya başı notu) — bu oturumda
- * backend+MinIO çalışmıyor. scan_status, kısa bir gecikmeyle otomatik PENDING →
- * CLEAN/INFECTED'e döndüğü için bileşen periyodik olarak yeniden okuyor.
+ * Gerçek backend akışı (bkz. lib/api/evidence.ts). Tarama backend'de worker tarafından
+ * asenkron yapılır (PENDING → CLEAN/FAILED); bekleyen kayıt varken liste periyodik yeniden okunur.
  */
+
+const POLL_INTERVAL_MS = 3000;
 
 const SCAN_STATUS_CLASS: Record<ScanStatus, string> = {
   PENDING: "bg-amber-100 text-amber-700",
@@ -49,13 +50,19 @@ export function EvidenceUploadForm({ deliverableId }: { deliverableId: string })
     setItems(await listEvidenceForDeliverable(deliverableId));
   }, [deliverableId]);
 
+  const hasPending = items.some((item) => item.scan_status === "PENDING");
+
   useEffect(() => {
-    refresh();
-    // Mock tarama sonucu arka planda kendiliğinden değişiyor (bkz. lib/api/evidence.ts:
-    // scheduleMockScanResolution) — bileşenin bunu göstermesi için periyodik yeniden okuma.
-    const interval = setInterval(refresh, 1000);
-    return () => clearInterval(interval);
+    refresh().catch(() => setError(messages.errors.generic));
   }, [refresh]);
+
+  useEffect(() => {
+    if (!hasPending) return;
+    const interval = setInterval(() => {
+      refresh().catch(() => {});
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [hasPending, refresh]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

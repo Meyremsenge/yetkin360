@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_session
 from app.core.errors import ApiError
-from app.models import Engagement, Organization, Skill, TalentProfile
+from app.models import Engagement, Institution, Organization, Skill, TalentProfile
 from app.services.authorization import get_scoped_or_404, scoped_attestations_for_engagement, scoped_public_talent_profile, scoped_public_verified_experiences, scoped_public_verified_experience_by_token
 from app.services.visibility_service import filter_public_experiences
 
@@ -39,7 +39,11 @@ class PublicVerificationResponse(BaseModel):
     talent_name: str
     organization_name: str
     organization_trust_level: str
+    # GUV-03 / K2 (b): show who vouches, so a self-created org/institution is visibly unverified.
+    # organization_domain is exposed only when verified (T2+); otherwise it is attacker-chosen free text.
+    organization_domain: str | None
     institution_name: str | None
+    institution_trust_level: str | None
     started_on: date | None
     ended_on: date | None
     verified_at: datetime
@@ -67,7 +71,6 @@ class PublicVerifiedExperienceResponse(BaseModel):
 class PublicTalentProfileResponse(BaseModel):
     """Response schema for GET /public/talents/{slug}."""
 
-    talent_id: uuid.UUID
     display_name: str
     verified_experiences: list[PublicVerifiedExperienceResponse]
 
@@ -91,7 +94,7 @@ def get_public_profile(
       - slug: public_slug value (string)
 
     Returns (200):
-      - {talent_id, display_name, verified_experiences[]}
+      - {display_name, verified_experiences[]} (no internal talent_id: YET-230)
       - verified_experiences filtered to visibility='PUBLIC' only
 
     Returns (404):
@@ -120,9 +123,8 @@ def get_public_profile(
     # AC-5 (AC-S3): filter to PUBLIC visibility only
     public_experiences = filter_public_experiences(verified_experiences)
 
-    # Build response (AC-4/AC-S2: PII fields excluded — only talent_id, display_name, verified_experiences)
+    # Build response (AC-4/AC-S2: PII and internal ids excluded — only display_name, verified_experiences)
     return PublicTalentProfileResponse(
-        talent_id=talent_profile.id,
         display_name=talent_profile.full_name,
         verified_experiences=[
             PublicVerifiedExperienceResponse.from_orm(exp) for exp in public_experiences
@@ -188,6 +190,13 @@ def get_public_verification(
         # Should not happen (FK constraint), but defensive check
         raise ApiError(status_code=500, code="INTERNAL_ERROR", message="Bir hata oluştu")
 
+    institution = (
+        session.get(Institution, engagement.institution_id)
+        if engagement.institution_id is not None
+        else None
+    )
+    domain_verified = org.verification_level in ("T2", "T3", "T4")
+
     # Fetch attested skills (Attestation records with engagement_id == ve.engagement_id, skill_id NOT NULL)
     attestations = list(session.execute(scoped_attestations_for_engagement(session, ve.engagement_id)).scalars().all())
 
@@ -215,13 +224,15 @@ def get_public_verification(
             )
         )
 
-    # Build response (AC-1/AC-5: 9 fields, no PII, no internal IDs)
+    # Build response (AC-1/AC-5: 11 fields, no PII, no internal IDs)
     return PublicVerificationResponse(
         title=ve.role_snapshot,
         talent_name=talent_profile.full_name,
         organization_name=ve.organization_name_snapshot,
         organization_trust_level=org.verification_level,
+        organization_domain=org.domain if domain_verified else None,
         institution_name=ve.institution_name_snapshot,
+        institution_trust_level=institution.verification_level if institution else None,
         started_on=ve.started_on_snapshot,
         ended_on=ve.ended_on_snapshot,
         verified_at=ve.created_at,

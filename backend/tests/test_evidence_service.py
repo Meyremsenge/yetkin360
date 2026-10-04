@@ -66,7 +66,7 @@ class TestEvidenceCreation:
             is_suspended=False,
         )
 
-        storage_key = f"evidence/{talent_a.id}/test-uuid.pdf"
+        storage_key = f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf"
         response = create_evidence(
             session=session,
             principal=principal,
@@ -103,7 +103,7 @@ class TestEvidenceCreation:
             is_suspended=False,
         )
 
-        storage_key = f"evidence/{talent_a.id}/test-uuid.pdf"
+        storage_key = f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf"
         response = create_evidence(
             session=session,
             principal=principal,
@@ -140,7 +140,7 @@ class TestEvidenceCreation:
             is_suspended=False,
         )
 
-        storage_key = f"evidence/{talent_a.id}/test-uuid.pdf"
+        storage_key = f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf"
         response = create_evidence(
             session=session,
             principal=principal,
@@ -174,7 +174,7 @@ class TestEvidenceCreation:
             is_suspended=False,
         )
 
-        storage_key = f"evidence/{talent_a.id}/test-uuid.pdf"
+        storage_key = f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf"
         response = create_evidence(
             session=session,
             principal=principal,
@@ -185,9 +185,11 @@ class TestEvidenceCreation:
         )
 
         # Verify audit event
+        # Filter by this evidence: committed rows from other tests (audit is append-only) must not match.
         audit = session.query(AuditEvent).filter_by(
             action="evidence.created",
-            subject_type="evidence"
+            subject_type="evidence",
+            subject_id=response.id,
         ).first()
         assert audit is not None
         assert audit.subject_id == response.id
@@ -218,7 +220,7 @@ class TestStorageKeyValidation:
             is_suspended=False,
         )
 
-        storage_key = f"evidence/{talent_a.id}/valid-uuid.pdf"
+        storage_key = f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf"
         response = create_evidence(
             session=session,
             principal=principal,
@@ -234,7 +236,7 @@ class TestStorageKeyValidation:
     def test_storage_key_invalid_prefix_raises_error(self, session, user_talent_a, talent_a, user_talent_b, talent_b):
         """
         AC-S1 (Elevation): Storage key with different talent_id prefix
-        returns 422 + INVALID_STORAGE_KEY.
+        returns 404 + NOT_FOUND (someone else's object; no existence oracle).
         """
         principal = Principal(
             user_id=user_talent_a.id,
@@ -248,7 +250,7 @@ class TestStorageKeyValidation:
         )
 
         # Try to use talent_b's prefix while authenticated as talent_a
-        malicious_storage_key = f"evidence/{talent_b.id}/evil-uuid.pdf"
+        malicious_storage_key = f"evidence/{talent_b.id}/{uuid.uuid4()}.pdf"
 
         with pytest.raises(ApiError) as exc_info:
             create_evidence(
@@ -260,12 +262,12 @@ class TestStorageKeyValidation:
                 size_bytes=1024,
             )
 
-        assert exc_info.value.status_code == 422
-        assert exc_info.value.detail["code"] == "INVALID_STORAGE_KEY"
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail["code"] == "NOT_FOUND"
 
     def test_storage_key_no_prefix_raises_error(self, session, user_talent_a, talent_a):
         """
-        AC-S1: Storage key without evidence/ prefix returns 422 + INVALID_STORAGE_KEY.
+        AC-S1: Storage key without the caller's evidence/{talent_id}/ prefix returns 404 + NOT_FOUND.
         """
         principal = Principal(
             user_id=user_talent_a.id,
@@ -288,8 +290,8 @@ class TestStorageKeyValidation:
                 size_bytes=1024,
             )
 
-        assert exc_info.value.status_code == 422
-        assert exc_info.value.detail["code"] == "INVALID_STORAGE_KEY"
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail["code"] == "NOT_FOUND"
 
 
 # ============================================================================
@@ -319,7 +321,7 @@ class TestKindAllowlist:
             is_suspended=False,
         )
 
-        storage_key = f"evidence/{talent_a.id}/test-uuid.pdf"
+        storage_key = f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf"
         response = create_evidence(
             session=session,
             principal=principal,
@@ -351,7 +353,7 @@ class TestKindAllowlist:
             create_evidence(
                 session=session,
                 principal=principal,
-                storage_key=f"evidence/{talent_a.id}/test-uuid.pdf",
+                storage_key=f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
                 kind=kind,
                 mime_type="application/pdf",
                 size_bytes=1024,
@@ -430,7 +432,7 @@ class TestScanStatusValidation:
         )
 
         # Create evidence with specific scan_status (use direct DB update if needed)
-        storage_key = f"evidence/{talent_a.id}/test-uuid.pdf"
+        storage_key = f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf"
         response = create_evidence(
             session=session,
             principal=principal,
@@ -534,7 +536,7 @@ class TestDownloadAudit:
         )
 
         # Create evidence
-        storage_key = f"evidence/{talent_a.id}/test-uuid.pdf"
+        storage_key = f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf"
         response = create_evidence(
             session=session,
             principal=principal,
@@ -547,12 +549,14 @@ class TestDownloadAudit:
         # Manually set scan_status to CLEAN (simulating worker processing)
         evidence = session.query(Evidence).filter_by(id=response.id).first()
         evidence.scan_status = "CLEAN"
+        evidence.storage_etag = "etag-1"  # what the scan recorded; download re-checks it
         session.flush()
 
         # Mock MinIO
         with patch("app.services.storage.boto3.client") as mock_boto:
             mock_s3 = MagicMock()
             mock_boto.return_value = mock_s3
+            mock_s3.head_object.return_value = {"ETag": '"etag-1"'}
             mock_s3.generate_presigned_url.return_value = "https://minio.example.com/download"
 
             # Get download URL
@@ -598,7 +602,7 @@ class TestScopedEvidenceAuthorization:
         )
 
         # Create evidence
-        storage_key = f"evidence/{talent_a.id}/test-uuid.pdf"
+        storage_key = f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf"
         response = create_evidence(
             session=session,
             principal=principal,
@@ -633,7 +637,7 @@ class TestScopedEvidenceAuthorization:
             is_suspended=False,
         )
 
-        storage_key_a = f"evidence/{talent_a.id}/test-uuid-a.pdf"
+        storage_key_a = f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf"
         create_evidence(
             session=session,
             principal=principal_a,
@@ -655,7 +659,7 @@ class TestScopedEvidenceAuthorization:
             is_suspended=False,
         )
 
-        storage_key_b = f"evidence/{talent_b.id}/test-uuid-b.pdf"
+        storage_key_b = f"evidence/{talent_b.id}/{uuid.uuid4()}.pdf"
         response_b = create_evidence(
             session=session,
             principal=principal_b,
@@ -691,7 +695,7 @@ class TestScopedEvidenceAuthorization:
             is_suspended=False,
         )
 
-        storage_key = f"evidence/{talent_a.id}/test-uuid.pdf"
+        storage_key = f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf"
         create_evidence(
             session=session,
             principal=principal_a,
@@ -780,7 +784,7 @@ class TestDeliverableOwnership:
             is_suspended=False,
         )
 
-        storage_key = f"evidence/{talent_a.id}/test-uuid.pdf"
+        storage_key = f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf"
         response = create_evidence(
             session=session,
             principal=principal,
@@ -848,7 +852,7 @@ class TestDeliverableOwnership:
             is_suspended=False,
         )
 
-        storage_key = f"evidence/{talent_a.id}/test-uuid.pdf"
+        storage_key = f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf"
         with pytest.raises(ApiError) as exc_info:
             create_evidence(
                 session=session,
@@ -882,7 +886,7 @@ class TestDeliverableOwnership:
             is_suspended=False,
         )
 
-        storage_key = f"evidence/{talent_a.id}/test-uuid.pdf"
+        storage_key = f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf"
         with pytest.raises(ApiError) as exc_info:
             create_evidence(
                 session=session,

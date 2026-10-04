@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_principal, get_session
+from app.api.deps import get_current_principal, get_session, get_verified_principal
 from app.core.deps import require_csrf
 from app.services.authorization import Principal
 from app.services.engagement import (
@@ -244,7 +244,7 @@ class EngagementDetailResponse(BaseModel):
 @router.post("", response_model=PostEngagementResponse, status_code=201)
 def post_engagements(
     payload: PostEngagementRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> PostEngagementResponse:
@@ -505,7 +505,7 @@ def get_engagement_detail(
 def post_engagement_transitions(
     engagement_id: str,
     payload: TransitionEngagementRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> PostEngagementResponse:
@@ -629,7 +629,7 @@ def post_engagement_transitions(
 def post_engagement_tasks(
     engagement_id: str,
     payload: PostTaskRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> PostTaskResponse:
@@ -734,7 +734,7 @@ def post_engagement_tasks(
 def post_engagement_deliverables(
     engagement_id: str,
     payload: PostDeliverableRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> PostDeliverableResponse:
@@ -836,7 +836,7 @@ def post_engagement_deliverables(
 def post_engagement_evaluation(
     engagement_id: str,
     payload: EvaluationCreate,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> EvaluationResponse:
@@ -1005,7 +1005,7 @@ class AttestationResponse(BaseModel):
 def post_engagement_attestation(
     engagement_id: str,
     payload: AttestationCreateRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> AttestationResponse:
@@ -1160,7 +1160,7 @@ class RevokeAttestationResponse(BaseModel):
 def revoke_attestation_endpoint(
     attestation_id: str,
     payload: RevokeAttestationRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> RevokeAttestationResponse:

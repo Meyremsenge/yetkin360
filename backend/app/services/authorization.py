@@ -7,7 +7,7 @@ Implements access control and data scoping per atdd.md (yet-2-yetkilendirme-ceki
 import uuid
 from dataclasses import dataclass, field
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, select, or_
 from sqlalchemy.orm import Session
 
 from app.models import Attestation, Engagement, Evidence, Institution, InstitutionLinkRequest, Organization, SkillClaim, SkillSignal, TalentProfile, User, VerifiedExperience
@@ -20,11 +20,10 @@ class Principal:
 
     Fields:
       - user_id: UUID of the authenticated user (None for ANONYMOUS)
-      - kind: Role/type of principal (str, plain values: "ANONYMOUS", "TALENT", "ORG_MEMBER", etc.)
-        WARNING: Display use only. Authorization decisions must use per-resource ID lists
-        (org_ids, org_admin_ids, institution_ids, institution_admin_ids), never kind alone.
-        kind represents the principal's highest role across all resources; it is not
-        authoritative for per-resource checks.
+      - kind: Role/type of principal — display use only. Authorization decisions must use
+        per-resource ID lists (org_ids, org_admin_ids, institution_ids, institution_admin_ids),
+        never kind. kind represents the principal's highest role across all resources
+        and is not authoritative for per-resource checks.
       - talent_id: UUID of associated talent profile (if kind == "TALENT")
       - org_ids: List of organization IDs the principal is a member of
       - org_admin_ids: List of organization IDs the principal is an admin of
@@ -48,6 +47,109 @@ class Principal:
     is_suspended: bool
     institution_admin_ids: list[uuid.UUID] = field(default_factory=list)
 
+    @property
+    def coordinator_institution_ids(self) -> list[uuid.UUID]:
+        """
+        Derived property: institutions where principal is COORDINATOR (not ADMIN).
+
+        Returns institutions that are in institution_ids but NOT in institution_admin_ids,
+        preserving order from institution_ids.
+
+        Implements AC-5 (AC-S4): coordinator role is distinct from admin role;
+        coordinator_ids excludes admin institutions to prevent privilege escalation.
+        """
+        return [
+            inst_id
+            for inst_id in self.institution_ids
+            if inst_id not in self.institution_admin_ids
+        ]
+
+
+@dataclass(frozen=True)
+class EngagementRelation:
+    """
+    Frozen dataclass representing the relationship between a principal and engagement.
+
+    Used to enforce AC-S1 (self-dealing prevention): when principal is both talent
+    (subject) and org/coordinator member, org/coordinator flags are masked.
+    However, has_org_side_link remains unmasked to track actual membership.
+
+    Fields:
+      - is_subject: True if principal.talent_id == engagement.talent_id
+      - is_org_member: True if engagement.organization_id in principal.org_ids
+        and principal is not the subject
+      - is_org_admin: True if engagement.organization_id in principal.org_admin_ids
+        and principal is not the subject
+      - is_coordinator: True if engagement.institution_id in principal.coordinator_institution_ids
+        and principal is not the subject
+      - has_org_side_link: True if principal has any org/institution membership link
+        (unmasked, even if subject)
+
+    Implements AC-S1 (self-dealing masking), AC-S3 (privacy), AC-5 (union membership).
+    """
+
+    is_subject: bool
+    is_org_member: bool
+    is_org_admin: bool
+    is_coordinator: bool
+    has_org_side_link: bool
+
+
+def engagement_relation(principal: Principal, engagement) -> EngagementRelation:
+    """
+    Helper to compute the relationship between principal and engagement.
+
+    Masking rule (AC-S1): if principal is the subject (talent_id matches),
+    org/coordinator flags are False (self-dealing prevention), but has_org_side_link
+    remains unmasked to track actual membership.
+
+    Args:
+        principal: Principal object with authorization context
+        engagement: Object with .talent_id, .organization_id, .institution_id
+
+    Returns:
+        EngagementRelation frozen dataclass
+
+    Implements AC-S1 (self-dealing masking), AC-S3 (privacy), AC-5 (multi-role union).
+    """
+    is_subject = (
+        principal.talent_id is not None
+        and engagement.talent_id is not None
+        and principal.talent_id == engagement.talent_id
+    )
+
+    # Membership checks (before masking)
+    is_org_admin = (
+        engagement.organization_id is not None
+        and engagement.organization_id in principal.org_admin_ids
+    )
+    is_org_member = (
+        engagement.organization_id is not None
+        and engagement.organization_id in principal.org_ids
+    )
+    is_coordinator = (
+        engagement.institution_id is not None
+        and engagement.institution_id in principal.coordinator_institution_ids
+    )
+
+    # has_org_side_link: raw membership, subject-independent
+    # Includes both org membership (member and admin) and institution membership (both coordinator and admin)
+    has_org_side_link = (
+        (engagement.organization_id is not None
+         and engagement.organization_id in principal.org_ids)
+        or (engagement.institution_id is not None
+            and engagement.institution_id in principal.institution_ids)
+    )
+
+    # Apply masking: if subject, all org/coordinator flags are False
+    return EngagementRelation(
+        is_subject=is_subject,
+        is_org_member=is_org_member and not is_subject,
+        is_org_admin=is_org_admin and not is_subject,
+        is_coordinator=is_coordinator and not is_subject,
+        has_org_side_link=has_org_side_link,
+    )
+
 
 def can(principal: Principal, action: str, resource) -> bool:
     """
@@ -62,6 +164,8 @@ def can(principal: Principal, action: str, resource) -> bool:
       - bool: True if action is authorized, False otherwise (default-deny)
 
     Implements AC-S1 (default-deny), AC-S5 (defense-in-depth ownership check).
+    Note: Authorization decisions use ID lists (org_admin_ids, institution_admin_ids),
+    not kind field (which is display-only per AC-6).
     """
     # Defense-in-depth: check resource ownership directly
     # Handle User resource: can read own User
@@ -70,19 +174,11 @@ def can(principal: Principal, action: str, resource) -> bool:
 
     # Handle Organization resource: can admin_update if principal is org admin
     if isinstance(resource, Organization):
-        return (
-            action == "admin_update"
-            and principal.kind == "ORG_ADMIN"
-            and resource.id in principal.org_admin_ids
-        )
+        return action == "admin_update" and resource.id in principal.org_admin_ids
 
     # Handle Institution resource: can admin_update if principal is institution admin
     if isinstance(resource, Institution):
-        return (
-            action == "admin_update"
-            and principal.kind == "INST_ADMIN"
-            and resource.id in principal.institution_admin_ids
-        )
+        return action == "admin_update" and resource.id in principal.institution_admin_ids
 
     # Undefined action/resource combination: default-deny
     return False
@@ -100,11 +196,9 @@ def scoped_organizations(session: Session, principal: Principal) -> Select:
       - sqlalchemy.sql.Select: Query returning Organization rows in principal's scope
 
     Implements AC-2, AC-S2 (tenant isolation).
+    Uses org_ids, not kind (which is display-only per AC-6).
     """
-    if principal.kind in ("ORG_MEMBER", "ORG_ADMIN"):
-        return select(Organization).where(Organization.id.in_(principal.org_ids))
-    # All other kinds: no organizations in scope
-    return select(Organization).where(Organization.id.in_([]))
+    return select(Organization).where(Organization.id.in_(principal.org_ids))
 
 
 def scoped_institutions(session: Session, principal: Principal) -> Select:
@@ -119,11 +213,9 @@ def scoped_institutions(session: Session, principal: Principal) -> Select:
       - sqlalchemy.sql.Select: Query returning Institution rows in principal's scope
 
     Implements AC-2, AC-S2 (tenant isolation).
+    Uses institution_ids, not kind (which is display-only per AC-6).
     """
-    if principal.kind in ("INST_ADMIN", "COORDINATOR"):
-        return select(Institution).where(Institution.id.in_(principal.institution_ids))
-    # All other kinds: no institutions in scope
-    return select(Institution).where(Institution.id.in_([]))
+    return select(Institution).where(Institution.id.in_(principal.institution_ids))
 
 
 def scoped_talent_profiles(session: Session, principal: Principal) -> Select:
@@ -195,21 +287,38 @@ def scoped_engagements(session: Session, principal: Principal) -> Select:
     Returns:
       - sqlalchemy.sql.Select: Query returning Engagement rows in principal's scope
 
-    Implements AC-2, AC-S2 (tenant isolation for engagements).
-    Scoping rules per AUTHORIZATION.md §5:
-    - TALENT: can see engagements where talent_id == principal.talent_id
-    - ORG_MEMBER/ORG_ADMIN: can see engagements where organization_id in principal.org_ids
-    - COORDINATOR/INST_ADMIN: can see engagements where institution_id in principal.institution_ids
-    - All others: no engagements in scope (empty result)
+    Implements AC-2, AC-S2 (tenant isolation for engagements), AC-5 (multi-role union).
+    Scoping is computed as a union (OR) of all membership paths:
+    - If principal.talent_id is not None: talent_id == principal.talent_id
+    - If principal.org_ids is not empty: organization_id in principal.org_ids
+    - If principal.institution_ids is not empty: institution_id in principal.institution_ids
+    If all membership lists are empty, returns no engagements (empty result).
+    Uses membership lists, not kind (which is display-only per AC-6).
     """
-    if principal.kind == "TALENT" and principal.talent_id is not None:
-        return select(Engagement).where(Engagement.talent_id == principal.talent_id)
-    elif principal.kind in ("ORG_MEMBER", "ORG_ADMIN"):
-        return select(Engagement).where(Engagement.organization_id.in_(principal.org_ids))
-    elif principal.kind in ("COORDINATOR", "INST_ADMIN"):
-        return select(Engagement).where(Engagement.institution_id.in_(principal.institution_ids))
-    # All other kinds: no engagements in scope
-    return select(Engagement).where(Engagement.id.in_([]))
+    conditions = []
+
+    # Talent pathway
+    if principal.talent_id is not None:
+        conditions.append(Engagement.talent_id == principal.talent_id)
+
+    # Organization pathway (both member and admin)
+    if principal.org_ids:
+        conditions.append(Engagement.organization_id.in_(principal.org_ids))
+
+    # Institution pathway (both coordinator and admin)
+    if principal.institution_ids:
+        conditions.append(Engagement.institution_id.in_(principal.institution_ids))
+
+    # If no conditions, return empty result
+    if not conditions:
+        return select(Engagement).where(Engagement.id.in_([]))
+
+    # Single condition: no OR needed
+    if len(conditions) == 1:
+        return select(Engagement).where(conditions[0])
+
+    # Multiple conditions: use OR
+    return select(Engagement).where(or_(*conditions))
 
 
 def scoped_evidence(session: Session, principal: Principal) -> Select:
@@ -227,11 +336,12 @@ def scoped_evidence(session: Session, principal: Principal) -> Select:
     Returns:
       - sqlalchemy.sql.Select: Query returning Evidence rows in principal's scope
 
-    Implements AC-5, AC-6 (ownership), AC-S3 (admin excluded from PRIVATE)
+    Implements AC-5, AC-6 (ownership), AC-S3 (admin excluded from PRIVATE).
+    Uses talent_id membership, not kind (which is display-only per AC-6).
     """
-    if principal.kind == "TALENT" and principal.talent_id is not None:
+    if principal.talent_id is not None:
         return select(Evidence).where(Evidence.owner_talent_id == principal.talent_id)
-    # All other kinds (including admin): no evidence in scope
+    # No talent_id: no evidence in scope
     return select(Evidence).where(Evidence.id.in_([]))
 
 
@@ -365,9 +475,16 @@ def scoped_public_verified_experience_by_token(session: Session, token: str) -> 
 
     Implements AC-1, AC-2, AC-3 (AC-S2), AC-6 (public-dogrulama-linki, YET-106)
     """
-    return select(VerifiedExperience).where(
-        VerifiedExperience.public_token == token,
-        VerifiedExperience.visibility == "PUBLIC",
+    # Join keeps this one query: a soft-deleted talent's token must be
+    # indistinguishable from an unknown token (YET-230), same as the slug route.
+    return (
+        select(VerifiedExperience)
+        .join(TalentProfile, TalentProfile.id == VerifiedExperience.talent_id)
+        .where(
+            VerifiedExperience.public_token == token,
+            VerifiedExperience.visibility == "PUBLIC",
+            TalentProfile.deleted_at.is_(None),
+        )
     )
 
 

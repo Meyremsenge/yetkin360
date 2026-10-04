@@ -8,9 +8,11 @@ PLAN 2.6 (YET-84, YET-85): Manages evidence lifecycle.
 - AC-S6/AC-S7: Audit logging for creation + download
 """
 
+import re
 import uuid
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -19,8 +21,16 @@ from app.models import Evidence, Outbox, Deliverable, Engagement
 from app.schemas.evidence import EvidenceResponse, EvidenceDownloadUrlResponse
 from app.services.authorization import Principal, scoped_evidence, get_scoped_or_404
 from app.services.audit import log_audit_event
-from app.services.storage import generate_presigned_get_url
+from app.services.storage import (
+    CONTENT_TYPE_TO_EXT,
+    generate_presigned_get_url,
+    head_object_etag,
+    validate_content_type,
+    validate_file_size,
+)
 
+
+_UUID_RE = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 
 # Evidence kind allowlist (AC-8)
 ALLOWED_EVIDENCE_KINDS = {"REPOSITORY", "DOCUMENT", "IMAGE", "LINK", "CERTIFICATE"}
@@ -55,7 +65,10 @@ def create_evidence(
         EvidenceResponse: Created evidence record
 
     Raises:
-        ApiError(422, "INVALID_STORAGE_KEY") if storage_key prefix doesn't match principal.talent_id
+        ApiError(404, "NOT_FOUND") if storage_key is not under the principal's own prefix
+            (someone else's object — never confirm it exists)
+        ApiError(422, "INVALID_STORAGE_KEY") if the key is under the own prefix but malformed
+        ApiError(409, "EVIDENCE_ALREADY_REGISTERED") if the object already has an evidence record
         ApiError(403, "TALENT_PROFILE_REQUIRED") if principal.talent_id is None
         ApiError(404, "NOT_FOUND") if deliverable_id provided but ownership check fails (AC-4)
     """
@@ -63,14 +76,30 @@ def create_evidence(
     if principal.talent_id is None:
         raise ApiError(403, "TALENT_PROFILE_REQUIRED", "Bu işlem için talent profili gereklidir.")
 
-    # AC-S1: Validate storage_key prefix (elevation defense)
+    # AC-S1: Validate storage_key prefix (elevation defense). A key outside the caller's
+    # own prefix is someone else's (or no) object: 404, same as any unauthorized access,
+    # so the response never confirms whether the object exists.
     expected_prefix = f"evidence/{principal.talent_id}/"
     if not storage_key.startswith(expected_prefix):
-        raise ApiError(
-            422,
-            "INVALID_STORAGE_KEY",
-            "Kanıt referansı geçersiz. Başka bir kullanıcının dosyasını kullanmaya çalışıyorsunuz.",
-        )
+        raise ApiError(404, "NOT_FOUND", "Kanıt bulunamadı.")
+
+    # YET-184: key must be exactly evidence/{talent_id}/{uuid}.{ext} as built by
+    # build_object_key — no nested paths, no client-chosen names — and the
+    # extension must match the declared mime type.
+    if not validate_content_type(mime_type):
+        raise ApiError(422, "UNSUPPORTED_CONTENT_TYPE", "Desteklenmeyen dosya türü. İzin verilen türler: PDF, JPEG, PNG, DOCX.")
+    if not validate_file_size(size_bytes):
+        raise ApiError(422, "FILE_TOO_LARGE", "Dosya çok büyük.")
+    key_pattern = rf"{re.escape(expected_prefix)}{_UUID_RE}\.{re.escape(CONTENT_TYPE_TO_EXT[mime_type])}"
+    if not re.fullmatch(key_pattern, storage_key):
+        raise ApiError(422, "INVALID_STORAGE_KEY", "Kanıt referansı geçersiz.")
+
+    # YET-184: one evidence record per stored object.
+    already_registered = get_scoped_or_404(
+        scoped_evidence(session, principal).where(Evidence.storage_key == storage_key), session
+    )
+    if already_registered is not None:
+        raise ApiError(409, "EVIDENCE_ALREADY_REGISTERED", "Bu dosya zaten kanıt olarak kaydedilmiş.")
 
     # AC-8: Validate kind allowlist
     if kind not in ALLOWED_EVIDENCE_KINDS:
@@ -100,7 +129,15 @@ def create_evidence(
         deliverable_id=deliverable_id,
     )
     session.add(evidence)
-    session.flush()  # Generate ID for outbox reference
+    try:
+        # Savepoint: a losing concurrent registration must not poison the outer transaction.
+        with session.begin_nested():
+            session.flush()  # Generate ID for outbox reference
+    except IntegrityError as exc:
+        # The pre-check above is racy; the UNIQUE constraint is the real guard (YET-184).
+        if "uq_evidence_storage_key" not in str(exc.orig):
+            raise
+        raise ApiError(409, "EVIDENCE_ALREADY_REGISTERED", "Bu dosya zaten kanıt olarak kaydedilmiş.") from exc
 
     # AC-1: Write outbox message for worker to scan evidence
     outbox_record = Outbox(
@@ -142,6 +179,43 @@ def create_evidence(
     return response
 
 
+def list_evidence(
+    session: Session,
+    principal: Principal,
+    deliverable_id: uuid.UUID | None = None,
+) -> list[EvidenceResponse]:
+    """
+    YET-195: The talent's own (non-deleted) evidence, newest first.
+
+    Scoped by scoped_evidence (owner only; PRIVATE evidence is closed to admins too).
+    A principal without a talent profile gets 403 TALENT_PROFILE_REQUIRED, same as
+    the other evidence endpoints.
+    """
+    if principal.talent_id is None:
+        raise ApiError(403, "TALENT_PROFILE_REQUIRED", "Bu işlem için talent profili gereklidir.")
+
+    query = scoped_evidence(session, principal).where(Evidence.deleted_at.is_(None))
+    if deliverable_id is not None:
+        query = query.where(Evidence.deliverable_id == deliverable_id)
+    rows = session.execute(query.order_by(Evidence.created_at.desc(), Evidence.id.desc())).scalars().all()
+    return [
+        EvidenceResponse(
+            id=e.id,
+            owner_talent_id=e.owner_talent_id,
+            kind=e.kind,
+            provenance=e.provenance,
+            storage_key=e.storage_key,
+            mime_type=e.mime_type,
+            size_bytes=e.size_bytes,
+            scan_status=e.scan_status,
+            visibility=e.visibility,
+            deliverable_id=e.deliverable_id,
+            created_at=e.created_at,
+        )
+        for e in rows
+    ]
+
+
 def get_download_url(
     session: Session,
     principal: Principal,
@@ -169,6 +243,8 @@ def get_download_url(
         ApiError(404) if evidence not found or not in scope (ownership/visibility check)
         ApiError(403) if principal is admin trying to download PRIVATE evidence
         ApiError(409, "SCAN_NOT_CLEAN") if scan_status is not CLEAN
+        ApiError(409, "EVIDENCE_CONTENT_CHANGED") if the stored object's ETag differs from
+            the one recorded by the scan (or none was recorded)
         ApiError(503, "STORAGE_UNAVAILABLE") if MinIO unreachable
     """
     # AC-6, AC-S2: Get evidence, scoped to principal (ownership check)
@@ -199,11 +275,35 @@ def get_download_url(
             f"Dosya taranıyor veya kanıt kullanılamaz. Durum: {evidence.scan_status}",
         )
 
+    # TOCTOU defence: the object must still be the one the scan inspected. Capture what
+    # we need and end the read transaction first — the HEAD is a network call and must
+    # not run inside an open transaction.
+    evidence_pk, storage_key, scanned_etag = evidence.id, evidence.storage_key, evidence.storage_etag
+    session.commit()
+    current_etag = head_object_etag(settings.s3_bucket, storage_key)
+    if scanned_etag is None or current_etag != scanned_etag:
+        log_audit_event(
+            session=session,
+            actor_user_id=principal.user_id,
+            actor_ip=None,
+            action="evidence.download_blocked",
+            subject_type="evidence",
+            subject_id=evidence_pk,
+            result="DENIED",
+            metadata={"reason": "content_changed_since_scan"},
+        )
+        session.commit()  # the 409 below would otherwise roll the audit row back
+        raise ApiError(
+            409,
+            "EVIDENCE_CONTENT_CHANGED",
+            "Dosya içeriği taramadan sonra değişmiş. Dosyayı yeniden yükleyip kanıt olarak kaydedin.",
+        )
+
     # AC-5, AC-10, AC-11: Generate presigned GET URL (300 seconds TTL)
     # generate_presigned_get_url handles storage errors internally (ApiError 503)
     download_url = generate_presigned_get_url(
         bucket=settings.s3_bucket,
-        object_key=evidence.storage_key,
+        object_key=storage_key,
         ttl=settings.evidence_download_url_ttl_seconds,
     )
 
@@ -214,7 +314,7 @@ def get_download_url(
         actor_ip=None,  # IP passed from endpoint layer if available
         action="evidence.downloaded",
         subject_type="evidence",
-        subject_id=evidence.id,
+        subject_id=evidence_pk,
         result="SUCCESS",
     )
 

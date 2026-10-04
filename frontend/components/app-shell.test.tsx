@@ -107,6 +107,45 @@ describe("AppShell", () => {
     });
   });
 
+  describe("YET-196: e-posta doğrulama bandı", () => {
+    function mockSession(emailVerified: boolean | undefined) {
+      vi.mocked(useSession).mockReturnValueOnce({
+        data: {
+          user: { id: "user-1", email_verified: emailVerified },
+          organizations: [{ id: "org-1", name: "Test Org" }],
+          institutions: [],
+        },
+        error: null,
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useSession>);
+    }
+
+    it("email_verified=false iken bant ve yeniden gönder düğmesi görünür", () => {
+      mockSession(false);
+      render(<AppShell><p>İçerik</p></AppShell>);
+
+      expect(screen.getByText(messages.emailVerificationBanner.message)).toBeTruthy();
+      expect(screen.getByRole("button", { name: messages.emailVerificationBanner.resend })).toBeTruthy();
+      expect(screen.getByText("İçerik")).toBeTruthy();
+    });
+
+    it("email_verified=true iken bant yoktur", () => {
+      mockSession(true);
+      render(<AppShell><p>İçerik</p></AppShell>);
+
+      expect(screen.queryByText(messages.emailVerificationBanner.message)).toBeNull();
+    });
+
+    it("alan yoksa (eski yanıt) bant gösterilmez", () => {
+      mockSession(undefined);
+      render(<AppShell><p>İçerik</p></AppShell>);
+
+      expect(screen.queryByText(messages.emailVerificationBanner.message)).toBeNull();
+    });
+  });
+
   describe("AC-12: organizations boş durum (hata değil)", () => {
     it("AC-12: organizations=[] boşsa 'Henüz bir kuruluşunuz yok' gösterilir", () => {
       vi.mocked(useSession).mockReturnValueOnce({

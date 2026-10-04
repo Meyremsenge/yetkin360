@@ -152,6 +152,24 @@ MIME + boyut kontrolü yeterli, ClamAV'i sonraya bırakın").
 
 Limit aşımında `429 RATE_LIMITED` döner ([API.md](API.md) §1.5).
 
+**Kimlik uçları (YET-186, `auth_rate_limits` tablosu, sabit pencere):**
+
+| Uç | IP | Hesap (gönderilen e-posta) |
+|---|---|---|
+| `POST /auth/login` | 5/dk | 10/saat |
+| `POST /auth/register` | 3/saat | 3/saat |
+| `POST /auth/forgot-password` | 10/saat | 3/saat |
+| `POST /auth/reset-password` | 20/saat | — |
+| `POST /auth/verify-email` | 20/saat | — |
+| `POST /auth/refresh` | 60/dk | — |
+
+- Yanıt `429 RATE_LIMITED` + `Retry-After` (saniye). Hesap sayacı, hesap var/yok fark etmeksizin gönderilen e-postaya göre tutulur; yanıt numaralandırmaya izin vermez.
+- Anahtarlar `HMAC-SHA256(SECRET_KEY, "kova:değer")`; tabloda ham IP/e-posta yoktur. IPv6 istemciler /64 önekiyle gruplanır.
+- Sıra: önce hız sınırı (429), sonra YET-175 hesap kilidi (423).
+- Bilinen bedel: hesap sayacı, kurbanın e-postasına istek yağdıran saldırganın o hesabın login/şifre sıfırlama isteğini bir süre kısıtlamasına izin verir (e-posta bombardımanını önlemenin karşılığı).
+- Dağıtım: IP, `request.client.host`'tan okunur; Caddy arkasında uvicorn `--proxy-headers --forwarded-allow-ips` ile çalıştırılmalıdır, aksi halde herkes tek kovaya düşer ([ENV.md](ENV.md)).
+- Kanıt yükleme sınırı hâlâ bellek-içidir (çoklu worker'da etkisiz); DB sayacına taşınması ayrı iş.
+
 > ❓ AÇIK SORU: Public uçlar (`/public/p/{slug}`, `/public/v/{token}`) için
 > limit tablosunda satır yok. Bunlar kimlik doğrulaması istemediği için
 > IP bazlı bir limit gerekiyor (jüri demosunda da çalışmalı). Öneri:
@@ -222,6 +240,7 @@ token (30 gün).**
 | CSRF | `SameSite=Lax` + double-submit token | Cookie tabanlı auth'un zorunlu eşlikçisi |
 | Şifre | **Argon2id** | OWASP'ın mevcut önerisi. bcrypt'in 72 bayt sınırı ve GPU direnci zayıflığı yok |
 | Kilitleme | `failed_login_count` + `locked_until` | Brute force |
+| Dağıtım topolojisi | **Tek origin** (HTTPS reverse proxy), cookie'ler `Domain`'siz | Double-submit için `csrf_token` JS ile okunur, middleware `access_token`'ı görür; ayrı alt alan adlarında ikisi de kırılır. `Domain=.x` kardeş alt alan adlarına cookie açar. Production'da `COOKIE_SECURE=false`, `DEBUG=true`, http/localhost origin veya bilinmeyen `ENVIRONMENT` açılışı reddeder (YET-207, [ENV.md](ENV.md) §4) |
 
 ---
 

@@ -219,7 +219,7 @@ B-09, B-10, O-02.
 | ✓ | ID | Başlık | HATA ID'leri | PLAN | Öncelik | Gün | Zincir |
 |---|---|---|---|---|---|---|---|
 | [ ] | O-00 | PLAN.md'ye maddeleri ekle, .mcp.json kontrolü | L-15 | — | — | 0 | Z-DOC |
-| [ ] | A-01 | Giriş kilitleme sayacı gerçekten kalıcı olsun | GUV-01, L-03 | 3.24 | KRİTİK | 1 | Z-GÜV |
+| [x] | A-01 | Giriş kilitleme sayacı gerçekten kalıcı olsun | GUV-01, L-03 | 3.24 | KRİTİK | 1 | Z-GÜV |
 | [ ] | A-02 | Logout refresh token ailesini iptal etsin | GUV-06, L-04 | 3.25 | YÜKSEK | 1 | Z-GÜV |
 | [ ] | A-03 | MinIO bucket, healthcheck, depolama hataları, .env.example | OPS-03, (eski 3.20) | 3.26, 3.20 | KRİTİK | 2 | Z-STD |
 | [ ] | A-04 | Outbox worker: döngü, tıkanma, e-posta linkleri | OPS-01, OPS-02 | 3.27 | KRİTİK | 2 | Z-STD |

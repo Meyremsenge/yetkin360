@@ -54,18 +54,22 @@ Kararların gerekçesi → [SECURITY.md](SECURITY.md) §5.
 | `SECRET_KEY` | *(placeholder)* | Token imzalama. `python -c "import secrets; print(secrets.token_urlsafe(64))"` |
 | `ACCESS_TOKEN_TTL_MINUTES` | `15` | Kısa ömürlü JWT |
 | `REFRESH_TOKEN_TTL_DAYS` | `30` | DB'de saklanır, rotating |
-| `COOKIE_SECURE` | `false` | **Production'da mutlaka `true`** (HTTPS zorunlu) |
-| `COOKIE_SAMESITE` | `lax` | CSRF savunmasının parçası |
+| `COOKIE_SECURE` | `true` | Yalnız yerel HTTP geliştirmede `false`. **Production'da `false` ise uygulama açılmaz** (YET-207). Cookie'ler her zaman `SameSite=Lax`, `Domain`'siz (host-only) yazılır; SameSite/Domain ayarı yoktur |
 | `CSRF_ENABLED` | `true` | Double-submit token |
 | `MAX_FAILED_LOGINS` | `5` | Aşılınca hesap kilitlenir |
 | `ACCOUNT_LOCK_MINUTES` | `15` | Kilit süresi |
+| `RATE_LIMIT_ENABLED` | `true` | Kimlik uçlarında DB tabanlı hız sınırı (YET-186, [SECURITY.md](SECURITY.md) §3). Yalnız yerel geliştirmede `false` yapılabilir; production'da açık kalır. IP anahtarı `request.client.host`'tur: Caddy arkasında uvicorn `--proxy-headers --forwarded-allow-ips=<caddy-ip>` ile çalıştırılmazsa tüm istekler tek IP sayılır |
 
 ## 4. CORS
 
 | Değişken | Varsayılan | Açıklama |
 |---|---|---|
-| `FRONTEND_ORIGIN` | `http://localhost:3000` | Cookie domain'i için |
-| `ALLOWED_ORIGINS` | `http://localhost:3000` | Virgülle ayrılmış liste |
+| `FRONTEND_ORIGIN` | `http://localhost:3000` | E-posta linklerinin (doğrulama, şifre sıfırlama) kökü. Cookie ayarlarıyla ilgisi yoktur |
+| `ALLOWED_ORIGINS` | `http://localhost:3000` | Virgülle ayrılmış CORS listesi, `*` yasak |
+
+**Desteklenen production topolojisi (YET-207, K6 = a): tek origin.** Frontend ve API aynı alan adından, HTTPS reverse proxy (Caddy) arkasında sunulur (ör. `/` → Next.js, API yolları → uvicorn). Cookie'ler `Domain`'siz yazıldığı için tarayıcı onları yalnız yazan host'a bağlar; `csrf_token` cookie'sini frontend'in `document.cookie` ile okuyabilmesi ve Next middleware'in `access_token`'ı görebilmesi bu varsayıma dayanır. **`app.x` / `api.x` gibi ayrı alt alan adları desteklenmez** (`Domain=.x` seçeneği bilinçli olarak yoktur: kardeş alt alan adları cookie'yi okuyabilir/ezebilir).
+
+`ENVIRONMENT=production` iken şunlardan biri varsa uygulama **açılmaz** (tüm sorunlar tek hatada listelenir): `COOKIE_SECURE=false`, `DEBUG=true`, `FRONTEND_ORIGIN` veya `ALLOWED_ORIGINS` içinde `http://` ya da localhost/127.0.0.1/[::1]. `ENVIRONMENT` yalnız `development`, `staging`, `production` olabilir (yazım hatası, ör. `prod`, açılışı reddeder). `ENVIRONMENT` varsayılanı `development` olduğundan production'da **açıkça** `production` yazılmalıdır.
 
 ## 5. Object storage
 
@@ -95,7 +99,8 @@ Gönderim `outbox` worker üzerinden, **asla transaction içinde değil**
 |---|---|---|
 | `EMAIL_BACKEND` | `console` | `console` \| `smtp`. MVP'de konsola yazılır |
 | `OUTBOX_POLL_INTERVAL_SECONDS` | `5` | Worker polling aralığı (saniye) |
-| `OUTBOX_MAX_ATTEMPTS` | `5` | Maksimum yeniden deneme sayısı |
+| `OUTBOX_MAX_ATTEMPTS` | `5` | Maksimum yeniden deneme sayısı; aşılan satır dead-letter olur (seçilmez, tabloda kalır) |
+| `OUTBOX_BACKOFF_BASE_SECONDS` | `30` | Başarısız denemeden sonra bekleme: 30, 60, 120, 240 sn (üstel) |
 | `SMTP_HOST` | *(boş)* | |
 | `SMTP_PORT` | `587` | |
 | `SMTP_USER` | *(boş)* | |
@@ -170,7 +175,6 @@ SECRET_KEY=DEGISTIR_en_az_64_karakter_rastgele
 ACCESS_TOKEN_TTL_MINUTES=15
 REFRESH_TOKEN_TTL_DAYS=30
 COOKIE_SECURE=false
-COOKIE_SAMESITE=lax
 CSRF_ENABLED=true
 MAX_FAILED_LOGINS=5
 ACCOUNT_LOCK_MINUTES=15
@@ -228,8 +232,11 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
 Deploy öncesi ([PLAN.md](../PLAN.md) 3.14) doğrulanır:
 
+- [ ] `ENVIRONMENT=production` (açıkça; varsayılan `development` doğrulamayı devreye sokmaz)
 - [ ] `DEBUG=false`
 - [ ] `COOKIE_SECURE=true`
+- [ ] Frontend ve API **tek origin** (aynı alan adı, HTTPS reverse proxy); `FRONTEND_ORIGIN` ve `ALLOWED_ORIGINS` https ve localhost dışı
+- [ ] `RATE_LIMIT_ENABLED=true` ve uvicorn `--proxy-headers --forwarded-allow-ips` ayarlı (gerçek istemci IP'si görünüyor)
 - [ ] `S3_USE_SSL=true`
 - [ ] `SECRET_KEY` yeniden üretilmiş (geliştirme değeri **kullanılmaz**)
 - [ ] `POSTGRES_PASSWORD` ve `S3_*` anahtarları güçlü ve benzersiz

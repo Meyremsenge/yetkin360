@@ -50,6 +50,35 @@ export default function DogrulamaKuyruguPage() {
     },
   });
 
+  const { mutate: reject, isPending: isRejecting } = useMutation({
+    mutationFn: (orgId: string) => adminApi.rejectVerification(orgId),
+    onSuccess: (rejected: adminApi.Organization | undefined) => {
+      if (!rejected) return;
+      setMutationError(null);
+      setSuccessMessage(messages.adminVerificationQueue.rejected);
+      queryClient.setQueryData(QUEUE_KEY, (prev: adminApi.VerificationQueueResponse | undefined) => {
+        if (!prev) return prev;
+        return { items: prev.items.filter(org => org.id !== rejected.id) };
+      });
+      setTimeout(() => setSuccessMessage(null), 3000);
+    },
+    onError: (err) => {
+      if (err instanceof ApiError) {
+        setMutationError(
+          err.status === 404
+            ? messages.adminVerificationQueue.notFound
+            : err.status === 409
+              ? messages.adminVerificationQueue.notPending
+              : messages.errors.generic
+        );
+      } else if (err instanceof NetworkError) {
+        setMutationError(
+          err.kind === "timeout" ? messages.errors.timeout : messages.errors.network
+        );
+      }
+    },
+  });
+
   const handleLevelChange = (orgId: string, newLevel: string) => {
     setSelectedLevels((prev) => ({ ...prev, [orgId]: newLevel }));
     setMutationError(null);
@@ -150,11 +179,19 @@ export default function DogrulamaKuyruguPage() {
                       <td className="p-3">
                         <button
                           onClick={() => handleSubmit(org.id)}
-                          disabled={isUpdating || selectedLevels[org.id] === org.verification_level}
+                          disabled={isUpdating || isRejecting || selectedLevels[org.id] === org.verification_level}
                           aria-label={`Onayla ${org.name}`}
                           className="px-3 py-1 bg-slate-900 text-white text-xs rounded-md hover:bg-slate-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
                         >
                           {messages.adminVerificationQueue.form.confirm}
+                        </button>
+                        <button
+                          onClick={() => reject(org.id)}
+                          disabled={isUpdating || isRejecting}
+                          aria-label={`Reddet ${org.name}`}
+                          className="ml-2 px-3 py-1 border border-slate-300 text-slate-700 text-xs rounded-md hover:bg-slate-100 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                        >
+                          {messages.adminVerificationQueue.form.reject}
                         </button>
                       </td>
                     </tr>

@@ -168,3 +168,18 @@ def pytest_collection_modifyitems(config, items):
             "Add parametrize-d test cases to test_matrix.py or test_can_defaults.py.",
             returncode=1,
         )
+
+
+@pytest.fixture
+def evidence_api(session):
+    """TestClient on the rolled-back test session (YET-195/184 evidence API tests)."""
+    from fastapi.testclient import TestClient
+
+    from app.api.deps import get_session
+    from app.main import app
+    from tests._testdb import session_override
+
+    app.dependency_overrides[get_session] = session_override(session)
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.clear()

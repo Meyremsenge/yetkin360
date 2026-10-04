@@ -15,19 +15,29 @@ DO NOT run in production without careful consideration.
 
 import sys
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.deps import _SessionLocal
 from app.core.security import hash_password
-from app.models import Skill, User, TalentProfile, Institution, Organization, Engagement
+from app.models import (
+    Skill,
+    User,
+    TalentProfile,
+    Institution,
+    InstitutionMember,
+    Organization,
+    Engagement,
+)
 from app.services.auth import register_user
 from app.services.institution import (
     create_institution,
+    invite_member,
     request_institution_link,
     approve_institution_link,
     DuplicateLinkRequestError,
+    AlreadyMemberError,
 )
 from app.services.organization import create_organization
 from app.services.engagement import (
@@ -310,6 +320,10 @@ def seed_skills(session: Session) -> None:
     print(f"Skill seed complete: {inserted_count} inserted, {skipped_count} already exist")
 
 
+MIN_ADMIN_PASSWORD_LENGTH = 12
+ADMIN_PASSWORD_PLACEHOLDER_PREFIX = "DEGISTIR_"
+
+
 def seed_admin(session: Session) -> None:
     """
     Idempotently seed the first platform admin (PLAN 3.6 — YET-110).
@@ -325,6 +339,19 @@ def seed_admin(session: Session) -> None:
     if existing:
         print(f"Admin seed skip: {settings.seed_admin_email} already exists")
         return
+
+    # YET-229: never create the platform admin with an empty, placeholder or
+    # short password. Checked after the skip above so existing databases are
+    # unaffected. The password value is never printed.
+    admin_password = settings.seed_admin_password
+    if (
+        len(admin_password) < MIN_ADMIN_PASSWORD_LENGTH
+        or admin_password.startswith(ADMIN_PASSWORD_PLACEHOLDER_PREFIX)
+    ):
+        raise RuntimeError(
+            "SEED_ADMIN_PASSWORD is missing, still a placeholder, or shorter than "
+            f"{MIN_ADMIN_PASSWORD_LENGTH} characters; set a strong value in .env"
+        )
 
     admin = User(
         email=settings.seed_admin_email,
@@ -381,6 +408,42 @@ def seed_talents(session: Session) -> None:
     print(f"Talents seed complete: {inserted_count} inserted, {skipped_count} already exist")
 
 
+def _ensure_institution_coordinator(session: Session, index: int, inst_domain: str) -> None:
+    """
+    Ensure institution `index` has a real COORDINATOR member (kurum{i}-koordinator@seed.local).
+
+    YET-190 / K3: only COORDINATOR members approve engagements and attest; the
+    institution ADMIN does not. Idempotent, also repairs databases seeded earlier.
+    """
+    coord_email = f"kurum{index}-koordinator@seed.local"
+
+    institution = session.execute(
+        select(Institution).where(Institution.domain == inst_domain)
+    ).scalars().first()
+    assert institution is not None, f"Institution {inst_domain} must exist before adding its coordinator"
+
+    coord_user = session.execute(
+        select(User).where(User.email == coord_email)
+    ).scalars().first()
+    if coord_user is None:
+        register_user(
+            session=session,
+            email=coord_email,
+            password="SeedTest123!",
+            full_name=f"Institution {index} Coordinator",
+        )
+
+    try:
+        invite_member(
+            institution_id=institution.id,
+            email=coord_email,
+            role="COORDINATOR",
+            session=session,
+        )
+    except AlreadyMemberError:
+        pass  # idempotent re-run: the coordinator membership already exists
+
+
 def seed_institutions_and_organizations(session: Session) -> None:
     """
     Seed 5 institutions + 5 organizations with admin accounts, idempotently.
@@ -428,6 +491,8 @@ def seed_institutions_and_organizations(session: Session) -> None:
                 session=session
             )
             inst_inserted += 1
+
+        _ensure_institution_coordinator(session, i, inst_domain)
 
     # Seed 5 organizations
     for i in range(1, 6):
@@ -552,13 +617,17 @@ def _create_verified_engagement(
         is_suspended=False
     )
 
-    # Get institution admin/coordinator user
-    coord_email = f"kurum{(eng_idx % 5) + 1}-admin@seed.local"
+    # Get the institution's real COORDINATOR member (YET-190: admin does not approve/attest)
     coord_user = session.execute(
-        select(User).where(User.email == coord_email)
+        select(User)
+        .join(InstitutionMember, InstitutionMember.user_id == User.id)
+        .where(
+            InstitutionMember.institution_id == institution.id,
+            InstitutionMember.role == "COORDINATOR",
+        )
     ).scalars().first()
 
-    assert coord_user is not None, f"Coordinator user (email: {coord_email}) not found — this should have been created in seed_institutions_and_organizations()"
+    assert coord_user is not None, f"Coordinator of institution {institution.id} not found — this should have been created in seed_institutions_and_organizations()"
 
     coordinator_principal = Principal(
         user_id=coord_user.id,
@@ -745,6 +814,27 @@ def seed_engagements(session: Session) -> None:
     print(f"Engagements seed complete: {inserted_count} inserted")
 
 
+def seed_verify_users(session: Session) -> int:
+    """
+    YET-196: write endpoints require a verified e-mail, and seed users never
+    receive their verification mail. Mark every @seed.local user verified so the
+    demo accounts can write. Also repairs seed users created before this existed
+    (the seed is idempotent and skips existing users). Returns rows updated.
+    """
+    if settings.environment == "production":
+        raise RuntimeError("Seed script cannot run in production environment")
+
+    result = session.execute(
+        update(User)
+        .where(User.email.like("%@seed.local"))
+        .where(User.email_verified_at.is_(None))
+        .values(email_verified_at=datetime.now(timezone.utc))
+    )
+    count = result.rowcount  # type: ignore[attr-defined]
+    print(f"Seed users verified: {count} updated")
+    return count
+
+
 if __name__ == "__main__":
     session = _SessionLocal()
     try:
@@ -759,6 +849,8 @@ if __name__ == "__main__":
         seed_institutions_and_organizations(session)
 
         seed_engagements(session)
+
+        seed_verify_users(session)
 
         # Final commit for all seed data (AC-4: single transaction)
         session.commit()

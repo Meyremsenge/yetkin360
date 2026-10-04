@@ -19,6 +19,7 @@ Each test uses session fixture for isolated transaction + rollback.
 
 Parametric test matrix covers: actor kind × request body/evidence × expected HTTP code.
 """
+import uuid
 
 from unittest.mock import MagicMock, patch
 
@@ -30,6 +31,7 @@ from app.api.deps import get_session
 from app.core.security import encode_access_token
 from app.main import app
 from app.models import User
+from tests._testdb import session_override
 
 # NOTE: These imports will fail during red phase (TDD) and cause collection error (FAILED).
 # This is expected and correct — tests must show red (FAILED), not SKIP or pass silently.
@@ -49,10 +51,7 @@ def client_with_auth(session):
     TestClient with session override + real access token cookies.
     Tests must call set_auth_cookies(client, user) to authenticate.
     """
-    def override_get_session():
-        return session
-
-    app.dependency_overrides[get_session] = override_get_session
+    app.dependency_overrides[get_session] = session_override(session)
 
     with TestClient(app) as c:
         yield c
@@ -160,7 +159,7 @@ class TestSuspendedAccount:
         response = client_with_auth.post(
             "/evidence",
             json={
-                "storage_key": f"evidence/{talent_a.id}/test.pdf",
+                "storage_key": f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
                 "kind": "DOCUMENT",
                 "mime_type": "application/pdf",
                 "size_bytes": 1024,
@@ -188,11 +187,12 @@ class TestAuthenticatedEvidenceCreation:
         AC-1: Authenticated talent receives 201 + evidence response schema.
         CSRF token required in header (POST is a write method).
         """
+        storage_key = f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf"
         set_auth_cookies(client_with_auth, user_talent_a)
         response = client_with_auth.post(
             "/evidence",
             json={
-                "storage_key": f"evidence/{talent_a.id}/test-uuid.pdf",
+                "storage_key": storage_key,
                 "kind": "DOCUMENT",
                 "mime_type": "application/pdf",
                 "size_bytes": 1024,
@@ -206,7 +206,7 @@ class TestAuthenticatedEvidenceCreation:
         assert body["owner_talent_id"] == str(talent_a.id)
         assert body["kind"] == "DOCUMENT"
         assert body["provenance"] == "SELF_UPLOADED"
-        assert body["storage_key"] == f"evidence/{talent_a.id}/test-uuid.pdf"
+        assert body["storage_key"] == storage_key
         assert body["mime_type"] == "application/pdf"
         assert body["size_bytes"] == 1024
         assert body["scan_status"] == "PENDING"
@@ -218,22 +218,22 @@ class TestAuthenticatedEvidenceCreation:
     ):
         """
         AC-S1 (Elevation): Talent A, even if storage_key in request body has
-        talent_b prefix, should get 422 + INVALID_STORAGE_KEY.
+        talent_b prefix, should get 404 + NOT_FOUND (someone else's object).
         """
         set_auth_cookies(client_with_auth, user_talent_a)
         response = client_with_auth.post(
             "/evidence",
             json={
-                "storage_key": f"evidence/{talent_b.id}/evil-uuid.pdf",  # Malicious prefix
+                "storage_key": f"evidence/{talent_b.id}/{uuid.uuid4()}.pdf",  # Malicious prefix
                 "kind": "DOCUMENT",
                 "mime_type": "application/pdf",
                 "size_bytes": 512,
             },
             headers={"X-CSRF-Token": "test-csrf-token"},
         )
-        assert response.status_code == 422
+        assert response.status_code == 404
         body = response.json()
-        assert body.get("code") == "INVALID_STORAGE_KEY"
+        assert body.get("code") == "NOT_FOUND"
 
 
 # ============================================================================
@@ -254,7 +254,7 @@ class TestKindValidation:
         response = client_with_auth.post(
             "/evidence",
             json={
-                "storage_key": f"evidence/{talent_a.id}/test.pdf",
+                "storage_key": f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
                 "kind": kind,
                 "mime_type": "application/pdf",
                 "size_bytes": 1024,
@@ -270,7 +270,7 @@ class TestKindValidation:
         response = client_with_auth.post(
             "/evidence",
             json={
-                "storage_key": f"evidence/{talent_a.id}/test.pdf",
+                "storage_key": f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
                 "kind": kind,
                 "mime_type": "application/pdf",
                 "size_bytes": 1024,
@@ -331,7 +331,7 @@ class TestOwnershipValidation:
         response = create_evidence(
             session=session,
             principal=principal_b,
-            storage_key=f"evidence/{talent_b.id}/test-uuid.pdf",
+            storage_key=f"evidence/{talent_b.id}/{uuid.uuid4()}.pdf",
             kind="DOCUMENT",
             mime_type="application/pdf",
             size_bytes=1024,
@@ -367,7 +367,7 @@ class TestOwnershipValidation:
         response = create_evidence(
             session=session,
             principal=principal_b,
-            storage_key=f"evidence/{talent_b.id}/test-uuid.pdf",
+            storage_key=f"evidence/{talent_b.id}/{uuid.uuid4()}.pdf",
             kind="DOCUMENT",
             mime_type="application/pdf",
             size_bytes=1024,
@@ -378,6 +378,7 @@ class TestOwnershipValidation:
         # Manually set scan_status to CLEAN
         evidence = session.query(Evidence).filter_by(id=evidence_id).first()
         evidence.scan_status = "CLEAN"
+        evidence.storage_etag = "etag-1"  # what the scan recorded; download re-checks it
         session.flush()
 
         # Talent A tries to download
@@ -421,7 +422,7 @@ class TestAdminAccessPrivateEvidence:
         response = create_evidence(
             session=session,
             principal=principal_a,
-            storage_key=f"evidence/{talent_a.id}/test-uuid.pdf",
+            storage_key=f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
             kind="DOCUMENT",
             mime_type="application/pdf",
             size_bytes=1024,
@@ -482,7 +483,7 @@ class TestScanStatusBlocksDownload:
         response = create_evidence(
             session=session,
             principal=principal_a,
-            storage_key=f"evidence/{talent_a.id}/test-uuid.pdf",
+            storage_key=f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
             kind="DOCUMENT",
             mime_type="application/pdf",
             size_bytes=1024,
@@ -536,7 +537,7 @@ class TestSuccessfulDownload:
         response = create_evidence(
             session=session,
             principal=principal_a,
-            storage_key=f"evidence/{talent_a.id}/test-uuid.pdf",
+            storage_key=f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
             kind="DOCUMENT",
             mime_type="application/pdf",
             size_bytes=1024,
@@ -547,12 +548,14 @@ class TestSuccessfulDownload:
         # Set scan_status to CLEAN
         evidence = session.query(Evidence).filter_by(id=evidence_id).first()
         evidence.scan_status = "CLEAN"
+        evidence.storage_etag = "etag-1"  # what the scan recorded; download re-checks it
         session.flush()
 
         # Mock MinIO presigned URL
         with patch("app.services.storage.boto3.client") as mock_boto:
             mock_s3 = MagicMock()
             mock_boto.return_value = mock_s3
+            mock_s3.head_object.return_value = {"ETag": '"etag-1"'}
             mock_s3.generate_presigned_url.return_value = "https://minio.example.com/download-url"
 
             # Download
@@ -596,7 +599,7 @@ class TestStorageUnavailable:
         response = create_evidence(
             session=session,
             principal=principal_a,
-            storage_key=f"evidence/{talent_a.id}/test-uuid.pdf",
+            storage_key=f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
             kind="DOCUMENT",
             mime_type="application/pdf",
             size_bytes=1024,
@@ -607,12 +610,14 @@ class TestStorageUnavailable:
         # Set scan_status to CLEAN
         evidence = session.query(Evidence).filter_by(id=evidence_id).first()
         evidence.scan_status = "CLEAN"
+        evidence.storage_etag = "etag-1"  # what the scan recorded; download re-checks it
         session.flush()
 
         # Mock MinIO connection error
         with patch("app.services.storage.boto3.client") as mock_boto:
             mock_s3 = MagicMock()
             mock_boto.return_value = mock_s3
+            mock_s3.head_object.return_value = {"ETag": '"etag-1"'}
             mock_s3.generate_presigned_url.side_effect = EndpointConnectionError(
                 endpoint_url="http://minio:9000"
             )
@@ -644,7 +649,7 @@ class TestInfoDisclosureProtection:
         not MinIO/bucket details.
         """
         set_auth_cookies(client_with_auth, user_talent_a)
-        # Trigger a 422 error with invalid storage key prefix
+        # Trigger a 404 error with a storage key outside the caller's own prefix
         response = client_with_auth.post(
             "/evidence",
             json={
@@ -655,7 +660,7 @@ class TestInfoDisclosureProtection:
             },
             headers={"X-CSRF-Token": "test-csrf-token"},
         )
-        assert response.status_code == 422
+        assert response.status_code == 404
         body = response.json()
 
         # Verify no leakage
@@ -684,7 +689,7 @@ class TestRateLimit:
             response = client_with_auth.post(
                 "/evidence",
                 json={
-                    "storage_key": f"evidence/{talent_a.id}/test-{i}.pdf",
+                    "storage_key": f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
                     "kind": "DOCUMENT",
                     "mime_type": "application/pdf",
                     "size_bytes": 1024,
@@ -701,7 +706,7 @@ class TestRateLimit:
             response = client_with_auth.post(
                 "/evidence",
                 json={
-                    "storage_key": f"evidence/{talent_a.id}/test-{i}.pdf",
+                    "storage_key": f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
                     "kind": "DOCUMENT",
                     "mime_type": "application/pdf",
                     "size_bytes": 1024,
@@ -714,7 +719,7 @@ class TestRateLimit:
         response = client_with_auth.post(
             "/evidence",
             json={
-                "storage_key": f"evidence/{talent_a.id}/test-11.pdf",
+                "storage_key": f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
                 "kind": "DOCUMENT",
                 "mime_type": "application/pdf",
                 "size_bytes": 1024,
@@ -742,13 +747,14 @@ class TestRateLimit:
             response = create_evidence(
                 session=session,
                 principal=principal_a,
-                storage_key=f"evidence/{talent_a.id}/test-{i}.pdf",
+                storage_key=f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
                 kind="DOCUMENT",
                 mime_type="application/pdf",
                 size_bytes=1024,
             )
             evidence = session.query(Evidence).filter_by(id=response.id).first()
             evidence.scan_status = "CLEAN"
+            evidence.storage_etag = "etag-1"  # what the scan recorded; download re-checks it
             session.flush()
             evidences.append(evidence.id)
 
@@ -756,6 +762,7 @@ class TestRateLimit:
         with patch("app.services.storage.boto3.client") as mock_boto:
             mock_s3 = MagicMock()
             mock_boto.return_value = mock_s3
+            mock_s3.head_object.return_value = {"ETag": '"etag-1"'}
             mock_s3.generate_presigned_url.return_value = "https://minio.example.com/download"
 
             set_auth_cookies(client_with_auth, user_talent_a)
@@ -827,7 +834,7 @@ class TestDeliverableOwnershipAuthorization:
         response = client_with_auth.post(
             "/evidence",
             json={
-                "storage_key": f"evidence/{talent_a.id}/test-uuid.pdf",
+                "storage_key": f"evidence/{talent_a.id}/{uuid.uuid4()}.pdf",
                 "kind": "DOCUMENT",
                 "mime_type": "application/pdf",
                 "size_bytes": 1024,

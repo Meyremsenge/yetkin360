@@ -21,7 +21,6 @@ function renderWithQueryClient(ui: React.ReactElement) {
 }
 
 const mockPublicProfile = {
-  talent_id: "talent-1",
   display_name: "Ayşe Yılmaz",
   verified_experiences: [
     {

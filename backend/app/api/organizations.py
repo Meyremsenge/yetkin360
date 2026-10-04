@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_principal, get_session
+from app.api.deps import get_current_principal, get_session, get_verified_principal
 from app.core.deps import require_csrf
 from app.core.errors import ApiError
 from app.models import Organization
@@ -16,9 +16,11 @@ from app.services.audit import log_audit_event
 from app.services.organization import (
     AlreadyMemberError,
     DomainAlreadyVerifiedError,
+    DomainLockedError,
     DuplicateLegalIdError,
     FreeEmailDomainError,
     RateLimitError,
+    change_organization_domain,
     create_organization,
     invite_org_member,
     verify_domain,
@@ -39,6 +41,12 @@ class OrganizationCreate(BaseModel):
     name: str = Field(..., min_length=1)
     domain: str | None = None
     legal_id: str | None = None
+
+
+class OrganizationDomainUpdate(BaseModel):
+    """Request schema for PATCH /organizations/{id}: the domain can be changed, not cleared."""
+
+    domain: str
 
 
 class OrganizationResponse(BaseModel):
@@ -137,7 +145,7 @@ def validate_hostname(domain: str) -> bool:
 @router.post("/", status_code=201, response_model=OrganizationResponse)
 def create_organization_endpoint(
     payload: OrganizationCreate,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> Organization:
@@ -198,6 +206,65 @@ def create_organization_endpoint(
 
 
 # ============================================================================
+# YET-237 / L-02: Change organization domain
+# ============================================================================
+
+
+@router.patch("/{organization_id}", status_code=200, response_model=OrganizationResponse)
+def change_domain_endpoint(
+    organization_id: uuid.UUID,
+    payload: OrganizationDomainUpdate,
+    principal: Principal = Depends(get_verified_principal),
+    session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
+) -> Organization:
+    """
+    Change the organization's domain (org ADMIN only).
+
+    T1: changes. T2: changes and drops to T1 (re-verify via DNS). T3/T4: locked.
+    Same value is a 200 no-op.
+
+    Status codes:
+        200: Changed (or same value)
+        400: FREE_EMAIL_DOMAIN
+        404: Organization not found / caller is not an ADMIN of it
+        409: ALAN_ADI_KILITLI (T3/T4) / DOMAIN_ALREADY_VERIFIED (held by another org)
+        422: Invalid domain format
+    """
+    scoped = scoped_organizations(session, principal)
+    org = get_scoped_or_404(scoped.where(Organization.id == organization_id), session)
+    if not org or organization_id not in principal.org_admin_ids:
+        raise ApiError(404, "NOT_FOUND", "Organizasyon bulunamadı")
+
+    new_domain = payload.domain.strip()
+    if not validate_hostname(new_domain):
+        raise ApiError(422, "INVALID_DOMAIN_FORMAT", "Geçersiz alan adı biçimi")
+
+    try:
+        changed, level_before = change_organization_domain(org, new_domain, session)
+    except DomainLockedError:
+        raise ApiError(409, "ALAN_ADI_KILITLI", "Doğrulanmış kurumun alan adı değiştirilemez")
+    except FreeEmailDomainError:
+        raise ApiError(400, "FREE_EMAIL_DOMAIN", "Ücretsiz e-posta sağlayıcısı alan adı olamaz")
+    except DomainAlreadyVerifiedError:
+        raise ApiError(409, "DOMAIN_ALREADY_VERIFIED", "Alan adı başka bir kurumda doğrulanmış")
+
+    if changed:
+        log_audit_event(
+            session=session,
+            actor_user_id=principal.user_id,
+            actor_ip=None,
+            action="ORGANIZATION_DOMAIN_CHANGED",
+            subject_type="organization",
+            subject_id=organization_id,
+            result="SUCCESS",
+            metadata={"from_level": level_before, "to_level": org.verification_level},
+        )
+
+    return org
+
+
+# ============================================================================
 # AC-3: Invite Member to Organization
 # ============================================================================
 
@@ -206,7 +273,7 @@ def create_organization_endpoint(
 def invite_member_endpoint(
     organization_id: uuid.UUID,
     payload: OrganizationMemberInvite,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ):
@@ -245,7 +312,7 @@ def invite_member_endpoint(
         raise ApiError(404, "NOT_FOUND", "Organizasyon bulunamadı")
 
     # Check if principal is ADMIN of this organization
-    if principal.kind != "ORG_ADMIN" or organization_id not in principal.org_admin_ids:
+    if organization_id not in principal.org_admin_ids:
         raise ApiError(404, "NOT_FOUND", "Organizasyon bulunamadı")
 
     # Invite member (isolate exception handling to invite_org_member only)
@@ -331,7 +398,7 @@ def invite_member_endpoint(
 def verify_domain_endpoint(
     organization_id: uuid.UUID,
     payload: DomainVerifyRequest = DomainVerifyRequest(),
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ):
@@ -371,7 +438,7 @@ def verify_domain_endpoint(
         raise HTTPException(status_code=404, detail="Organization not found")
 
     # Check if principal is ADMIN of this organization
-    if principal.kind != "ORG_ADMIN" or organization_id not in principal.org_admin_ids:
+    if organization_id not in principal.org_admin_ids:
         raise HTTPException(status_code=404, detail="Organization not found")
 
     # AC-S5: Validate domain format before DNS lookup (prevent SSRF)
@@ -384,10 +451,11 @@ def verify_domain_endpoint(
             session=session,
         )
 
-        # If verification succeeded (T2), set verified_by_user_id
+        # If verification succeeded, record who promoted the org to T2 (an org already at T2+ keeps its record)
         if result["status"] == "verified":
-            org.verified_by_user_id = principal.user_id
-            session.flush()
+            if result.get("promoted"):
+                org.verified_by_user_id = principal.user_id
+                session.flush()
 
             # Log success (AC-S7)
             log_audit_event(
@@ -398,7 +466,7 @@ def verify_domain_endpoint(
                 subject_type="organization",
                 subject_id=organization_id,
                 result="SUCCESS",
-                metadata={"domain": org.domain, "verification_level": "T2"},
+                metadata={"domain": org.domain, "verification_level": org.verification_level},
             )
         else:
             # Log pending (AC-S7)

@@ -25,7 +25,9 @@ const mockPublicVerification = {
   talent_name: "Ayşe Yılmaz",
   organization_name: "Acme A.Ş.",
   organization_trust_level: "T2",
+  organization_domain: "acme.example",
   institution_name: "ODTÜ",
+  institution_trust_level: "T1",
   started_on: "2025-01-01",
   ended_on: "2025-06-30",
   verified_at: "2026-09-20T10:00:00Z",
@@ -64,8 +66,37 @@ describe("PublicVerificationPage (/v/[token])", () => {
       expect(screen.getByText("Acme A.Ş.")).toBeTruthy();
       expect(screen.getByText("ODTÜ")).toBeTruthy();
       expect(screen.getByText("Python")).toBeTruthy();
-      expect(screen.getByText("T2")).toBeTruthy();
+      expect(screen.getByText("Doğrulama seviyesi: T2")).toBeTruthy();
+      expect(screen.getByText("Doğrulanmış alan adı: acme.example")).toBeTruthy();
+      expect(screen.getByText("Doğrulama seviyesi: T1")).toBeTruthy();
     });
+  });
+
+  // YET-243: T1 (doğrulanmamış) kurum belirgin uyarıyla gösterilir, T2+ için uyarı yok
+  it("YET-243: T1 kurum → 'doğrulanmamış' uyarısı görünür", async () => {
+    vi.mocked(getPublicVerification).mockResolvedValueOnce({
+      ...mockPublicVerification,
+      organization_name: "Google",
+      organization_trust_level: "T1",
+      organization_domain: null,
+    });
+
+    renderWithQueryClient(<PublicVerificationPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("note").textContent).toContain("henüz doğrulanmamıştır");
+    });
+  });
+
+  it("YET-243: T2 kurum → uyarı görünmez", async () => {
+    vi.mocked(getPublicVerification).mockResolvedValueOnce(mockPublicVerification);
+
+    renderWithQueryClient(<PublicVerificationPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Acme A.Ş.")).toBeTruthy();
+    });
+    expect(screen.queryByRole("note")).toBeNull();
   });
 
   // AC-4: 404 ApiError — "Kayıt bulunamadı"

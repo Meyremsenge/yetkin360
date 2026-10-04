@@ -415,9 +415,11 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
     renderWithQueryClient(<KurumPanelPage />);
 
     await waitFor(() => {
-      // Jenerik mesaj, "erişiminiz yok" veya "yetkin yok" gibi metin YASAK
-      expect(screen.getByText(/Kurum bulunamadı/i)).toBeTruthy();
-      expect(screen.queryByText(/erişiminiz|yetkin/i)).not.toBeInTheDocument();
+      // Hata mesajı kapları (page.tsx'in alert rolü) bulun, içinde yalnız
+      // "Kurum bulunamadı." olmalı; "erişim|yetki|forbidden|403" kelimesi yok
+      const alertElement = screen.getByRole("alert");
+      expect(alertElement.textContent).toContain("Kurum bulunamadı.");
+      expect(alertElement.textContent).not.toMatch(/erişim|yetki|forbidden|403/i);
     });
   });
 

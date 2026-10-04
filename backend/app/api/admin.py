@@ -9,16 +9,22 @@ import uuid
 from datetime import datetime
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_principal, get_session
+from app.api.deps import get_current_principal, get_session, get_verified_principal
 from app.core.deps import require_csrf
 from app.core.errors import ApiError
 from app.services.audit import log_audit_event
 from app.services.authorization import Principal
-from app.services.organization import list_verification_queue, set_verification_level
+from app.services.organization import (
+    DomainAlreadyVerifiedError,
+    NotPendingError,
+    list_verification_queue,
+    reject_verification,
+    set_verification_level,
+)
 from app.services.skill import (
     DuplicateSkillSlugError,
     InvalidSkillReferenceError,
@@ -28,6 +34,8 @@ from app.services.skill import (
     merge_skill,
     update_skill,
 )
+
+MAX_PAGE_SIZE = 200
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -63,6 +71,10 @@ class VerificationQueueResponse(BaseModel):
 
 class VerificationLevelUpdate(BaseModel):
     verification_level: VerificationLevel
+    note: Optional[str] = Field(None, max_length=1000)
+
+
+class VerificationReject(BaseModel):
     note: Optional[str] = Field(None, max_length=1000)
 
 
@@ -120,8 +132,8 @@ class SkillsListResponse(BaseModel):
 
 @router.get("/verification-queue", response_model=VerificationQueueResponse)
 def get_verification_queue(
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(50, ge=1, le=MAX_PAGE_SIZE),
+    offset: int = Query(0, ge=0),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
 ) -> VerificationQueueResponse:
@@ -135,22 +147,25 @@ def get_verification_queue(
 def update_verification_level(
     organization_id: uuid.UUID,
     payload: VerificationLevelUpdate,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> OrganizationSummary:
     """
-    Approve (level yükselt) veya reddet (level'ı değiştirmeden not düş).
-    Her çağrı audit_events'e yazılır — sonuç değişmese bile.
+    Seviyeyi ayarla (onay = yükseltme). Reddetmek için verification-reject ucu kullanılır.
+    Her çağrı audit_events'e yazılır; serbest metin `note` yazılmaz, yalnız uzunluğu.
     """
     _require_admin(principal)
 
-    org = set_verification_level(
-        session,
-        organization_id=organization_id,
-        verification_level=payload.verification_level,
-        admin_user_id=principal.user_id,
-    )
+    try:
+        org = set_verification_level(
+            session,
+            organization_id=organization_id,
+            verification_level=payload.verification_level,
+            admin_user_id=principal.user_id,
+        )
+    except DomainAlreadyVerifiedError:
+        raise ApiError(409, "DOMAIN_ALREADY_VERIFIED", "Alan adı başka bir kurumda doğrulanmış.")
     if org is None:
         raise ApiError(404, "NOT_FOUND", "Kurum bulunamadı.")
 
@@ -162,7 +177,42 @@ def update_verification_level(
         subject_type="organization",
         subject_id=organization_id,
         result="SUCCESS",
-        metadata={"verification_level": payload.verification_level, "note": payload.note},
+        metadata={
+            "verification_level": payload.verification_level,
+            "note_length": len(payload.note or ""),
+        },
+    )
+
+    return OrganizationSummary.model_validate(org)
+
+
+@router.post("/organizations/{organization_id}/verification-reject", response_model=OrganizationSummary)
+def reject_verification_endpoint(
+    organization_id: uuid.UUID,
+    payload: VerificationReject,
+    principal: Principal = Depends(get_verified_principal),
+    session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
+) -> OrganizationSummary:
+    """Bekleyen T3 başvurusunu reddet: kurum kuyruktan çıkar, seviye ve verified_at değişmez (YET-198)."""
+    _require_admin(principal)
+
+    try:
+        org = reject_verification(session, organization_id=organization_id)
+    except NotPendingError:
+        raise ApiError(409, "NOT_PENDING", "Kurum doğrulama kuyruğunda değil.")
+    if org is None:
+        raise ApiError(404, "NOT_FOUND", "Kurum bulunamadı.")
+
+    log_audit_event(
+        session=session,
+        actor_user_id=principal.user_id,
+        actor_ip=None,
+        action="ADMIN_REJECT_VERIFICATION",
+        subject_type="organization",
+        subject_id=organization_id,
+        result="SUCCESS",
+        metadata={"note_length": len(payload.note or "")},
     )
 
     return OrganizationSummary.model_validate(org)
@@ -175,8 +225,8 @@ def update_verification_level(
 
 @router.get("/skills", response_model=SkillsListResponse)
 def list_skills_endpoint(
-    limit: int = 200,
-    offset: int = 0,
+    limit: int = Query(200, ge=1, le=MAX_PAGE_SIZE),
+    offset: int = Query(0, ge=0),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
 ) -> SkillsListResponse:
@@ -189,7 +239,7 @@ def list_skills_endpoint(
 @router.post("/skills", response_model=SkillResponse, status_code=201)
 def create_skill_endpoint(
     payload: SkillCreateRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> SkillResponse:
@@ -225,7 +275,7 @@ def create_skill_endpoint(
 def update_skill_endpoint(
     skill_id: uuid.UUID,
     payload: SkillUpdateRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> SkillResponse:
@@ -261,7 +311,7 @@ def update_skill_endpoint(
 @router.post("/skills/{skill_id}/deprecate", response_model=SkillResponse)
 def deprecate_skill_endpoint(
     skill_id: uuid.UUID,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> SkillResponse:
@@ -287,7 +337,7 @@ def deprecate_skill_endpoint(
 def merge_skill_endpoint(
     skill_id: uuid.UUID,
     payload: SkillMergeRequest,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> SkillResponse:

@@ -13,7 +13,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -41,6 +41,11 @@ from app.services.outbox import enqueue
 
 EMAIL_VERIFICATION_TOKEN_TTL_HOURS = 24
 PASSWORD_RESET_TOKEN_TTL_HOURS = 1
+
+# Resend limits are derived from the tokens table itself (created_at), so they
+# hold across processes and restarts and need no in-memory state.
+RESEND_VERIFICATION_COOLDOWN_SECONDS = 60
+RESEND_VERIFICATION_MAX_PER_HOUR = 5
 
 FAILED_LOGIN_LOCK_THRESHOLD = 10
 FAILED_LOGIN_LOCK_MINUTES = 15
@@ -208,6 +213,60 @@ def _issue_email_verification_token(session: Session, user_id: uuid.UUID) -> Non
     )
 
 
+def resend_email_verification(session: Session, user_id: uuid.UUID, actor_ip: str | None) -> bool:
+    """
+    Issue a fresh verification token for an authenticated, unverified user
+    (docs/API.md §2.1; HATA.md IS-08: the 24h token otherwise expires and
+    leaves the account unverified for good).
+
+    Returns True when a token was issued. Returns False — a silent no-op for the
+    caller, who always answers 204 — when the e-mail is already verified or a
+    limit is hit (1/minute, 5/hour, counted from the tokens table, which
+    includes the registration token). A silent no-op keeps an attacker from
+    flooding the outbox or learning the limit state; the recipient is always
+    the account's own address, resolved by the worker from the user id.
+
+    Previous unused tokens are invalidated (used_at) so only the newest link
+    works. The user row is locked FOR UPDATE to serialise concurrent resends.
+    """
+    user = session.execute(
+        select(User).where(User.id == user_id).with_for_update()
+    ).scalars().first()
+    if user is None or user.email_verified_at is not None:
+        return False
+
+    now = datetime.now(timezone.utc)
+    recent = session.execute(
+        select(EmailVerificationToken.created_at)
+        .where(EmailVerificationToken.user_id == user_id)
+        .where(EmailVerificationToken.created_at > now - timedelta(hours=1))
+        .order_by(EmailVerificationToken.created_at.desc())
+    ).scalars().all()
+    if recent and recent[0] > now - timedelta(seconds=RESEND_VERIFICATION_COOLDOWN_SECONDS):
+        return False
+    if len(recent) >= RESEND_VERIFICATION_MAX_PER_HOUR:
+        return False
+
+    session.execute(
+        update(EmailVerificationToken)
+        .where(EmailVerificationToken.user_id == user_id)
+        .where(EmailVerificationToken.used_at.is_(None))
+        .values(used_at=now)
+    )
+    _issue_email_verification_token(session, user_id)
+
+    log_audit_event(
+        session=session,
+        actor_user_id=user_id,
+        actor_ip=actor_ip,
+        action="EMAIL_VERIFICATION_RESENT",
+        subject_type="user",
+        subject_id=user_id,
+        result="SUCCESS",
+    )
+    return True
+
+
 def request_password_reset(session: Session, email: str) -> None:
     """
     docs/API.md §2.1: always returns as if the email was sent, whether or not
@@ -364,11 +423,57 @@ def authenticate(session: Session, email: str, password: str, actor_ip: str | No
     """
     docs/API.md §2.1: login failures never distinguish "wrong email" from
     "wrong password" — both raise InvalidCredentials with one generic message.
+
+    L-03 (plan.md): status check happens after user lookup but before password
+    verification to avoid timing variations that could leak account status.
+
+    AC-3, AC-1, AC-2: failed login counts, locks, and audit events are committed
+    before raising exceptions, so they survive the get_session rollback handler.
     """
     user = session.execute(select(User).where(User.email == email)).scalars().first()
 
+    # L-03: Check if user is suspended/deleted immediately after lookup,
+    # before password verification. Raise same error as wrong password to
+    # prevent enumeration. (AC-5, AC-S2)
+    if user is not None and user.status in ('SUSPENDED', 'DELETED'):
+        log_audit_event(
+            session=session,
+            actor_user_id=user.id,
+            actor_ip=actor_ip,
+            action="USER_LOGIN",
+            subject_type="user",
+            subject_id=user.id,
+            result="DENIED",
+        )
+        session.commit()
+        raise InvalidCredentials()
+
+    # If lock has expired, reset the counter proactively before checking password.
+    # (AC-4, AC-8)
     if user is not None and user.locked_until is not None:
-        if user.locked_until > datetime.now(timezone.utc):
+        if user.locked_until <= datetime.now(timezone.utc):
+            # Lock has expired; reset both counter and lock timestamp.
+            user.failed_login_count = 0
+            user.locked_until = None
+            session.flush()
+        elif user.locked_until > datetime.now(timezone.utc):
+            # Account is still locked. Log DENIED audit before raising to
+            # ensure it survives rollback in production (AC-3, AC-S1).
+            log_audit_event(
+                session=session,
+                actor_user_id=user.id,
+                actor_ip=actor_ip,
+                action="USER_LOGIN",
+                subject_type="user",
+                subject_id=user.id,
+                result="DENIED",
+                metadata={"reason": "locked"},
+            )
+            # Commit this audit and lock state before raising, so the security
+            # event (and the fact that the account is locked) persists even if
+            # the caller's exception handler rolls back the request transaction.
+            # See refresh_tokens()'s similar pattern (REUSE_DETECTED).
+            session.commit()
             raise AccountLocked()
 
     if user is None or not verify_password(password, user.password_hash):
@@ -386,6 +491,11 @@ def authenticate(session: Session, email: str, password: str, actor_ip: str | No
             subject_id=user.id if user is not None else None,
             result="DENIED",
         )
+        # Commit the failed login count, lock, and audit event before raising
+        # the exception. Otherwise, if the caller's exception handler rolls back
+        # the transaction (as get_session does), the brute-force protection state
+        # is silently undone. (AC-1, AC-2, AC-3, AC-9)
+        session.commit()
         raise InvalidCredentials()
 
     user.failed_login_count = 0
@@ -415,6 +525,9 @@ def refresh_tokens(session: Session, refresh_token_value: str, actor_ip: str | N
     """
     Rotates the refresh token. Reuse of an already-revoked token revokes the
     entire family (docs/API.md §2.1, docs/SECURITY.md §5: theft signal).
+
+    L-03: Reject refresh if token owner's status is not ACTIVE or PENDING.
+    (AC-7)
     """
     # FOR UPDATE pairs with reset_password()'s lock on the same row — without
     # it, a reset committing concurrently could revoke this token right after
@@ -457,6 +570,12 @@ def refresh_tokens(session: Session, refresh_token_value: str, actor_ip: str | N
             session.commit()
         raise InvalidRefreshToken()
 
+    # L-03 (AC-7): Check token owner's status after verifying token is valid
+    # (not revoked or expired). If user is suspended or deleted, deny the refresh.
+    user = session.execute(select(User).where(User.id == token.user_id)).scalars().first()
+    if user is not None and user.status not in ('ACTIVE', 'PENDING'):
+        raise InvalidRefreshToken()
+
     token.revoked_at = now
     session.flush()
 
@@ -482,7 +601,9 @@ def logout(session: Session, refresh_token_value: str | None, actor_user_id: uui
         token = session.execute(
             select(RefreshToken).where(RefreshToken.token_hash == token_hash)
         ).scalars().first()
-        if token is not None:
+        # Only the caller's own family: a foreign token must not let one user
+        # kill another user's session.
+        if token is not None and token.user_id == actor_user_id:
             now = datetime.now(timezone.utc)
             family_tokens = session.execute(
                 select(RefreshToken).where(
