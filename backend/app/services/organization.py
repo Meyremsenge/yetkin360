@@ -52,6 +52,12 @@ class RateLimitError(Exception):
     pass
 
 
+class DomainLockedError(Exception):
+    """Raised when changing the domain of an admin-approved (T3/T4) organization."""
+
+    pass
+
+
 # ============================================================================
 # Core Service Functions
 # ============================================================================
@@ -192,6 +198,40 @@ def create_organization(
     session.flush()
 
     return organization
+
+
+def change_organization_domain(org: Organization, new_domain: str, session: Session) -> tuple[bool, str]:
+    """
+    Change an organization's domain (YET-237 / L-02). The caller has already checked
+    that the actor is an ADMIN of `org` and that `new_domain` is a well-formed hostname.
+
+    Same value (case-insensitive) is a no-op. T3/T4 are admin-approved and locked.
+    A T2 org drops to T1 (verified_at/verified_by cleared): the DNS proof belonged to the
+    old domain. The verification token is always dropped (it was issued for the old
+    domain). last_verify_attempt_at is deliberately kept so changing the domain can not
+    be used to dodge the verify-domain cooldown.
+
+    Returns (changed, level_before).
+    Raises DomainLockedError, FreeEmailDomainError, DomainAlreadyVerifiedError.
+    """
+    level_before = org.verification_level
+    if org.domain is not None and org.domain.lower() == new_domain.lower():
+        return False, level_before
+    if level_before in ("T3", "T4"):
+        raise DomainLockedError(str(org.id))
+    if is_free_email_domain(new_domain):
+        raise FreeEmailDomainError(f"Free email domain {new_domain} cannot be verified")
+    if _domain_held_by_other_org(session, new_domain, org.id):
+        raise DomainAlreadyVerifiedError(f"Domain {new_domain} is already verified in another organization")
+
+    org.domain = new_domain
+    org.domain_verification_token = None
+    if level_before == "T2":
+        org.verification_level = "T1"
+        org.verified_at = None
+        org.verified_by_user_id = None
+    session.flush()
+    return True, level_before
 
 
 def invite_org_member(
