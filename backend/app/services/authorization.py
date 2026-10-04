@@ -453,9 +453,16 @@ def scoped_public_verified_experience_by_token(session: Session, token: str) -> 
 
     Implements AC-1, AC-2, AC-3 (AC-S2), AC-6 (public-dogrulama-linki, YET-106)
     """
-    return select(VerifiedExperience).where(
-        VerifiedExperience.public_token == token,
-        VerifiedExperience.visibility == "PUBLIC",
+    # Join keeps this one query: a soft-deleted talent's token must be
+    # indistinguishable from an unknown token (YET-230), same as the slug route.
+    return (
+        select(VerifiedExperience)
+        .join(TalentProfile, TalentProfile.id == VerifiedExperience.talent_id)
+        .where(
+            VerifiedExperience.public_token == token,
+            VerifiedExperience.visibility == "PUBLIC",
+            TalentProfile.deleted_at.is_(None),
+        )
     )
 
 

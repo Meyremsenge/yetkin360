@@ -74,7 +74,6 @@ async function handleResponse<T>(response: Response): Promise<T> {
  * AC-8: network error → NetworkError.
  */
 export async function getPublicProfile(slug: string): Promise<{
-  talent_id: string;
   display_name: string;
   verified_experiences: Array<{
     id: string;

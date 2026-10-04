@@ -16,9 +16,11 @@ from app.services.audit import log_audit_event
 from app.services.organization import (
     AlreadyMemberError,
     DomainAlreadyVerifiedError,
+    DomainLockedError,
     DuplicateLegalIdError,
     FreeEmailDomainError,
     RateLimitError,
+    change_organization_domain,
     create_organization,
     invite_org_member,
     verify_domain,
@@ -39,6 +41,12 @@ class OrganizationCreate(BaseModel):
     name: str = Field(..., min_length=1)
     domain: str | None = None
     legal_id: str | None = None
+
+
+class OrganizationDomainUpdate(BaseModel):
+    """Request schema for PATCH /organizations/{id}: the domain can be changed, not cleared."""
+
+    domain: str
 
 
 class OrganizationResponse(BaseModel):
@@ -195,6 +203,65 @@ def create_organization_endpoint(
         return organization
     except DuplicateLegalIdError:
         raise HTTPException(status_code=409, detail="LEGAL_ID_TAKEN")
+
+
+# ============================================================================
+# YET-237 / L-02: Change organization domain
+# ============================================================================
+
+
+@router.patch("/{organization_id}", status_code=200, response_model=OrganizationResponse)
+def change_domain_endpoint(
+    organization_id: uuid.UUID,
+    payload: OrganizationDomainUpdate,
+    principal: Principal = Depends(get_verified_principal),
+    session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
+) -> Organization:
+    """
+    Change the organization's domain (org ADMIN only).
+
+    T1: changes. T2: changes and drops to T1 (re-verify via DNS). T3/T4: locked.
+    Same value is a 200 no-op.
+
+    Status codes:
+        200: Changed (or same value)
+        400: FREE_EMAIL_DOMAIN
+        404: Organization not found / caller is not an ADMIN of it
+        409: ALAN_ADI_KILITLI (T3/T4) / DOMAIN_ALREADY_VERIFIED (held by another org)
+        422: Invalid domain format
+    """
+    scoped = scoped_organizations(session, principal)
+    org = get_scoped_or_404(scoped.where(Organization.id == organization_id), session)
+    if not org or organization_id not in principal.org_admin_ids:
+        raise ApiError(404, "NOT_FOUND", "Organizasyon bulunamadı")
+
+    new_domain = payload.domain.strip()
+    if not validate_hostname(new_domain):
+        raise ApiError(422, "INVALID_DOMAIN_FORMAT", "Geçersiz alan adı biçimi")
+
+    try:
+        changed, level_before = change_organization_domain(org, new_domain, session)
+    except DomainLockedError:
+        raise ApiError(409, "ALAN_ADI_KILITLI", "Doğrulanmış kurumun alan adı değiştirilemez")
+    except FreeEmailDomainError:
+        raise ApiError(400, "FREE_EMAIL_DOMAIN", "Ücretsiz e-posta sağlayıcısı alan adı olamaz")
+    except DomainAlreadyVerifiedError:
+        raise ApiError(409, "DOMAIN_ALREADY_VERIFIED", "Alan adı başka bir kurumda doğrulanmış")
+
+    if changed:
+        log_audit_event(
+            session=session,
+            actor_user_id=principal.user_id,
+            actor_ip=None,
+            action="ORGANIZATION_DOMAIN_CHANGED",
+            subject_type="organization",
+            subject_id=organization_id,
+            result="SUCCESS",
+            metadata={"from_level": level_before, "to_level": org.verification_level},
+        )
+
+    return org
 
 
 # ============================================================================
@@ -384,10 +451,11 @@ def verify_domain_endpoint(
             session=session,
         )
 
-        # If verification succeeded (T2), set verified_by_user_id
+        # If verification succeeded, record who promoted the org to T2 (an org already at T2+ keeps its record)
         if result["status"] == "verified":
-            org.verified_by_user_id = principal.user_id
-            session.flush()
+            if result.get("promoted"):
+                org.verified_by_user_id = principal.user_id
+                session.flush()
 
             # Log success (AC-S7)
             log_audit_event(
@@ -398,7 +466,7 @@ def verify_domain_endpoint(
                 subject_type="organization",
                 subject_id=organization_id,
                 result="SUCCESS",
-                metadata={"domain": org.domain, "verification_level": "T2"},
+                metadata={"domain": org.domain, "verification_level": org.verification_level},
             )
         else:
             # Log pending (AC-S7)

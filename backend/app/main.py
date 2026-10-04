@@ -1,7 +1,7 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.admin import router as admin_router
 from app.api.auth import router as auth_router
@@ -16,8 +16,13 @@ from app.api.skill_signals import router as skill_signals_router
 from app.api.talent_skills import router as talent_skills_router
 from app.api.verified_experiences import router as verified_experiences_router
 from app.core.config import settings
-
-app = FastAPI(title="Yetkin360 API")
+from app.core.errors import (
+    REQUEST_ID_HEADER,
+    RequestIdMiddleware,
+    http_exception_handler,
+    unhandled_exception_handler,
+    validation_exception_handler,
+)
 
 # Explicit lists: a wildcard is incompatible with credentials and widens the
 # surface needlessly. Methods mirror the routes in app/api; headers are the
@@ -25,69 +30,56 @@ app = FastAPI(title="Yetkin360 API")
 CORS_ALLOWED_METHODS = ["GET", "POST", "PATCH", "DELETE"]
 CORS_ALLOWED_HEADERS = ["Content-Type", "X-CSRF-Token"]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.allowed_origins.split(","),
-    allow_credentials=True,
-    allow_methods=CORS_ALLOWED_METHODS,
-    allow_headers=CORS_ALLOWED_HEADERS,
-)
 
-app.include_router(admin_router)
-app.include_router(auth_router)
-app.include_router(engagements_router)
-app.include_router(attestations_router)
-app.include_router(evidence_router)
-app.include_router(institutions_router)
-app.include_router(me_router)
-app.include_router(organizations_router)
-app.include_router(public_router)
-app.include_router(skills_router)
-app.include_router(skill_signals_router)
-app.include_router(talent_skills_router)
-app.include_router(verified_experiences_router)
-
-
-@app.exception_handler(HTTPException)
-async def api_error_handler(request: Request, exc: HTTPException) -> JSONResponse:
-    """
-    docs/API.md §1.4: every error body is {code, message, request_id} —
-    flat, not FastAPI's default {"detail": ...} wrapper.
-    """
-    if isinstance(exc.detail, dict) and "code" in exc.detail:
-        return JSONResponse(status_code=exc.status_code, content=exc.detail, headers=exc.headers)
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"code": "HTTP_ERROR", "message": str(exc.detail), "request_id": None},
-        headers=exc.headers,
+def create_app(environment: str) -> FastAPI:
+    # YET-212: the interactive docs and the schema describe every route; they are
+    # development tools, not a production surface.
+    docs_enabled = environment != "production"
+    application = FastAPI(
+        title="Yetkin360 API",
+        docs_url="/docs" if docs_enabled else None,
+        redoc_url="/redoc" if docs_enabled else None,
+        openapi_url="/openapi.json" if docs_enabled else None,
     )
 
-
-@app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
-    """
-    Handle Pydantic validation errors (422) with standard error format.
-    Convert Pydantic's error list to a single error message.
-    """
-    # Build a simple message from first error
-    if exc.errors():
-        first_error = exc.errors()[0]
-        field = ".".join(str(loc) for loc in first_error["loc"][1:])  # Skip "body"
-        msg = first_error["msg"]
-        error_message = f"{field}: {msg}" if field else msg
-    else:
-        error_message = "Validasyon hatası"
-
-    return JSONResponse(
-        status_code=422,
-        content={
-            "code": "VALIDATION_ERROR",
-            "message": error_message,
-            "request_id": None,
-        },
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.allowed_origins.split(","),
+        allow_credentials=True,
+        allow_methods=CORS_ALLOWED_METHODS,
+        allow_headers=CORS_ALLOWED_HEADERS,
+        expose_headers=[REQUEST_ID_HEADER],
     )
+    # Added last = outermost, so every response (CORS preflight included) carries the id.
+    application.add_middleware(RequestIdMiddleware)
+
+    application.include_router(admin_router)
+    application.include_router(auth_router)
+    application.include_router(engagements_router)
+    application.include_router(attestations_router)
+    application.include_router(evidence_router)
+    application.include_router(institutions_router)
+    application.include_router(me_router)
+    application.include_router(organizations_router)
+    application.include_router(public_router)
+    application.include_router(skills_router)
+    application.include_router(skill_signals_router)
+    application.include_router(talent_skills_router)
+    application.include_router(verified_experiences_router)
+
+    # docs/API.md §1.4: every error body is {code, message, request_id} — flat, not
+    # FastAPI's default {"detail": ...}. Starlette's base class also covers unknown
+    # routes (404) and wrong methods (405), which FastAPI's HTTPException does not.
+    application.add_exception_handler(StarletteHTTPException, http_exception_handler)
+    application.add_exception_handler(HTTPException, http_exception_handler)
+    application.add_exception_handler(RequestValidationError, validation_exception_handler)
+    application.add_exception_handler(Exception, unhandled_exception_handler)
+
+    @application.get("/health")
+    def health() -> dict[str, str]:
+        return {"status": "ok"}
+
+    return application
 
 
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+app = create_app(settings.environment)

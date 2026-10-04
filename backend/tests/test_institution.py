@@ -200,7 +200,7 @@ class TestInstitutionCreation:
         data = response.json()
         assert data["verification_level"] == "T1"
         assert data["name"] == "New University"
-        assert data["domain"] == "newuniv.edu.tr"
+        assert data["domain"] is None  # GUV-09: unverified domain is ignored
         assert data["status"] == "ACTIVE"
 
         # Assert: caller is automatically ADMIN
@@ -406,21 +406,20 @@ class TestInstitutionLinkRequestApproval:
 
 
 # ============================================================================
-# AC-6: Duplicate domain rejected (POST /institutions with existing domain → 409)
+# AC-6: Existing domain is not reservable via POST /institutions (GUV-09 / YET-182)
 # ============================================================================
 
 
 class TestDuplicateDomain:
-    """AC-6: Creating institution with duplicate domain → 409 Conflict."""
+    """AC-6: A domain sent at creation is ignored, so it can never lock out the real institution."""
 
-    def test_duplicate_domain_returns_409(self, client, session, user_creator, institution_a):
+    def test_existing_domain_is_not_conflict(self, client, session, user_creator, institution_a):
         """
-        AC-6: POST /institutions with domain matching existing institution → 409.
+        AC-6: POST /institutions with a domain held by another institution → 201, domain ignored.
 
         Acceptance Criteria:
-        - Status code: 409 Conflict
-        - Error message indicates domain is taken
-        - No new institution created
+        - Status code: 201 (no DOMAIN_TAKEN oracle)
+        - New institution has no domain; the existing holder is untouched
         """
         payload = {
             "name": "Another Name",
@@ -429,10 +428,8 @@ class TestDuplicateDomain:
 
         response = client.post("/institutions", json=payload, headers={"X-Debug-User-Id": str(user_creator.id)})
 
-        assert response.status_code == 409
-        data = response.json()
-        # Check for error code or message containing "DOMAIN_TAKEN" or similar
-        assert "domain" in data or "DOMAIN_TAKEN" in str(data)
+        assert response.status_code == 201
+        assert response.json()["domain"] is None
 
 
 # ============================================================================

@@ -94,6 +94,12 @@ Doğrulama hatalarında ek alan:
 
 **Kural:** İç hata (stack trace, SQL, dosya yolu) asla `message` alanına çıkmaz.
 
+`request_id` her istekte sunucu tarafından üretilir (istemcinin `X-Request-ID` başlığı
+dikkate alınmaz), aynı değer `X-Request-ID` yanıt başlığında ve sunucu hata logunda bulunur.
+Bilinmeyen yol `404 NOT_FOUND`, yanlış yöntem `405 METHOD_NOT_ALLOWED` (`Allow` başlığıyla),
+işlenmeyen istisna `500 INTERNAL_ERROR` döner; üçü de yukarıdaki gövdeyi taşır.
+`ENVIRONMENT=production` iken `/docs`, `/redoc` ve `/openapi.json` kapalıdır (404).
+
 ### 1.5 Ortak hata kodları
 
 Aşağıdaki kodlar her uçta oluşabilir; uç tablolarında tekrarlanmaz.
