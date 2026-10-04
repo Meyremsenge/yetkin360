@@ -19,6 +19,7 @@ from app.core.errors import ApiError
 from app.services.audit import log_audit_event
 from app.services.authorization import Principal
 from app.services.organization import (
+    DomainAlreadyVerifiedError,
     NotPendingError,
     list_verification_queue,
     reject_verification,
@@ -156,12 +157,15 @@ def update_verification_level(
     """
     _require_admin(principal)
 
-    org = set_verification_level(
-        session,
-        organization_id=organization_id,
-        verification_level=payload.verification_level,
-        admin_user_id=principal.user_id,
-    )
+    try:
+        org = set_verification_level(
+            session,
+            organization_id=organization_id,
+            verification_level=payload.verification_level,
+            admin_user_id=principal.user_id,
+        )
+    except DomainAlreadyVerifiedError:
+        raise ApiError(409, "DOMAIN_ALREADY_VERIFIED", "Alan adı başka bir kurumda doğrulanmış.")
     if org is None:
         raise ApiError(404, "NOT_FOUND", "Kurum bulunamadı.")
 

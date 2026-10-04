@@ -403,7 +403,11 @@ class TestDuplicateMemberInvitation:
 class TestFreeEmailDomainRejection:
     """AC-5: verify-domain with free email provider domain → 400 FREE_EMAIL_DOMAIN."""
 
-    @pytest.mark.parametrize("free_domain", ["gmail.com", "hotmail.com", "outlook.com", "yahoo.com"])
+    @pytest.mark.parametrize(
+        "free_domain",
+        # Last four: YET-243 provider variants and a subdomain, rejected end to end.
+        ["gmail.com", "hotmail.com", "outlook.com", "yahoo.com", "googlemail.com", "live.com", "gmx.net", "mail.gmail.com"],
+    )
     def test_verify_domain_free_email_provider_400(self, client, session, user_admin, free_domain):
         """
         AC-5: POST /organizations/{id}/verify-domain with free email domain → 400.

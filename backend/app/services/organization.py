@@ -11,6 +11,7 @@ from typing import Optional
 
 import dns.resolver
 from sqlalchemy import and_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import Organization, OrganizationMember, User
@@ -51,17 +52,93 @@ class RateLimitError(Exception):
     pass
 
 
+class DomainLockedError(Exception):
+    """Raised when changing the domain of an admin-approved (T3/T4) organization."""
+
+    pass
+
+
 # ============================================================================
 # Core Service Functions
 # ============================================================================
 
 
+# Mailbox providers anyone can register on; owning an address there proves nothing about an organization.
 FREE_EMAIL_DOMAINS = {
     "gmail.com",
     "hotmail.com",
     "outlook.com",
     "yahoo.com",
+    "yandex.com",
+    "icloud.com",
+    "hotmail.com.tr",
+    "outlook.com.tr",
+    "protonmail.com",
+    "mail.ru",
+    "yahoo.com.tr",
+    "googlemail.com",
+    "live.com",
+    "msn.com",
+    "hotmail.co.uk",
+    "hotmail.de",
+    "hotmail.fr",
+    "outlook.de",
+    "yahoo.co.uk",
+    "yahoo.de",
+    "yahoo.fr",
+    "ymail.com",
+    "rocketmail.com",
+    "gmx.com",
+    "gmx.net",
+    "gmx.de",
+    "gmx.at",
+    "gmx.ch",
+    "aol.com",
+    "mail.com",
+    "proton.me",
+    "pm.me",
+    "tutanota.com",
+    "zoho.com",
+    "yandex.ru",
+    "yandex.com.tr",
+    "mynet.com",
 }
+
+
+def is_free_email_domain(domain: str) -> bool:
+    """True for a listed provider or any subdomain of one (mail.gmail.com); lookalikes (notgmail.com) are not."""
+    normalised = domain.strip().strip(".").lower()
+    return any(normalised == free or normalised.endswith("." + free) for free in FREE_EMAIL_DOMAINS)
+
+# Levels that already vouch for a domain; a second org may not claim it (GUV-09).
+# Mirrors the partial UNIQUE ix_organizations_domain_verified (YET-241).
+_DOMAIN_VERIFIED_LEVELS = ("T2", "T3", "T4")
+
+
+def _domain_held_by_other_org(session: Session, domain: str, organization_id: uuid.UUID) -> bool:
+    """True if another active org already holds `domain` at T2/T3/T4."""
+    return (
+        session.execute(
+            select(Organization.id)
+            .where(
+                Organization.domain == domain,
+                Organization.verification_level.in_(_DOMAIN_VERIFIED_LEVELS),
+                Organization.id != organization_id,
+                Organization.deleted_at.is_(None),
+            )
+            .limit(1)
+        ).scalar_one_or_none()
+        is not None
+    )
+
+
+def _flush_domain_claim(session: Session, domain: str) -> None:
+    """Flush pending changes; losing a race on the DB unique index is a domain conflict, not a 500."""
+    try:
+        with session.begin_nested():
+            session.flush()
+    except IntegrityError as exc:
+        raise DomainAlreadyVerifiedError(f"Domain {domain} is already verified in another organization") from exc
 
 
 def create_organization(
@@ -121,6 +198,40 @@ def create_organization(
     session.flush()
 
     return organization
+
+
+def change_organization_domain(org: Organization, new_domain: str, session: Session) -> tuple[bool, str]:
+    """
+    Change an organization's domain (YET-237 / L-02). The caller has already checked
+    that the actor is an ADMIN of `org` and that `new_domain` is a well-formed hostname.
+
+    Same value (case-insensitive) is a no-op. T3/T4 are admin-approved and locked.
+    A T2 org drops to T1 (verified_at/verified_by cleared): the DNS proof belonged to the
+    old domain. The verification token is always dropped (it was issued for the old
+    domain). last_verify_attempt_at is deliberately kept so changing the domain can not
+    be used to dodge the verify-domain cooldown.
+
+    Returns (changed, level_before).
+    Raises DomainLockedError, FreeEmailDomainError, DomainAlreadyVerifiedError.
+    """
+    level_before = org.verification_level
+    if org.domain is not None and org.domain.lower() == new_domain.lower():
+        return False, level_before
+    if level_before in ("T3", "T4"):
+        raise DomainLockedError(str(org.id))
+    if is_free_email_domain(new_domain):
+        raise FreeEmailDomainError(f"Free email domain {new_domain} cannot be verified")
+    if _domain_held_by_other_org(session, new_domain, org.id):
+        raise DomainAlreadyVerifiedError(f"Domain {new_domain} is already verified in another organization")
+
+    org.domain = new_domain
+    org.domain_verification_token = None
+    if level_before == "T2":
+        org.verification_level = "T1"
+        org.verified_at = None
+        org.verified_by_user_id = None
+    session.flush()
+    return True, level_before
 
 
 def invite_org_member(
@@ -237,8 +348,7 @@ def verify_domain(
         raise ValueError(f"Organization {organization_id} has no domain set")
 
     # AC-5: Reject free email domains
-    domain_lower = org.domain.lower()
-    if domain_lower in FREE_EMAIL_DOMAINS:
+    if is_free_email_domain(org.domain):
         raise FreeEmailDomainError(f"Free email domain {org.domain} cannot be verified")
 
     # AC-11/AC-S4: Rate limit check (60 second cooldown)
@@ -275,29 +385,22 @@ def verify_domain(
             for txt_string in getattr(rdata, "strings", ()):
                 if txt_string.decode().strip() == txt_record:
                     # AC-9: Check if domain is already verified in another organization
-                    conflicting_org = session.execute(
-                        select(Organization).where(
-                            and_(
-                                Organization.domain == domain,
-                                Organization.verification_level == "T2",
-                                Organization.id != organization_id,
-                                Organization.deleted_at.is_(None),
-                            )
-                        )
-                    ).scalar_one_or_none()
-                    if conflicting_org:
+                    if _domain_held_by_other_org(session, domain, organization_id):
                         raise DomainAlreadyVerifiedError(
                             f"Domain {domain} is already verified in another organization"
                         )
 
-                    # Found! Update organization to T2
-                    org.verification_level = "T2"
-                    org.verified_at = datetime.now(timezone.utc)
-                    # verified_by_user_id is set by the router (caller context)
-                    session.flush()
+                    # Found! Promote T1 to T2; an org already at T2+ keeps its level (never downgrade)
+                    promoted = org.verification_level == "T1"
+                    if promoted:
+                        org.verification_level = "T2"
+                        org.verified_at = datetime.now(timezone.utc)
+                    # verified_by_user_id is set by the router (caller context) when promoted
+                    _flush_domain_claim(session, domain)
                     return {
                         "dns_txt_record": txt_record,
                         "status": "verified",
+                        "promoted": promoted,
                     }
 
         # TXT record not found, but DNS query succeeded
@@ -360,7 +463,9 @@ def set_verification_level(
     touched only when the level is RAISED; same value or downgrade changes
     nothing but the level itself (YET-198).
 
-    Returns None if the organization does not exist.
+    Returns None if the organization does not exist. Raises DomainAlreadyVerifiedError
+    when the new level is T2/T3/T4 and another active org already holds the domain at
+    T2+ (YET-241): the DB partial UNIQUE decides, the savepoint rolls the change back.
     """
     org = session.get(Organization, organization_id)
     if org is None or org.deleted_at is not None:
@@ -371,7 +476,7 @@ def set_verification_level(
         org.verified_by_user_id = admin_user_id
         org.verification_rejected_at = None
     org.verification_level = verification_level
-    session.flush()
+    _flush_domain_claim(session, org.domain or "")
     return org
 
 

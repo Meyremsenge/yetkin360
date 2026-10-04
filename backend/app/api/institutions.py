@@ -16,7 +16,6 @@ from app.services.authorization import Principal, get_scoped_or_404, scoped_inst
 from app.services.audit import log_audit_event
 from app.services.institution import (
     AlreadyMemberError,
-    DuplicateDomainError,
     DuplicateLinkRequestError,
     approve_institution_link,
     create_institution,
@@ -140,16 +139,15 @@ def create_institution_endpoint(
     AC-1: Create institution. Caller becomes ADMIN.
 
     Args:
-        payload: name (required), domain (optional)
+        payload: name (required), domain (accepted but ignored: GUV-09, unverified)
         principal: Authenticated principal
         session: Database session
 
     Returns:
-        Institution (T1, ACTIVE)
+        Institution (T1, ACTIVE, domain None)
 
     Status codes:
         201: Institution created
-        409: Duplicate domain
         422: Invalid input
         401: Unauthenticated
     """
@@ -160,17 +158,17 @@ def create_institution_endpoint(
     if not payload.name or not payload.name.strip():
         raise HTTPException(status_code=422, detail="Name is required")
 
-    try:
-        institution = create_institution(
-            name=payload.name,
-            domain=payload.domain,
-            caller_user_id=principal.user_id,
-            session=session,
-        )
-        session.flush()  # Persist changes within transaction
-        return institution
-    except DuplicateDomainError:
-        raise HTTPException(status_code=409, detail="DOMAIN_TAKEN")
+    # GUV-09: payload.domain is unverified, attacker-chosen text and the column is UNIQUE, so
+    # storing it would let the first caller lock out the real institution. Never reserve it here;
+    # only the seed / a platform admin sets an institution domain (trusted service callers).
+    institution = create_institution(
+        name=payload.name,
+        domain=None,
+        caller_user_id=principal.user_id,
+        session=session,
+    )
+    session.flush()  # Persist changes within transaction
+    return institution
 
 
 # ============================================================================

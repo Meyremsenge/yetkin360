@@ -42,6 +42,14 @@ export default function PublicVerificationPage() {
                 <dd className="text-sm text-slate-500">
                   {messages.publicVerification.trustLevelLabel}: {verification.organization_trust_level}
                 </dd>
+                {verification.organization_trust_level === "T1" && (
+                  <p
+                    role="note"
+                    className="mt-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900"
+                  >
+                    {messages.publicVerification.unverifiedOrganizationNotice}
+                  </p>
+                )}
                 {verification.organization_domain && (
                   <dd className="text-sm text-slate-500">
                     {messages.publicVerification.domainLabel}: {verification.organization_domain}
