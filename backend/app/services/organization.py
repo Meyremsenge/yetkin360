@@ -11,6 +11,7 @@ from typing import Optional
 
 import dns.resolver
 from sqlalchemy import and_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import Organization, OrganizationMember, User
@@ -104,7 +105,34 @@ def is_free_email_domain(domain: str) -> bool:
     return any(normalised == free or normalised.endswith("." + free) for free in FREE_EMAIL_DOMAINS)
 
 # Levels that already vouch for a domain; a second org may not claim it (GUV-09).
+# Mirrors the partial UNIQUE ix_organizations_domain_verified (YET-241).
 _DOMAIN_VERIFIED_LEVELS = ("T2", "T3", "T4")
+
+
+def _domain_held_by_other_org(session: Session, domain: str, organization_id: uuid.UUID) -> bool:
+    """True if another active org already holds `domain` at T2/T3/T4."""
+    return (
+        session.execute(
+            select(Organization.id)
+            .where(
+                Organization.domain == domain,
+                Organization.verification_level.in_(_DOMAIN_VERIFIED_LEVELS),
+                Organization.id != organization_id,
+                Organization.deleted_at.is_(None),
+            )
+            .limit(1)
+        ).scalar_one_or_none()
+        is not None
+    )
+
+
+def _flush_domain_claim(session: Session, domain: str) -> None:
+    """Flush pending changes; losing a race on the DB unique index is a domain conflict, not a 500."""
+    try:
+        with session.begin_nested():
+            session.flush()
+    except IntegrityError as exc:
+        raise DomainAlreadyVerifiedError(f"Domain {domain} is already verified in another organization") from exc
 
 
 def create_organization(
@@ -317,19 +345,7 @@ def verify_domain(
             for txt_string in getattr(rdata, "strings", ()):
                 if txt_string.decode().strip() == txt_record:
                     # AC-9: Check if domain is already verified in another organization
-                    conflicting_org_id = session.execute(
-                        select(Organization.id)
-                        .where(
-                            and_(
-                                Organization.domain == domain,
-                                Organization.verification_level.in_(_DOMAIN_VERIFIED_LEVELS),
-                                Organization.id != organization_id,
-                                Organization.deleted_at.is_(None),
-                            )
-                        )
-                        .limit(1)
-                    ).scalar_one_or_none()
-                    if conflicting_org_id is not None:
+                    if _domain_held_by_other_org(session, domain, organization_id):
                         raise DomainAlreadyVerifiedError(
                             f"Domain {domain} is already verified in another organization"
                         )
@@ -340,7 +356,7 @@ def verify_domain(
                         org.verification_level = "T2"
                         org.verified_at = datetime.now(timezone.utc)
                     # verified_by_user_id is set by the router (caller context) when promoted
-                    session.flush()
+                    _flush_domain_claim(session, domain)
                     return {
                         "dns_txt_record": txt_record,
                         "status": "verified",
@@ -407,7 +423,9 @@ def set_verification_level(
     touched only when the level is RAISED; same value or downgrade changes
     nothing but the level itself (YET-198).
 
-    Returns None if the organization does not exist.
+    Returns None if the organization does not exist. Raises DomainAlreadyVerifiedError
+    when the new level is T2/T3/T4 and another active org already holds the domain at
+    T2+ (YET-241): the DB partial UNIQUE decides, the savepoint rolls the change back.
     """
     org = session.get(Organization, organization_id)
     if org is None or org.deleted_at is not None:
@@ -418,7 +436,7 @@ def set_verification_level(
         org.verified_by_user_id = admin_user_id
         org.verification_rejected_at = None
     org.verification_level = verification_level
-    session.flush()
+    _flush_domain_claim(session, org.domain or "")
     return org
 
 

@@ -7,6 +7,7 @@ Contract pinned here:
 - More free-mail providers are refused for domain verification.
 """
 
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -25,9 +26,14 @@ def _h(user):
     return {"X-Debug-User-Id": str(user.id)}
 
 
-def _org(session, name, domain, level, admin, token=None):
+def _org(session, name, domain, level, admin, token=None, deleted=False):
     org = Organization(
-        name=name, domain=domain, verification_level=level, status="ACTIVE", domain_verification_token=token
+        name=name,
+        domain=domain,
+        verification_level=level,
+        status="ACTIVE",
+        domain_verification_token=token,
+        deleted_at=datetime.now(timezone.utc) if deleted else None,
     )
     session.add(org)
     session.flush()
@@ -100,11 +106,14 @@ def test_second_org_cannot_verify_domain_owned_by_verified_org(client, session, 
     assert session.get(Organization, squat.id).verification_level == "T1"
 
 
-def test_conflict_with_several_verified_orgs_is_409_not_500(client, session):
+def test_conflict_with_owner_among_many_same_domain_rows_is_409_not_500(client, session):
+    # YET-241: two verified (T2+) owners of one domain can no longer exist (DB partial UNIQUE),
+    # so the multi-row case is one verified owner next to T1 duplicates and a deleted T4 row.
     owner = _user(session, "owner@guv09.test")
     attacker = _user(session, "attacker@guv09.test")
-    _org(session, "Legit T2", "dup.example", "T2", owner)
     _org(session, "Legit T3", "dup.example", "T3", owner)
+    _org(session, "T1 twin", "dup.example", "T1", owner)
+    _org(session, "Deleted T4", "dup.example", "T4", owner, deleted=True)
     squat = _org(session, "Squatter", "dup.example", "T1", attacker, token="tok-dup")
 
     r = _verify(client, squat, attacker, "tok-dup")
