@@ -69,7 +69,39 @@ FREE_EMAIL_DOMAINS = {
     "protonmail.com",
     "mail.ru",
     "yahoo.com.tr",
+    "googlemail.com",
+    "live.com",
+    "msn.com",
+    "hotmail.co.uk",
+    "hotmail.de",
+    "hotmail.fr",
+    "outlook.de",
+    "yahoo.co.uk",
+    "yahoo.de",
+    "yahoo.fr",
+    "ymail.com",
+    "rocketmail.com",
+    "gmx.com",
+    "gmx.net",
+    "gmx.de",
+    "gmx.at",
+    "gmx.ch",
+    "aol.com",
+    "mail.com",
+    "proton.me",
+    "pm.me",
+    "tutanota.com",
+    "zoho.com",
+    "yandex.ru",
+    "yandex.com.tr",
+    "mynet.com",
 }
+
+
+def is_free_email_domain(domain: str) -> bool:
+    """True for a listed provider or any subdomain of one (mail.gmail.com); lookalikes (notgmail.com) are not."""
+    normalised = domain.strip().strip(".").lower()
+    return any(normalised == free or normalised.endswith("." + free) for free in FREE_EMAIL_DOMAINS)
 
 # Levels that already vouch for a domain; a second org may not claim it (GUV-09).
 _DOMAIN_VERIFIED_LEVELS = ("T2", "T3", "T4")
@@ -248,8 +280,7 @@ def verify_domain(
         raise ValueError(f"Organization {organization_id} has no domain set")
 
     # AC-5: Reject free email domains
-    domain_lower = org.domain.lower()
-    if domain_lower in FREE_EMAIL_DOMAINS:
+    if is_free_email_domain(org.domain):
         raise FreeEmailDomainError(f"Free email domain {org.domain} cannot be verified")
 
     # AC-11/AC-S4: Rate limit check (60 second cooldown)

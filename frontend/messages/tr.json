@@ -208,6 +208,7 @@
     "institutionLabel": "Eğitim Kurumu",
     "domainLabel": "Doğrulanmış alan adı",
     "trustLevelLabel": "Doğrulama seviyesi",
+    "unverifiedOrganizationNotice": "Bu kurum henüz doğrulanmamıştır. Kurum adı kurumun kendi beyanıdır; kimliğini bağımsız olarak teyit edin.",
     "periodLabel": "Dönem",
     "verifiedAtLabel": "Doğrulama Tarihi",
     "attestedSkillsTitle": "Tanıklık Yapılan Yetkinlikler"
