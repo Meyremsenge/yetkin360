@@ -180,7 +180,42 @@
       "RESOLVED": "İtirazı Çöz"
     },
     "evaluationFormLink": "Değerlendirme Formu",
-    "evaluationSubmittedBadge": "Değerlendirme gönderildi"
+    "evaluationSubmittedBadge": "Değerlendirme gönderildi",
+    "addDeliverableTitle": "Yeni Çıktı Ekle",
+    "deliverableTitleLabel": "Başlık",
+    "deliverableDescriptionLabel": "Açıklama (opsiyonel)",
+    "deliverableSkillLabel": "İlişkili Yetkinlik (opsiyonel)",
+    "addDeliverableButton": "Çıktı Ekle",
+    "addingDeliverableButton": "Ekleniyor...",
+    "deliverableAddedMessage": "Çıktı eklendi.",
+    "deliverableNotActiveError": "Çıktı yalnızca aktif çalışmalara eklenebilir.",
+    "deliverableInvalidSkillError": "Seçilen yetkinlik geçersiz.",
+    "attestationTitle": "Tanıklık Ver",
+    "attestationClaimTypeLabel": "Tanıklık Türü",
+    "claimType": {
+      "PARTICIPATION": "Katılım",
+      "CONTRIBUTION": "Katkı",
+      "COMPETENCE": "Yetkinlik",
+      "CONDUCT": "Davranış"
+    },
+    "attestationSkillLabel": "İlişkili Yetkinlik (opsiyonel)",
+    "submitAttestationButton": "Tanıklığı Gönder",
+    "submittingAttestationButton": "Gönderiliyor...",
+    "attestationVerifiedMessage": "Tanıklık gönderildi, deneyim doğrulandı.",
+    "attestationDowngradedMessagePrefix": "Tanıklığınız",
+    "attestationDowngradedMessageInfix": "yerine",
+    "attestationDowngradedMessageSuffix": "olarak kaydedildi.",
+    "attestationNotEvaluatedError": "Tanıklık yalnızca değerlendirme tamamlanmış çalışmalar için verilebilir.",
+    "attestationSelfForbiddenError": "Kendi deneyiminize tanıklık yapamazsınız.",
+    "attestationAlreadyExistsError": "Bu çalışma için zaten tanıklık gönderilmiş.",
+    "downgradeReason": {
+      "ENGAGEMENT_DURATION_BELOW_THRESHOLD": "Çalışma süresi yeterli değil (en az 4 hafta gerekli)",
+      "NO_DELIVERABLE": "Hiç çıktı gönderilmemiş",
+      "ATTESTOR_NOT_VERIFIED_SUPERVISOR": "Kurumunuz yeterince doğrulanmış değil",
+      "COORDINATOR_CONFIRMATION_MISSING": "Koordinatör onayı eksik"
+    },
+    "skillSearchPlaceholder": "Yetkinlik ara...",
+    "clearSkillButton": "Temizle"
   },
   "degerlendirme": {
     "title": "Değerlendirme Formu",

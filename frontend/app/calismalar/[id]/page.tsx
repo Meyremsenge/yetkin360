@@ -8,6 +8,8 @@ import { getEngagement } from "@/lib/api/engagements";
 import { ApiError } from "@/lib/api/errors";
 import { TransitionActions } from "./transition-actions";
 import { EvidenceUploadForm } from "./evidence-upload-form";
+import { DeliverableForm } from "./deliverable-form";
+import { AttestationForm } from "./attestation-form";
 import messages from "@/messages/tr.json";
 
 export default function CalismaDetayPage() {
@@ -67,6 +69,11 @@ export default function CalismaDetayPage() {
               onSuccess={() => queryClient.invalidateQueries({ queryKey: ENGAGEMENT_QUERY_KEY })}
             />
 
+            <AttestationForm
+              engagement={engagement}
+              onSuccess={() => queryClient.invalidateQueries({ queryKey: ENGAGEMENT_QUERY_KEY })}
+            />
+
             {engagement.status === "PENDING_EVALUATION" && (
               <div className="mb-6">
                 <Link
@@ -95,6 +102,12 @@ export default function CalismaDetayPage() {
 
             <section className="mt-8">
               <h2 className="text-lg font-bold mb-3">{messages.calismalar.deliverablesTitle}</h2>
+
+              <DeliverableForm
+                engagement={engagement}
+                onSuccess={() => queryClient.invalidateQueries({ queryKey: ENGAGEMENT_QUERY_KEY })}
+              />
+
               {engagement.deliverables.length === 0 ? (
                 <p className="text-sm text-slate-600">{messages.calismalar.emptyDeliverablesMessage}</p>
               ) : (
