@@ -26,6 +26,7 @@ from app.services.institution import (
 )
 from app.services.engagement import get_coordinator_dashboard
 from app.services.outbox import enqueue
+from app.services.rate_limit import RateLimitExceeded
 from app.services.reminder import create_reminders
 
 router = APIRouter(prefix="/institutions", tags=["institutions"])
@@ -537,14 +538,23 @@ def create_reminders_endpoint(
     # Create reminders (AC-1, AC-2, AC-3, AC-6, AC-7, AC-S6)
     # AC-2: Pydantic validates engagement_ids (min_length=1) and template (min_length=1)
     # If validation fails, FastAPI returns 422 automatically
-    queued_count = create_reminders(
-        institution_id=institution_id,
-        engagement_ids=payload.engagement_ids,
-        template=payload.template,
-        actor_user_id=principal.user_id,
-        principal=principal,
-        session=session,
-    )
+    try:
+        queued_count = create_reminders(
+            institution_id=institution_id,
+            engagement_ids=payload.engagement_ids,
+            template=payload.template,
+            actor_user_id=principal.user_id,
+            principal=principal,
+            session=session,
+        )
+    except RateLimitExceeded as exc:
+        # YET-213: per-institution quota (20 requests/hour); checked after the scope check, so 404 wins.
+        raise ApiError(
+            429,
+            "RATE_LIMITED",
+            "Çok fazla hatırlatma isteği yapıldı. Lütfen daha sonra tekrar deneyin.",
+            headers={"Retry-After": str(exc.retry_after)},
+        )
 
     # AC-1: Flush to persist outbox + audit_event within transaction
     session.flush()
