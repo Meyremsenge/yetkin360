@@ -6,14 +6,21 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { ErrorBanner } from "@/components/error-banner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   approveLinkRequest,
+  createReminders,
   getCoordinatorDashboard,
+  inviteMember,
   listPendingLinkRequests,
   rejectLinkRequest,
+  type InstitutionMemberRole,
 } from "@/lib/api/institutions";
 import { ApiError, NetworkError, SessionExpiredError } from "@/lib/api/errors";
 import messages from "@/messages/tr.json";
+
+const REMINDER_TEMPLATE = "evaluation_pending";
 
 export default function KurumPanelPage() {
   const params = useParams<{ id: string }>();
@@ -21,6 +28,17 @@ export default function KurumPanelPage() {
   const queryClient = useQueryClient();
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+
+  // YET-202/ENT-01: üye davet formu
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<InstitutionMemberRole>("COORDINATOR");
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteMessage, setInviteMessage] = useState<string | null>(null);
+
+  // YET-202/ENT-01: toplu hatırlatma seçimi
+  const [selectedEngagementIds, setSelectedEngagementIds] = useState<string[]>([]);
+  const [reminderError, setReminderError] = useState<string | null>(null);
+  const [reminderMessage, setReminderMessage] = useState<string | null>(null);
 
   // AC-6/AC-S1: Cache key must include institutionId for tenant isolation
   const { data, isLoading, isError, error, refetch } = useQuery({
@@ -67,6 +85,59 @@ export default function KurumPanelPage() {
   });
 
   const isActionPending = approveMutation.isPending || rejectMutation.isPending;
+
+  const inviteMutation = useMutation({
+    mutationFn: () => inviteMember(institutionId, inviteEmail.trim(), inviteRole),
+    onSuccess: () => {
+      setInviteError(null);
+      setInviteMessage(messages.kurumPanel.inviteSuccessMessage);
+      setInviteEmail("");
+    },
+    onError: () => {
+      setInviteMessage(null);
+      setInviteError(messages.kurumPanel.inviteErrorMessage);
+    },
+  });
+
+  const handleInviteSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setInviteMessage(null);
+    setInviteError(null);
+    inviteMutation.mutate();
+  };
+
+  const toggleEngagementSelected = (id: string) => {
+    setSelectedEngagementIds((prev) =>
+      prev.includes(id) ? prev.filter((existing) => existing !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = (allIds: string[], checked: boolean) => {
+    setSelectedEngagementIds(checked ? allIds : []);
+  };
+
+  const reminderMutation = useMutation({
+    mutationFn: () => createReminders(institutionId, selectedEngagementIds, REMINDER_TEMPLATE),
+    onSuccess: () => {
+      setReminderError(null);
+      setReminderMessage(messages.kurumPanel.reminderSuccessMessage);
+      setSelectedEngagementIds([]);
+    },
+    onError: () => {
+      setReminderMessage(null);
+      setReminderError(messages.kurumPanel.reminderErrorMessage);
+    },
+  });
+
+  const handleSendReminders = () => {
+    setReminderMessage(null);
+    if (selectedEngagementIds.length === 0) {
+      setReminderError(messages.kurumPanel.reminderNoneSelectedMessage);
+      return;
+    }
+    setReminderError(null);
+    reminderMutation.mutate();
+  };
 
   return (
     <AppShell>
@@ -157,22 +228,156 @@ export default function KurumPanelPage() {
                   {messages.kurumPanel.emptyPendingEvaluationMessage}
                 </p>
               ) : (
-                <ul className="space-y-2">
-                  {data.pending_evaluation.map((item) => (
-                    <li
-                      key={item.id}
-                      className="bg-white p-4 rounded-md border border-slate-200 text-sm"
-                    >
-                      <div className="font-medium text-slate-900">{item.title}</div>
-                      {item.ended_on && (
-                        <div className="text-xs text-slate-600 mt-1">
-                          {new Date(item.ended_on).toLocaleString("tr-TR")}
+                <>
+                  <label className="flex items-center gap-2 text-sm text-slate-700 mb-2">
+                    <input
+                      type="checkbox"
+                      checked={
+                        selectedEngagementIds.length > 0 &&
+                        selectedEngagementIds.length === data.pending_evaluation.length
+                      }
+                      onChange={(e) =>
+                        toggleSelectAll(data.pending_evaluation.map((item) => item.id), e.target.checked)
+                      }
+                    />
+                    {messages.kurumPanel.reminderSelectAllLabel}
+                  </label>
+                  <ul className="space-y-2">
+                    {data.pending_evaluation.map((item) => (
+                      <li
+                        key={item.id}
+                        className="flex items-start gap-3 bg-white p-4 rounded-md border border-slate-200 text-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-1"
+                          checked={selectedEngagementIds.includes(item.id)}
+                          onChange={() => toggleEngagementSelected(item.id)}
+                          aria-label={item.title}
+                        />
+                        <div>
+                          <div className="font-medium text-slate-900">{item.title}</div>
+                          {item.ended_on && (
+                            <div className="text-xs text-slate-600 mt-1">
+                              {new Date(item.ended_on).toLocaleString("tr-TR")}
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className="mt-3">
+                    <Button onClick={handleSendReminders} disabled={reminderMutation.isPending}>
+                      {reminderMutation.isPending
+                        ? messages.kurumPanel.reminderSendingButton
+                        : messages.kurumPanel.reminderSendButton}
+                    </Button>
+                  </div>
+
+                  {reminderError && (
+                    <div
+                      role="alert"
+                      aria-live="polite"
+                      className="mt-3 rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-600"
+                    >
+                      {reminderError}
+                    </div>
+                  )}
+                  {reminderMessage && (
+                    <div
+                      role="status"
+                      aria-live="polite"
+                      className="mt-3 rounded-md bg-green-50 border border-green-200 p-3 text-sm text-green-700"
+                    >
+                      {reminderMessage}
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
+
+            {/* YET-202/ENT-01: Üyeler listesi + davet formu */}
+            <section className="mt-8">
+              <h2 className="text-lg font-bold mb-3">{messages.kurumPanel.membersTitle}</h2>
+
+              {data.members.length === 0 ? (
+                <p className="text-sm text-slate-600 bg-slate-50 rounded-md border border-slate-200 p-4 mb-4">
+                  {messages.kurumPanel.emptyMembersMessage}
+                </p>
+              ) : (
+                <ul className="space-y-2 mb-4">
+                  {data.members.map((member) => (
+                    <li
+                      key={member.user_id}
+                      className="flex items-center justify-between bg-white p-4 rounded-md border border-slate-200 text-sm"
+                    >
+                      <span className="text-slate-900">{member.email}</span>
+                      <span className="text-xs text-slate-600">
+                        {messages.kurumPanel.memberRole[member.role as "ADMIN" | "COORDINATOR"] ?? member.role}
+                      </span>
                     </li>
                   ))}
                 </ul>
               )}
+
+              <form
+                onSubmit={handleInviteSubmit}
+                className="bg-slate-50 p-4 rounded-md border border-slate-200"
+              >
+                <h3 className="text-sm font-bold mb-3">{messages.kurumPanel.inviteMemberTitle}</h3>
+
+                <div className="flex flex-wrap gap-3 items-end">
+                  <div className="flex-1 min-w-[200px]">
+                    <Label htmlFor="invite-email">{messages.kurumPanel.inviteEmailLabel}</Label>
+                    <Input
+                      id="invite-email"
+                      type="email"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="invite-role">{messages.kurumPanel.inviteRoleLabel}</Label>
+                    <select
+                      id="invite-role"
+                      value={inviteRole}
+                      onChange={(e) => setInviteRole(e.target.value as InstitutionMemberRole)}
+                      className="block px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+                    >
+                      <option value="COORDINATOR">{messages.kurumPanel.memberRole.COORDINATOR}</option>
+                      <option value="ADMIN">{messages.kurumPanel.memberRole.ADMIN}</option>
+                    </select>
+                  </div>
+
+                  <Button type="submit" disabled={inviteMutation.isPending}>
+                    {inviteMutation.isPending
+                      ? messages.kurumPanel.invitingButton
+                      : messages.kurumPanel.inviteButton}
+                  </Button>
+                </div>
+
+                {inviteError && (
+                  <div
+                    role="alert"
+                    aria-live="polite"
+                    className="mt-3 rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-600"
+                  >
+                    {inviteError}
+                  </div>
+                )}
+                {inviteMessage && (
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    className="mt-3 rounded-md bg-green-50 border border-green-200 p-3 text-sm text-green-700"
+                  >
+                    {inviteMessage}
+                  </div>
+                )}
+              </form>
             </section>
 
             {/* YET-197/IS-10: Pending institution link requests */}

@@ -50,6 +50,16 @@ export interface EngagementDeliverable {
   submitted_at: string;
 }
 
+export interface EngagementAttestation {
+  id: string;
+  claim_type: string;
+  requested_claim_type: string;
+  attestor_user_id: string;
+  created_at: string;
+  revoked_at: string | null;
+  revoke_reason: string | null;
+}
+
 export interface EngagementDetail extends EngagementSummary {
   talent_id: string;
   organization_id: string;
@@ -58,6 +68,7 @@ export interface EngagementDetail extends EngagementSummary {
   created_at: string;
   tasks: EngagementTask[];
   deliverables: EngagementDeliverable[];
+  attestations: EngagementAttestation[];
 }
 
 export interface TransitionPayload {

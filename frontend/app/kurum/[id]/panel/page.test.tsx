@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, waitFor, cleanup, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import KurumPanelPage from "./page";
@@ -10,6 +10,8 @@ import {
   listPendingLinkRequests,
   approveLinkRequest,
   rejectLinkRequest,
+  inviteMember,
+  createReminders,
 } from "@/lib/api/institutions";
 import { ApiError, NetworkError, SessionExpiredError } from "@/lib/api/errors";
 
@@ -27,6 +29,8 @@ vi.mock("@/lib/api/institutions", async (importOriginal) => {
     listPendingLinkRequests: vi.fn(),
     approveLinkRequest: vi.fn(),
     rejectLinkRequest: vi.fn(),
+    inviteMember: vi.fn(),
+    createReminders: vi.fn(),
   };
 });
 
@@ -133,6 +137,10 @@ const validDashboardData = {
       ended_on: "2026-09-08",
     },
   ],
+  members: [
+    { user_id: "user-10", email: "coordinator@test.com", role: "COORDINATOR", joined_at: "2026-01-15T00:00:00Z" },
+    { user_id: "user-11", email: "admin@test.com", role: "ADMIN", joined_at: "2026-01-10T00:00:00Z" },
+  ],
 };
 
 /**
@@ -192,6 +200,7 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
       summary: { pending_approval: 0, pending_evaluation: 0 },
       pending_approval: [],
       pending_evaluation: [],
+      members: [],
     };
     vi.mocked(getCoordinatorDashboard).mockResolvedValueOnce(emptyData);
 
@@ -541,6 +550,164 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
 
       await waitFor(() => {
         expect(screen.getByText("İşlem sırasında bir hata oluştu.")).toBeTruthy();
+      });
+    });
+  });
+
+  /**
+   * YET-202/ENT-01: Üyeler listesi + davet formu.
+   */
+  describe("YET-202/ENT-01: Üyeler", () => {
+    it("üye listesi render edilir — email ve rol gösterilir", async () => {
+      vi.mocked(getCoordinatorDashboard).mockResolvedValueOnce(validDashboardData);
+
+      renderWithQueryClient(<KurumPanelPage />);
+
+      await waitFor(() => {
+        // Not: "Koordinatör"/"Yönetici" davet formunun rol <select>'indeki <option>
+        // metinleriyle de eşleşir — satıra scope'lanmış within() ile ayrıştırılır.
+        const coordinatorRow = screen.getByText("coordinator@test.com").closest("li") as HTMLElement;
+        expect(within(coordinatorRow).getByText("Koordinatör")).toBeTruthy();
+
+        const adminRow = screen.getByText("admin@test.com").closest("li") as HTMLElement;
+        expect(within(adminRow).getByText("Yönetici")).toBeTruthy();
+      });
+    });
+
+    it("üye yoksa empty-state metni gösterilir", async () => {
+      vi.mocked(getCoordinatorDashboard).mockResolvedValueOnce({ ...validDashboardData, members: [] });
+
+      renderWithQueryClient(<KurumPanelPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Henüz üye yok.")).toBeTruthy();
+      });
+    });
+
+    it("davet formu gönderilince inviteMember çağrılır ve başarı mesajı gösterilir", async () => {
+      const user = userEvent.setup();
+      vi.mocked(getCoordinatorDashboard).mockResolvedValue(validDashboardData);
+      vi.mocked(inviteMember).mockResolvedValueOnce({ status: "queued" });
+
+      renderWithQueryClient(<KurumPanelPage />);
+
+      await waitFor(() => expect(screen.getByLabelText("E-posta")).toBeTruthy());
+      await user.type(screen.getByLabelText("E-posta"), "yeni-uye@test.com");
+      await user.click(screen.getByText("Davet Gönder"));
+
+      await waitFor(() => {
+        expect(inviteMember).toHaveBeenCalledWith("inst-1", "yeni-uye@test.com", "COORDINATOR");
+        expect(screen.getByText("Davet kuyruğa alındı.")).toBeTruthy();
+      });
+    });
+
+    it("davet formunda rol seçilip gönderilince doğru rol ile çağrılır", async () => {
+      const user = userEvent.setup();
+      vi.mocked(getCoordinatorDashboard).mockResolvedValue(validDashboardData);
+      vi.mocked(inviteMember).mockResolvedValueOnce({ status: "queued" });
+
+      renderWithQueryClient(<KurumPanelPage />);
+
+      await waitFor(() => expect(screen.getByLabelText("E-posta")).toBeTruthy());
+      await user.type(screen.getByLabelText("E-posta"), "yeni-admin@test.com");
+      await user.selectOptions(screen.getByLabelText("Rol"), "ADMIN");
+      await user.click(screen.getByText("Davet Gönder"));
+
+      await waitFor(() => {
+        expect(inviteMember).toHaveBeenCalledWith("inst-1", "yeni-admin@test.com", "ADMIN");
+      });
+    });
+
+    it("davet başarısız olursa hata mesajı gösterilir", async () => {
+      const user = userEvent.setup();
+      vi.mocked(getCoordinatorDashboard).mockResolvedValue(validDashboardData);
+      vi.mocked(inviteMember).mockRejectedValueOnce(
+        new ApiError({ status: 404, code: "NOT_FOUND", message: "x", requestId: null })
+      );
+
+      renderWithQueryClient(<KurumPanelPage />);
+
+      await waitFor(() => expect(screen.getByLabelText("E-posta")).toBeTruthy());
+      await user.type(screen.getByLabelText("E-posta"), "biri@test.com");
+      await user.click(screen.getByText("Davet Gönder"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Davet gönderilemedi.")).toBeTruthy();
+      });
+    });
+  });
+
+  /**
+   * YET-202/ENT-01: Toplu hatırlatma — değerlendirme bekleyen listesinden seçim + gönderim.
+   */
+  describe("YET-202/ENT-01: Toplu hatırlatma", () => {
+    it("hiçbir şey seçilmeden gönderilirse uyarı gösterilir, createReminders çağrılmaz", async () => {
+      const user = userEvent.setup();
+      vi.mocked(getCoordinatorDashboard).mockResolvedValueOnce(validDashboardData);
+
+      renderWithQueryClient(<KurumPanelPage />);
+
+      await waitFor(() => expect(screen.getByText("Seçilenlere Hatırlatma Gönder")).toBeTruthy());
+      await user.click(screen.getByText("Seçilenlere Hatırlatma Gönder"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Önce en az bir staj seçin.")).toBeTruthy();
+      });
+      expect(createReminders).not.toHaveBeenCalled();
+    });
+
+    it("bir staj seçilip gönderilince createReminders seçili id ile çağrılır", async () => {
+      const user = userEvent.setup();
+      vi.mocked(getCoordinatorDashboard).mockResolvedValue(validDashboardData);
+      vi.mocked(createReminders).mockResolvedValueOnce({ queued_count: 1 });
+
+      renderWithQueryClient(<KurumPanelPage />);
+
+      await waitFor(() => expect(screen.getByText("Ürün Tasarım Projesi")).toBeTruthy());
+      await user.click(screen.getByLabelText("Ürün Tasarım Projesi"));
+      await user.click(screen.getByText("Seçilenlere Hatırlatma Gönder"));
+
+      await waitFor(() => {
+        expect(createReminders).toHaveBeenCalledWith("inst-1", ["eng-4"], "evaluation_pending");
+        expect(screen.getByText("Hatırlatma kuyruğa alındı.")).toBeTruthy();
+      });
+    });
+
+    it("tümünü seç işaretlenince tüm değerlendirme bekleyen id'ler seçilir", async () => {
+      const user = userEvent.setup();
+      vi.mocked(getCoordinatorDashboard).mockResolvedValue(validDashboardData);
+      vi.mocked(createReminders).mockResolvedValueOnce({ queued_count: 7 });
+
+      renderWithQueryClient(<KurumPanelPage />);
+
+      await waitFor(() => expect(screen.getByText("Tümünü seç")).toBeTruthy());
+      await user.click(screen.getByText("Tümünü seç"));
+      await user.click(screen.getByText("Seçilenlere Hatırlatma Gönder"));
+
+      await waitFor(() => {
+        expect(createReminders).toHaveBeenCalledWith(
+          "inst-1",
+          ["eng-4", "eng-5", "eng-6", "eng-7", "eng-8", "eng-9", "eng-10"],
+          "evaluation_pending"
+        );
+      });
+    });
+
+    it("hatırlatma gönderimi başarısız olursa hata mesajı gösterilir", async () => {
+      const user = userEvent.setup();
+      vi.mocked(getCoordinatorDashboard).mockResolvedValue(validDashboardData);
+      vi.mocked(createReminders).mockRejectedValueOnce(
+        new ApiError({ status: 422, code: "VALIDATION_ERROR", message: "x", requestId: null })
+      );
+
+      renderWithQueryClient(<KurumPanelPage />);
+
+      await waitFor(() => expect(screen.getByText("Ürün Tasarım Projesi")).toBeTruthy());
+      await user.click(screen.getByLabelText("Ürün Tasarım Projesi"));
+      await user.click(screen.getByText("Seçilenlere Hatırlatma Gönder"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Hatırlatma gönderilemedi.")).toBeTruthy();
       });
     });
   });

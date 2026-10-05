@@ -44,6 +44,7 @@ from app.models import (
     Engagement,
     EngagementTask,
     Deliverable,
+    Attestation,
 )
 
 
@@ -1283,6 +1284,92 @@ class TestEngagementDetail:
         assert "id" in deliverable
         assert "title" in deliverable
         assert "submitted_at" in deliverable
+
+        # Bu fixture'da attestation yok — alan var ama boş liste (YET-202/ENT-01)
+        assert "attestations" in data
+        assert data["attestations"] == []
+
+    def test_get_engagement_detail_includes_attestations_yet202(
+        self, client, session, user_talent_alice, talent_alice, organization_a
+    ):
+        """
+        YET-202/ENT-01: attestations[] alanı dolu döner — aktif + geri çekilmiş
+        tanıklık ayrı ayrı doğru alanlarla serialize edilir.
+
+        Given: Bir engagement'ta iki attestation — biri aktif, biri geri çekilmiş
+        When: `GET /engagements/{id}` çağırır
+        Then: attestations[] her ikisini de doğru alanlarla (claim_type,
+              requested_claim_type, attestor_user_id, revoked_at, revoke_reason) döner
+        """
+        engagement = Engagement(
+            talent_id=talent_alice.id,
+            organization_id=organization_a.id,
+            institution_id=None,
+            kind="INTERNSHIP",
+            title="Engagement with Attestations",
+            status="EVALUATED",
+            version=1,
+            reason=None,
+        )
+        session.add(engagement)
+        session.flush()
+
+        # İki farklı attestor — aynı (engagement_id, attestor_user_id, subject_type)
+        # ikilisi UNIQUE kısıtını ihlal eder (uq_attestations_engagement_attestor_subject).
+        attestor_dana = User(email="attestor-dana@example.com", password_hash="hash_dana")
+        attestor_erin = User(email="attestor-erin@example.com", password_hash="hash_erin")
+        session.add_all([attestor_dana, attestor_erin])
+        session.flush()
+
+        active_attestation = Attestation(
+            engagement_id=engagement.id,
+            talent_id=talent_alice.id,
+            subject_type="ENGAGEMENT",
+            subject_id=None,
+            claim_type="COMPETENCE",
+            requested_claim_type="COMPETENCE",
+            attestor_user_id=attestor_dana.id,
+        )
+        session.add(active_attestation)
+
+        revoked_attestation = Attestation(
+            engagement_id=engagement.id,
+            talent_id=talent_alice.id,
+            subject_type="ENGAGEMENT",
+            subject_id=None,
+            claim_type="PARTICIPATION",
+            requested_claim_type="COMPETENCE",
+            attestor_user_id=attestor_erin.id,
+            revoked_at=datetime.utcnow(),
+            revoke_reason="Yanlış girilmiş",
+        )
+        session.add(revoked_attestation)
+        session.flush()
+
+        response = client.get(
+            f"/engagements/{engagement.id}",
+            headers={"X-Debug-User-Id": str(user_talent_alice.id)},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert "attestations" in data
+        assert len(data["attestations"]) == 2
+
+        by_id = {att["id"]: att for att in data["attestations"]}
+
+        active = by_id[str(active_attestation.id)]
+        assert active["claim_type"] == "COMPETENCE"
+        assert active["requested_claim_type"] == "COMPETENCE"
+        assert active["attestor_user_id"] == str(attestor_dana.id)
+        assert active["revoked_at"] is None
+        assert active["revoke_reason"] is None
+
+        revoked = by_id[str(revoked_attestation.id)]
+        assert revoked["claim_type"] == "PARTICIPATION"
+        assert revoked["revoked_at"] is not None
+        assert revoked["revoke_reason"] == "Yanlış girilmiş"
 
     def test_get_engagement_out_of_scope_returns_404_ac5(
         self, client, session, user_talent_alice, user_talent_bob, engagement_bob_1
