@@ -166,8 +166,20 @@ async function performFetchWithRefresh<T>(
     ) {
       await performRefresh();
 
+      // YET-204/ENT-03: refresh rotates the csrf_token cookie (double-submit
+      // pattern) — reusing the header built before refresh would mismatch the
+      // new cookie and the retry would fail with 403 CSRF_FAILED. Build a
+      // fresh headers object for the retry rather than mutating the original
+      // (which the caller's `options` still references).
+      const originalHeaders = options.headers as Record<string, string> | undefined;
+      const freshCsrfToken = getCsrfToken();
+      const retryOptions: RequestInit =
+        originalHeaders && "x-csrf-token" in originalHeaders && freshCsrfToken
+          ? { ...options, headers: { ...originalHeaders, "x-csrf-token": freshCsrfToken } }
+          : options;
+
       // Retry original request exactly once
-      const retryResponse = await fetchWithTimeout(url, options);
+      const retryResponse = await fetchWithTimeout(url, retryOptions);
       if (retryResponse.status === 401) {
         throw new SessionExpiredError();
       }

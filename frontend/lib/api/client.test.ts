@@ -318,6 +318,75 @@ describe("apiFetch", () => {
     });
   });
 
+  describe("YET-204/ENT-03: csrf_token rotated during refresh", () => {
+    it("retry uses the FRESH csrf_token cookie, not the stale one captured before refresh", async () => {
+      const { apiFetch } = await loadClient();
+      const fetchMock = vi.mocked(global.fetch);
+
+      document.cookie = "csrf_token=old-token";
+
+      fetchMock
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ code: "UNAUTHENTICATED" }), {
+            status: 401,
+            headers: { "content-type": "application/json" },
+          })
+        )
+        .mockImplementationOnce(async () => {
+          // Refresh succeeds and rotates csrf_token (double-submit pattern) —
+          // simulates the backend's Set-Cookie on a real /auth/refresh call.
+          document.cookie = "csrf_token=; max-age=0";
+          document.cookie = "csrf_token=fresh-token";
+          return new Response(null, { status: 204 });
+        })
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ id: "123" }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          })
+        );
+
+      const result = await apiFetch("/engagements", {
+        method: "POST",
+        body: { title: "x" },
+      });
+
+      expect(result).toEqual({ id: "123" });
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+
+      // Call 0: original request — old token (correct, cookie hadn't rotated yet)
+      const originalHeaders = fetchMock.mock.calls[0][1]?.headers as Record<string, string>;
+      expect(originalHeaders["x-csrf-token"]).toBe("old-token");
+
+      // Call 2: retry after refresh — MUST carry the fresh token, not the stale one
+      const retryHeaders = fetchMock.mock.calls[2][1]?.headers as Record<string, string>;
+      expect(retryHeaders["x-csrf-token"]).toBe("fresh-token");
+
+      document.cookie = "csrf_token=; max-age=0";
+    });
+
+    it("GET retry (no csrf header to begin with) is unaffected — no header added", async () => {
+      const { apiFetch } = await loadClient();
+      const fetchMock = vi.mocked(global.fetch);
+
+      document.cookie = "csrf_token=some-token";
+
+      fetchMock
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ code: "UNAUTHENTICATED" }), { status: 401 })
+        )
+        .mockResolvedValueOnce(new Response(null, { status: 204 }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ id: "1" }), { status: 200 }));
+
+      await apiFetch("/users/1");
+
+      const retryHeaders = fetchMock.mock.calls[2][1]?.headers as Record<string, string>;
+      expect(retryHeaders["x-csrf-token"]).toBeUndefined();
+
+      document.cookie = "csrf_token=; max-age=0";
+    });
+  });
+
   describe("AC-4: Refresh failure flow", () => {
     it("AC-4: refresh returns 401 → SessionExpiredError, no retry", async () => {
       const { apiFetch, SessionExpiredError } = await loadClient();
