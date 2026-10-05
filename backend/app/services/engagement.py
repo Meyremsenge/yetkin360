@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import (
+    Attestation,
     Deliverable,
     EngagementTask,
     Engagement,
@@ -832,12 +833,12 @@ def get_engagement_detail(
     session: Session,
     principal: Principal,
     engagement_id: str,
-) -> tuple[Engagement, str, Sequence[EngagementTask], Sequence[Deliverable]]:
+) -> tuple[Engagement, str, Sequence[EngagementTask], Sequence[Deliverable], Sequence[Attestation]]:
     """
-    Get engagement detail with tasks and deliverables (AC-4, AC-5, AC-6).
+    Get engagement detail with tasks, deliverables, and attestations (AC-4, AC-5, AC-6).
 
     Fetches engagement from principal's scope, retrieves organization name, and
-    fetches associated tasks and deliverables in separate queries.
+    fetches associated tasks, deliverables, and attestations in separate queries.
 
     Args:
         session: Database session
@@ -845,7 +846,7 @@ def get_engagement_detail(
         engagement_id: UUID of engagement (string format)
 
     Returns:
-        Tuple of (Engagement, organization_name, tasks[], deliverables[])
+        Tuple of (Engagement, organization_name, tasks[], deliverables[], attestations[])
 
     Raises:
         EngagementNotFoundError: Engagement not in principal's scope or doesn't exist (404)
@@ -885,4 +886,13 @@ def get_engagement_detail(
     )
     deliverables = deliverables_query.scalars().all()
 
-    return engagement, organization_name, tasks, deliverables
+    # Fetch attestations (WHERE engagement_id = :id, single query) — YET-202/ENT-01:
+    # frontend needs this list to show a "Geri Çek" (revoke) action per attestation.
+    # engagement_id is already proven in-scope above (scoped_engagements), so this
+    # follows the exact same already-established pattern as tasks/deliverables.
+    attestations_query = session.execute(
+        select(Attestation).where(Attestation.engagement_id == engagement.id)
+    )
+    attestations = attestations_query.scalars().all()
+
+    return engagement, organization_name, tasks, deliverables, attestations

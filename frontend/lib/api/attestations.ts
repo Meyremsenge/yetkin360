@@ -40,3 +40,26 @@ export async function createAttestation(
   if (!response) throw unexpectedResponse();
   return response;
 }
+
+export interface RevokeAttestationResponse {
+  id: string;
+  revoked_at: string;
+  revoke_reason: string;
+}
+
+/**
+ * YET-202/ENT-01: Tanıklığı geri çeker — sadece attestor kendi verdiği tanıklığı
+ * geri çekebilir (backend 403 FORBIDDEN döner, burada rol kontrolü tekrarlanmaz).
+ * 409 ALREADY_REVOKED zaten geri çekilmişse.
+ */
+export async function revokeAttestation(
+  attestationId: string,
+  revokeReason: string
+): Promise<RevokeAttestationResponse> {
+  const response = await apiFetch<RevokeAttestationResponse>(`/attestations/${attestationId}/revoke`, {
+    method: "POST",
+    body: { revoke_reason: revokeReason },
+  });
+  if (!response) throw unexpectedResponse();
+  return response;
+}

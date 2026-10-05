@@ -173,6 +173,17 @@ describe("lib/api/engagements", () => {
         deliverables: [
           { id: "del-1", title: "Tasarım dosyası", submitted_at: "2026-09-20T15:00:00Z" },
         ],
+        attestations: [
+          {
+            id: "att-1",
+            claim_type: "COMPETENCE",
+            requested_claim_type: "COMPETENCE",
+            attestor_user_id: "user-9",
+            created_at: "2026-09-27T10:00:00Z",
+            revoked_at: null,
+            revoke_reason: null,
+          },
+        ],
       };
 
       mockApiFetch.mockResolvedValueOnce(mockDetail);
@@ -184,6 +195,8 @@ describe("lib/api/engagements", () => {
       expect(result.status).toBe("ACTIVE");
       expect(result.tasks).toHaveLength(1);
       expect(result.deliverables).toHaveLength(1);
+      expect(result.attestations).toHaveLength(1);
+      expect(result.attestations[0].revoked_at).toBeNull();
       expect(result.talent_id).toBe("talent-1");
       expect(result.organization_id).toBe("org-1");
       expect(result.institution_id).toBe("inst-1");
@@ -212,6 +225,7 @@ describe("lib/api/engagements", () => {
           { id: "del-1", title: "API dokümanı", submitted_at: "2026-09-18T10:00:00Z" },
           { id: "del-2", title: "Test raporu", submitted_at: "2026-09-24T16:00:00Z" },
         ],
+        attestations: [],
       };
 
       mockApiFetch.mockResolvedValueOnce(mockDetail);
@@ -225,6 +239,7 @@ describe("lib/api/engagements", () => {
       expect(result.created_at).toBe("2026-08-15T08:00:00Z");
       expect(result.tasks).toHaveLength(2);
       expect(result.deliverables).toHaveLength(2);
+      expect(result.attestations).toEqual([]);
       expect(mockApiFetch).toHaveBeenCalledWith("/engagements/eng-2");
     });
 
@@ -309,6 +324,7 @@ describe("lib/api/engagements", () => {
         deliverables: [
           { id: "del-1", title: "Tasarım dosyası", submitted_at: "2026-09-20T15:00:00Z" },
         ],
+        attestations: [],
       };
 
       mockApiFetch.mockResolvedValueOnce(updatedDetail);
@@ -346,6 +362,7 @@ describe("lib/api/engagements", () => {
         updated_at: "2026-09-27T12:00:00Z",
         tasks: [],
         deliverables: [],
+        attestations: [],
       };
 
       mockApiFetch.mockResolvedValueOnce(cancelledDetail);

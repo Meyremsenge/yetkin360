@@ -235,7 +235,27 @@
       "COORDINATOR_CONFIRMATION_MISSING": "Koordinatör onayı eksik"
     },
     "skillSearchPlaceholder": "Yetkinlik ara...",
-    "clearSkillButton": "Temizle"
+    "clearSkillButton": "Temizle",
+    "addTaskTitle": "Yeni Görev Ekle",
+    "taskTitleLabel": "Başlık",
+    "taskDescriptionLabel": "Açıklama (opsiyonel)",
+    "taskDueAtLabel": "Son Tarih (opsiyonel)",
+    "taskSkillLabel": "İlişkili Yetkinlik (opsiyonel)",
+    "addTaskButton": "Görev Ekle",
+    "addingTaskButton": "Ekleniyor...",
+    "taskAddedMessage": "Görev eklendi.",
+    "taskNotActiveError": "Görev yalnızca aktif çalışmalara eklenebilir.",
+    "taskInvalidSkillError": "Seçilen yetkinlik geçersiz.",
+    "attestationsTitle": "Tanıklıklar",
+    "emptyAttestationsMessage": "Henüz tanıklık yok.",
+    "attestationRevokedLabel": "Geri çekildi",
+    "revokeAttestationButton": "Geri Çek",
+    "revokingAttestationButton": "Geri çekiliyor...",
+    "revokeReasonLabel": "Geri çekme gerekçesi",
+    "revokeAttestationSuccessMessage": "Tanıklık geri çekildi.",
+    "revokeAttestationForbiddenError": "Sadece kendi verdiğiniz tanıklığı geri çekebilirsiniz.",
+    "revokeAttestationAlreadyRevokedError": "Bu tanıklık zaten geri çekilmiş.",
+    "revokeAttestationReasonRequiredError": "Geri çekme gerekçesi zorunludur."
   },
   "degerlendirme": {
     "title": "Değerlendirme Formu",

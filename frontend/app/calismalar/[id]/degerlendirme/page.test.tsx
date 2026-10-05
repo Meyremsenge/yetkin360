@@ -45,6 +45,7 @@ const pendingEvaluationEngagement: EngagementDetail = {
   updated_at: "2026-09-20T00:00:00Z",
   tasks: [],
   deliverables: [],
+  attestations: [],
 };
 
 describe("DegerlendirmePage (/calismalar/[id]/degerlendirme)", () => {
