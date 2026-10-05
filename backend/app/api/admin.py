@@ -28,6 +28,7 @@ from app.services.organization import (
 from app.services.skill import (
     DuplicateSkillSlugError,
     InvalidSkillReferenceError,
+    SkillStatusTransitionError,
     create_skill,
     deprecate_skill,
     list_all_skills,
@@ -101,6 +102,7 @@ class SkillUpdateRequest(BaseModel):
     name_en: Optional[str] = None
     category: Optional[SkillCategory] = None
     parent_id: Optional[uuid.UUID] = None
+    status: Optional[Literal["ACTIVE", "DEPRECATED"]] = None  # AC-13: status transitions
 
 
 class SkillMergeRequest(BaseModel):
@@ -288,9 +290,12 @@ def update_skill_endpoint(
             name_en=payload.name_en,
             category=payload.category,
             parent_id=payload.parent_id,
+            status=payload.status,
         )
     except InvalidSkillReferenceError as exc:
         raise ApiError(422, "VALIDATION_ERROR", str(exc))
+    except SkillStatusTransitionError as exc:
+        raise ApiError(409, "CONFLICT", str(exc))
 
     if skill is None:
         raise ApiError(404, "NOT_FOUND", "Skill bulunamadı.")

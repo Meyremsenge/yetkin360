@@ -141,7 +141,7 @@ class TestUnauthenticatedAccess:
         - Status code: 401 Unauthorized (not 403)
         - No claim inserted
         """
-        payload = {"skill_id": str(skill_python.id)}
+        payload = {"skill_id": str(skill_python.id), "claimed_level": "INTERMEDIATE"}
 
         response = client.post(
             "/talents/me/skills",
@@ -175,7 +175,7 @@ class TestUnauthenticatedAccess:
         - Status code: 404 (not 403)
         - No claim inserted
         """
-        payload = {"skill_id": str(skill_python.id)}
+        payload = {"skill_id": str(skill_python.id), "claimed_level": "INTERMEDIATE"}
 
         response = client.post(
             "/talents/me/skills",
@@ -232,6 +232,7 @@ class TestPostBodyTalentIdIgnored:
         """
         payload = {
             "skill_id": str(skill_python.id),
+            "claimed_level": "INTERMEDIATE",
             "talent_id": str(talent_bob.id),  # Attempt to override to Bob
         }
 
@@ -262,6 +263,7 @@ class TestPostBodyTalentIdIgnored:
         """
         payload = {
             "skill_id": str(skill_python.id),
+            "claimed_level": "INTERMEDIATE",
             "user_id": "some-value",  # Not a valid field
         }
 
@@ -301,7 +303,7 @@ class TestGetOnlyOwnClaims:
         - Bob's claim (javascript) is NOT returned
         """
         # Setup: Alice adds python
-        payload_alice = {"skill_id": str(skill_python.id)}
+        payload_alice = {"skill_id": str(skill_python.id), "claimed_level": "INTERMEDIATE"}
         response_alice = client.post(
             "/talents/me/skills",
             json=payload_alice,
@@ -310,7 +312,7 @@ class TestGetOnlyOwnClaims:
         assert response_alice.status_code == 201
 
         # Setup: Bob adds javascript
-        payload_bob = {"skill_id": str(skill_javascript.id)}
+        payload_bob = {"skill_id": str(skill_javascript.id), "claimed_level": "INTERMEDIATE"}
         response_bob = client.post(
             "/talents/me/skills",
             json=payload_bob,
@@ -347,7 +349,7 @@ class TestGetOnlyOwnClaims:
         - items contains only Alice's claims
         """
         # Setup: Alice adds python
-        payload_alice = {"skill_id": str(skill_python.id)}
+        payload_alice = {"skill_id": str(skill_python.id), "claimed_level": "INTERMEDIATE"}
         response_alice = client.post(
             "/talents/me/skills",
             json=payload_alice,
@@ -356,7 +358,7 @@ class TestGetOnlyOwnClaims:
         assert response_alice.status_code == 201
 
         # Setup: Bob adds javascript
-        payload_bob = {"skill_id": str(skill_javascript.id)}
+        payload_bob = {"skill_id": str(skill_javascript.id), "claimed_level": "INTERMEDIATE"}
         response_bob = client.post(
             "/talents/me/skills",
             json=payload_bob,
@@ -403,7 +405,7 @@ class TestDeleteCrossUserIsolation:
         - Response is same 404 as if claim never existed (can't distinguish)
         """
         # Setup: Bob adds python
-        payload_bob = {"skill_id": str(skill_python.id)}
+        payload_bob = {"skill_id": str(skill_python.id), "claimed_level": "INTERMEDIATE"}
         response_bob = client.post(
             "/talents/me/skills",
             json=payload_bob,
@@ -432,7 +434,7 @@ class TestDeleteCrossUserIsolation:
         - Status code: 204
         """
         # Setup: Alice adds python
-        payload = {"skill_id": str(skill_python.id)}
+        payload = {"skill_id": str(skill_python.id), "claimed_level": "INTERMEDIATE"}
         response = client.post(
             "/talents/me/skills",
             json=payload,
@@ -466,7 +468,7 @@ class TestDeleteCrossUserIsolation:
         """
         # Setup: both add python
         for user, talent in [(user_talent_alice, talent_alice), (user_talent_bob, talent_bob)]:
-            payload = {"skill_id": str(skill_python.id)}
+            payload = {"skill_id": str(skill_python.id), "claimed_level": "INTERMEDIATE"}
             response = client.post(
                 "/talents/me/skills",
                 json=payload,
@@ -517,7 +519,7 @@ class TestCrossTalentIsolation:
         - Should return empty list (Bob has no claims)
         """
         # Setup: Alice adds python
-        payload = {"skill_id": str(skill_python.id)}
+        payload = {"skill_id": str(skill_python.id), "claimed_level": "INTERMEDIATE"}
         response = client.post(
             "/talents/me/skills",
             json=payload,
@@ -546,7 +548,7 @@ class TestAuthErrorResponseSchema:
 
     def test_unauthenticated_error_has_code_message_request_id(self, client, skill_python):
         """401 error must have {code, message, request_id}."""
-        payload = {"skill_id": str(skill_python.id)}
+        payload = {"skill_id": str(skill_python.id), "claimed_level": "INTERMEDIATE"}
 
         response = client.post(
             "/talents/me/skills",
@@ -569,7 +571,7 @@ class TestAuthErrorResponseSchema:
 
         fake_skill_id = uuid.uuid4()
 
-        payload = {"skill_id": str(fake_skill_id)}
+        payload = {"skill_id": str(fake_skill_id), "claimed_level": "INTERMEDIATE"}
 
         response = client.post(
             "/talents/me/skills",

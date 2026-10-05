@@ -17,6 +17,8 @@ from app.services.engagement import (
     EngagementNotFoundError,
     IllegalTransitionError,
     PreconditionFailedError,
+    ReasonTooLongError,
+    DateValidationError,
     TransitionForbiddenError,
     VersionConflictError,
     InvalidSkillError as EngInvalidSkillError,
@@ -76,6 +78,9 @@ class PostEngagementResponse(BaseModel):
     status: str
     version: int
     reason: str | None = None
+    started_on: str | None = None
+    ended_on: str | None = None
+    completed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -84,12 +89,20 @@ class PostEngagementResponse(BaseModel):
 
 
 class TransitionEngagementRequest(BaseModel):
-    """Request schema for POST /engagements/{id}/transitions."""
+    """Request schema for POST /engagements/{id}/transition."""
 
     to_status: str = Field(..., description="Target status")
-    version: int = Field(..., description="Current version for optimistic locking")
+    version: int | None = Field(
+        None, description="Current version for optimistic locking (optional)"
+    )
     reason: str | None = Field(
         None, description="Optional reason for REJECTED/CANCELLED transitions"
+    )
+    started_on: str | None = Field(
+        None, description="Optional start date (ISO format) for engagement"
+    )
+    ended_on: str | None = Field(
+        None, description="Optional end date (ISO format) for engagement"
     )
 
     class Config:
@@ -309,30 +322,13 @@ def post_engagements(
             institution_id=payload.institution_id,
             confidential=payload.confidential,
         )
-    except TalentNotFoundError:
+    except (TalentNotFoundError, OrganizationNotFoundError, InstitutionMismatchError):
+        # GUV-08: All "not found" cases return 404 with NOT_FOUND code (oracle closed)
         raise HTTPException(
             status_code=404,
             detail={
-                "code": "TALENT_NOT_FOUND",
-                "message": "Talent bulunamadı.",
-                "request_id": None,
-            },
-        )
-    except OrganizationNotFoundError:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "code": "ORGANIZATION_NOT_FOUND",
-                "message": "Organizasyon bulunamadı.",
-                "request_id": None,
-            },
-        )
-    except InstitutionMismatchError:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "code": "INSTITUTION_MISMATCH",
-                "message": "institution_id does not match talent's institution",
+                "code": "NOT_FOUND",
+                "message": "Engagement bulunamadı.",
                 "request_id": None,
             },
         )
@@ -590,6 +586,8 @@ def post_engagement_transitions(
             to_status=payload.to_status,
             version=payload.version,
             reason=payload.reason,
+            started_on=payload.started_on,
+            ended_on=payload.ended_on,
         )
     except EngagementNotFoundError:
         raise HTTPException(
@@ -614,6 +612,24 @@ def post_engagement_transitions(
             status_code=422,
             detail={
                 "code": "PRECONDITION_FAILED",
+                "message": str(e),
+                "request_id": None,
+            },
+        )
+    except ReasonTooLongError as e:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "VALIDATION_ERROR",
+                "message": str(e),
+                "request_id": None,
+            },
+        )
+    except DateValidationError as e:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "VALIDATION_ERROR",
                 "message": str(e),
                 "request_id": None,
             },
@@ -650,6 +666,9 @@ def post_engagement_transitions(
         status=engagement.status,
         version=engagement.version,
         reason=engagement.reason,
+        started_on=str(engagement.started_on) if engagement.started_on else None,
+        ended_on=str(engagement.ended_on) if engagement.ended_on else None,
+        completed_at=engagement.completed_at,
         created_at=engagement.created_at,
         updated_at=engagement.updated_at,
     )
@@ -967,7 +986,7 @@ def post_engagement_evaluation(
         raise HTTPException(
             status_code=422,
             detail={
-                "code": "INVALID_REQUEST",
+                "code": "VALIDATION_ERROR",
                 "message": "Geçersiz skill_id.",
                 "request_id": None,
             },

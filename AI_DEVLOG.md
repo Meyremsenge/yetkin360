@@ -5,6 +5,22 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## guvenlik-bulgulari-duzeltme — 14 Jira güvenlik/yetkilendirme bulgusu (2026-10-05)
+
+**Kaynak:** `obss_project/artifacts/guvenlik-bulgulari-duzeltme/` — GUV-04/05/08, IS-01/02/03/05/06, AUTHZ-03, VER-02, L-06/08/09/10 (tek turda, kullanıcı onayıyla birleştirildi).
+
+### Bilinçli kapsam/davranış kararları (kaynak: atdd.md, plan.md)
+- **GUV-04 "B seçeneği" (atdd.md AC-5 kararı):** TALENT_TO_ORG değerlendirmesi engellenmedi (201 kabul edilir) — sadece STRONG skill sinyali üretimi ORG_TO_TALENT yönüyle sınırlandı. İlk implementasyon isteği tamamen 403 ile engellemişti, mevcut `test_talent_can_post_talent_to_org_201` testiyle çatıştığı fark edilince kullanıcı onayıyla düzeltildi.
+- **GUV-08 (institution_id uyuşmazlığı → her zaman 404) ve VER-02 (claimed_level zorunlu alan) kasıtlı davranış değişiklikleri** — bu iki değişiklik ~25 eski (bu görevden önce yazılmış) testi kırdı; kullanıcı açıkça onayladı: davranış değişiklikleri kalır, eski testler yeni davranışa güncellenir (geri alınmaz).
+- **T8 (EVALUATED→VERIFIED) rolü SUPERVISOR olarak netleşti** (AUTHZ-03/AC-7, yeni migration + `InstitutionMember` rol constraint'i) — T4'ün nihai rol kararı hâlâ açık (Unknowns, ayrı tur gerektirir).
+
+### Gerçek zorluk/bug (kaynak: code_diff.md, verify_report.md)
+- **GUV-05'in "zaten doğru" ilk kararı YANLIŞTI** — gerçek pytest koşusu, `revoked_at` filtresinin `scoped_*` fonksiyonlarının 4'ünde de eksik olduğunu kanıtladı (revoke edilen attestation'lar public listelerde görünmeye devam ediyordu). Düzeltildi, bağımsız doğrulandı.
+- **Paralel alt-ajan çakışması:** İki ayrı Haiku alt-ajanı `generate_public_token()`'ı aynı anda farklı modüllere taşıdı (biri `services`'te bıraktı, biri `models`'e taşıdı) — bir test dosyası eski konumdan import edemeyince patladı. Re-export shim ile çözüldü.
+- **Bir alt-ajanın onaysız migration + yetkilendirme mantığı + kırıcı route değişikliği (`/transitions`→`/transition`) yapması:** Kullanıcıya soruldu; route geri alındı (frontend + 2 eski test dosyası `/transitions`'ı kullanıyordu, kırılırdı), migration+authz (SUPERVISOR) onaylandı. **Ders:** dispatch prompt'larına "ASLA onaysız migration/authz/route değişikliği yapma, bulursan sadece raporla" satırı eklenmeli.
+- **`PreconditionFailedError`'ın 400/422 karışıklığı:** Yeni bir AC-3 precondition'ı (reason uzunluk sınırı) eklenirken, aynı exception'ı kullanan ESKİ preconditionlar (institution_null, reason eksik) da yanlışlıkla 400'e düşürüldü — ayrı bir exception sınıfı (`ReasonTooLongError`) ile ayrıştırıldı.
+- **Ortam:** venv'de `psycopg` (3.3.6) ile `psycopg-binary` (3.2.3) versiyon uyumsuzluğu (`cannot import name Deque`) — `python -m pip install --force-reinstall "psycopg[binary]==3.2.3"` ile düzeltildi (önceki `pip install` PATH çakışması nedeniyle yanlış Python'a gidiyordu).
+
 ## YET-165 (HATA.md GUV-02/GUV-07/L-01) — Davet ucu numaralandırma/rol/500 düzeltmesi (2026-09-30)
 
 **Kaynak:** `obss_project/artifacts/guv-02-davet-yaniti-duzeltmesi/` — HATA.md'nin (2026-09-28 kapsamlı denetim) GUV-02 bulgusuna dayalı, HATA_DUZELTME_PROMPT.md K1=(b) kararıyla dar kapsamlı (yalnız A-09, AUTHZ-01/A-08 hariç).

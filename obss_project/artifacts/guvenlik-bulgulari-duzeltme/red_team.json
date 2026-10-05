@@ -1,0 +1,58 @@
+{
+  "task": "guvenlik-bulgulari-duzeltme",
+  "reviewed_at": "2026-10-05T00:00:00Z",
+  "summary": "14 Jira güvenlik/yetkilendirme/iş-mantığı bulgusu (GUV-04/05/08, IS-01/02/03/05/06, AUTHZ-03, VER-02, L-06/08/09/10) incelendi. GUV-05'te gerçek bir açık bulunup düzeltildi (revoked_at filtresi 4 scoped fonksiyonda eksikti), GUV-08 oracle'ı kapatıldı. Çok turlu bir düzeltme döngüsü sonunda ruff/mypy/pytest tests/authorization (382 passed, 0 failed) ve tam paket (802 passed, 0 failed, 3 kapsam-dışı/önceden-bozuk test hariç) bağımsız olarak doğrulandı.",
+  "findings": [
+    {
+      "severity": "low",
+      "category": "maintainability",
+      "file": "obss_project/artifacts/guvenlik-bulgulari-duzeltme/verify_report.md",
+      "issue": "Dosyada önceki ara-turlara ait FAIL listesi (22/60/25/4 FAIL) final PASS güncellemesinin altında, çözüldüğü belirtilmeden duruyordu — bir okuyucu GUV-05'in hâlâ açık olduğunu düşünebilirdi.",
+      "better_approach": "Ara-tur kayıtları 'Çözülmüş Ara-Tur Kayıtları' başlığı altında arşivlendi, final sonuç dosyanın başında ve sonunda net PASS olarak işaretlendi.",
+      "reason": "red-team incelemesi sırasında bu bulgu çıktı, hemen bu oturumda düzeltildi — artık geçerli değil, kayıt amaçlı tutuluyor."
+    },
+    {
+      "severity": "low",
+      "category": "scope",
+      "file": "backend/alembic/versions/d85a0529f295_add_supervisor_role_to_institution_.py",
+      "issue": "atdd.md'nin Kapsam Dışı metni, T4/T8 nihai rol kararının bu tur dışında olduğunu söylüyordu; ama T8/AC-7 SUPERVISOR rolü kullanıcı onayıyla bu turda netleşti. Metin güncellenmedi, dokümanlar arası küçük bir tutarsızlık var.",
+      "better_approach": "atdd.md'nin Kapsam Dışı bölümüne tek satır not: 'T8 rolü SUPERVISOR olarak kullanıcı onayıyla bu turda netleşti, T4 rol kararı hâlâ açık.'",
+      "reason": "Açık kaynak repo olduğu için (CLAUDE.md) dokümanlar arası tutarlılık ileride yanlış bir 'scope expansion' alarmına yol açmasın."
+    }
+  ],
+  "strengths": [
+    "GUV-05 (AC-4/AC-S3): services/authorization.py'deki scoped_public_verified_experience_by_token, scoped_own_verified_experiences, scoped_attestations_for_engagement ve scoped_public_verified_experiences fonksiyonlarının hepsi tutarlı şekilde Attestation.revoked_at IS NULL filtresi uyguluyor; append-only kural ihlali yok (sadece revoked_at/revoke_reason kolonları UPDATE WHERE revoked_at IS NULL ile set ediliyor, satır silinmiyor).",
+    "GUV-04 (AC-5/AC-S4): services/evaluation.py — TALENT_TO_ORG isteği 201 ile kabul ediliyor ama skill_signal SADECE ORG_TO_TALENT yönünde üretiliyor; atdd.md'deki kullanıcı onaylı 'B seçeneği' kararıyla tam örtüşüyor.",
+    "AUTHZ-03 (AC-7/AC-S5): services/engagement.py — T8 (EVALUATED→VERIFIED) SUPERVISOR dışı rol denerse 403 değil 404 dönüyor, CLAUDE.md'nin '403 yerine 404' kuralına uyuyor.",
+    "L-08 (AC-11/AC-S6): api/skill_signals.py — talent profili yoksa 401 değil 404 (TALENT_PROFILE_NOT_FOUND) dönüyor, verified-experiences ile tutarlı.",
+    "L-10 (AC-13): services/skill.py — parent_id null'lanabiliyor, MERGED→DEPRECATED denemesi ayrı bir exception ile 409'a çevriliyor.",
+    "IS-03 (AC-3): services/engagement.py — reason alanı üzerine yazılmıyor (append), uzunluk sınırı aşılırsa ayrı bir exception ile 400'e çevriliyor; eski preconditionlar (institution_null, reason eksik) 422 olarak korunmuş, yeni/eski hata kodları birbirine karışmıyor.",
+    "Süreç: bir alt-ajanın onaysız yaptığı migration/yetkilendirme/route değişikliği orkestratör tarafından yakalanıp kullanıcıya soruldu, kırıcı route değişikliği geri alındı — CLAUDE.md'nin izin sınırları kuralı pratikte uygulandı.",
+    "ruff check . ve mypy app bağımsız olarak tekrar çalıştırıldı, ikisi de temiz; pytest tests/authorization -q bağımsız olarak çalıştırıldı: 382 passed, 0 failed."
+  ],
+  "risks": [
+    "Proje venv'i (hermes-agent\\venv) ajan aracının kendisiyle paylaşılıyor — requirements.txt kurulumu pydantic/pyjwt/starlette/pytest sürümlerini ajanın beklediğinden farklı sürümlere düşürdü. Bu görevin kapsamı dışında ama kullanıcıya bildirildi, ayrı/dedike bir venv önerilir.",
+    "GUV-08/VER-02'nin davranış değişikliği ~25 eski testi kırdı ve kullanıcı onayıyla güncellendi — frontend'in bu iki davranışı (institution_id uyuşmazlığında 404, claimed_level zorunlu) doğru tükettiğini doğrulamak bu turun kapsamı dışında kaldı, ayrıca kontrol edilmeli."
+  ],
+  "caveman_review": {
+    "complexity": "medium",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve-with-changes"
+}

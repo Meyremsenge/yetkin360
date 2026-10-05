@@ -17,6 +17,10 @@ class InvalidSkillReferenceError(Exception):
     """Raised when parent_id/merged_into_id points to a missing, self, or non-ACTIVE skill."""
 
 
+class SkillStatusTransitionError(Exception):
+    """Raised when attempting an invalid skill status transition (e.g., MERGED→DEPRECATED)."""
+
+
 def list_all_skills(session: Session, limit: int = 200, offset: int = 0) -> Sequence[Skill]:
     """
     List ALL skills regardless of status (ACTIVE/DEPRECATED/MERGED) — for
@@ -101,33 +105,52 @@ def create_skill(
     return skill
 
 
+# Sentinel: indicates parent_id parameter was explicitly passed (including None)
+_UNSET = object()
+
+
 def update_skill(
     session: Session,
     skill_id: uuid.UUID,
     name_tr: str | None = None,
     name_en: str | None = None,
     category: str | None = None,
-    parent_id: uuid.UUID | None = None,
+    parent_id = _UNSET,  # AC-13: Can be None to remove parent
+    status: str | None = None,  # AC-13: Status transition (validate MERGED→DEPRECATED)
 ) -> Skill | None:
     """
     Update a skill's editable fields (admin-only — YET-137).
-    Status transitions (deprecate/merge) go through their own functions.
+    AC-13 (L-10): Handle parent_id removal and MERGED→DEPRECATED validation.
 
     Returns None if skill_id does not exist.
 
     Raises:
         InvalidSkillReferenceError: parent_id is the skill itself or does not exist.
+        SkillStatusTransitionError: Cannot transition MERGED→DEPRECATED.
     """
     skill = session.get(Skill, skill_id)
     if skill is None:
         return None
 
-    if parent_id is not None:
-        if parent_id == skill_id:
-            raise InvalidSkillReferenceError("Bir skill kendi üst kategorisi olamaz")
-        if session.get(Skill, parent_id) is None:
-            raise InvalidSkillReferenceError(f"parent_id {parent_id} bulunamadı")
-        skill.parent_id = parent_id
+    # AC-13: Handle parent_id (including None to remove parent)
+    if parent_id is not _UNSET:
+        if parent_id is not None:
+            if parent_id == skill_id:
+                raise InvalidSkillReferenceError("Bir skill kendi üst kategorisi olamaz")
+            if session.get(Skill, parent_id) is None:
+                raise InvalidSkillReferenceError(f"parent_id {parent_id} bulunamadı")
+            skill.parent_id = parent_id
+        else:
+            # Explicitly remove parent
+            skill.parent_id = None
+
+    # AC-13: Validate status transitions
+    if status is not None:
+        if status == "DEPRECATED" and skill.merged_into_id is not None:
+            raise SkillStatusTransitionError(
+                "MERGED bir beceri DEPRECATED durumuna geçemez (merged_into_id tutarlılığı)"
+            )
+        skill.status = status
 
     if name_tr is not None:
         skill.name_tr = name_tr

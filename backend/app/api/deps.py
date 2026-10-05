@@ -34,6 +34,7 @@ def get_current_principal(
     institution_memberships = session.query(InstitutionMember).filter_by(user_id=user.id).all()
     institution_ids = [m.institution_id for m in institution_memberships]
     institution_admin_ids = [m.institution_id for m in institution_memberships if m.role == "ADMIN"]
+    supervisor_ids = [m.institution_id for m in institution_memberships if m.role == "SUPERVISOR"]
 
     # Determine user's talent profile
     talent = session.query(TalentProfile).filter_by(user_id=user.id).first()
@@ -44,6 +45,8 @@ def get_current_principal(
     # authorization uses membership ID lists (org_ids, org_admin_ids, etc.)
     if institution_admin_ids:
         kind = "INST_ADMIN"
+    elif supervisor_ids:
+        kind = "SUPERVISOR"
     elif institution_ids:
         kind = "COORDINATOR"
     elif org_admin_ids:

@@ -1,6 +1,7 @@
 """User profile endpoints (GET /me, PATCH /talents/me)."""
 
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
@@ -38,6 +39,7 @@ class TalentProfileResponse(BaseModel):
     city: str | None
     visibility: str
     public_slug: str | None
+    updated_at: datetime
 
     class Config:
         from_attributes = True

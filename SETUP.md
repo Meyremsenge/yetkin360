@@ -3,6 +3,18 @@
 Bu dosya, pipeline adımlarının (özellikle `plan.md`) belgelediği yeni
 bağımlılık/migration/kurulum adımlarını **birebir aktarır**.
 
+## guvenlik-bulgulari-duzeltme — 14 Jira güvenlik bulgusu (2026-10-05)
+
+**Kaynak:** `obss_project/artifacts/guvenlik-bulgulari-duzeltme/plan.md`
+
+- Yeni migration: `n5o6p7q8r9s0_add_completed_at_to_engagements` — `engagements` tablosuna `completed_at TIMESTAMPTZ NULL` kolonu (AC-3/IS-03, T5/T8 geçişlerinde set edilir).
+- Yeni migration: `d85a0529f295_add_supervisor_role_to_institution_` — `InstitutionMember.role` CHECK constraint'ine `SUPERVISOR` eklendi (AUTHZ-03/AC-7, T8 geçişi SUPERVISOR'a özel).
+- Uygulamak için:
+  ```bash
+  cd backend
+  alembic upgrade head
+  ```
+
 ## YET-2.2 — Durum makinesi: POST /engagements/{id}/transitions
 
 **Kaynak:** `obss_project/artifacts/engagement-durum-makinesi-transitions-ucu/plan.md` (+ red-team sonrası ek migration)

@@ -13,7 +13,7 @@ from app.api.me import router as me_router
 from app.api.organizations import router as organizations_router
 from app.api.public import router as public_router
 from app.api.skills import router as skills_router
-from app.api.skill_signals import router as skill_signals_router
+from app.api.skill_signals import router as skill_signals_router, signals_alias_router
 from app.api.talent_skills import router as talent_skills_router
 from app.api.verified_experiences import router as verified_experiences_router
 from app.core.config import settings
@@ -66,6 +66,7 @@ def create_app(environment: str) -> FastAPI:
     application.include_router(public_router)
     application.include_router(skills_router)
     application.include_router(skill_signals_router)
+    application.include_router(signals_alias_router)
     application.include_router(talent_skills_router)
     application.include_router(verified_experiences_router)
 

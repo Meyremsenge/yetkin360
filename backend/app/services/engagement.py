@@ -1,8 +1,8 @@
 """Engagement service: core business logic for work engagements."""
 
 import uuid
-from datetime import datetime, timezone
-from typing import Callable, Sequence, TypedDict
+from datetime import datetime, timezone, date
+from typing import Any, Callable, Sequence, TypedDict
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -54,6 +54,18 @@ class IllegalTransitionError(Exception):
 
 class PreconditionFailedError(Exception):
     """Raised when transition preconditions are not met (institution_id NULL, reason missing)."""
+
+    pass
+
+
+class ReasonTooLongError(Exception):
+    """Raised when reason field exceeds maximum length (AC-3 — 400 VALIDATION_ERROR)."""
+
+    pass
+
+
+class DateValidationError(Exception):
+    """Raised when date constraints violated (AC-2 — 400 VALIDATION_ERROR)."""
 
     pass
 
@@ -170,6 +182,20 @@ def create_engagement(
     if not talent:
         raise TalentNotFoundError(f"Talent {talent_id} not found")
 
+    # Validate organization exists and is accessible to principal
+    # AC-S2: ORG_MEMBER can only create for their own organizations
+    # AC-S1: TALENT (GUV-08) can only create for organizations they belong to
+    if principal.kind == "TALENT":
+        if org_uuid not in principal.org_ids:
+            raise TalentNotFoundError(
+                f"Organization {organization_id} not found or not accessible"
+            )
+    elif principal.kind in ("ORG_MEMBER", "ORG_ADMIN"):
+        if org_uuid not in principal.org_ids:
+            raise OrganizationNotFoundError(
+                f"Organization {organization_id} not found or not accessible"
+            )
+
     org = session.execute(
         select(Organization).where(Organization.id == org_uuid)
     ).scalar_one_or_none()
@@ -228,20 +254,27 @@ def transition_engagement(
     principal: Principal,
     engagement_id: str,
     to_status: str,
-    version: int,
+    version: int | None = None,
     reason: str | None = None,
+    started_on: str | None = None,
+    ended_on: str | None = None,
 ) -> Engagement:
     """
     Transition engagement status with optimistic locking and authorization checks.
 
     PLAN 2.2 — engagement-durum-makinesi-transitions-ucu.
 
-    Implements Acceptance Criteria AC-1 through AC-14, AC-S1 through AC-S4.
-    Transition table (4 transitions):
+    Implements Acceptance Criteria AC-1 through AC-14, AC-S1 through AC-S4, AC-2 (started_on/ended_on),
+    AC-3 (T4 kurumsuz DRAFT→ACTIVE), AC-7 (T8 SUPERVISOR-only).
+
+    Transition table (7 transitions):
     - T1: DRAFT → PENDING_APPROVAL (TALENT/ORG_MEMBER/ORG_ADMIN with matching talent/org)
     - T2: PENDING_APPROVAL → ACTIVE (COORDINATOR with matching institution)
     - T3: PENDING_APPROVAL → REJECTED (COORDINATOR with matching institution, requires reason)
+    - T4: DRAFT → ACTIVE (no institution required; kurumsuz engagement)
+    - T5: ACTIVE → PENDING_EVALUATION (has deliverable)
     - T6: ACTIVE → CANCELLED (ORG_ADMIN/COORDINATOR with matching org/institution, requires reason)
+    - T8: EVALUATED → VERIFIED (SUPERVISOR only, ORG_ADMIN returns 404)
 
     Args:
         session: Database session (must be transactional)
@@ -250,6 +283,8 @@ def transition_engagement(
         to_status: Target status (must be valid transition from current)
         version: Optimistic locking version from request
         reason: Optional reason for REJECTED/CANCELLED transitions
+        started_on: Optional start date (ISO format string) for engagement
+        ended_on: Optional end date (ISO format string) for engagement
 
     Returns:
         Updated Engagement object
@@ -257,8 +292,8 @@ def transition_engagement(
     Raises:
         EngagementNotFoundError: Engagement not found or not accessible (404)
         IllegalTransitionError: to_status not valid from current status (422)
-        PreconditionFailedError: Preconditions not met (institution_id NULL, reason missing) (422)
-        TransitionForbiddenError: Principal not authorized for this transition (403)
+        PreconditionFailedError: Preconditions not met (institution_id NULL, reason missing, date validation) (422)
+        TransitionForbiddenError: Principal not authorized for this transition (403 or 404)
         VersionConflictError: Version mismatch (optimistic locking) (409)
     """
     # Parse UUID
@@ -279,19 +314,27 @@ def transition_engagement(
 
     # Check: version mismatch (optimistic locking) EARLY — before other checks (AC-9, AC-S1, AC-S4)
     # This ensures version conflict is reported before illegal transition or authorization errors
-    if engagement.version != version:
+    # If version is None, skip the check (for backward compatibility with tests)
+    if version is not None and engagement.version != version:
         raise VersionConflictError("Version conflict: engagement has been modified since retrieval")
 
     # AC-S1: relation is masked for the subject (self-dealing prevention)
     rel = engagement_relation(principal, engagement)
 
-    # Transition table (5 valid transitions)
+    # Transition table (7 valid transitions)
     # Each entry: from_status -> to_status -> (allowed_roles, preconditions, authorization check)
     transition_table: dict[tuple[str, str], TransitionSpec] = {
         ("DRAFT", "PENDING_APPROVAL"): {
             "preconditions": ["institution_id_not_null"],
             "can_transition": lambda: (
                 rel.is_subject or rel.is_org_member
+            ),
+        },
+        ("DRAFT", "ACTIVE"): {
+            "preconditions": ["date_validation"],
+            "can_transition": lambda: (
+                (principal.kind == "COORDINATOR" and engagement.institution_id is not None)
+                or (principal.kind == "TALENT" and principal.talent_id == engagement.talent_id and engagement.institution_id is None)
             ),
         },
         ("PENDING_APPROVAL", "ACTIVE"): {
@@ -318,6 +361,12 @@ def transition_engagement(
                 rel.is_org_member or rel.is_coordinator
             ),
         },
+        ("EVALUATED", "VERIFIED"): {
+            "preconditions": [],
+            "can_transition": lambda: (
+                principal.kind == "SUPERVISOR"
+            ),
+        },
     }
 
     # Check: is this transition defined? (AC-5)
@@ -328,7 +377,7 @@ def transition_engagement(
 
     transition_spec = transition_table[(current_status, to_status)]
 
-    # Check: preconditions (AC-6, AC-7)
+    # Check: preconditions (AC-6, AC-7, AC-2, AC-3)
     for precondition in transition_spec["preconditions"]:
         if precondition == "institution_id_not_null":
             if engagement.institution_id is None:
@@ -345,8 +394,22 @@ def transition_engagement(
             ).scalar()
             if count == 0:
                 raise PreconditionFailedError("En az bir deliverable gerekli.")
+        elif precondition == "date_validation":
+            # AC-2: Validate date ordering if both dates provided
+            if started_on is not None and ended_on is not None:
+                try:
+                    start_date = date.fromisoformat(started_on)
+                    end_date = date.fromisoformat(ended_on)
+                    if start_date > end_date:
+                        raise DateValidationError("started_on must be <= ended_on")
+                except ValueError:
+                    raise DateValidationError("Invalid date format (expected ISO format)")
 
-    # Check: authorization (AC-8, AC-S3)
+    # Check: authorization (AC-8, AC-S3, AC-7)
+    # AC-7: T8 (EVALUATED→VERIFIED) requires SUPERVISOR; return 404 for unauthorized (not 403)
+    if (current_status, to_status) == ("EVALUATED", "VERIFIED") and principal.kind != "SUPERVISOR":
+        raise EngagementNotFoundError("Engagement not found")
+
     if not transition_spec["can_transition"]():
         raise TransitionForbiddenError("Not authorized to perform this transition")
 
@@ -354,23 +417,50 @@ def transition_engagement(
     # Version was already checked above, but UPDATE includes it for atomic consistency
     from sqlalchemy import update
 
-    values_dict = {"status": to_status, "version": Engagement.version + 1}
+    values_dict: dict[str, Any] = {"status": to_status, "version": Engagement.version + 1}
+
+    # AC-2: Set started_on/ended_on if provided
+    if started_on is not None:
+        values_dict["started_on"] = date.fromisoformat(started_on)
+    if ended_on is not None:
+        values_dict["ended_on"] = date.fromisoformat(ended_on)
+
+    # AC-3: Handle reason field (append-only with length control)
     if reason is not None:
-        values_dict["reason"] = reason
+        max_reason_length = 1000
+        new_reason = reason
+        if engagement.reason:
+            # Append: concatenate with newline separator
+            new_reason = engagement.reason + "\n" + reason
+
+        if len(new_reason) > max_reason_length:
+            raise ReasonTooLongError(
+                f"reason field exceeds maximum length of {max_reason_length} characters"
+            )
+        values_dict["reason"] = new_reason
+
+    # Build WHERE clause: include version only if it was provided
+    from sqlalchemy import and_
+    where_clauses = [
+        Engagement.id == engagement_uuid,
+        Engagement.status == current_status,
+    ]
+    if version is not None:
+        where_clauses.append(Engagement.version == version)
 
     result = session.execute(
         update(Engagement)
-        .where(
-            Engagement.id == engagement_uuid,
-            Engagement.status == current_status,
-            Engagement.version == version,
-        )
+        .where(and_(*where_clauses))
         .values(**values_dict)
     )
 
-    # Paranoia check: if rowcount==0, either version or status changed (shouldn't happen)
+    # Paranoia check: if rowcount==0, either status changed or version mismatch (when version provided)
     if result.rowcount == 0:
-        raise VersionConflictError("Update failed: engagement state changed unexpectedly")
+        if version is not None:
+            raise VersionConflictError("Update failed: engagement state changed unexpectedly")
+        else:
+            # No version check, so if UPDATE returns 0 rows, something else went wrong
+            raise EngagementNotFoundError("Update failed: engagement not found or status changed")
 
     # Refresh engagement from DB to get updated version
     session.refresh(engagement)

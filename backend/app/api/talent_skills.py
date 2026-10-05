@@ -1,6 +1,7 @@
 """Talent skill endpoints (POST/GET/DELETE /talents/me/skills)."""
 
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -60,8 +61,8 @@ class PostSkillClaimRequest(BaseModel):
     """Request schema for POST /talents/me/skills."""
 
     skill_id: str = Field(..., description="UUID of skill to claim")
-    claimed_level: str | None = Field(
-        None, description="Optional level: BEGINNER/INTERMEDIATE/ADVANCED"
+    claimed_level: Any | None = Field(
+        None, description="Required level: BEGINNER/INTERMEDIATE/ADVANCED"
     )
 
 
@@ -92,6 +93,7 @@ def post_skills(
         201 + {skill_id, claimed_level, source: "MANUAL"}
 
     Errors:
+        - 400 VALIDATION_ERROR: claimed_level not in {BEGINNER, INTERMEDIATE, ADVANCED} (AC-10)
         - 404 SKILL_NOT_FOUND: skill does not exist or not ACTIVE
         - 409 ALREADY_CLAIMED: talent already claimed this skill
         - 404/401: unauthenticated or talent_id-less user (AC-S1)
@@ -99,6 +101,22 @@ def post_skills(
     Security:
         - AC-S2: Body talent_id/user_id fields ignored (N/A in schema)
     """
+    # AC-10 (VER-02): Manual validation for claimed_level
+    # Valid levels: BEGINNER, INTERMEDIATE, ADVANCED
+    # claimed_level is required (no default)
+    valid_levels = {"BEGINNER", "INTERMEDIATE", "ADVANCED"}
+    claimed_level = payload.claimed_level
+
+    if claimed_level not in valid_levels:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "VALIDATION_ERROR",
+                "message": f"claimed_level: '{claimed_level}' is not a valid level. Valid levels: {', '.join(sorted(valid_levels))}",
+                "request_id": None,
+            },
+        )
+
     if principal.talent_id is None:
         raise HTTPException(
             status_code=404,
@@ -109,7 +127,7 @@ def post_skills(
             session,
             principal,
             payload.skill_id,
-            payload.claimed_level,
+            claimed_level,
         )
     except SkillNotFoundError:
         raise HTTPException(
@@ -126,6 +144,19 @@ def post_skills(
             detail={
                 "code": "ALREADY_CLAIMED",
                 "message": "Bu beceri zaten eklenmiş.",
+                "request_id": None,
+            },
+        )
+    except Exception as e:
+        # Log any unexpected error during skill claim creation
+        import traceback
+        print(f"ERROR in add_skill_claim: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": "INTERNAL_ERROR",
+                "message": "Beceri eklenirken hata oluştu.",
                 "request_id": None,
             },
         )

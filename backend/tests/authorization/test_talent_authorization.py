@@ -616,3 +616,274 @@ class TestAuthentication:
         response = client.get("/me", headers={"X-Debug-User-Id": str(fake_id)})
 
         assert response.status_code == 401
+
+
+# ============================================================================
+# Skill claim validation: AC-10 (VER-02)
+# ============================================================================
+
+
+class TestSkillClaimValidation:
+    """AC-10 (VER-02): Invalid claimed_level → 400 VALIDATION_ERROR, not 409."""
+
+    def test_post_skills_invalid_claimed_level_returns_400(self, client, session, user_talent_alice, talent_alice):
+        """
+        AC-10 (VER-02): POST /talents/me/skills with invalid claimed_level → 400.
+
+        Scenario:
+        - Alice claims a skill with invalid claimed_level value (e.g., "INVALID", 99, null, etc.)
+        - Expected: 400 VALIDATION_ERROR (not 409 ALREADY_CLAIMED)
+
+        Acceptance Criteria:
+        - Status code: 400 (exactly)
+        - Response contains validation error details
+        - No skill claim created in database
+        - Error is 400, not 409 (409 would incorrectly suggest duplicate claim)
+        """
+        from app.models import Skill
+
+        # Create a test skill
+        skill = Skill(
+            slug="test-skill-validation",
+            name_tr="Test Skill",
+            name_en="Test Skill",
+            category="LANGUAGE",
+            status="ACTIVE",
+            parent_id=None,
+            merged_into_id=None,
+        )
+        session.add(skill)
+        session.flush()
+
+        # Attempt to claim skill with invalid claimed_level
+        invalid_claimed_levels = [
+            "INVALID",  # Not in enum
+            "beginner",  # Lowercase (if case-sensitive)
+            99,  # Out of range number
+            None,  # Null
+            "",  # Empty string
+        ]
+
+        for invalid_level in invalid_claimed_levels:
+            payload = {
+                "skill_id": str(skill.id),
+                "claimed_level": invalid_level,
+            }
+
+            response = client.post(
+                "/talents/me/skills",
+                json=payload,
+                headers={"X-Debug-User-Id": str(user_talent_alice.id)},
+            )
+
+            # Must be 400, not 409 or any other code
+            assert response.status_code == 400, (
+                f"Expected 400 for invalid claimed_level={invalid_level}, "
+                f"got {response.status_code}: {response.text}"
+            )
+
+            # Verify no claim was created
+            from sqlalchemy import select
+            from app.models import SkillClaim
+
+            existing_claims = session.execute(
+                select(SkillClaim).where(
+                    (SkillClaim.talent_id == talent_alice.id) &
+                    (SkillClaim.skill_id == skill.id)
+                )
+            ).scalars().all()
+
+            assert len(existing_claims) == 0, (
+                f"No skill claim should be created for invalid claimed_level={invalid_level}"
+            )
+
+    def test_post_skills_missing_claimed_level_returns_400(self, client, session, user_talent_alice, talent_alice):
+        """
+        AC-10 (VER-02): POST /talents/me/skills without claimed_level field → 400.
+
+        Scenario:
+        - Payload missing claimed_level field entirely
+        - Expected: 400 VALIDATION_ERROR
+
+        Acceptance Criteria:
+        - Status code: 400
+        - Response indicates required field missing
+        """
+        from app.models import Skill
+
+        skill = Skill(
+            slug="test-skill-missing-level",
+            name_tr="Test Skill Missing Level",
+            name_en="Test Skill Missing Level",
+            category="LANGUAGE",
+            status="ACTIVE",
+            parent_id=None,
+            merged_into_id=None,
+        )
+        session.add(skill)
+        session.flush()
+
+        # Payload missing claimed_level
+        payload = {
+            "skill_id": str(skill.id),
+            # claimed_level intentionally omitted
+        }
+
+        response = client.post(
+            "/talents/me/skills",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_talent_alice.id)},
+        )
+
+        # Must be 400 (validation error)
+        assert response.status_code == 400, (
+            f"Expected 400 for missing claimed_level, got {response.status_code}: {response.text}"
+        )
+
+
+# ============================================================================
+# PATCH /talents/me: AC-14 (L-06) — updated_at regression test
+# ============================================================================
+
+
+class TestUpdatedAtRegression:
+    """AC-14 (L-06): PATCH /talents/me updates updated_at automatically via TimestampMixin."""
+
+    def test_patch_talents_me_updates_updated_at_automatically(
+        self, client, session, user_talent_alice, talent_alice
+    ):
+        """
+        AC-14 (L-06): PATCH /talents/me automatically updates updated_at via TimestampMixin.
+
+        Scenario:
+        - Get Alice's current profile (capture updated_at timestamp)
+        - Wait a small delay (to ensure time passes)
+        - PATCH /talents/me with valid update (e.g., headline change)
+        - Get Alice's profile again
+        - Verify: updated_at is now strictly greater than before
+
+        Acceptance Criteria:
+        - Status code: 200
+        - updated_at (after PATCH) > updated_at (before PATCH)
+        - TimestampMixin automatically set updated_at (not manually in service code)
+        - No explicit "updated_at" parameter accepted in payload
+
+        Threat model: If service code manually sets updated_at, it might be overridable
+        via client payload (AC-14 in plan.md lists this as a potential security issue).
+        Test verifies TimestampMixin handles it, not manual code.
+        """
+        import time
+
+        # Get initial profile and capture updated_at
+        response_before = client.get(
+            "/me",
+            headers={"X-Debug-User-Id": str(user_talent_alice.id)},
+        )
+        assert response_before.status_code == 200
+
+        data_before = response_before.json()
+        talent_before = data_before["talent_profile"]
+        updated_at_before = talent_before.get("updated_at")
+
+        assert updated_at_before is not None, "Profile should have updated_at timestamp"
+
+        # Small delay to ensure time passes
+        time.sleep(0.1)
+
+        # PATCH: update headline
+        payload = {"headline": "Updated Headline for Regression Test"}
+
+        response_patch = client.patch(
+            "/talents/me",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_talent_alice.id)},
+        )
+        assert response_patch.status_code == 200
+
+        # Get updated profile
+        response_after = client.get(
+            "/me",
+            headers={"X-Debug-User-Id": str(user_talent_alice.id)},
+        )
+        assert response_after.status_code == 200
+
+        data_after = response_after.json()
+        talent_after = data_after["talent_profile"]
+        updated_at_after = talent_after.get("updated_at")
+
+        assert updated_at_after is not None, "Profile should have updated_at after PATCH"
+
+        # Verify: updated_at advanced
+        # Compare as strings (ISO 8601 format) or parse if they're datetime objects
+        assert updated_at_after > updated_at_before, (
+            f"updated_at should increase after PATCH. "
+            f"Before: {updated_at_before}, After: {updated_at_after}"
+        )
+
+        # Verify database record directly
+        alice_db = session.query(TalentProfile).filter_by(id=talent_alice.id).first()
+        assert alice_db.updated_at is not None, "DB record should have updated_at"
+        # Note: If updated_at is a datetime object, compare as such
+        # If it's stored/returned as string, the string comparison above is sufficient
+
+    def test_patch_talents_me_cannot_override_updated_at_in_payload(
+        self, client, session, user_talent_alice, talent_alice
+    ):
+        """
+        AC-14 (L-06): Sending updated_at in payload should be ignored.
+
+        Scenario:
+        - Get current updated_at
+        - PATCH with explicit updated_at field set to past timestamp
+        - Verify: server's updated_at is NOT the payload value (it's current time)
+
+        Acceptance Criteria:
+        - Payload's updated_at is ignored
+        - Server's actual updated_at is current time (or newer)
+        """
+        from datetime import datetime, timedelta, timezone
+
+        # Get initial updated_at
+        response_before = client.get(
+            "/me",
+            headers={"X-Debug-User-Id": str(user_talent_alice.id)},
+        )
+        data_before = response_before.json()
+        updated_at_before = data_before["talent_profile"]["updated_at"]
+
+        # Create a fake old timestamp (24 hours ago)
+        old_timestamp = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+
+        # PATCH: include updated_at in payload (should be ignored)
+        payload = {
+            "headline": "New Headline",
+            "updated_at": old_timestamp,  # Attempting to set old timestamp
+        }
+
+        response_patch = client.patch(
+            "/talents/me",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_talent_alice.id)},
+        )
+        assert response_patch.status_code == 200
+
+        # Get updated profile
+        response_after = client.get(
+            "/me",
+            headers={"X-Debug-User-Id": str(user_talent_alice.id)},
+        )
+        data_after = response_after.json()
+        updated_at_after = data_after["talent_profile"]["updated_at"]
+
+        # Verify: updated_at is NOT the old_timestamp (payload was ignored)
+        assert updated_at_after != old_timestamp, (
+            f"Server should ignore payload's updated_at. "
+            f"Payload had: {old_timestamp}, Server returned: {updated_at_after}"
+        )
+
+        # Verify: updated_at advanced from before
+        assert updated_at_after > updated_at_before, (
+            f"updated_at should be current time, not payload value. "
+            f"Before: {updated_at_before}, After: {updated_at_after}, "
+            f"Attempted payload: {old_timestamp}"
+        )

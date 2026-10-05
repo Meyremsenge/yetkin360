@@ -32,6 +32,12 @@ from app.models import (
     VerifiedExperience,
 )
 
+# Import will fail until Attestation model is implemented
+try:
+    from app.models import Attestation
+except ImportError:
+    Attestation = None
+
 
 @pytest.fixture
 def user_no_talent(session):
@@ -391,3 +397,244 @@ def test_ac11_ac_s3_talent_profile_required_returns_404_not_401(
     assert response.status_code == 404, (
         f"Expected 404 for talent-less principal, got {response.status_code}: {response.json()}"
     )
+
+
+# ============================================================================
+# AC-4 + AC-S3 (GUV-05): Revoked attestation filtering in public queries
+# ============================================================================
+
+
+class TestAC4RevokedAttestationPublicFiltering:
+    """
+    AC-4 + AC-S3 (GUV-05, High): Verified experiences with revoked attestations
+    must not appear in public reads.
+
+    Acceptance Criteria (from atdd.md):
+    "Given bir attestation `revoked_at` ile geri çekilmişse, When `GET /public/v/{token}`
+    veya VerifiedExperience listesi okunursa, Then bu kayıt artık görünmez/404 döner."
+
+    Implementation note:
+    - Append-only: attestations.revoked_at is set, row never deleted
+    - Public queries must filter: WHERE attestations.revoked_at IS NULL
+    - Or: VerifiedExperience.visibility auto-changed to something other than PUBLIC
+    - Test verifies: revoked attestations don't leak via public endpoint
+    """
+
+    def test_ac4_revoked_attestation_public_endpoint_404(
+        self, client, session, user_talent_a, verified_exp_a1_private
+    ):
+        """
+        AC-4/AC-S3: GET /public/v/{token} returns 404 after attestation revoked.
+
+        Given: VerifiedExperience has public_token and visibility=PUBLIC
+        When: Underlying attestation is revoked (revoked_at set)
+        Then: GET /public/v/{token} returns 404 VERIFICATION_NOT_FOUND
+        """
+        from app.models import Attestation
+        from datetime import datetime, timezone
+
+        # Create a VerifiedExperience with PUBLIC visibility (similar to verified_exp_a2_public)
+        ve_public = VerifiedExperience(
+            id=uuid4(),
+            talent_id=verified_exp_a1_private.talent_id,
+            engagement_id=verified_exp_a1_private.engagement_id,  # Reuse engagement
+            organization_name_snapshot="AC-4 Test Org Public",
+            role_snapshot="AC-4 Test Role",
+            started_on_snapshot=date(2024, 1, 1),
+            ended_on_snapshot=date(2024, 6, 30),
+            institution_name_snapshot=None,
+            claim_type="COMPETENCE",
+            visibility="PUBLIC",  # CRITICAL: Must be PUBLIC
+            public_token="ac4-public-revoke-test-token-12345",
+            created_at=datetime.now(timezone.utc),
+        )
+        session.add(ve_public)
+        session.flush()
+
+        # Create an attestation linked to this VerifiedExperience's engagement
+        # Attestation schema: engagement_id, talent_id, subject_type, subject_id
+        attestation = Attestation(
+            id=uuid4(),
+            engagement_id=ve_public.engagement_id,
+            talent_id=ve_public.talent_id,
+            subject_type="ENGAGEMENT",
+            subject_id=ve_public.engagement_id,
+            attestor_user_id=user_talent_a.id,
+            claim_type="COMPETENCE",
+            requested_claim_type="COMPETENCE",
+            # revoked_at: None (not yet revoked)
+        )
+        session.add(attestation)
+        session.flush()
+
+        # Baseline: token accessible before revoke
+        response_before = client.get(f"/public/v/{ve_public.public_token}")
+        baseline_status = response_before.status_code
+        assert baseline_status == 200, (
+            f"AC-4 BASELINE VIOLATION: Token should be accessible (200) before revoke, "
+            f"got {baseline_status}"
+        )
+
+        # Revoke the attestation
+        attestation.revoked_at = datetime.now(timezone.utc)
+        session.flush()
+
+        # After revoke: GET /public/v/{token} must return 404
+        response_after = client.get(f"/public/v/{ve_public.public_token}")
+
+        assert response_after.status_code == 404, (
+            f"AC-4/AC-S3 VIOLATION: After attestation revoke, "
+            f"GET /public/v/{{token}} should return 404. "
+            f"Got {response_after.status_code}. "
+            f"Revoked attestations must be filtered in public reads."
+        )
+
+        data = response_after.json()
+        assert data.get("code") == "VERIFICATION_NOT_FOUND", (
+            f"AC-4 VIOLATION: Expected VERIFICATION_NOT_FOUND, got {data.get('code')}"
+        )
+        assert data.get("message") == "Kayıt bulunamadı", (
+            f"AC-4 VIOLATION: Expected 'Kayıt bulunamadı', got {data.get('message')}"
+        )
+
+    def test_ac4_revoked_attestation_not_in_public_list(
+        self, client, session, user_talent_a, organization_a, verified_exp_a1_private
+    ):
+        """
+        AC-4/AC-S3: VerifiedExperience with revoked attestations not in public list.
+
+        Given: Talent has PUBLIC VerifiedExperience
+        When: Its attestation is revoked
+        Then: GET /public/verified-experiences (if such endpoint exists) excludes it
+              OR: GET /public/v/{token} returns 404 (primary defense)
+
+        Note: This is a secondary check. Primary is public endpoint returning 404.
+        """
+        from app.models import Attestation
+        from datetime import datetime, timezone
+
+        # Create VerifiedExperience
+        ve = VerifiedExperience(
+            id=uuid4(),
+            talent_id=verified_exp_a1_private.talent_id,
+            engagement_id=verified_exp_a1_private.engagement_id,
+            organization_name_snapshot="AC-4 List Test Org",
+            role_snapshot="AC-4 List Test Role",
+            started_on_snapshot=date(2024, 2, 1),
+            ended_on_snapshot=date(2024, 8, 31),
+            institution_name_snapshot=None,
+            claim_type="PARTICIPATION",
+            visibility="PUBLIC",
+            public_token="ac4-list-revoke-token-67890",
+            created_at=datetime.now(timezone.utc),
+        )
+        session.add(ve)
+        session.flush()
+
+        # Create attestation linked to the VerifiedExperience's engagement
+        attestation = Attestation(
+            id=uuid4(),
+            engagement_id=ve.engagement_id,
+            talent_id=ve.talent_id,
+            subject_type="ENGAGEMENT",
+            subject_id=ve.engagement_id,
+            attestor_user_id=user_talent_a.id,
+            claim_type="PARTICIPATION",
+            requested_claim_type="PARTICIPATION",
+        )
+        session.add(attestation)
+        session.flush()
+
+        # Revoke
+        attestation.revoked_at = datetime.now(timezone.utc)
+        session.flush()
+
+        # Verify: public endpoint returns 404
+        response = client.get(f"/public/v/{ve.public_token}")
+
+        assert response.status_code == 404, (
+            f"AC-4 VIOLATION: Revoked VerifiedExperience should return 404, "
+            f"got {response.status_code}"
+        )
+
+    def test_ac4_multiple_public_experiences_revoke_one_filters_only_revoked(
+        self, client, session, user_talent_a, organization_a, verified_exp_a1_private, verified_exp_a2_public
+    ):
+        """
+        AC-4/AC-S3 (Regression): Talent with multiple PUBLIC VerifiedExperiences —
+        revoking one doesn't affect the other.
+
+        Given: Talent A has 2 PUBLIC VerifiedExperiences
+        When: Attestation for one is revoked
+        Then: Other remains accessible via GET /public/v/{token}
+        """
+        from app.models import Attestation
+        from datetime import datetime, timezone
+
+        # verified_exp_a2_public is already PUBLIC from fixture
+        # Verify baseline: both tokens accessible
+        resp1_before = client.get(f"/public/v/{verified_exp_a2_public.public_token}")
+        assert resp1_before.status_code == 200, (
+            f"AC-4 BASELINE VIOLATION: First token should be accessible (200) before revoke, "
+            f"got {resp1_before.status_code}"
+        )
+
+        # Create another VerifiedExperience
+        ve_other = VerifiedExperience(
+            id=uuid4(),
+            talent_id=verified_exp_a1_private.talent_id,
+            engagement_id=verified_exp_a1_private.engagement_id,
+            organization_name_snapshot="AC-4 Multiple Test Org 2",
+            role_snapshot="Different Role",
+            started_on_snapshot=date(2024, 3, 1),
+            ended_on_snapshot=date(2024, 9, 30),
+            institution_name_snapshot=None,
+            claim_type="COMPETENCE",
+            visibility="PUBLIC",
+            public_token="ac4-other-experience-token-11111",
+            created_at=datetime.now(timezone.utc),
+        )
+        session.add(ve_other)
+        session.flush()
+
+        # Create attestations for both experiences
+        att1 = Attestation(
+            id=uuid4(),
+            engagement_id=verified_exp_a2_public.engagement_id,
+            talent_id=verified_exp_a2_public.talent_id,
+            subject_type="ENGAGEMENT",
+            subject_id=verified_exp_a2_public.engagement_id,
+            attestor_user_id=user_talent_a.id,
+            claim_type="PARTICIPATION",
+            requested_claim_type="PARTICIPATION",
+        )
+        att2 = Attestation(
+            id=uuid4(),
+            engagement_id=ve_other.engagement_id,
+            talent_id=ve_other.talent_id,
+            subject_type="ENGAGEMENT",
+            subject_id=ve_other.engagement_id,
+            attestor_user_id=user_talent_a.id,
+            claim_type="COMPETENCE",
+            requested_claim_type="COMPETENCE",
+        )
+        session.add_all([att1, att2])
+        session.flush()
+
+        # Revoke only att2
+        att2.revoked_at = datetime.now(timezone.utc)
+        session.flush()
+
+        # Verify: att1's experience still 200, att2's is 404
+        resp1_after = client.get(f"/public/v/{verified_exp_a2_public.public_token}")
+        resp2_after = client.get(f"/public/v/{ve_other.public_token}")
+
+        assert resp1_after.status_code == 200, (
+            f"AC-4 VIOLATION: Non-revoked VerifiedExperience should still be 200, "
+            f"got {resp1_after.status_code}"
+        )
+
+        assert resp2_after.status_code == 404, (
+            f"AC-4 VIOLATION: Revoked VerifiedExperience should be 404, "
+            f"got {resp2_after.status_code}"
+        )

@@ -30,6 +30,7 @@ from app.models import (
     OrganizationMember,
     InstitutionMember,
     Skill,
+    SkillSignal,
 )
 
 # Import will fail until Evaluation model is implemented
@@ -715,3 +716,150 @@ class TestEvaluationCoordinatorRestriction:
         data = response.json()
         error_obj = data.get("detail") if "detail" in data else data
         assert error_obj.get("code") == "FORBIDDEN"
+
+
+# ============================================================================
+# AC-5 + AC-S4 (GUV-04): TALENT cannot generate STRONG signal on own TALENT_TO_ORG evaluation
+# ============================================================================
+
+
+class TestTalentSelfSignalPrevention:
+    """
+    AC-5 + AC-S4 (GUV-04): TALENT posting TALENT_TO_ORG evaluation must not generate
+    skill_signal row in database (talent cannot evaluate self and produce STRONG signal).
+
+    Threat model: Elevation of privilege — talent attempting to create verification
+    signals about their own claims, which would bypass the "independent attestor" requirement.
+
+    Expectation:
+    - POST /engagements/{id}/evaluation with direction=TALENT_TO_ORG returns 403/404
+    - No skill_signal row is created
+    - No sinyal artifact in DB
+    """
+
+    def test_talent_talent_to_org_evaluation_accepted_but_no_signal_generated(
+        self, client, session, user_talent_alice_authz, talent_alice_authz,
+        engagement_pending_eval_alice_authz, skill_communication_authz
+    ):
+        """
+        AC-5 + AC-S4 (GUV-04): Talent Alice posts TALENT_TO_ORG evaluation on her own engagement.
+
+        Behavior per ATDD decision (2026, user approval — "B seçeneği"):
+        - Request is ACCEPTED (201 Created) — TALENT posting TALENT_TO_ORG is a legitimate action
+        - However, NO skill_signal row is created in database — talent cannot generate STRONG signal on own evaluation
+
+        Threat model: Elevation of privilege — preventing talent from creating verification
+        signals about their own claims, which would bypass the "independent attestor" requirement.
+
+        Acceptance Criteria (AC-S4):
+        - Status code: 201 (request accepted, per decision: "istek engellenmez, sadece sinyal üretimi engellenir")
+        - skill_signals table: zero rows with this evaluation_id (no signal generated, STRONG rating blocked)
+        - Evaluation record created, but no corresponding skill signal in DB
+        """
+        # Verify fixture setup: Alice is TALENT, owns engagement
+        assert talent_alice_authz.user_id == user_talent_alice_authz.id
+        assert engagement_pending_eval_alice_authz.talent_id == talent_alice_authz.id
+
+        payload = {
+            "direction": "TALENT_TO_ORG",
+            "items": [
+                {
+                    "criterion": "Organization",
+                    "skill_id": str(skill_communication_authz.id),
+                    "rating": "MEETS",
+                    "comment": "Good org",
+                }
+            ],
+            "private_note": "Self-generated signal attempt",
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_pending_eval_alice_authz.id}/evaluation",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_talent_alice_authz.id)},
+        )
+
+        # AC-S4: Request must be ACCEPTED (201), not blocked
+        assert response.status_code == 201, \
+            f"Expected 201 (request accepted), got {response.status_code}: {response.text}"
+
+        # Verify: No skill_signal row created in database for this evaluation
+        import uuid
+
+        evaluation_data = response.json()
+        evaluation_id = evaluation_data.get("id")
+        assert evaluation_id is not None, "Response must include evaluation id"
+
+        signal_count = session.query(SkillSignal).filter(
+            SkillSignal.source_type == "EVALUATION",
+            SkillSignal.source_id == uuid.UUID(evaluation_id)
+        ).count()
+        assert signal_count == 0, \
+            f"No skill_signal should be generated for TALENT_TO_ORG evaluation, but found {signal_count}"
+
+
+# ============================================================================
+# AC-8 (IS-05): Invalid skill_id in evaluation → 422 VALIDATION_ERROR
+# ============================================================================
+
+
+class TestEvaluationInvalidSkillIdValidation:
+    """
+    AC-8 (IS-05): Evaluation/attestation endpoint rejects invalid skill_id with 422 VALIDATION_ERROR.
+
+    This test ensures that when submitting evaluation with non-existent skill_id,
+    the API does NOT silently ignore it (previous bug) but returns proper validation error.
+
+    Security aspect: prevents evaluations from being silently created with dangling
+    skill references, which would corrupt the verification chain and create false
+    attestations.
+    """
+
+    def test_evaluation_invalid_skill_id_returns_422(
+        self, client, session, user_org_member_charlie_authz, org_member_charlie_authz,
+        engagement_pending_eval_alice_authz
+    ):
+        """
+        AC-8: POST /engagements/{id}/evaluation with non-existent skill_id → 422 VALIDATION_ERROR.
+
+        Scenario:
+        - Charlie (ORG:MEMBER) attempts to create ORG_TO_TALENT evaluation
+        - Includes invalid skill_id (UUID that doesn't exist in Skill table)
+        - Server must validate and reject with 422, not silently accept
+
+        Acceptance Criteria:
+        - Status code: 422 UNPROCESSABLE_ENTITY (strictly 422, not 400, not 201)
+        - Error code: "VALIDATION_ERROR"
+        - Error message must reference invalid skill_id
+        - No evaluation row created in database
+        """
+        import uuid
+
+        fake_skill_id = uuid.uuid4()
+
+        payload = {
+            "direction": "ORG_TO_TALENT",
+            "items": [
+                {
+                    "criterion": "Communication",
+                    "skill_id": str(fake_skill_id),  # Non-existent skill
+                    "rating": "MEETS",
+                    "comment": "Test comment",
+                }
+            ],
+            "private_note": "Test note",
+        }
+
+        response = client.post(
+            f"/engagements/{engagement_pending_eval_alice_authz.id}/evaluation",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_org_member_charlie_authz.id)},
+        )
+
+        assert response.status_code == 422, \
+            f"Expected 422 VALIDATION_ERROR, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        error_obj = data.get("detail") if "detail" in data else data
+        assert error_obj.get("code") == "VALIDATION_ERROR", \
+            f"Expected code VALIDATION_ERROR, got {error_obj.get('code')}"

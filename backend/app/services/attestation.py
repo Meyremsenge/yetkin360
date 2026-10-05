@@ -30,6 +30,7 @@ from app.models import (
 from app.models.outbox import Outbox
 from app.services.authorization import Principal, get_scoped_or_404, scoped_engagements, engagement_relation
 from app.services.audit import log_audit_event
+from app.models.verified_experience import generate_public_token
 
 
 # Exception classes
@@ -312,6 +313,7 @@ def create_attestation(
         inst_name = inst.name if inst else None
 
     # Create VerifiedExperience snapshot
+    # AC-1 (IS-01): Generate public_token for public verification link
     verified_exp = VerifiedExperience(
         talent_id=engagement.talent_id,
         engagement_id=engagement.id,
@@ -322,6 +324,7 @@ def create_attestation(
         institution_name_snapshot=inst_name,
         claim_type=final_claim_type,
         visibility="PRIVATE",  # Default visibility (DOMAIN.md D6: mutable in future)
+        public_token=generate_public_token(),  # AC-1: Generate token for potential public access
         created_at=now,
     )
     session.add(verified_exp)
