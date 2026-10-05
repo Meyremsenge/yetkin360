@@ -1,3 +1,23 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --primary: 222 47% 11%;
+  --muted: 220 13% 91%;
+  --border: 220 13% 91%;
+  --destructive: 0 84% 60%;
+  --success: 120 73% 75%;
+  --warning: 38 92% 50%;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+}

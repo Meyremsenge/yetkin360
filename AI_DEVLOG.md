@@ -5,6 +5,15 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## bg-renk-token-tanimsiz — YET-244 arka plan/renk token'ları (2026-10-05)
+
+**Kaynak:** `obss_project/artifacts/bg-renk-token-tanimsiz/` — body/html'de background-color tanımsız olduğu için sistem koyu temada kart dışı alanların siyah/saydam göründüğü bug (shadcn-standart CSS değişkenleri + Tailwind bağlantısı eklendi).
+
+### Gerçek zorluk/bug (kaynak: test_diff.md, verify_report.md)
+- **Test dosya adı vitest include desenine uymuyordu:** `test-copilot`'un ilk teslim ettiği `globals.test.css.ts` dosyası `.css.ts` ile bittiği için `vitest.config.ts`'in `include: ["**/*.test.{ts,tsx}"]` deseniyle eşleşmiyordu — içindeki 14 test (AC-3/4/5) sessizce hiç çalışmıyordu. `verify` adımında hedefli test çalıştırmasıyla (sadece 1 dosya/18 test döndüğü fark edilerek) yakalandı, `globals-css.test.ts` olarak yeniden adlandırıldı.
+- **`next dev` stale Tailwind cache:** `tailwind.config.ts`'e yeni `colors` token'ları eklendikten sonra zaten çalışmakta olan `next dev` süreci `bg-background` class'ını "mevcut değil" sayıp 500 hatası verdi — `npm run build` (production, her zaman temiz derleme) bu sorunu hiç yaşamadı. Dev sunucusunun yeniden başlatılmasıyla (`preview_stop`/`preview_start`) düzeldi. **Ders:** `tailwind.config.ts` değişikliklerinde (yeni token ekleme) çalışan bir `next dev` prosesi varsa restart gerekebilir, HMR bazen yetersiz kalıyor.
+- **AC-2'nin ilk test tasarımı yanlıştı:** `renderToStaticMarkup` çıktısında `color-scheme`/`light` string'lerini arayan bir test yazılmıştı — ama bu bilgi harici `globals.css`'ten geldiği için SSR string'ine hiç karışmaz, doğru implementasyonla bile sonsuza dek kırmızı kalırdı. `test-copilot` adımında (implementasyon yazılmadan önce) fark edilip kaldırıldı, yalnız kaynak-dosya okuyan (doğru) test korundu.
+
 ## guvenlik-bulgulari-duzeltme — 14 Jira güvenlik/yetkilendirme bulgusu (2026-10-05)
 
 **Kaynak:** `obss_project/artifacts/guvenlik-bulgulari-duzeltme/` — GUV-04/05/08, IS-01/02/03/05/06, AUTHZ-03, VER-02, L-06/08/09/10 (tek turda, kullanıcı onayıyla birleştirildi).

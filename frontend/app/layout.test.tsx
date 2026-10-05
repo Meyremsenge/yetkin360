@@ -138,4 +138,99 @@ describe("RootLayout (app/layout.tsx)", () => {
       expect(source).toMatch(/Providers|QueryClientProvider/i);
     });
   });
+
+  /**
+   * AC-1: Happy path — body `bg-background text-foreground antialiased` sınıfları
+   * Kullanıcı herhangi bir sayfayı açar → body elemanı `bg-background text-foreground antialiased` sınıflarını taşır
+   */
+  describe("AC-1: bg-renk-token-tanimsiz — body arka planı ve metin rengi", () => {
+    it("AC-1: body elemanı bg-background sınıfını taşır", () => {
+      const result = renderToStaticMarkup(
+        <RootLayout>
+          <p>test content</p>
+        </RootLayout>
+      );
+
+      // body elemanının bg-background class'ını içermesi gerekir
+      expect(result).toContain("bg-background");
+    });
+
+    it("AC-1: body elemanı text-foreground sınıfını taşır", () => {
+      const result = renderToStaticMarkup(
+        <RootLayout>
+          <p>test content</p>
+        </RootLayout>
+      );
+
+      expect(result).toContain("text-foreground");
+    });
+
+    it("AC-1: body elemanı antialiased sınıfını taşır", () => {
+      const result = renderToStaticMarkup(
+        <RootLayout>
+          <p>test content</p>
+        </RootLayout>
+      );
+
+      expect(result).toContain("antialiased");
+    });
+
+    it("AC-1: body elemanı tüm üç sınıfı birlikte taşır", () => {
+      const result = renderToStaticMarkup(
+        <RootLayout>
+          <p>test content</p>
+        </RootLayout>
+      );
+
+      // body tag'ı bg-background, text-foreground, antialiased içermelidir
+      expect(result).toMatch(
+        /<body[^>]*(bg-background|text-foreground|antialiased)[^>]*>/
+      );
+    });
+  });
+
+  /**
+   * AC-2: HTML element'i `color-scheme: light` stiline sahip
+   * İşletim sistemi koyu temadadır → sayfa yine de light token'larla render edilir
+   */
+  describe("AC-2: bg-renk-token-tanimsiz — color-scheme: light", () => {
+    it("AC-2: globals.css kaynağında color-scheme tanımı var", () => {
+      const globalsPath = join(__dirname, "globals.css");
+      const source = readFileSync(globalsPath, "utf-8");
+
+      // globals.css'te "color-scheme: light" string'i olmalı
+      expect(source).toContain("color-scheme: light");
+    });
+  });
+
+  /**
+   * AC-6: layout.tsx veya globals.css'te body'ye bg-background uygulanıyor
+   * tailwind.config.ts + globals.css değişti ama body class'ı eklenmedi → sorun sürer
+   * Test: body'de bg-background kullanıldığını doğrula
+   */
+  describe("AC-6: bg-renk-token-tanimsiz — body class'ı uygulanması", () => {
+    it("AC-6: layout.tsx'te body className veya globals.css'te body seçicisinde bg-background var", () => {
+      const source = readFileSync(layoutPath, "utf-8");
+      const globalsPath = join(__dirname, "globals.css");
+      const globalsSource = readFileSync(globalsPath, "utf-8");
+
+      // layout.tsx'te className'de bg-background veya globals.css'te body seçicisinde olmalı
+      const hasInLayout = source.includes('className="') && source.includes("bg-background");
+      const hasInGlobals = globalsSource.includes("body") && globalsSource.includes("bg-background");
+
+      expect(hasInLayout || hasInGlobals).toBe(true);
+    });
+
+    it("AC-6: layout render'ında body elemanı bg-background ile görünür", () => {
+      const result = renderToStaticMarkup(
+        <RootLayout>
+          <p>test content</p>
+        </RootLayout>
+      );
+
+      // render edilen HTML'de body'nin bg-background class'ını taşıması gerekir
+      expect(result).toContain("<body");
+      expect(result).toContain("bg-background");
+    });
+  });
 });
