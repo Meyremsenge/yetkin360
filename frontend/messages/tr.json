@@ -289,7 +289,27 @@
     "rejectButton": "Reddet",
     "linkRequestApprovedMessage": "Talep onaylandı.",
     "linkRequestRejectedMessage": "Talep reddedildi.",
-    "linkRequestActionError": "İşlem sırasında bir hata oluştu."
+    "linkRequestActionError": "İşlem sırasında bir hata oluştu.",
+    "membersTitle": "Üyeler",
+    "emptyMembersMessage": "Henüz üye yok.",
+    "memberRole": {
+      "ADMIN": "Yönetici",
+      "COORDINATOR": "Koordinatör"
+    },
+    "inviteMemberTitle": "Üye Davet Et",
+    "inviteEmailLabel": "E-posta",
+    "inviteRoleLabel": "Rol",
+    "inviteButton": "Davet Gönder",
+    "invitingButton": "Gönderiliyor...",
+    "inviteSuccessMessage": "Davet kuyruğa alındı.",
+    "inviteErrorMessage": "Davet gönderilemedi.",
+    "reminderSectionTitle": "Hatırlatma Gönder",
+    "reminderSelectAllLabel": "Tümünü seç",
+    "reminderSendButton": "Seçilenlere Hatırlatma Gönder",
+    "reminderSendingButton": "Gönderiliyor...",
+    "reminderSuccessMessage": "Hatırlatma kuyruğa alındı.",
+    "reminderErrorMessage": "Hatırlatma gönderilemedi.",
+    "reminderNoneSelectedMessage": "Önce en az bir staj seçin."
   },
   "adminVerificationQueue": {
     "title": "Kurum Doğrulama Kuyruğu",
