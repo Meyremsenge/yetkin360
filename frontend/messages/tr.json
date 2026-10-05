@@ -237,8 +237,7 @@
     "submitButton": "Değerlendirmeyi Gönder",
     "submittingButton": "Gönderiliyor...",
     "successMessage": "Değerlendirme gönderildi.",
-    "alreadySubmittedError": "Bu çalışma için değerlendirme zaten gönderilmiş.",
-    "invalidStatusError": "Bu çalışma şu anda değerlendirme aşamasında değil.",
+    "conflictError": "Bu çalışma şu anda değerlendirilemiyor (zaten değerlendirilmiş veya durumu değişmiş olabilir). Güncel durum yeniden yüklendi.",
     "notEligibleMessage": "Bu çalışma değerlendirme aşamasında değil, form gösterilemiyor."
   },
   "publicProfile": {
