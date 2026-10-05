@@ -6,6 +6,7 @@ import {
   rejectLinkRequest,
   listPendingLinkRequests,
   listMyLinkRequests,
+  createInstitution,
 } from "./institutions";
 import * as client from "./client";
 import { ApiError, NetworkError } from "./errors";
@@ -443,6 +444,46 @@ describe("lib/api/institutions", () => {
       mockApiFetch.mockRejectedValueOnce(error);
 
       await expect(listMyLinkRequests()).rejects.toMatchObject({ status: 401 });
+    });
+  });
+
+  /**
+   * YET-202/ENT-01: Kurum oluşturma.
+   */
+  describe("createInstitution", () => {
+    it("happy path - POST /institutions/ çağırır (sondaki / ile, 307 redirect yok), 201 döner", async () => {
+      const response = { id: "inst-1", name: "Test Üniversitesi", domain: null, verification_level: "T1", status: "ACTIVE" };
+      mockApiFetch.mockResolvedValueOnce(response);
+
+      const result = await createInstitution("Test Üniversitesi");
+
+      expect(result).toEqual(response);
+      expect(mockApiFetch).toHaveBeenCalledWith("/institutions/", {
+        method: "POST",
+        body: { name: "Test Üniversitesi" },
+      });
+    });
+
+    it("domain alanı payload'da hiç yok (GUV-09 — backend yok sayıyor, göndermenin anlamı yok)", async () => {
+      mockApiFetch.mockResolvedValueOnce({ id: "inst-2", name: "x", domain: null, verification_level: "T1", status: "ACTIVE" });
+
+      await createInstitution("x");
+
+      const call = mockApiFetch.mock.calls[0][1] as { body: Record<string, unknown> };
+      expect(call.body).not.toHaveProperty("domain");
+    });
+
+    it("422 VALIDATION_ERROR - boş ad için ApiError fırlatır", async () => {
+      const error = new ApiError({ status: 422, code: "VALIDATION_ERROR", message: "x", requestId: null });
+      mockApiFetch.mockRejectedValueOnce(error);
+
+      await expect(createInstitution("")).rejects.toMatchObject({ status: 422, code: "VALIDATION_ERROR" });
+    });
+
+    it("network error - NetworkError fırlatır", async () => {
+      mockApiFetch.mockRejectedValueOnce(new NetworkError("network"));
+
+      await expect(createInstitution("x")).rejects.toBeInstanceOf(NetworkError);
     });
   });
 });

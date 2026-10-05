@@ -5,6 +5,34 @@
  */
 
 import { apiFetch } from "./client";
+import { ApiError } from "./errors";
+
+export interface InstitutionResponse {
+  id: string;
+  name: string;
+  domain: string | null;
+  verification_level: string;
+  status: string;
+}
+
+/**
+ * YET-202/ENT-01: Yeni kurum oluşturur, çağıran otomatik ADMIN olur.
+ * `domain` şema'da kabul edilse de backend'de GUV-09 ile hep `None`a sabitlenir
+ * (domain-squatting riski — bkz. backend/app/api/institutions.py) — bu yüzden
+ * burada domain parametresi bile yok, forma da eklenmeyecek.
+ * Router prefix+"/" → gerçek yol "/institutions/" (organizations.ts'teki
+ * aynı 307-redirect nedeniyle sondaki / ile doğrudan çağrılır).
+ */
+export async function createInstitution(name: string): Promise<InstitutionResponse> {
+  const response = await apiFetch<InstitutionResponse>("/institutions/", {
+    method: "POST",
+    body: { name },
+  });
+  if (!response) {
+    throw new ApiError({ status: 502, code: "UNKNOWN_ERROR", message: "Beklenmeyen yanıt.", requestId: null });
+  }
+  return response;
+}
 
 export interface PendingItem {
   id: string;
