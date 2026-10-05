@@ -25,7 +25,7 @@ let refreshPromise: Promise<void> | null = null;
  */
 function getCsrfToken(): string {
   if (typeof document === "undefined") return "";
-  const match = document.cookie.match(/csrf_token=([^;]*)/);
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
   return match?.[1] || "";
 }
 
