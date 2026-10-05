@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
@@ -24,8 +24,12 @@ const KIND_OPTIONS: EngagementKind[] = ["INTERNSHIP", "CAPSTONE", "SHORT_PROJECT
  * otomatik doldurulur. institution_id verilirse backend onu talent'ın kendi
  * institution_id'siyle eşleştirmek ZORUNDA (INSTITUTION_MISMATCH, 400) —
  * elle girilebilir bir alan olsa bu hatayı anlamsız yere tetikler.
+ *
+ * Suspense sarmalı: useSearchParams() App Router'da CSR-bailout için bir
+ * Suspense sınırı gerektirir, yoksa `next build` prerender'da hata verir
+ * (bkz. e-posta-dogrula/page.tsx'teki aynı desen).
  */
-export default function CalismaOlusturPage() {
+function CalismaOlusturContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const organizationId = searchParams.get("organization_id");
@@ -136,5 +140,13 @@ export default function CalismaOlusturPage() {
         </form>
       </div>
     </AppShell>
+  );
+}
+
+export default function CalismaOlusturPage() {
+  return (
+    <Suspense fallback={null}>
+      <CalismaOlusturContent />
+    </Suspense>
   );
 }
