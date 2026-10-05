@@ -331,6 +331,46 @@
     "reminderErrorMessage": "Hatırlatma gönderilemedi.",
     "reminderNoneSelectedMessage": "Önce en az bir staj seçin."
   },
+  "kurulusOlustur": {
+    "title": "Yeni Organizasyon Oluştur",
+    "nameLabel": "Ad",
+    "domainLabel": "Alan Adı (opsiyonel)",
+    "domainPlaceholder": "ornek.com",
+    "domainHint": "Daha sonra bu alan adını doğrulayabilirsiniz. Boş bırakırsanız doğrulama bölümü gösterilmez.",
+    "legalIdLabel": "Ticari Sicil No (opsiyonel)",
+    "submitButton": "Oluştur",
+    "submittingButton": "Oluşturuluyor...",
+    "legalIdTakenError": "Bu ticari sicil numarası zaten kayıtlı.",
+    "validationError": "Ad veya alan adı geçersiz. Lütfen kontrol edin."
+  },
+  "kurulusPanel": {
+    "title": "Organizasyon Paneli",
+    "legalIdLabel": "Ticari Sicil No",
+    "domainSectionTitle": "Alan Adı Doğrulama",
+    "domainLabel": "Alan Adı",
+    "noDomainMessage": "Bu organizasyon için alan adı belirlenmemiş, doğrulama yapılamaz.",
+    "domainVerifiedBadge": "Doğrulanmış alan adı",
+    "txtRecordHint": "Bu TXT kaydını alan adınızın DNS ayarlarına ekleyin, sonra tekrar deneyin:",
+    "verifyButton": "Doğrulamayı Kontrol Et",
+    "retryVerifyButton": "Tekrar Dene",
+    "verifyingButton": "Kontrol ediliyor...",
+    "pendingMessage": "Kayıt henüz bulunamadı. DNS değişiklikleri yayılması biraz zaman alabilir — TXT kaydını ekledikten sonra tekrar deneyin.",
+    "verifiedMessage": "Alan adı doğrulandı.",
+    "freeEmailDomainError": "Ücretsiz e-posta sağlayıcıları (gmail.com, hotmail.com vb.) doğrulanamaz.",
+    "rateLimitedError": "Çok sık deniyorsunuz. Lütfen bir dakika bekleyip tekrar deneyin.",
+    "domainAlreadyVerifiedError": "Bu alan adı başka bir organizasyonda zaten doğrulanmış.",
+    "inviteMemberTitle": "Üye Davet Et",
+    "inviteEmailLabel": "E-posta",
+    "inviteRoleLabel": "Rol",
+    "memberRole": {
+      "ADMIN": "Yönetici",
+      "MEMBER": "Üye"
+    },
+    "inviteButton": "Davet Gönder",
+    "invitingButton": "Gönderiliyor...",
+    "inviteSuccessMessage": "Davet kuyruğa alındı.",
+    "inviteErrorMessage": "Davet gönderilemedi."
+  },
   "adminVerificationQueue": {
     "title": "Kurum Doğrulama Kuyruğu",
     "empty": "Bekleyen doğrulama isteği yok",
