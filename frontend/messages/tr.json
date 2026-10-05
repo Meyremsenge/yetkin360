@@ -295,6 +295,12 @@
     "verifiedAtLabel": "Doğrulama Tarihi",
     "attestedSkillsTitle": "Tanıklık Yapılan Yetkinlikler"
   },
+  "kurumOlustur": {
+    "title": "Yeni Kurum Oluştur",
+    "nameLabel": "Ad",
+    "submitButton": "Oluştur",
+    "submittingButton": "Oluşturuluyor..."
+  },
   "kurumPanel": {
     "title": "Kurum Paneli",
     "pendingApprovalLabel": "Onay Bekleyen",
