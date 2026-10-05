@@ -5,7 +5,6 @@ import DegerlendirmePage from "@/app/calismalar/[id]/degerlendirme/page";
 import { useSession } from "@/lib/session/use-session";
 import { useParams } from "next/navigation";
 import { getEngagement } from "@/lib/api/engagements";
-import { hasSubmittedEvaluation } from "@/lib/api/evaluation";
 import type { EngagementDetail } from "@/lib/api/engagements";
 
 vi.mock("next/navigation", () => ({
@@ -16,9 +15,6 @@ vi.mock("@/lib/api/engagements", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api/engagements")>();
   return { ...actual, getEngagement: vi.fn() };
 });
-vi.mock("@/lib/api/evaluation", () => ({
-  hasSubmittedEvaluation: vi.fn(),
-}));
 vi.mock("@/app/calismalar/[id]/degerlendirme/evaluation-form", () => ({
   EvaluationForm: ({ onSubmitted }: { onSubmitted: () => void }) => (
     <div data-testid="evaluation-form">
@@ -75,19 +71,17 @@ describe("DegerlendirmePage (/calismalar/[id]/degerlendirme)", () => {
 
   it("yüklenirken 'Yükleniyor...' gösterir", () => {
     vi.mocked(getEngagement).mockReturnValue(new Promise(() => {}));
-    vi.mocked(hasSubmittedEvaluation).mockResolvedValue(false);
 
     renderWithQueryClient(<DegerlendirmePage />);
 
     expect(screen.getByText("Yükleniyor...")).toBeTruthy();
   });
 
-  it("engagement PENDING_EVALUATION değilse form gösterilmez, uygun mesaj görünür", async () => {
+  it("engagement PENDING_EVALUATION değilse (örn. zaten değerlendirilmiş) form gösterilmez, uygun mesaj görünür", async () => {
     vi.mocked(getEngagement).mockResolvedValueOnce({
       ...pendingEvaluationEngagement,
-      status: "ACTIVE",
+      status: "EVALUATED",
     });
-    vi.mocked(hasSubmittedEvaluation).mockResolvedValue(false);
 
     renderWithQueryClient(<DegerlendirmePage />);
 
@@ -99,21 +93,8 @@ describe("DegerlendirmePage (/calismalar/[id]/degerlendirme)", () => {
     });
   });
 
-  it("daha önce gönderilmiş bir değerlendirme varsa başarı mesajı gösterilir, form gösterilmez", async () => {
+  it("PENDING_EVALUATION ise form gösterilir; gönderim sonrası başarı mesajına döner", async () => {
     vi.mocked(getEngagement).mockResolvedValueOnce(pendingEvaluationEngagement);
-    vi.mocked(hasSubmittedEvaluation).mockResolvedValueOnce(true);
-
-    renderWithQueryClient(<DegerlendirmePage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Değerlendirme gönderildi.")).toBeTruthy();
-      expect(screen.queryByTestId("evaluation-form")).toBeNull();
-    });
-  });
-
-  it("PENDING_EVALUATION ve gönderilmemişse form gösterilir; gönderim sonrası başarı mesajına döner", async () => {
-    vi.mocked(getEngagement).mockResolvedValueOnce(pendingEvaluationEngagement);
-    vi.mocked(hasSubmittedEvaluation).mockResolvedValueOnce(false);
 
     renderWithQueryClient(<DegerlendirmePage />);
 

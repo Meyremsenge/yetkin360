@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   evaluationFormSchema,
   type EvaluationFormData,
@@ -33,6 +34,7 @@ export function EvaluationForm({
   onSubmitted: () => void;
 }) {
   const [rootError, setRootError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const {
     register,
@@ -56,12 +58,17 @@ export function EvaluationForm({
       onSubmitted();
     } catch (error) {
       if (error instanceof ApiError) {
-        if (error.code === "ALREADY_SUBMITTED") {
-          setRootError(messages.degerlendirme.alreadySubmittedError);
+        // Backend hem "zaten değerlendirilmiş" hem "artık PENDING_EVALUATION değil"
+        // durumlarını AYNI kodla (409 CONFLICT) döner — ikisi de tek bir mesaj,
+        // ve engagement query'si yeniden çekilir ki sayfa güncel duruma göre
+        // formu gizleyip uygun mesajı göstersin (bkz. degerlendirme/page.tsx).
+        if (error.code === "CONFLICT") {
+          setRootError(messages.degerlendirme.conflictError);
+          queryClient.invalidateQueries({ queryKey: ["engagement", engagementId] });
           return;
         }
-        if (error.code === "INVALID_STATUS") {
-          setRootError(messages.degerlendirme.invalidStatusError);
+        if (error.code === "FORBIDDEN") {
+          setRootError(messages.calismalar.transitionForbiddenError);
           return;
         }
       }
