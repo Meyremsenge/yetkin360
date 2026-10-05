@@ -66,6 +66,7 @@ def get_current_principal(
         org_admin_ids=org_admin_ids,
         institution_ids=institution_ids,
         institution_admin_ids=institution_admin_ids,
+        supervisor_institution_ids=supervisor_ids,
         is_platform_admin=user.is_platform_admin,
         is_suspended=user.status == "SUSPENDED",
     )

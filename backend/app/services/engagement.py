@@ -182,20 +182,6 @@ def create_engagement(
     if not talent:
         raise TalentNotFoundError(f"Talent {talent_id} not found")
 
-    # Validate organization exists and is accessible to principal
-    # AC-S2: ORG_MEMBER can only create for their own organizations
-    # AC-S1: TALENT (GUV-08) can only create for organizations they belong to
-    if principal.kind == "TALENT":
-        if org_uuid not in principal.org_ids:
-            raise TalentNotFoundError(
-                f"Organization {organization_id} not found or not accessible"
-            )
-    elif principal.kind in ("ORG_MEMBER", "ORG_ADMIN"):
-        if org_uuid not in principal.org_ids:
-            raise OrganizationNotFoundError(
-                f"Organization {organization_id} not found or not accessible"
-            )
-
     org = session.execute(
         select(Organization).where(Organization.id == org_uuid)
     ).scalar_one_or_none()
@@ -333,8 +319,8 @@ def transition_engagement(
         ("DRAFT", "ACTIVE"): {
             "preconditions": ["date_validation"],
             "can_transition": lambda: (
-                (principal.kind == "COORDINATOR" and engagement.institution_id is not None)
-                or (principal.kind == "TALENT" and principal.talent_id == engagement.talent_id and engagement.institution_id is None)
+                (rel.is_coordinator and engagement.institution_id is not None)
+                or (rel.is_subject and engagement.institution_id is None)
             ),
         },
         ("PENDING_APPROVAL", "ACTIVE"): {
@@ -364,7 +350,8 @@ def transition_engagement(
         ("EVALUATED", "VERIFIED"): {
             "preconditions": [],
             "can_transition": lambda: (
-                principal.kind == "SUPERVISOR"
+                engagement.institution_id is not None
+                and engagement.institution_id in principal.supervisor_institution_ids
             ),
         },
     }
@@ -406,8 +393,11 @@ def transition_engagement(
                     raise DateValidationError("Invalid date format (expected ISO format)")
 
     # Check: authorization (AC-8, AC-S3, AC-7)
-    # AC-7: T8 (EVALUATED→VERIFIED) requires SUPERVISOR; return 404 for unauthorized (not 403)
-    if (current_status, to_status) == ("EVALUATED", "VERIFIED") and principal.kind != "SUPERVISOR":
+    # AC-7: T8 (EVALUATED→VERIFIED) requires SUPERVISOR of this institution; 404 for unauthorized (not 403)
+    if (current_status, to_status) == ("EVALUATED", "VERIFIED") and (
+        engagement.institution_id is None
+        or engagement.institution_id not in principal.supervisor_institution_ids
+    ):
         raise EngagementNotFoundError("Engagement not found")
 
     if not transition_spec["can_transition"]():

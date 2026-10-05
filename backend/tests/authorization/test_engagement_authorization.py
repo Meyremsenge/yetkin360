@@ -2067,31 +2067,32 @@ class TestInstitutionIdOracleRegression:
         ).scalar()
         assert engagement_count == 0, "No engagement should be created for mismatched/nonexistent institution"
 
-    def test_talent_cross_org_engagement_404(
+    def test_org_member_cross_org_engagement_404(
         self,
         client,
         session,
-        user_talent_alice,
+        user_org_member_charlie,
         talent_alice,
         organization_a,
-        organization_b,
     ):
         """
-        AC-S1 (GUV-08): TALENT başka org'un engagement'ını açamaz → 404.
+        AC-S2 (GUV-08): ORG_MEMBER başka org'a başka talent'a engagement açamaz → 404.
 
-        Given: TALENT Alice (organization_a ile ilgisi yok)
-        When: POST /engagements with organization_id=organization_a
-        Then: 404 (yetkisiz, veri sızmaz)
+        Given: ORG_MEMBER Charlie (organization_b üyesi, organization_a üyesi DEĞİL)
+               talent_alice (herhangi bir talent, Charlie'nin talent'ı değil)
+        When: POST /engagements with organization_id=organization_a, talent_id=talent_alice
+        Then: 404 (own_talent=False, has_org_membership=False)
 
-        Acceptance Criteria (Regresyon):
-        - Status code: 404 (not 403)
+        Acceptance Criteria (Regresyon — GUV-08 gerçek kaygısı):
+        - Status code: 404 (not 201, not 403)
         - Error code: "NOT_FOUND"
         - Engagement oluşturulmaz
         """
-        # Alice is a plain TALENT, not member of any organization
+        # Charlie is ORG_MEMBER of organization_b only, not organization_a
+        # Charlie tries to open engagement for Alice (not himself) in organization_a
         payload = {
             "talent_id": str(talent_alice.id),
-            "organization_id": str(organization_a.id),  # Alice is not member
+            "organization_id": str(organization_a.id),  # Charlie is NOT member of organization_a
             "kind": "INTERNSHIP",
             "title": "Unauthorized engagement",
         }
@@ -2099,10 +2100,10 @@ class TestInstitutionIdOracleRegression:
         response = client.post(
             "/engagements",
             json=payload,
-            headers={"X-Debug-User-Id": str(user_talent_alice.id)},
+            headers={"X-Debug-User-Id": str(user_org_member_charlie.id)},
         )
 
-        # AC-S1: 404 (not 403)
+        # AC-S2: 404 (not 201, not 403)
         assert response.status_code == 404, f"Expected 404, got {response.status_code}"
 
         data = response.json()

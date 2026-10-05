@@ -56,16 +56,22 @@ def list_skill_signals(
 
     if self_claim_signals:
         # Batch query: get all claim IDs that still exist (AC-12: single batch query, not N+1)
-        source_ids = [s.source_id for s in self_claim_signals]
-        existing_claims = session.execute(
-            select(SkillClaim.id).where(SkillClaim.id.in_(source_ids))
-        ).scalars().all()
-        existing_claim_set = set(existing_claims)
+        source_ids = [s.source_id for s in self_claim_signals if s.source_id is not None]
+        existing_claim_set: set = set()
+        if source_ids:
+            existing_claim_set = set(
+                session.execute(
+                    select(SkillClaim.id).where(SkillClaim.id.in_(source_ids))
+                ).scalars().all()
+            )
 
-        # Filter: keep signals whose claim exists (or non-SELF_CLAIM signals)
+        # Filter: a SELF_CLAIM signal with no source_id isn't tied to a claim's
+        # lifecycle (not an orphan); only drop one whose linked claim was deleted.
         valid_signals = [
             s for s in signals
-            if s.source_type != "SELF_CLAIM" or s.source_id in existing_claim_set
+            if s.source_type != "SELF_CLAIM"
+            or s.source_id is None
+            or s.source_id in existing_claim_set
         ]
 
     # Group signals by skill_id

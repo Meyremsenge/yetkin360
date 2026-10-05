@@ -46,6 +46,7 @@ class Principal:
     is_platform_admin: bool
     is_suspended: bool
     institution_admin_ids: list[uuid.UUID] = field(default_factory=list)
+    supervisor_institution_ids: list[uuid.UUID] = field(default_factory=list)
 
     @property
     def coordinator_institution_ids(self) -> list[uuid.UUID]:
