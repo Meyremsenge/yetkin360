@@ -40,6 +40,7 @@ const evaluatedEngagement: EngagementDetail = {
   updated_at: "2026-09-18T14:30:00Z",
   tasks: [],
   deliverables: [],
+  attestations: [],
 };
 
 describe("AttestationForm", () => {

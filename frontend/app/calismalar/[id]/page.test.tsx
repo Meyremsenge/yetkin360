@@ -21,7 +21,8 @@ vi.mock("@/lib/api/engagements", async (importOriginal) => {
   };
 });
 vi.mock("@/lib/api/deliverables", () => ({ createDeliverable: vi.fn() }));
-vi.mock("@/lib/api/attestations", () => ({ createAttestation: vi.fn() }));
+vi.mock("@/lib/api/attestations", () => ({ createAttestation: vi.fn(), revokeAttestation: vi.fn() }));
+vi.mock("@/lib/api/tasks", () => ({ createTask: vi.fn() }));
 
 function renderWithQueryClient(ui: React.ReactElement) {
   const queryClient = new QueryClient({
@@ -45,6 +46,7 @@ const baseEngagement: EngagementDetail = {
   updated_at: "2026-09-18T14:30:00Z",
   tasks: [{ id: "task-1", title: "API şeması", status: "DONE" }],
   deliverables: [],
+  attestations: [],
 };
 
 /**
@@ -191,5 +193,41 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
     });
     expect(screen.queryByText("Yeni Çıktı Ekle")).toBeNull();
     expect(screen.queryByText("Tanıklık Ver")).toBeNull();
+  });
+
+  it("YET-202/ENT-01: ACTIVE durumunda görev ekleme formu gösterilir", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce(baseEngagement); // status: ACTIVE
+
+    renderWithQueryClient(<CalismaDetayPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Yeni Görev Ekle")).toBeTruthy();
+    });
+  });
+
+  it("YET-202/ENT-01: attestations[] boşsa empty-state, doluysa Geri Çek butonuyla listelenir", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce({
+      ...baseEngagement,
+      status: "VERIFIED",
+      attestations: [
+        {
+          id: "att-1",
+          claim_type: "COMPETENCE",
+          requested_claim_type: "COMPETENCE",
+          attestor_user_id: "user-9",
+          created_at: "2026-09-27T10:00:00Z",
+          revoked_at: null,
+          revoke_reason: null,
+        },
+      ],
+    });
+
+    renderWithQueryClient(<CalismaDetayPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Yetkinlik")).toBeTruthy(); // claimType.COMPETENCE etiketi
+      expect(screen.getByText("Geri Çek")).toBeTruthy();
+    });
+    expect(screen.queryByText("Henüz tanıklık yok.")).toBeNull();
   });
 });

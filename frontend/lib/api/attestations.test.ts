@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createAttestation } from "./attestations";
+import { createAttestation, revokeAttestation } from "./attestations";
 import * as client from "./client";
 import { ApiError, NetworkError } from "./errors";
 
@@ -82,6 +82,58 @@ describe("lib/api/attestations", () => {
       mockApiFetch.mockRejectedValueOnce(new NetworkError("network"));
 
       await expect(createAttestation("eng-1", { claim_type: "COMPETENCE", version: 1 })).rejects.toBeInstanceOf(NetworkError);
+    });
+  });
+
+  /**
+   * YET-202/ENT-01: Tanıklık geri çekme.
+   */
+  describe("revokeAttestation", () => {
+    it("happy path - POST /attestations/{id}/revoke çağırır, 200 döner", async () => {
+      const response = { id: "att-1", revoked_at: "2026-10-05T10:00:00Z", revoke_reason: "Yanlış girilmiş" };
+      mockApiFetch.mockResolvedValueOnce(response);
+
+      const result = await revokeAttestation("att-1", "Yanlış girilmiş");
+
+      expect(result).toEqual(response);
+      expect(mockApiFetch).toHaveBeenCalledWith("/attestations/att-1/revoke", {
+        method: "POST",
+        body: { revoke_reason: "Yanlış girilmiş" },
+      });
+    });
+
+    it("403 FORBIDDEN - attestor değilse ApiError fırlatır", async () => {
+      const error = new ApiError({ status: 403, code: "FORBIDDEN", message: "x", requestId: null });
+      mockApiFetch.mockRejectedValueOnce(error);
+
+      await expect(revokeAttestation("att-1", "gerekçe")).rejects.toMatchObject({ status: 403 });
+    });
+
+    it("409 ALREADY_REVOKED - zaten geri çekilmişse ApiError fırlatır", async () => {
+      const error = new ApiError({ status: 409, code: "ALREADY_REVOKED", message: "x", requestId: null });
+      mockApiFetch.mockRejectedValueOnce(error);
+
+      await expect(revokeAttestation("att-1", "gerekçe")).rejects.toMatchObject({ code: "ALREADY_REVOKED" });
+    });
+
+    it("404 NOT_FOUND - kapsam dışı attestation için ApiError fırlatır", async () => {
+      const error = new ApiError({ status: 404, code: "NOT_FOUND", message: "x", requestId: null });
+      mockApiFetch.mockRejectedValueOnce(error);
+
+      await expect(revokeAttestation("att-missing", "gerekçe")).rejects.toMatchObject({ status: 404 });
+    });
+
+    it("422 VALIDATION_ERROR - boş gerekçe için ApiError fırlatır", async () => {
+      const error = new ApiError({ status: 422, code: "VALIDATION_ERROR", message: "x", requestId: null });
+      mockApiFetch.mockRejectedValueOnce(error);
+
+      await expect(revokeAttestation("att-1", "")).rejects.toMatchObject({ status: 422, code: "VALIDATION_ERROR" });
+    });
+
+    it("network error - NetworkError fırlatır", async () => {
+      mockApiFetch.mockRejectedValueOnce(new NetworkError("network"));
+
+      await expect(revokeAttestation("att-1", "gerekçe")).rejects.toBeInstanceOf(NetworkError);
     });
   });
 });
