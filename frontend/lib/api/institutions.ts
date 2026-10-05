@@ -15,6 +15,13 @@ export interface PendingItem {
   ended_on?: string | null;
 }
 
+export interface DashboardMemberItem {
+  user_id: string;
+  email: string;
+  role: string;
+  joined_at: string;
+}
+
 export interface DashboardResponse {
   institution_id: string;
   summary: {
@@ -23,6 +30,7 @@ export interface DashboardResponse {
   };
   pending_approval: PendingItem[];
   pending_evaluation: PendingItem[];
+  members: DashboardMemberItem[];
 }
 
 /**
@@ -85,4 +93,39 @@ export interface MyLinkRequestItem {
 /** YET-197/IS-10: Authenticated talent lists their own link request history (all statuses). */
 export async function listMyLinkRequests(): Promise<{ items: MyLinkRequestItem[] } | undefined> {
   return apiFetch<{ items: MyLinkRequestItem[] }>("/talents/me/institution-link-requests");
+}
+
+export type InstitutionMemberRole = "ADMIN" | "COORDINATOR";
+
+/**
+ * YET-202/ENT-01: Institution ADMIN invites a new member by email.
+ * Always 202 {"status":"queued"} on success — new member, already-member, and
+ * unknown-email all look the same on the wire (no account-existence leak).
+ * Throws ApiError 404 if caller is not an ADMIN of this institution, 422 INVALID_ROLE.
+ */
+export async function inviteMember(
+  institutionId: string,
+  email: string,
+  role: InstitutionMemberRole
+): Promise<{ status: string } | undefined> {
+  return apiFetch<{ status: string }>(`/institutions/${institutionId}/members`, {
+    method: "POST",
+    body: { email, role },
+  });
+}
+
+/**
+ * YET-202/ENT-01: Coordinator/Admin sends reminders for the given engagement ids.
+ * Backend applies no status filter — the caller decides which ids to send.
+ * 202 {"queued_count": number}. 422 on empty engagement_ids/template.
+ */
+export async function createReminders(
+  institutionId: string,
+  engagementIds: string[],
+  template: string
+): Promise<{ queued_count: number } | undefined> {
+  return apiFetch<{ queued_count: number }>(`/institutions/${institutionId}/reminders`, {
+    method: "POST",
+    body: { engagement_ids: engagementIds, template },
+  });
 }
