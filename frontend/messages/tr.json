@@ -115,7 +115,27 @@
     "strengthNone": "Yok",
     "strengthWeak": "Zayıf",
     "strengthModerate": "Orta",
-    "strengthStrong": "Güçlü"
+    "strengthStrong": "Güçlü",
+    "institutionLinkSection": "Kurum Bağlantısı",
+    "notLinkedMessage": "Henüz bir kuruma bağlı değilsiniz.",
+    "notLinkedHint": "Kurumunuzdan aldığınız bağlantıyı kullanarak bağlanma talebi gönderebilirsiniz.",
+    "linkRequestHistoryTitle": "Bağlanma Taleplerim",
+    "emptyLinkRequestsMessage": "Henüz bir bağlanma talebiniz yok.",
+    "linkRequestsLoadError": "Bağlanma talepleriniz yüklenemedi.",
+    "linkRequestPendingBadge": "Onay Bekliyor",
+    "linkRequestApprovedBadge": "Onaylandı",
+    "linkRequestRejectedBadge": "Reddedildi"
+  },
+  "kurumBaglan": {
+    "title": "Kuruma Bağlanma Talebi",
+    "confirmMessage": "Bu kuruma bağlanma talebi göndermek istediğinize emin misiniz? Talebiniz kurum koordinatörünün onayına sunulacak.",
+    "submitButton": "Talep Gönder",
+    "submittingButton": "Gönderiliyor...",
+    "successMessage": "Bağlanma talebiniz gönderildi. Koordinatörünüzün onayını bekleyin.",
+    "successBackLink": "Profiline dön",
+    "alreadyPendingError": "Bu kuruma zaten bekleyen bir talebiniz var.",
+    "notFoundError": "Kurum bulunamadı.",
+    "genericError": "Talep gönderilirken bir hata oluştu."
   },
   "calismalar": {
     "listTitle": "Çalışmalarım",
@@ -262,7 +282,14 @@
     "pendingApprovalTitle": "Onay Bekleyen Stajlar",
     "pendingEvaluationTitle": "Değerlendirme Bekleyen Stajlar",
     "emptyPendingApprovalMessage": "Onay bekleyen staj yok.",
-    "emptyPendingEvaluationMessage": "Değerlendirme bekleyen staj yok."
+    "emptyPendingEvaluationMessage": "Değerlendirme bekleyen staj yok.",
+    "linkRequestsTitle": "Bekleyen Bağlanma Talepleri",
+    "emptyLinkRequestsMessage": "Bekleyen bağlanma talebi yok.",
+    "approveButton": "Onayla",
+    "rejectButton": "Reddet",
+    "linkRequestApprovedMessage": "Talep onaylandı.",
+    "linkRequestRejectedMessage": "Talep reddedildi.",
+    "linkRequestActionError": "İşlem sırasında bir hata oluştu."
   },
   "adminVerificationQueue": {
     "title": "Kurum Doğrulama Kuyruğu",

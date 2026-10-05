@@ -1,10 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import KurumPanelPage from "./page";
 import { useParams } from "next/navigation";
 import { useSession } from "@/lib/session/use-session";
-import { getCoordinatorDashboard } from "@/lib/api/institutions";
+import {
+  getCoordinatorDashboard,
+  listPendingLinkRequests,
+  approveLinkRequest,
+  rejectLinkRequest,
+} from "@/lib/api/institutions";
 import { ApiError, NetworkError, SessionExpiredError } from "@/lib/api/errors";
 
 vi.mock("next/navigation", () => ({
@@ -18,6 +24,9 @@ vi.mock("@/lib/api/institutions", async (importOriginal) => {
   return {
     ...actual,
     getCoordinatorDashboard: vi.fn(),
+    listPendingLinkRequests: vi.fn(),
+    approveLinkRequest: vi.fn(),
+    rejectLinkRequest: vi.fn(),
   };
 });
 
@@ -135,6 +144,8 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
     vi.clearAllMocks();
     vi.mocked(useParams).mockReturnValue({ id: "inst-1" });
     vi.mocked(useSession).mockReturnValue(mockSession as unknown as ReturnType<typeof useSession>);
+    // YET-197/IS-10: default to an empty pending-link-requests list unless a test overrides it.
+    vi.mocked(listPendingLinkRequests).mockResolvedValue({ items: [] });
   });
 
   afterEach(() => {
@@ -437,5 +448,100 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
     renderWithQueryClient(<KurumPanelPage />);
 
     expect(screen.getByText(/Yükleniyor/i)).toBeTruthy();
+  });
+
+  /**
+   * YET-197/IS-10: Bekleyen bağlanma talepleri bölümü.
+   */
+  describe("YET-197/IS-10: Bekleyen bağlanma talepleri", () => {
+    it("bekleyen talepler listelenir, her satırda talent adı ve onayla/reddet butonları var", async () => {
+      vi.mocked(getCoordinatorDashboard).mockResolvedValueOnce(validDashboardData);
+      vi.mocked(listPendingLinkRequests).mockResolvedValue({
+        items: [
+          { id: "req-1", talent_profile_id: "t-1", talent_full_name: "Ayşe Yılmaz", status: "PENDING", requested_at: "2026-10-01T00:00:00Z" },
+        ],
+      });
+
+      renderWithQueryClient(<KurumPanelPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Ayşe Yılmaz")).toBeTruthy();
+        expect(screen.getByText("Onayla")).toBeTruthy();
+        expect(screen.getByText("Reddet")).toBeTruthy();
+      });
+    });
+
+    it("bekleyen talep yoksa empty-state metni gösterilir", async () => {
+      vi.mocked(getCoordinatorDashboard).mockResolvedValueOnce(validDashboardData);
+      vi.mocked(listPendingLinkRequests).mockResolvedValue({ items: [] });
+
+      renderWithQueryClient(<KurumPanelPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Bekleyen bağlanma talebi yok.")).toBeTruthy();
+      });
+    });
+
+    it("Onayla butonuna tıklanınca approveLinkRequest çağrılır ve başarı mesajı gösterilir", async () => {
+      const user = userEvent.setup();
+      vi.mocked(getCoordinatorDashboard).mockResolvedValue(validDashboardData);
+      vi.mocked(listPendingLinkRequests).mockResolvedValue({
+        items: [
+          { id: "req-1", talent_profile_id: "t-1", talent_full_name: "Ayşe Yılmaz", status: "PENDING", requested_at: "2026-10-01T00:00:00Z" },
+        ],
+      });
+      vi.mocked(approveLinkRequest).mockResolvedValueOnce(undefined);
+
+      renderWithQueryClient(<KurumPanelPage />);
+
+      await waitFor(() => expect(screen.getByText("Onayla")).toBeTruthy());
+      await user.click(screen.getByText("Onayla"));
+
+      await waitFor(() => {
+        expect(approveLinkRequest).toHaveBeenCalledWith("inst-1", "req-1");
+        expect(screen.getByText("Talep onaylandı.")).toBeTruthy();
+      });
+    });
+
+    it("Reddet butonuna tıklanınca rejectLinkRequest çağrılır ve başarı mesajı gösterilir", async () => {
+      const user = userEvent.setup();
+      vi.mocked(getCoordinatorDashboard).mockResolvedValue(validDashboardData);
+      vi.mocked(listPendingLinkRequests).mockResolvedValue({
+        items: [
+          { id: "req-1", talent_profile_id: "t-1", talent_full_name: "Ayşe Yılmaz", status: "PENDING", requested_at: "2026-10-01T00:00:00Z" },
+        ],
+      });
+      vi.mocked(rejectLinkRequest).mockResolvedValueOnce(undefined);
+
+      renderWithQueryClient(<KurumPanelPage />);
+
+      await waitFor(() => expect(screen.getByText("Reddet")).toBeTruthy());
+      await user.click(screen.getByText("Reddet"));
+
+      await waitFor(() => {
+        expect(rejectLinkRequest).toHaveBeenCalledWith("inst-1", "req-1");
+        expect(screen.getByText("Talep reddedildi.")).toBeTruthy();
+      });
+    });
+
+    it("onaylama başarısız olursa hata mesajı gösterilir", async () => {
+      const user = userEvent.setup();
+      vi.mocked(getCoordinatorDashboard).mockResolvedValue(validDashboardData);
+      vi.mocked(listPendingLinkRequests).mockResolvedValue({
+        items: [
+          { id: "req-1", talent_profile_id: "t-1", talent_full_name: "Ayşe Yılmaz", status: "PENDING", requested_at: "2026-10-01T00:00:00Z" },
+        ],
+      });
+      vi.mocked(approveLinkRequest).mockRejectedValueOnce(new ApiError({ status: 422, code: "HTTP_ERROR", message: "x", requestId: null }));
+
+      renderWithQueryClient(<KurumPanelPage />);
+
+      await waitFor(() => expect(screen.getByText("Onayla")).toBeTruthy());
+      await user.click(screen.getByText("Onayla"));
+
+      await waitFor(() => {
+        expect(screen.getByText("İşlem sırasında bir hata oluştu.")).toBeTruthy();
+      });
+    });
   });
 });

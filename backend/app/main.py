@@ -7,6 +7,7 @@ from app.api.admin import router as admin_router
 from app.api.auth import router as auth_router
 from app.api.engagements import router as engagements_router, attestations_router
 from app.api.evidence import router as evidence_router
+from app.api.institution_link_requests import router as institution_link_requests_router
 from app.api.institutions import router as institutions_router
 from app.api.me import router as me_router
 from app.api.organizations import router as organizations_router
@@ -58,6 +59,7 @@ def create_app(environment: str) -> FastAPI:
     application.include_router(engagements_router)
     application.include_router(attestations_router)
     application.include_router(evidence_router)
+    application.include_router(institution_link_requests_router)
     application.include_router(institutions_router)
     application.include_router(me_router)
     application.include_router(organizations_router)

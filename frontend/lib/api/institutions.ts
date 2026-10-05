@@ -38,3 +38,51 @@ export async function getCoordinatorDashboard(
 ): Promise<DashboardResponse | undefined> {
   return apiFetch<DashboardResponse>(`/institutions/${institutionId}/dashboard`);
 }
+
+/**
+ * YET-197/IS-10: Student requests to link their talent profile to an institution.
+ * Institution shares its id via a link (e.g. /kurum/{id}/baglan) — no search/picker UI.
+ * Throws ApiError 409 if a PENDING request already exists, 404 if institution not found.
+ */
+export async function requestInstitutionLink(institutionId: string): Promise<void> {
+  await apiFetch(`/institutions/${institutionId}/link-requests`, { method: "POST" });
+}
+
+/** YET-197/IS-10: Coordinator/Admin approves a PENDING link request for their institution. */
+export async function approveLinkRequest(institutionId: string, requestId: string): Promise<void> {
+  await apiFetch(`/institutions/${institutionId}/link-requests/${requestId}/approve`, { method: "POST" });
+}
+
+/** YET-197/IS-10: Coordinator/Admin rejects a PENDING link request for their institution. */
+export async function rejectLinkRequest(institutionId: string, requestId: string): Promise<void> {
+  await apiFetch(`/institutions/${institutionId}/link-requests/${requestId}/reject`, { method: "POST" });
+}
+
+export interface PendingLinkRequestItem {
+  id: string;
+  talent_profile_id: string;
+  talent_full_name: string;
+  status: string;
+  requested_at: string;
+}
+
+/** YET-197/IS-10: Coordinator/Admin lists PENDING link requests for their institution. */
+export async function listPendingLinkRequests(
+  institutionId: string
+): Promise<{ items: PendingLinkRequestItem[] } | undefined> {
+  return apiFetch<{ items: PendingLinkRequestItem[] }>(`/institutions/${institutionId}/link-requests`);
+}
+
+export interface MyLinkRequestItem {
+  id: string;
+  institution_id: string;
+  institution_name: string;
+  status: string;
+  requested_at: string;
+  decided_at: string | null;
+}
+
+/** YET-197/IS-10: Authenticated talent lists their own link request history (all statuses). */
+export async function listMyLinkRequests(): Promise<{ items: MyLinkRequestItem[] } | undefined> {
+  return apiFetch<{ items: MyLinkRequestItem[] }>("/talents/me/institution-link-requests");
+}
