@@ -11,6 +11,8 @@
  */
 
 export interface TalentProfile {
+  id?: string;
+  institution_id?: string | null;
   headline?: string | null;
   department?: string | null;
   study_year?: number | null;
