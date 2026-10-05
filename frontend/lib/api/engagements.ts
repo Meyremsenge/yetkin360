@@ -125,6 +125,53 @@ export async function listEngagements(): Promise<{ items: EngagementSummary[] }>
   return response ?? { items: [] };
 }
 
+export interface CreateEngagementInput {
+  talent_id: string;
+  organization_id: string;
+  kind: EngagementKind;
+  title: string;
+  institution_id?: string;
+}
+
+/**
+ * POST /engagements ve /transitions AYNI dar şemayı döner (PostEngagementResponse) —
+ * organization_name/tasks/deliverables/attestations YOK (bunlar sadece GET detay'da
+ * var). EngagementDetail'ı burada dönüş tipi olarak kullanmak yanlış olurdu — sadece
+ * id'ye ihtiyacımız var (oluşturduktan sonra detay sayfasına yönlendirmek için),
+ * o da kendi GET'ini yapıp tam veriyi çeker.
+ */
+export interface CreateEngagementResponse {
+  id: string;
+  talent_id: string;
+  organization_id: string;
+  institution_id: string | null;
+  kind: EngagementKind;
+  title: string;
+  status: EngagementStatus;
+  version: number;
+  reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * YET-202/ENT-01: TALENT kendi engagement'ını oluşturur (link-tabanlı akış —
+ * organization_id paylaşılan linkten gelir, talent_id/institution_id oturumdan
+ * otomatik doldurulur, bkz. calismalar/olustur/page.tsx). institution_id
+ * verilirse talent.institution_id'yle eşleşmek ZORUNDA (backend kontrolü) —
+ * bu yüzden burada hep oturumdaki değer gönderilir, elle girilmez.
+ */
+export async function createEngagement(input: CreateEngagementInput): Promise<CreateEngagementResponse> {
+  const response = await apiFetch<CreateEngagementResponse>("/engagements", {
+    method: "POST",
+    body: input,
+  });
+  if (!response) {
+    throw new ApiError({ status: 502, code: "UNKNOWN_ERROR", message: "Beklenmeyen yanıt.", requestId: null });
+  }
+  return response;
+}
+
 export async function getEngagement(id: string): Promise<EngagementDetail> {
   const response = await apiFetch<EngagementDetail>(`/engagements/${id}`);
   if (!response) {

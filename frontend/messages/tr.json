@@ -257,6 +257,16 @@
     "revokeAttestationAlreadyRevokedError": "Bu tanıklık zaten geri çekilmiş.",
     "revokeAttestationReasonRequiredError": "Geri çekme gerekçesi zorunludur."
   },
+  "calismaOlustur": {
+    "title": "Yeni Çalışma Oluştur",
+    "kindLabel": "Tür",
+    "titleLabel": "Başlık",
+    "submitButton": "Oluştur",
+    "submittingButton": "Oluşturuluyor...",
+    "missingLinkMessage": "Bu link eksik veya geçersiz. Organizasyonunuzdan doğru linki isteyin.",
+    "notATalentMessage": "Bu özellik yalnızca öğrenci hesapları için kullanılabilir.",
+    "invalidLinkError": "Bu organizasyon bulunamadı. Organizasyonunuzdan doğru linki isteyin."
+  },
   "degerlendirme": {
     "title": "Değerlendirme Formu",
     "backLink": "Çalışmaya dön",
