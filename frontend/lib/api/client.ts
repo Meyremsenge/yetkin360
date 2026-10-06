@@ -395,15 +395,22 @@ export async function removeSkill(skill_id: string): Promise<void> {
 /**
  * AC-1: Get current user's signals (kanıt dökümü). Calls GET /talents/me/signals.
  * Returns { items: [...] } where each item has skill (id, name_tr) and signals array.
+ *
+ * YET-206/ENT-06: backend bu rotayı "/" ile tanımlıyor (app/api/skill_signals.py:109)
+ * — sondaki / olmadan 307 redirect alınıyordu. institutions.ts/organizations.ts'teki
+ * aynı düzeltme: redirect'e güvenmek yerine gerçek yolu doğrudan çağır.
  */
 export async function getMySignals(): Promise<{ items: unknown[] } | undefined> {
-  return apiFetch("/talents/me/signals");
+  return apiFetch("/talents/me/signals/");
 }
 
 /**
  * AC-7: Get current user's verified experiences. Calls GET /talents/me/verified-experiences.
  * Returns { items: [...] } where each item has organization_name_snapshot, role_snapshot, etc.
+ *
+ * YET-206/ENT-06: backend bu rotayı "/" ile tanımlıyor (app/api/verified_experiences.py:48)
+ * — aynı sondaki-/ düzeltmesi.
  */
 export async function getMyVerifiedExperiences(): Promise<{ items: unknown[] } | undefined> {
-  return apiFetch("/talents/me/verified-experiences");
+  return apiFetch("/talents/me/verified-experiences/");
 }

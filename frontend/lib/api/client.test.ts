@@ -1193,6 +1193,47 @@ describe("Talent Profile and Skills API functions", () => {
     });
   });
 
+  describe("YET-206/ENT-06: getMySignals/getMyVerifiedExperiences — sondaki / ile gerçek yol", () => {
+    it("getMySignals() /talents/me/signals/ çağırır (sondaki / ile, 307 redirect yok)", async () => {
+      vi.resetModules();
+      const { getMySignals } = await import("@/lib/api/client");
+      const fetchMock = vi.mocked(global.fetch);
+      fetchMock.mockResolvedValueOnce(
+        new Response(JSON.stringify({ items: [] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })
+      );
+
+      await getMySignals();
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/talents/me/signals/"),
+        expect.anything()
+      );
+      // Backend bu rotayı "/" ile tanımlıyor — sondaki / olmadan 307 alınır.
+      const calledUrl = String(fetchMock.mock.calls[0][0]);
+      expect(calledUrl.endsWith("/talents/me/signals/")).toBe(true);
+    });
+
+    it("getMyVerifiedExperiences() /talents/me/verified-experiences/ çağırır (sondaki / ile)", async () => {
+      vi.resetModules();
+      const { getMyVerifiedExperiences } = await import("@/lib/api/client");
+      const fetchMock = vi.mocked(global.fetch);
+      fetchMock.mockResolvedValueOnce(
+        new Response(JSON.stringify({ items: [] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })
+      );
+
+      await getMyVerifiedExperiences();
+
+      const calledUrl = String(fetchMock.mock.calls[0][0]);
+      expect(calledUrl.endsWith("/talents/me/verified-experiences/")).toBe(true);
+    });
+  });
+
   describe("AC-5: addSkill", () => {
     it("AC-5: addSkill(skillId, claimedLevel) calls POST /talents/me/skills → 201", async () => {
       const { apiFetch } = await loadClient();

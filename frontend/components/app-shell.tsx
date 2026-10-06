@@ -138,15 +138,23 @@ export function AppShell({ children }: { children: ReactNode }) {
         {children}
       </div>
 
-      {/* Admin links and logout button */}
+      {/*
+        Admin links and logout button.
+        YET-206/ENT-05: Bu linkler şu an rol kontrolü olmadan her oturum açmış
+        kullanıcıya gösteriliyor — backend her isteği zaten ayrıca kontrol
+        ettiği için bir veri güvenliği açığı değil, sadece bir arayüz
+        kusuru. Rol bazlı gizleme GET /me'nin is_platform_admin/rol alanı
+        dönmesine bağlı (backend tarafı — bkz. YET-206 yorumu); o alan
+        gelene kadar burada sahte bir kontrol eklenmedi.
+      */}
       {session.data && (
         <div className="flex justify-between items-center p-4 border-t">
           <div className="flex gap-4 text-sm">
             <Link href="/admin/dogrulama-kuyrugu" className="text-slate-600 hover:text-slate-900 hover:underline">
-              Kurum Doğrulama
+              {messages.shell.adminVerificationQueueLink}
             </Link>
             <Link href="/admin/skiller" className="text-slate-600 hover:text-slate-900 hover:underline">
-              Yetkinlik Yönetimi
+              {messages.shell.adminSkillsLink}
             </Link>
           </div>
           <Button
