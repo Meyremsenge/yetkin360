@@ -5,6 +5,20 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## tasarim-sistemi-temel-bilesenler — YET-247 Card/Badge/Alert + Button variant (2026-10-06)
+
+**Kaynak:** `obss_project/artifacts/tasarim-sistemi-temel-bilesenler/` — Jira'nın geniş kapsamlı tasarım sistemi görevi (TASARIM-04), kullanıcı onayıyla DARALTILDI: sadece bileşen kurulumu, mevcut sayfaların migrasyonu/marka rengi/font/boşluk standardizasyonu ayrı takip görevlerine bırakıldı.
+
+### Bilinçli kapsam/mimari kararları (kaynak: atdd.md)
+- Jira'nın "cva (class-variance-authority) zaten shadcn kalıbında mevcut" iddiası YANLIŞTI — proje bu bağımlılığı hiç kullanmıyordu. CLAUDE.md yeni bağımlılık eklemeyi onay gerektiren işlem saydığından, mevcut `clsx`+`tailwind-merge` (`lib/utils.ts`'teki `cn()`) ile basit obje-tabanlı variant deseni kuruldu — kullanıcı onayıyla.
+- Bu turda hiçbir sayfa yeni bileşenleri kullanmadığından `vision-test`/e2e bilinçli olarak N/A bırakıldı; tek gerçek risk (`button.tsx`'in mevcut kullanıcıları) tam test suite koşusuyla (1134/1134) kapatıldı.
+
+### Gerçek zorluk/bug (kaynak: code_diff.md, red_team.json)
+- **Test-copilot'un 4 test dosyasının tamamında geçersiz bir JSX kalıbı vardı:** `<Button variant="primary" as any>` — `as any` JSX'te bir type-cast değil, iki ayrı anlamsız boolean prop (`as`, `any`) olarak parse ediliyordu; niyet edilen tip-atlatma işlevini hiç görmüyordu ve `typecheck` gate'ini kıracaktı. 62 yerde (4 dosyada) tespit edilip düzeltildi.
+- **Code-copilot'un ilk turu icat edilmiş bir kural ekledi:** `hasBackgroundOverride = className?.includes("bg-")` — className "bg-" içerirse variant'ın hover class'ını TAMAMEN siliyordu. Bu hem gereksizdi (tailwind-merge zaten çakışan hover class'larını doğru çözer) hem de yanlış davranış üretiyordu (sadece arka plan rengini override eden bir çağıran istemeden hover'ını da kaybediyordu). Kod incelemesiyle (alt-ajanın "tüm testler PASS" raporuna güvenilmeden) bulunup kaldırıldı.
+- **Bir test substring-çakışması yüzünden yanlışlıkla kırmızıydı:** `not.toContain("bg-destructive")`, kalması GEREKEN `hover:bg-destructive/90`'ı da substring olarak yakalıyordu — implementasyon doğruydu, test yanlış yazılmıştı. Gerçek test koşusuyla (alt-ajanın iddiasına güvenilmeden) yakalanıp tam-token-eşleşmeye çevrildi.
+- **Red-team, projenin kendi erişilebilirlik kuralını (`frontend.md`: "hata mesajları aria-live ile duyurulur") `alert.tsx`'in karşılamadığını buldu** — commit öncesi `role="alert"` + koşullu `aria-live` eklendi.
+
 ## admin-link-rol-sizintisi — YET-245 admin link rol kontrolü + nav yerleşimi (2026-10-06)
 
 **Kaynak:** `obss_project/artifacts/admin-link-rol-sizintisi/` — admin linklerinin (Kurum Doğrulama, Yetkinlik Yönetimi) rol kontrolü olmadan tüm kullanıcılara gösterilmesi + nav'ın sayfa altında olması.
