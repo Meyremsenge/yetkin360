@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { resetPassword } from "@/lib/api/client";
@@ -29,17 +29,13 @@ function ResetPasswordContent() {
     resolver: zodResolver(resetPasswordSchema),
   });
 
-  const [status, setStatus] = useState<Status>("idle");
-  const [errorState, setErrorState] = useState<ErrorState | null>(null);
-
-  useEffect(() => {
-    if (!token) {
-      setStatus("error");
-      setErrorState({
-        message: messages.epostaDogrula.tokenInvalid,
-      });
-    }
-  }, [token]);
+  // react-hooks/set-state-in-effect: token eksikliği render sırasında zaten
+  // bilinen bir durum (searchParams'tan senkron okunur) — effect içinde
+  // setState yerine lazy initializer ile başlangıç değeri olarak hesaplanır.
+  const [status, setStatus] = useState<Status>(() => (token ? "idle" : "error"));
+  const [errorState, setErrorState] = useState<ErrorState | null>(() =>
+    token ? null : { message: messages.epostaDogrula.tokenInvalid }
+  );
 
   const onSubmit = async (data: ResetPasswordFormData) => {
     if (!token) {

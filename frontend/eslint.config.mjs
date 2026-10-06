@@ -1,10 +1,14 @@
-import { FlatCompat } from "@eslint/eslintrc";
+import coreWebVitals from "eslint-config-next/core-web-vitals";
+import nextTypescript from "eslint-config-next/typescript";
 
-const compat = new FlatCompat({ baseDirectory: import.meta.dirname });
-
+// Next.js 16/eslint-config-next 16: FlatCompat (eski extends-köprüsü) artık
+// eslint-plugin-react'in döngüsel referansları yüzünden "Converting circular
+// structure to JSON" ile çöküyor — native flat-config export'ları doğrudan
+// kullanılır (next'in kendi upgrade codemod'unun yaptığı düzeltme).
 const eslintConfig = [
   { ignores: [".next/**", "node_modules/**"] },
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+  ...coreWebVitals,
+  ...nextTypescript,
 ];
 
 export default eslintConfig;
