@@ -215,8 +215,6 @@ export default function SkillsSection() {
 
       {/* Add skill section */}
       <div className="border-t pt-6">
-        <h3 className="text-sm font-bold mb-4">{messages.profil.skillsSection}</h3>
-
         {/* Search input with debounce */}
         <div className="mb-4">
           <Label htmlFor="skill-search">{messages.profil.skillSearchPlaceholder}</Label>
