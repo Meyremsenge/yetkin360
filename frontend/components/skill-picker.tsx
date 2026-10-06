@@ -36,8 +36,6 @@ export function SkillPicker({
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
 
     if (!searchQuery.trim()) {
-      setSearchResults(null);
-      setIsSearching(false);
       return;
     }
 
@@ -56,6 +54,11 @@ export function SkillPicker({
     searchTimeoutRef.current = timeout;
     return () => clearTimeout(timeout);
   }, [searchQuery]);
+
+  // Boş sorguda sonuç/arama göstergesi her zaman gizli olmalı — effect'te
+  // reset yerine render'da türetilir (react-hooks/set-state-in-effect).
+  const effectiveSearchResults = searchQuery.trim() ? searchResults : null;
+  const effectiveIsSearching = searchQuery.trim() ? isSearching : false;
 
   const handleSelect = (skill: SkillOption) => {
     setSelectedLabel(skill.name_tr);
@@ -89,11 +92,11 @@ export function SkillPicker({
             onChange={(e) => setSearchQuery(e.target.value)}
           />
 
-          {isSearching && <p className="text-xs text-slate-600 mt-1">{messages.shell.loading}</p>}
+          {effectiveIsSearching && <p className="text-xs text-slate-600 mt-1">{messages.shell.loading}</p>}
 
-          {searchResults && searchResults.length > 0 && (
+          {effectiveSearchResults && effectiveSearchResults.length > 0 && (
             <div className="mt-1 space-y-1 max-h-40 overflow-y-auto">
-              {searchResults.map((skill) => (
+              {effectiveSearchResults.map((skill) => (
                 <button
                   key={skill.id}
                   type="button"

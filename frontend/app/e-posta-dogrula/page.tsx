@@ -17,15 +17,16 @@ function EmailVerifyContent() {
   const searchParams = useSearchParams();
   const token = searchParams?.get("token");
 
-  const [status, setStatus] = useState<Status>("idle");
-  const [error, setError] = useState<ErrorState | null>(null);
+  // react-hooks/set-state-in-effect: token eksikliği render sırasında zaten
+  // bilinen bir durum (searchParams'tan senkron okunur) — effect içinde
+  // setState yerine lazy initializer ile başlangıç değeri olarak hesaplanır.
+  const [status, setStatus] = useState<Status>(() => (token ? "idle" : "error"));
+  const [error, setError] = useState<ErrorState | null>(() =>
+    token ? null : { message: messages.epostaDogrula.tokenInvalid }
+  );
 
   useEffect(() => {
     if (!token) {
-      setStatus("error");
-      setError({
-        message: messages.epostaDogrula.tokenInvalid,
-      });
       return;
     }
 
