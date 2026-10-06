@@ -166,8 +166,20 @@ async function performFetchWithRefresh<T>(
     ) {
       await performRefresh();
 
+      // YET-204/ENT-03: refresh rotates the csrf_token cookie (double-submit
+      // pattern) — reusing the header built before refresh would mismatch the
+      // new cookie and the retry would fail with 403 CSRF_FAILED. Build a
+      // fresh headers object for the retry rather than mutating the original
+      // (which the caller's `options` still references).
+      const originalHeaders = options.headers as Record<string, string> | undefined;
+      const freshCsrfToken = getCsrfToken();
+      const retryOptions: RequestInit =
+        originalHeaders && "x-csrf-token" in originalHeaders && freshCsrfToken
+          ? { ...options, headers: { ...originalHeaders, "x-csrf-token": freshCsrfToken } }
+          : options;
+
       // Retry original request exactly once
-      const retryResponse = await fetchWithTimeout(url, options);
+      const retryResponse = await fetchWithTimeout(url, retryOptions);
       if (retryResponse.status === 401) {
         throw new SessionExpiredError();
       }
@@ -383,15 +395,22 @@ export async function removeSkill(skill_id: string): Promise<void> {
 /**
  * AC-1: Get current user's signals (kanıt dökümü). Calls GET /talents/me/signals.
  * Returns { items: [...] } where each item has skill (id, name_tr) and signals array.
+ *
+ * YET-206/ENT-06: backend bu rotayı "/" ile tanımlıyor (app/api/skill_signals.py:109)
+ * — sondaki / olmadan 307 redirect alınıyordu. institutions.ts/organizations.ts'teki
+ * aynı düzeltme: redirect'e güvenmek yerine gerçek yolu doğrudan çağır.
  */
 export async function getMySignals(): Promise<{ items: unknown[] } | undefined> {
-  return apiFetch("/talents/me/signals");
+  return apiFetch("/talents/me/signals/");
 }
 
 /**
  * AC-7: Get current user's verified experiences. Calls GET /talents/me/verified-experiences.
  * Returns { items: [...] } where each item has organization_name_snapshot, role_snapshot, etc.
+ *
+ * YET-206/ENT-06: backend bu rotayı "/" ile tanımlıyor (app/api/verified_experiences.py:48)
+ * — aynı sondaki-/ düzeltmesi.
  */
 export async function getMyVerifiedExperiences(): Promise<{ items: unknown[] } | undefined> {
-  return apiFetch("/talents/me/verified-experiences");
+  return apiFetch("/talents/me/verified-experiences/");
 }

@@ -6,7 +6,9 @@
   },
   "shell": {
     "loading": "Yükleniyor...",
-    "noOrganizations": "Henüz bir kuruluşunuz yok. Lütfen yöneticinize başvurun."
+    "noOrganizations": "Henüz bir kuruluşunuz yok. Lütfen yöneticinize başvurun.",
+    "adminVerificationQueueLink": "Kurum Doğrulama",
+    "adminSkillsLink": "Yetkinlik Yönetimi"
   },
   "emailVerificationBanner": {
     "message": "E-posta adresiniz doğrulanmadı. Doğrulanana kadar kayıt oluşturamaz veya değişiklik yapamazsınız.",

@@ -53,7 +53,13 @@ export function EvidenceUploadForm({ deliverableId }: { deliverableId: string })
   const hasPending = items.some((item) => item.scan_status === "PENDING");
 
   useEffect(() => {
-    refresh().catch(() => setError(messages.errors.generic));
+    (async () => {
+      try {
+        await refresh();
+      } catch {
+        setError(messages.errors.generic);
+      }
+    })();
   }, [refresh]);
 
   useEffect(() => {
