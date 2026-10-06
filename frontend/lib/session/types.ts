@@ -28,6 +28,7 @@ export interface MeResponse {
     email?: string;
     full_name?: string;
     email_verified?: boolean;
+    is_platform_admin?: boolean;
   };
   talent_profile?: TalentProfile | null;
   organizations: unknown[];

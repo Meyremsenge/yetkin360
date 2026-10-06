@@ -5,6 +5,19 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## admin-link-rol-sizintisi — YET-245 admin link rol kontrolü + nav yerleşimi (2026-10-06)
+
+**Kaynak:** `obss_project/artifacts/admin-link-rol-sizintisi/` — admin linklerinin (Kurum Doğrulama, Yetkinlik Yönetimi) rol kontrolü olmadan tüm kullanıcılara gösterilmesi + nav'ın sayfa altında olması.
+
+### Bilinçli kapsam/davranış kararları (kaynak: atdd.md)
+- Bu GERÇEK bir yetki açığı değildi — backend `_require_admin()` zaten `is_platform_admin` kontrolüyle 404 dönüyordu; değişiklik sadece UI'ı backend'in zaten uyguladığı sınırla tutarlı hale getirdi (savunma-derinliği, authz sınırı değişmedi).
+- Kabul edilen risk: admin yetkisi backend'de kaldırıldığında frontend, TanStack Query refetch'e kadar eski admin linkini kısa süre gösterebilir — gerçek yetki her zaman backend'de yeniden kontrol edildiği için (AC-S1) bu sadece görünürlük gecikmesi, bu görevde ele alınmadı.
+- Migration gerekmedi — `is_platform_admin` kolonu `85ce30db9b84` migration'ıyla zaten vardı, sadece response şemasına/frontend tipine eklendi.
+
+### Gerçek zorluk/bug (kaynak: verify_report.md, red_team.json)
+- **E2E/vision-test tam otomatik koşulamadı:** Seed admin şifresi `.env`'de ve CLAUDE.md kuralı gereği (`.env okunmaz`) gerçek giriş bilgisine erişilemedi — component/unit testleriyle (29 DOM assertion) ikame edildi. Red-team bunu "kalıcı ortam kısıtı" olarak işaretledi: seed script'inde `.env` dışı bir test-only admin credential olmadıkça her nav değişikliğinde bu kısım atlanacak.
+- `tests/authorization` paketinin tamamı (857 test) bu değişiklikten sonra da yeşil kaldı — AC-S1 regresyon koruması canlı pytest koşusuyla doğrulandı, sadece statik kod okumayla değil.
+
 ## bg-renk-token-tanimsiz — YET-244 arka plan/renk token'ları (2026-10-05)
 
 **Kaynak:** `obss_project/artifacts/bg-renk-token-tanimsiz/` — body/html'de background-color tanımsız olduğu için sistem koyu temada kart dışı alanların siyah/saydam göründüğü bug (shadcn-standart CSS değişkenleri + Tailwind bağlantısı eklendi).

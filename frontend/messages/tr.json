@@ -8,7 +8,9 @@
     "loading": "Yükleniyor...",
     "noOrganizations": "Henüz bir kuruluşunuz yok. Lütfen yöneticinize başvurun.",
     "adminVerificationQueueLink": "Kurum Doğrulama",
-    "adminSkillsLink": "Yetkinlik Yönetimi"
+    "adminSkillsLink": "Yetkinlik Yönetimi",
+    "engagementsLink": "Çalışmalarım",
+    "profileLink": "Profil"
   },
   "emailVerificationBanner": {
     "message": "E-posta adresiniz doğrulanmadı. Doğrulanana kadar kayıt oluşturamaz veya değişiklik yapamazsınız.",

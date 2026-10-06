@@ -553,4 +553,189 @@ describe("AppShell", () => {
       expect(screen.getByRole("alert")).toBeTruthy();
     });
   });
+
+  describe("YET-245: Admin linkleri rol kontrolü (is_platform_admin)", () => {
+    it("AC-1: is_platform_admin=true iken admin linklerini TAM EŞLEŞMEYLE göster", () => {
+      vi.mocked(useSession).mockReturnValueOnce({
+        data: {
+          user: { id: "user-admin", is_platform_admin: true },
+          organizations: [{ id: "org-1", name: "Test Org" }],
+          institutions: [],
+        },
+        error: null,
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useSession>);
+      vi.mocked(useLogout).mockReturnValueOnce({
+        logout: vi.fn(),
+        isPending: false,
+        isError: false,
+      });
+
+      const { container } = render(
+        <AppShell>
+          <p>Admin İçeriği</p>
+        </AppShell>
+      );
+
+      // Assert: admin link metinleri TAM EŞLEŞMEYLE bulunur
+      const html = container.innerHTML;
+      expect(html).toContain(messages.shell.adminVerificationQueueLink);
+      expect(html).toContain(messages.shell.adminSkillsLink);
+    });
+
+    it("AC-2: is_platform_admin=false iken admin linklerini HİÇ gösterme", () => {
+      vi.mocked(useSession).mockReturnValueOnce({
+        data: {
+          user: { id: "user-1", is_platform_admin: false },
+          organizations: [{ id: "org-1", name: "Test Org" }],
+          institutions: [],
+        },
+        error: null,
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useSession>);
+      vi.mocked(useLogout).mockReturnValueOnce({
+        logout: vi.fn(),
+        isPending: false,
+        isError: false,
+      });
+
+      const { container } = render(
+        <AppShell>
+          <p>Normal Kullanıcı İçeriği</p>
+        </AppShell>
+      );
+
+      // Assert: admin link metinleri HİÇ bulunmaz
+      const html = container.innerHTML;
+      expect(html).not.toContain(messages.shell.adminVerificationQueueLink);
+      expect(html).not.toContain(messages.shell.adminSkillsLink);
+
+      // Assert: children render edilmiş
+      expect(screen.getByText("Normal Kullanıcı İçeriği")).toBeTruthy();
+    });
+
+    it("AC-3: isPending=true (loading) iken admin linklerini gösterme", () => {
+      vi.mocked(useSession).mockReturnValueOnce({
+        data: undefined,
+        error: null,
+        isPending: true,
+        isError: false,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useSession>);
+
+      const { container } = render(
+        <AppShell>
+          <p>Bu metin loading sırasında görünmemeli</p>
+        </AppShell>
+      );
+
+      // Assert: admin link metinleri görünmez (loading sırasında fail-closed)
+      const html = container.innerHTML;
+      expect(html).not.toContain(messages.shell.adminVerificationQueueLink);
+      expect(html).not.toContain(messages.shell.adminSkillsLink);
+
+      // Assert: children render edilmemiş
+      expect(screen.queryByText("Bu metin loading sırasında görünmemeli")).toBeNull();
+    });
+
+    it("AC-4: is_platform_admin=undefined (null/şema hatası) iken admin linklerini gösterme (fail-closed)", () => {
+      vi.mocked(useSession).mockReturnValueOnce({
+        data: {
+          user: { id: "user-1" }, // is_platform_admin alanı yok (undefined)
+          organizations: [{ id: "org-1", name: "Test Org" }],
+          institutions: [],
+        },
+        error: null,
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useSession>);
+      vi.mocked(useLogout).mockReturnValueOnce({
+        logout: vi.fn(),
+        isPending: false,
+        isError: false,
+      });
+
+      const { container } = render(
+        <AppShell>
+          <p>Şema Hatası Durumu</p>
+        </AppShell>
+      );
+
+      // Assert: admin link metinleri HİÇ bulunmaz (fail-closed, === true kontrolü)
+      const html = container.innerHTML;
+      expect(html).not.toContain(messages.shell.adminVerificationQueueLink);
+      expect(html).not.toContain(messages.shell.adminSkillsLink);
+
+      // Assert: children render edilmiş (veri varsa normal davranış)
+      expect(screen.getByText("Şema Hatası Durumu")).toBeTruthy();
+    });
+
+    it("AC-5: Çalışmalarım ve Profil linkleri herhangi bir oturum durumunda görünür", () => {
+      vi.mocked(useSession).mockReturnValueOnce({
+        data: {
+          user: { id: "user-1", is_platform_admin: false },
+          organizations: [],
+          institutions: [],
+        },
+        error: null,
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useSession>);
+      vi.mocked(useLogout).mockReturnValueOnce({
+        logout: vi.fn(),
+        isPending: false,
+        isError: false,
+      });
+
+      const { container } = render(
+        <AppShell>
+          <p>İçerik</p>
+        </AppShell>
+      );
+
+      // Assert: Çalışmalarım ve Profil linkleri TAM EŞLEŞMEYLE bulunur
+      const html = container.innerHTML;
+      expect(html).toContain(messages.shell.engagementsLink);
+      expect(html).toContain(messages.shell.profileLink);
+
+      // Assert: children render edilmiş
+      expect(screen.getByText("İçerik")).toBeTruthy();
+    });
+
+    it("AC-5: Çalışmalarım ve Profil linkleri admin user'da da görünür", () => {
+      vi.mocked(useSession).mockReturnValueOnce({
+        data: {
+          user: { id: "user-admin", is_platform_admin: true },
+          organizations: [{ id: "org-1" }],
+          institutions: [],
+        },
+        error: null,
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useSession>);
+      vi.mocked(useLogout).mockReturnValueOnce({
+        logout: vi.fn(),
+        isPending: false,
+        isError: false,
+      });
+
+      const { container } = render(
+        <AppShell>
+          <p>Admin İçeriği</p>
+        </AppShell>
+      );
+
+      // Assert: Çalışmalarım ve Profil linkleri TAM EŞLEŞMEYLE bulunur
+      const html = container.innerHTML;
+      expect(html).toContain(messages.shell.engagementsLink);
+      expect(html).toContain(messages.shell.profileLink);
+    });
+  });
 });
