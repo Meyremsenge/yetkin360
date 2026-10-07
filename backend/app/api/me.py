@@ -82,7 +82,7 @@ class GetMeResponse(BaseModel):
     """Response schema for GET /me."""
 
     user: UserResponse
-    talent_profile: TalentProfileResponse
+    talent_profile: TalentProfileResponse | None = None
     organizations: list[OrganizationResponse]
     institutions: list[InstitutionResponse]
 
@@ -159,10 +159,8 @@ def get_me(
     Security:
         - AC-S1: Query/body parameters are ignored, authenticated user's context only
     """
-    try:
-        context = get_me_context(principal, user, session)
-    except ValueError:
-        raise HTTPException(status_code=404, detail={"code": "TALENT_PROFILE_NOT_FOUND", "message": "Talent profili bulunamadı.", "request_id": None})
+    context = get_me_context(principal, user, session)
+    talent_profile = context["talent_profile"]
 
     # Build response
     org_responses = [
@@ -179,7 +177,9 @@ def get_me(
             email_verified=user.email_verified_at is not None,
             is_platform_admin=user.is_platform_admin,
         ),
-        talent_profile=TalentProfileResponse.from_orm(context["talent_profile"]),
+        talent_profile=(
+            TalentProfileResponse.from_orm(talent_profile) if talent_profile is not None else None
+        ),
         organizations=org_responses,
         institutions=inst_responses,
     )

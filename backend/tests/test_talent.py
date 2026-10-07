@@ -257,6 +257,28 @@ class TestGetMe:
         assert "org_admin_ids" not in user_obj, "Response must not contain org_admin_ids"
         assert "supervisor_institution_ids" not in user_obj, "Response must not contain supervisor_institution_ids"
 
+    def test_get_me_user_without_talent_profile_returns_null_profile(
+        self, client, session, platform_admin_user, user_talent_a, talent_a
+    ):
+        """
+        GET /me for a user with no TalentProfile (e.g. the seeded platform admin)
+        returns 200 with talent_profile: null instead of 404.
+
+        A 404 here made the frontend shell treat the session as broken, so such
+        users could not use the app at all. Another talent's profile exists in
+        the database and must not leak into the response.
+        """
+        response = client.get("/me", headers={"X-Debug-User-Id": str(platform_admin_user.id)})
+
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        assert data["talent_profile"] is None
+        assert data["user"]["id"] == str(platform_admin_user.id)
+        assert data["user"]["is_platform_admin"] is True
+        assert data["organizations"] == []
+        assert data["institutions"] == []
+
 
 # ============================================================================
 # AC-3: PATCH /talents/me — Update talent profile (valid fields)

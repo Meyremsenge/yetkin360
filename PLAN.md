@@ -292,7 +292,8 @@ PLAN maddesi olarak açılmamıştı. Detay: `HATA.md`.**
       > platform admini (`seed_admin`) talent profilsiz → admin girişte tüm uygulama
       > hata ekranı. Testler `platform_admin_talent` fixture'ıyla admine profil verdiği
       > için yakalamamış. Düzeltme: `talent_profile` opsiyonel (`null`) döner; frontend
-      > tipi zaten `null` kabul ediyor.
+      > tipi zaten `null` kabul ediyor. **Düzeltildi (2026-10-07)** — profilsiz admin
+      > testi `tests/test_talent.py` içinde.
 - [ ] 3.29 Kanıt backend'i: tarama, liste ucu, kayıt sertleştirme (HATA_DUZELTME_PROMPT A-06, IS-07, GUV-12) @be2
 - [ ] 3.30 Çoklu rol: kapsam sorguları `kind`'dan bağımsız (HATA_DUZELTME_PROMPT A-08, AUTHZ-01, GUV-02, AUTHZ-02, L-08) @be2
 - [ ] 3.31 Davet uçları: 500, numaralandırma, rol doğrulama (HATA_DUZELTME_PROMPT A-09, GUV-07, GUV-02, L-01) @be2

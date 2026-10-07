@@ -28,13 +28,12 @@ def get_me_context(principal: Principal, user: User, session: Session) -> dict:
         session: Database session
 
     Returns:
-        Dict with keys: user, talent_profile, organizations, institutions
+        Dict with keys: user, talent_profile, organizations, institutions.
+        talent_profile is None for users without one (e.g. the seeded platform admin).
     """
     # Get talent profile for this user via scoped query
     talent_query = scoped_talent_profiles(session, principal)
-    talent = get_scoped_or_404(talent_query, session)  # Guaranteed by register invariant
-    if talent is None:
-        raise ValueError("TalentProfile not found for authenticated user — register invariant violated")
+    talent = get_scoped_or_404(talent_query, session)
 
     # Get organizations this user is member of via scoped query
     org_query = scoped_organizations(session, principal)
