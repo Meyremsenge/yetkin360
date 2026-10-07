@@ -37,7 +37,10 @@ $TotalSteps = 5
 
 $script:Step     = 0
 $script:Services = @()
-$script:Ansi     = [regex]("$([char]27)\[[0-9;?]*[A-Za-z]")
+$esc = [char]27
+$bel = [char]7
+# CSI colour codes and OSC sequences (e.g. window-title escapes).
+$script:Ansi = [regex]("$esc\[[0-9;?]*[A-Za-z]|$esc\][^$bel$esc]*(?:$bel|$esc\\)")
 
 # ------------------------------------------------------------------ output helpers
 
@@ -188,6 +191,11 @@ function Stop-DevProcesses {
 
 function Test-QuitKey {
     try {
+        # Child processes (cmd.exe in particular) reset the shared console mode, which
+        # turns Ctrl+C back into a signal: cmd then asks "Terminate batch job (Y/N)?".
+        if (-not [Console]::TreatControlCAsInput) { [Console]::TreatControlCAsInput = $true }
+        # next-server writes its own name into the console title.
+        if ($Host.UI.RawUI.WindowTitle -ne 'Yetkin360') { $Host.UI.RawUI.WindowTitle = 'Yetkin360' }
         while ([Console]::KeyAvailable) {
             $k = [Console]::ReadKey($true)
             $ctrlC = ($k.Key -eq 'C') -and (($k.Modifiers -band [ConsoleModifiers]::Control) -ne 0)
@@ -436,8 +444,18 @@ function Start-Services {
         -Arguments '-m uvicorn app.main:app --reload --port 8000' -WorkDir $Backend -Environment $pyEnv
     Start-DevProcess -Name 'worker' -Color DarkYellow -FileName $Py `
         -Arguments '-m app.workers.outbox_worker' -WorkDir $Backend -Environment $pyEnv | Out-Null
-    $web = Start-DevProcess -Name 'web' -Color Green -FileName 'cmd.exe' `
-        -Arguments '/d /c npm run dev' -WorkDir $Frontend -Environment @{ NO_COLOR = '1' }
+    # Run next directly with node when package.json's dev script is plain "next ...":
+    # no cmd.exe / npm.cmd layer that resets console mode or prompts on Ctrl+C.
+    $webEnv = @{ NO_COLOR = '1' }
+    $nextBin = Join-Path $Frontend 'node_modules\next\dist\bin\next'
+    $devScript = (Get-Content (Join-Path $Frontend 'package.json') -Raw -Encoding UTF8 | ConvertFrom-Json).scripts.dev
+    if ((Test-Path $nextBin) -and $devScript -match '^next(\s+.*)?$') {
+        $web = Start-DevProcess -Name 'web' -Color Green -FileName 'node' `
+            -Arguments ('"{0}"{1}' -f $nextBin, $Matches[1]) -WorkDir $Frontend -Environment $webEnv
+    } else {
+        $web = Start-DevProcess -Name 'web' -Color Green -FileName 'cmd.exe' `
+            -Arguments '/d /c npm run dev' -WorkDir $Frontend -Environment $webEnv
+    }
 
     if (Wait-Http $ApiHealth 60 $api) { Write-Ok 'API hazır' }
     else { Write-Warn 'API 60 sn içinde yanıt vermedi; yukarıdaki api loglarına bak.' }
