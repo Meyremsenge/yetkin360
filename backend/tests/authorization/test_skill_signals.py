@@ -126,7 +126,7 @@ class TestCrossTalentSignalIsolation:
         - Talent A learns nothing about whether Talent B claimed this skill
         """
         # Setup: Talent B claims skill_authz_only_b
-        payload_b = {"skill_id": str(skill_authz_only_b.id)}
+        payload_b = {"skill_id": str(skill_authz_only_b.id), "claimed_level": "INTERMEDIATE"}
         response_b = client.post(
             "/talents/me/skills",
             json=payload_b,
@@ -161,7 +161,7 @@ class TestCrossTalentSignalIsolation:
         - Response contains only Talent A's own signals, never Talent B's
         """
         # Setup: Talent A claims shared skill
-        payload_a = {"skill_id": str(skill_authz_shared_python.id)}
+        payload_a = {"skill_id": str(skill_authz_shared_python.id), "claimed_level": "INTERMEDIATE"}
         response_a_claim = client.post(
             "/talents/me/skills",
             json=payload_a,
@@ -170,7 +170,7 @@ class TestCrossTalentSignalIsolation:
         assert response_a_claim.status_code == 201
 
         # Setup: Talent B claims only-B skill
-        payload_b = {"skill_id": str(skill_authz_only_b.id)}
+        payload_b = {"skill_id": str(skill_authz_only_b.id), "claimed_level": "INTERMEDIATE"}
         response_b_claim = client.post(
             "/talents/me/skills",
             json=payload_b,
@@ -230,7 +230,7 @@ class TestPrincipalTalentIdFromSessionNotRequest:
           (REST principle: /talents/me/ implies current user, no override)
         """
         # Setup: Talent B claims a skill
-        payload_b = {"skill_id": str(skill_authz_shared_python.id)}
+        payload_b = {"skill_id": str(skill_authz_shared_python.id), "claimed_level": "INTERMEDIATE"}
         response_b = client.post(
             "/talents/me/skills",
             json=payload_b,
@@ -271,7 +271,7 @@ class TestPrincipalTalentIdFromSessionNotRequest:
         - All of Talent A's queries return only Talent A's data
         """
         # Setup: Talent A claims shared skill
-        payload_a = {"skill_id": str(skill_authz_shared_python.id)}
+        payload_a = {"skill_id": str(skill_authz_shared_python.id), "claimed_level": "INTERMEDIATE"}
         response_a_claim = client.post(
             "/talents/me/skills",
             json=payload_a,
@@ -280,7 +280,7 @@ class TestPrincipalTalentIdFromSessionNotRequest:
         assert response_a_claim.status_code == 201
 
         # Setup: Talent B claims only-B skill
-        payload_b = {"skill_id": str(skill_authz_only_b.id)}
+        payload_b = {"skill_id": str(skill_authz_only_b.id), "claimed_level": "INTERMEDIATE"}
         response_b_claim = client.post(
             "/talents/me/skills",
             json=payload_b,

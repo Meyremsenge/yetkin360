@@ -19,6 +19,7 @@ from app.core.errors import ApiError
 from app.services.audit import log_audit_event
 from app.services.authorization import Principal
 from app.services.organization import (
+    DomainAlreadyVerifiedError,
     NotPendingError,
     list_verification_queue,
     reject_verification,
@@ -27,6 +28,7 @@ from app.services.organization import (
 from app.services.skill import (
     DuplicateSkillSlugError,
     InvalidSkillReferenceError,
+    SkillStatusTransitionError,
     create_skill,
     deprecate_skill,
     list_all_skills,
@@ -100,6 +102,7 @@ class SkillUpdateRequest(BaseModel):
     name_en: Optional[str] = None
     category: Optional[SkillCategory] = None
     parent_id: Optional[uuid.UUID] = None
+    status: Optional[Literal["ACTIVE", "DEPRECATED"]] = None  # AC-13: status transitions
 
 
 class SkillMergeRequest(BaseModel):
@@ -156,12 +159,15 @@ def update_verification_level(
     """
     _require_admin(principal)
 
-    org = set_verification_level(
-        session,
-        organization_id=organization_id,
-        verification_level=payload.verification_level,
-        admin_user_id=principal.user_id,
-    )
+    try:
+        org = set_verification_level(
+            session,
+            organization_id=organization_id,
+            verification_level=payload.verification_level,
+            admin_user_id=principal.user_id,
+        )
+    except DomainAlreadyVerifiedError:
+        raise ApiError(409, "DOMAIN_ALREADY_VERIFIED", "Alan adı başka bir kurumda doğrulanmış.")
     if org is None:
         raise ApiError(404, "NOT_FOUND", "Kurum bulunamadı.")
 
@@ -284,9 +290,12 @@ def update_skill_endpoint(
             name_en=payload.name_en,
             category=payload.category,
             parent_id=payload.parent_id,
+            status=payload.status,
         )
     except InvalidSkillReferenceError as exc:
         raise ApiError(422, "VALIDATION_ERROR", str(exc))
+    except SkillStatusTransitionError as exc:
+        raise ApiError(409, "CONFLICT", str(exc))
 
     if skill is None:
         raise ApiError(404, "NOT_FOUND", "Skill bulunamadı.")

@@ -16,12 +16,13 @@ from app.services.authorization import Principal, get_scoped_or_404, scoped_inst
 from app.services.audit import log_audit_event
 from app.services.institution import (
     AlreadyMemberError,
-    DuplicateDomainError,
     DuplicateLinkRequestError,
     approve_institution_link,
     create_institution,
     get_institution,
     invite_member,
+    list_pending_link_requests,
+    reject_institution_link,
     request_institution_link,
 )
 from app.services.engagement import get_coordinator_dashboard
@@ -88,6 +89,22 @@ class InstitutionLinkRequestResponse(BaseModel):
         from_attributes = True
 
 
+class PendingLinkRequestItem(BaseModel):
+    """Single item in GET /institutions/{id}/link-requests response."""
+
+    id: uuid.UUID
+    talent_profile_id: uuid.UUID
+    talent_full_name: str
+    status: str
+    requested_at: datetime
+
+
+class PendingLinkRequestsListResponse(BaseModel):
+    """Response schema for GET /institutions/{id}/link-requests."""
+
+    items: list[PendingLinkRequestItem]
+
+
 class DashboardEngagementItem(BaseModel):
     """Engagement item in dashboard response."""
 
@@ -141,16 +158,15 @@ def create_institution_endpoint(
     AC-1: Create institution. Caller becomes ADMIN.
 
     Args:
-        payload: name (required), domain (optional)
+        payload: name (required), domain (accepted but ignored: GUV-09, unverified)
         principal: Authenticated principal
         session: Database session
 
     Returns:
-        Institution (T1, ACTIVE)
+        Institution (T1, ACTIVE, domain None)
 
     Status codes:
         201: Institution created
-        409: Duplicate domain
         422: Invalid input
         401: Unauthenticated
     """
@@ -161,17 +177,17 @@ def create_institution_endpoint(
     if not payload.name or not payload.name.strip():
         raise HTTPException(status_code=422, detail="Name is required")
 
-    try:
-        institution = create_institution(
-            name=payload.name,
-            domain=payload.domain,
-            caller_user_id=principal.user_id,
-            session=session,
-        )
-        session.flush()  # Persist changes within transaction
-        return institution
-    except DuplicateDomainError:
-        raise HTTPException(status_code=409, detail="DOMAIN_TAKEN")
+    # GUV-09: payload.domain is unverified, attacker-chosen text and the column is UNIQUE, so
+    # storing it would let the first caller lock out the real institution. Never reserve it here;
+    # only the seed / a platform admin sets an institution domain (trusted service callers).
+    institution = create_institution(
+        name=payload.name,
+        domain=None,
+        caller_user_id=principal.user_id,
+        session=session,
+    )
+    session.flush()  # Persist changes within transaction
+    return institution
 
 
 # ============================================================================
@@ -414,6 +430,108 @@ def approve_link_request_endpoint(
         if "not found" in message:
             raise HTTPException(status_code=404, detail="Link request not found")
         raise HTTPException(status_code=422, detail=message)
+
+
+# ============================================================================
+# YET-197/IS-10: Reject student link request
+# ============================================================================
+
+
+@router.post("/{institution_id}/link-requests/{request_id}/reject", status_code=200, response_model=InstitutionLinkRequestResponse)
+def reject_link_request_endpoint(
+    institution_id: uuid.UUID,
+    request_id: uuid.UUID,
+    principal: Principal = Depends(get_verified_principal),
+    session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
+) -> InstitutionLinkRequest:
+    """
+    YET-197/IS-10: Coordinator/Admin rejects link request → REJECTED (talent stays unlinked).
+    AC-5/AC-S2: Only coordinator/admin of THE institution can reject its requests
+    (same tenant-isolation pattern as approve_link_request_endpoint).
+
+    Args:
+        institution_id: Target institution (from URL path, for authorization check)
+        request_id: InstitutionLinkRequest ID
+        principal: Authenticated principal
+        session: Database session
+
+    Returns:
+        InstitutionLinkRequest (REJECTED status)
+
+    Status codes:
+        200: Request rejected
+        404: Request not found, institution not found, or user not authorized
+        422: Request not PENDING
+    """
+    # Authorization: Principal must be member of THE institution (ADMIN or COORDINATOR).
+    if institution_id not in principal.institution_ids:
+        raise HTTPException(status_code=404, detail="Institution not found")
+
+    scoped = scoped_institutions(session, principal).where(Institution.id == institution_id)
+    institution = get_scoped_or_404(scoped, session)
+
+    if not institution:
+        raise HTTPException(status_code=404, detail="Institution not found")
+
+    assert principal.user_id is not None
+
+    try:
+        link_request = reject_institution_link(
+            request_id=request_id,
+            institution_id=institution_id,
+            rejecter_user_id=principal.user_id,
+            session=session,
+        )
+        session.flush()
+        return link_request
+    except ValueError as e:
+        message = str(e)
+        if "not found" in message:
+            raise HTTPException(status_code=404, detail="Link request not found")
+        raise HTTPException(status_code=422, detail=message)
+
+
+# ============================================================================
+# YET-197/IS-10: List pending link requests (coordinator view)
+# ============================================================================
+
+
+@router.get("/{institution_id}/link-requests", status_code=200, response_model=PendingLinkRequestsListResponse)
+def list_pending_link_requests_endpoint(
+    institution_id: uuid.UUID,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> PendingLinkRequestsListResponse:
+    """
+    YET-197/IS-10: Coordinator/Admin lists PENDING link requests for their institution.
+    AC-5/AC-S2: Same tenant-isolation pattern as approve/reject — only coordinator/admin
+    of THE institution can see its pending requests.
+
+    Args:
+        institution_id: Target institution (from URL path, for authorization check)
+        principal: Authenticated principal
+        session: Database session
+
+    Returns:
+        PendingLinkRequestsListResponse (items: id, talent_profile_id, talent_full_name,
+        status, requested_at — oldest first)
+
+    Status codes:
+        200: List retrieved (possibly empty)
+        404: Institution not found or user not authorized
+    """
+    if institution_id not in principal.institution_ids:
+        raise HTTPException(status_code=404, detail="Institution not found")
+
+    scoped = scoped_institutions(session, principal).where(Institution.id == institution_id)
+    institution = get_scoped_or_404(scoped, session)
+
+    if not institution:
+        raise HTTPException(status_code=404, detail="Institution not found")
+
+    items = list_pending_link_requests(institution_id=institution_id, session=session)
+    return PendingLinkRequestsListResponse(items=[PendingLinkRequestItem(**item) for item in items])
 
 
 # ============================================================================

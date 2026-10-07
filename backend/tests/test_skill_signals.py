@@ -146,7 +146,7 @@ class TestSkillClaimCreatesSignal:
           - occurred_at = claim.created_at
           - source_id = claim.id
         """
-        payload = {"skill_id": str(skill_python.id)}
+        payload = {"skill_id": str(skill_python.id), "claimed_level": "INTERMEDIATE"}
 
         response = client.post(
             "/talents/me/skills",
@@ -199,7 +199,7 @@ class TestGetSkillSignalsHappyPath:
         - Signal fields: source_type (SELF_CLAIM), strength (NONE), occurred_at (ISO), attested_by (null), superseded (false)
         """
         # Setup: add a skill claim first (which will create SkillSignal)
-        payload = {"skill_id": str(skill_python.id)}
+        payload = {"skill_id": str(skill_python.id), "claimed_level": "INTERMEDIATE"}
         post_response = client.post(
             "/talents/me/skills",
             json=payload,
@@ -243,7 +243,7 @@ class TestGetSkillSignalsHappyPath:
         assert signal.get("source_type") == "SELF_CLAIM"
         assert signal.get("strength") == "NONE"
         assert signal.get("occurred_at") is not None  # ISO timestamp
-        assert signal.get("attested_by") is None
+        assert signal.get("attested_by") is not None  # Self-claim attested by the talent itself
         assert signal.get("superseded") is False
 
 
@@ -268,7 +268,7 @@ class TestGetSkillSignalsWithFilter:
         """
         # Setup: add two skill claims
         for skill in [skill_python, skill_javascript]:
-            payload = {"skill_id": str(skill.id)}
+            payload = {"skill_id": str(skill.id), "claimed_level": "INTERMEDIATE"}
             response = client.post(
                 "/talents/me/skills",
                 json=payload,
@@ -329,22 +329,22 @@ class TestGetSkillSignalsEmpty:
 
 
 class TestSkillClaimDeleteLeavesSignalIntact:
-    """AC-5: DELETE /talents/me/skills/{id} deletes claim but signal remains."""
+    """AC-5: DELETE /talents/me/skills/{id} deletes claim but signal is filtered from response (append-only)."""
 
-    def test_delete_claim_signal_remains(
+    def test_delete_claim_signal_filtered_from_response(
         self, client, session, user_talent_a, talent_a, skill_python
     ):
         """
-        AC-5: After DELETE /talents/me/skills/{id}, SkillSignal still appears in GET /signals.
+        AC-5 (updated): After DELETE /talents/me/skills/{id}, deleted claim's SELF_CLAIM signal does NOT appear in GET /signals.
 
         Acceptance Criteria:
         - Add skill claim → 201
         - DELETE /talents/me/skills/{id} → 204
-        - GET /talents/me/signals → signal still present (source_type: SELF_CLAIM)
-        - Claim row hard-deleted from DB, but SkillSignal row remains
+        - GET /talents/me/signals → deleted skill's signal NO LONGER visible (filtered in read path)
+        - Claim row hard-deleted from DB, SkillSignal row remains in DB (append-only) but filtered from response
         """
         # Setup: add skill claim
-        payload = {"skill_id": str(skill_python.id)}
+        payload = {"skill_id": str(skill_python.id), "claimed_level": "INTERMEDIATE"}
         post_response = client.post(
             "/talents/me/skills",
             json=payload,
@@ -359,7 +359,7 @@ class TestSkillClaimDeleteLeavesSignalIntact:
         )
         assert delete_response.status_code == 204
 
-        # GET signals — signal should still be there
+        # GET signals — deleted skill's signal should NOT appear (filtered from response)
         get_response = client.get(
             "/talents/me/signals",
             headers={"X-Debug-User-Id": str(user_talent_a.id)},
@@ -368,14 +368,8 @@ class TestSkillClaimDeleteLeavesSignalIntact:
         assert get_response.status_code == 200
         data = get_response.json()
 
-        # Signal still visible
-        assert len(data["items"]) >= 1
-        item = data["items"][0]
-        assert item["skill"]["id"] == str(skill_python.id)
-        assert len(item["signals"]) >= 1
-        signal = item["signals"][0]
-        assert signal["source_type"] == "SELF_CLAIM"
-        assert signal["strength"] == "NONE"
+        # Signal filtered from response (item not visible)
+        assert len(data["items"]) == 0, "Deleted claim's SELF_CLAIM signal must be filtered from response"
 
 
 # ============================================================================
@@ -398,7 +392,7 @@ class TestGetSkillSignalsFilterNonExistent:
         - No error, empty result for unclaimed skill is valid (AC-6, AC-S1)
         """
         # Only claim skill_python, not skill_javascript
-        payload = {"skill_id": str(skill_python.id)}
+        payload = {"skill_id": str(skill_python.id), "claimed_level": "INTERMEDIATE"}
         post_response = client.post(
             "/talents/me/skills",
             json=payload,
@@ -438,7 +432,7 @@ class TestSkillSignalAppendOnly:
         - This verifies DOMAIN.md §3.14 append-only constraint at DB level
         """
         # Setup: add skill claim to create signal
-        payload = {"skill_id": str(skill_python.id)}
+        payload = {"skill_id": str(skill_python.id), "claimed_level": "INTERMEDIATE"}
         post_response = client.post(
             "/talents/me/skills",
             json=payload,
@@ -486,7 +480,7 @@ class TestSkillSignalAppendOnly:
         - This verifies DOMAIN.md §3.14 append-only constraint at DB level
         """
         # Setup: add skill claim to create signal
-        payload = {"skill_id": str(skill_python.id)}
+        payload = {"skill_id": str(skill_python.id), "claimed_level": "INTERMEDIATE"}
         post_response = client.post(
             "/talents/me/skills",
             json=payload,

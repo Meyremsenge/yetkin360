@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import Select, select, or_
 from sqlalchemy.orm import Session
 
-from app.models import Attestation, Engagement, Evidence, Institution, Organization, SkillClaim, SkillSignal, TalentProfile, User, VerifiedExperience
+from app.models import Attestation, Engagement, Evidence, Institution, InstitutionLinkRequest, Organization, SkillClaim, SkillSignal, TalentProfile, User, VerifiedExperience
 
 
 @dataclass
@@ -46,6 +46,7 @@ class Principal:
     is_platform_admin: bool
     is_suspended: bool
     institution_admin_ids: list[uuid.UUID] = field(default_factory=list)
+    supervisor_institution_ids: list[uuid.UUID] = field(default_factory=list)
 
     @property
     def coordinator_institution_ids(self) -> list[uuid.UUID]:
@@ -293,7 +294,9 @@ def scoped_engagements(session: Session, principal: Principal) -> Select:
     - If principal.org_ids is not empty: organization_id in principal.org_ids
     - If principal.institution_ids is not empty: institution_id in principal.institution_ids
     If all membership lists are empty, returns no engagements (empty result).
-    Uses membership lists, not kind (which is display-only per AC-6).
+    Uses membership lists, not kind (which is display-only per AC-6) — this also
+    covers SUPERVISOR (AUTHZ-03/AC-7), whose institution_ids get_current_principal()
+    populates like COORDINATOR/INST_ADMIN.
     """
     conditions = []
 
@@ -305,7 +308,7 @@ def scoped_engagements(session: Session, principal: Principal) -> Select:
     if principal.org_ids:
         conditions.append(Engagement.organization_id.in_(principal.org_ids))
 
-    # Institution pathway (both coordinator and admin)
+    # Institution pathway (coordinator, admin, and supervisor)
     if principal.institution_ids:
         conditions.append(Engagement.institution_id.in_(principal.institution_ids))
 
@@ -343,6 +346,28 @@ def scoped_evidence(session: Session, principal: Principal) -> Select:
         return select(Evidence).where(Evidence.owner_talent_id == principal.talent_id)
     # No talent_id: no evidence in scope
     return select(Evidence).where(Evidence.id.in_([]))
+
+
+def scoped_own_institution_link_requests(session: Session, principal: Principal) -> Select:
+    """
+    Return a SQLAlchemy Select query for a talent's own InstitutionLinkRequest rows.
+
+    Owner can see ALL their requests regardless of status (PENDING/APPROVED/REJECTED).
+    Used by GET /talents/me/institution-link-requests.
+
+    Args:
+      - session: SQLAlchemy Session
+      - principal: Principal object (must have talent_id)
+
+    Returns:
+      - sqlalchemy.sql.Select: Query returning InstitutionLinkRequest rows for this talent
+
+    Implements YET-197/IS-10 (owner isolation — BOLA across talents).
+    """
+    if principal.talent_id is not None:
+        return select(InstitutionLinkRequest).where(InstitutionLinkRequest.talent_profile_id == principal.talent_id)
+    # All other kinds: no link requests in scope
+    return select(InstitutionLinkRequest).where(InstitutionLinkRequest.id.in_([]))
 
 
 def get_scoped_or_404(scoped_select: Select, session: Session):
@@ -398,6 +423,9 @@ def scoped_public_verified_experiences(session: Session, talent_id: uuid.UUID) -
     via scoped_public_talent_profile() — this function does not re-check talent
     visibility, only scopes by talent_id.
 
+    GUV-05: Filters out experiences whose attestations are all revoked.
+    Visible if: no attestations OR has at least one non-revoked attestation.
+
     Args:
       - session: SQLAlchemy Session
       - talent_id: UUID of the (already-verified-PUBLIC) talent profile
@@ -405,9 +433,28 @@ def scoped_public_verified_experiences(session: Session, talent_id: uuid.UUID) -
     Returns:
       - sqlalchemy.sql.Select: Query returning VerifiedExperience rows for this talent
 
-    Implements AC-1, AC-5 (AC-S3) (public-profil-endpoint, YET-105)
+    Implements AC-1, AC-5 (AC-S3) (public-profil-endpoint, YET-105), GUV-05 (AC-4/AC-S3)
     """
-    return select(VerifiedExperience).where(VerifiedExperience.talent_id == talent_id)
+    # Subquery: check if engagement has any attestations at all
+    has_any_attestation = (
+        select(1).where(
+            Attestation.engagement_id == VerifiedExperience.engagement_id,
+        ).exists()
+    )
+
+    # Subquery: check if engagement has at least one non-revoked attestation
+    has_active_attestation = (
+        select(1).where(
+            Attestation.engagement_id == VerifiedExperience.engagement_id,
+            Attestation.revoked_at.is_(None),
+        ).exists()
+    )
+
+    return select(VerifiedExperience).where(
+        VerifiedExperience.talent_id == talent_id,
+        # GUV-05: Include if no attestations exist OR at least one is active
+        (~has_any_attestation) | has_active_attestation,
+    )
 
 
 def scoped_own_verified_experiences(session: Session, principal: Principal) -> Select:
@@ -417,6 +464,9 @@ def scoped_own_verified_experiences(session: Session, principal: Principal) -> S
     Owner can see ALL their verified experiences regardless of visibility
     (including PRIVATE records). Used by GET /talents/me/verified-experiences.
 
+    GUV-05: Filters out experiences whose attestations are all revoked.
+    Visible if: no attestations OR has at least one non-revoked attestation.
+
     Args:
       - session: SQLAlchemy Session
       - principal: Principal object (must have talent_id)
@@ -424,10 +474,29 @@ def scoped_own_verified_experiences(session: Session, principal: Principal) -> S
     Returns:
       - sqlalchemy.sql.Select: Query returning VerifiedExperience rows for this talent
 
-    Implements AC-7, AC-9/AC-S1 (owner isolation, visibility filter NOT applied).
+    Implements AC-7, AC-9/AC-S1 (owner isolation, visibility filter NOT applied), GUV-05 (AC-4/AC-S3)
     """
     if principal.talent_id is not None:
-        return select(VerifiedExperience).where(VerifiedExperience.talent_id == principal.talent_id)
+        # Subquery: check if engagement has any attestations at all
+        has_any_attestation = (
+            select(1).where(
+                Attestation.engagement_id == VerifiedExperience.engagement_id,
+            ).exists()
+        )
+
+        # Subquery: check if engagement has at least one non-revoked attestation
+        has_active_attestation = (
+            select(1).where(
+                Attestation.engagement_id == VerifiedExperience.engagement_id,
+                Attestation.revoked_at.is_(None),
+            ).exists()
+        )
+
+        return select(VerifiedExperience).where(
+            VerifiedExperience.talent_id == principal.talent_id,
+            # GUV-05: Include if no attestations exist OR at least one is active
+            (~has_any_attestation) | has_active_attestation,
+        )
     # All other kinds: no verified experiences in scope
     return select(VerifiedExperience).where(VerifiedExperience.id.in_([]))
 
@@ -439,6 +508,8 @@ def scoped_public_verified_experience_by_token(session: Session, token: str) -> 
     Auth-free endpoint: returns VerifiedExperience records that are:
     - public_token matches the given token
     - visibility='PUBLIC'
+    - GUV-05: NOT ALL attestations are revoked (if any attestations exist)
+      (Visible if: no attestations OR has at least one non-revoked attestation)
 
     Single query with combined WHERE clause to avoid timing side-channel
     (timing must not distinguish between nonexistent token and non-PUBLIC visibility).
@@ -451,11 +522,35 @@ def scoped_public_verified_experience_by_token(session: Session, token: str) -> 
       - sqlalchemy.sql.Select: Query returning VerifiedExperience rows matching criteria
         (typically 0 or 1 result, due to unique constraint on public_token)
 
-    Implements AC-1, AC-2, AC-3 (AC-S2), AC-6 (public-dogrulama-linki, YET-106)
+    Implements AC-1, AC-2, AC-3 (AC-S2), AC-6 (public-dogrulama-linki, YET-106), GUV-05 (AC-4/AC-S3)
     """
-    return select(VerifiedExperience).where(
-        VerifiedExperience.public_token == token,
-        VerifiedExperience.visibility == "PUBLIC",
+    # Subquery: check if engagement has any attestations at all
+    has_any_attestation = (
+        select(1).where(
+            Attestation.engagement_id == VerifiedExperience.engagement_id,
+        ).exists()
+    )
+
+    # Subquery: check if engagement has at least one non-revoked attestation
+    has_active_attestation = (
+        select(1).where(
+            Attestation.engagement_id == VerifiedExperience.engagement_id,
+            Attestation.revoked_at.is_(None),
+        ).exists()
+    )
+
+    # Join keeps this one query: a soft-deleted talent's token must be
+    # indistinguishable from an unknown token (YET-230), same as the slug route.
+    return (
+        select(VerifiedExperience)
+        .join(TalentProfile, TalentProfile.id == VerifiedExperience.talent_id)
+        .where(
+            VerifiedExperience.public_token == token,
+            VerifiedExperience.visibility == "PUBLIC",
+            TalentProfile.deleted_at.is_(None),
+            # GUV-05: Include if no attestations exist OR at least one is active
+            (~has_any_attestation) | has_active_attestation,
+        )
     )
 
 
@@ -467,6 +562,8 @@ def scoped_attestations_for_engagement(session: Session, engagement_id: uuid.UUI
     visibility='PUBLIC' via scoped_public_verified_experience_by_token() —
     this function does not re-check visibility, only scopes by engagement_id.
 
+    Filters out revoked attestations (GUV-05: AC-4/AC-S3).
+
     Args:
       - session: SQLAlchemy Session
       - engagement_id: UUID of the (already-verified-PUBLIC) VerifiedExperience's engagement
@@ -474,9 +571,10 @@ def scoped_attestations_for_engagement(session: Session, engagement_id: uuid.UUI
     Returns:
       - sqlalchemy.sql.Select: Query returning Attestation rows with skill_id set, for this engagement
 
-    Implements AC-1, AC-5 (public-dogrulama-linki, YET-106)
+    Implements AC-1, AC-5 (public-dogrulama-linki, YET-106), GUV-05 (AC-4/AC-S3)
     """
     return select(Attestation).where(
         Attestation.engagement_id == engagement_id,
         Attestation.skill_id.isnot(None),
+        Attestation.revoked_at.is_(None),  # GUV-05: exclude revoked attestations
     )

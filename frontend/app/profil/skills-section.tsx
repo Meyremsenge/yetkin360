@@ -43,8 +43,6 @@ export default function SkillsSection() {
     }
 
     if (!searchQuery.trim()) {
-      setSearchResults(null);
-      setIsSearching(false);
       return;
     }
 
@@ -68,13 +66,18 @@ export default function SkillsSection() {
     };
   }, [searchQuery]);
 
+  // Boş sorguda sonuç/arama göstergesi her zaman gizli olmalı — effect'te
+  // reset yerine render'da türetilir (react-hooks/set-state-in-effect).
+  const effectiveSearchResults = searchQuery.trim() ? searchResults : null;
+  const effectiveIsSearching = searchQuery.trim() ? isSearching : false;
+
   // Get list of current skill IDs for filtering
   const currentSkillIds = new Set(
     mySkills.map((item) => item.skill.id as string)
   );
 
   // AC-6: Filter out already-claimed skills from search results
-  const filteredSearchResults = (searchResults as Array<Record<string, unknown>> | null)?.filter(
+  const filteredSearchResults = (effectiveSearchResults as Array<Record<string, unknown>> | null)?.filter(
     (skill) => !currentSkillIds.has(skill.id as string)
   );
 
@@ -215,8 +218,6 @@ export default function SkillsSection() {
 
       {/* Add skill section */}
       <div className="border-t pt-6">
-        <h3 className="text-sm font-bold mb-4">{messages.profil.skillsSection}</h3>
-
         {/* Search input with debounce */}
         <div className="mb-4">
           <Label htmlFor="skill-search">{messages.profil.skillSearchPlaceholder}</Label>
@@ -230,7 +231,7 @@ export default function SkillsSection() {
         </div>
 
         {/* Search results */}
-        {isSearching && <p className="text-sm text-slate-600 mb-4">{messages.shell.loading}</p>}
+        {effectiveIsSearching && <p className="text-sm text-slate-600 mb-4">{messages.shell.loading}</p>}
 
         {filteredSearchResults && filteredSearchResults.length > 0 && (
           <div className="mb-4 space-y-2 max-h-48 overflow-y-auto">
@@ -251,7 +252,7 @@ export default function SkillsSection() {
           </div>
         )}
 
-        {searchResults !== null && filteredSearchResults?.length === 0 && !isSearching && (
+        {effectiveSearchResults !== null && filteredSearchResults?.length === 0 && !effectiveIsSearching && (
           <p className="text-xs text-slate-600 mb-4">
             {searchQuery.trim() ? "Sonuç bulunamadı" : "Bir yetkinlik arayın"}
           </p>

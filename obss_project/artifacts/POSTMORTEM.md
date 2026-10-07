@@ -4,6 +4,76 @@ Görevler arası tekrar eden kalıpları takip eder. Üzerine eklenir, silinmez.
 
 ---
 
+## Koşum 6 — 2026-10-05
+
+**Görev sayısı:** 41 (biriken: 7 — `a01-giris-kilitleme`,
+`acik-kaynak-paketi-dogrulama`, `bg-renk-token-tanimsiz`,
+`guv-02-davet-yaniti-duzeltmesi`, `guvenlik-bulgulari-duzeltme`,
+`yet-187-coklu-rol`, `yet-217-test-izolasyonu`)
+
+**Kategori dağılımı (bu 7 görev, 29 bulgu):** test-gap 9 (5/7 görevde),
+maintainability 5 (5/7), readability 4 (4/7), reliability 3 (3/7), risk 3
+(2/7), other 2 (2/7), scope 2 (2/7), security 1. Şiddet: 12 medium, 17 low
+— kritik/yüksek yok.
+
+**Sıcak dosya yok** — her dosya tek görevden, kronik değil.
+
+### Tekrar eden kalıp: `test-gap` (5/7 görevde) — testler yüzeysel sinyal doğruluyor, gerçek davranışı değil
+
+Beş ayrı görevde (`a01-giris-kilitleme`, `acik-kaynak-paketi-dogrulama`,
+`bg-renk-token-tanimsiz`, `yet-187-coklu-rol`, `yet-217-test-izolasyonu`)
+aynı kök desen tekrarladı: bir test, acceptance criteria'nın iddia ettiği
+*davranışı* değil, ona yakın duran *yüzeysel bir sinyali* doğruluyor —
+
+- dosyanın/stringin var olup olmadığını kontrol edip gerçek çalışma
+  davranışını hiç tetiklemeden ("sıfırdan kurulum ayağa kalkar" iddiası,
+  sadece dosya varlığı ve bir README cümlesiyle "kanıtlanmış");
+- aşırı daraltılmış bir regex/substring ile (`/erişiminiz yok|yetkiniz
+  yok/i` gibi) gerçek üründe kullanılan diğer eşdeğer ifadeleri
+  (`"Erişim reddedildi"`) kaçırarak;
+- iki durumun BİRLEŞİMİNİ (ör. SUSPENDED kullanıcı + zaten geçersiz
+  refresh token) hiç test etmeden, sadece her durumu ayrı ayrı sınayarak;
+- rol/kind alias'larını (`self.principal.kind`, `getattr` ile erişilen
+  alternatif adlar) statik bir tarama/assert'in gözden kaçırmasıyla.
+
+**Eylem (atdd kontrol listesine, en ucuz yakalama noktası):** `atdd`
+skill'inin Davranış Sözleşmesi tablosuna artık şu soru ekleniyor — bir AC
+"X olursa Y olur" diyorsa, test bunu DOĞRUDAN tetikleyerek mi kanıtlıyor,
+yoksa dolaylı bir vekil sinyal (dosya varlığı, kısmi string, tek durumun
+izole testi) ile mi? Vekilse, atdd.md'nin Davranış Sözleşmesi'ne "doğrudan
+tetikleme" notu eklenmeli ve `test-copilot`'a bu şekilde aktarılmalı. Ayrıca
+birden fazla bağımsız koşulun (durum + token geçerliliği, rol + eylem gibi)
+KOMBİNASYONU bir AC'nin parçasıysa, bu kombinasyon da ayrı bir satır olarak
+Davranış Sözleşmesi'ne yazılmalı — "ayrı ayrı test edildi" kombinasyonun
+test edildiği anlamına gelmez.
+
+**Not — `test-copilot`'un kendi dosyasına da bir madde:** regex/substring
+ile hata mesajı doğrulanan testlerde, mesajın TAM ürün metniyle
+(messages/tr.json gibi bir sabitten) eşleştiği, gevşek bir desenle değil,
+ayrıca kontrol edilmeli — bu zaten `test-copilot`'un "tam eşleştir, gevşek
+OR/substring yasak" kuralına yakın ama "birden fazla DOĞRU varyant olabilir,
+hepsini kapsa" kısmı eksikti; bu koşumda eklendi.
+
+### Diğer kategoriler — henüz kalıp sayılamayacak kadar az veri
+`maintainability` (5 görev) ve `readability` (4 görev) tekrarladı ama her
+görevdeki somut neden farklıydı (audit log tutarsızlığı, boş bırakılmış
+dosya, eksik rol doğrulaması, traceback gizleyen `raise ... from` eksikliği,
+çelişkili rapor durumu) — tek bir ortak düzeltme önerilemez, "kod incelemesi
+dikkatli yapılsın" gibi genel öğüt yasak olduğu için bu ikisi için şimdilik
+eylem üretilmedi. Bir sonraki koşumda aynı alt-neden tekrar ederse
+(örn. "raise ... from e eksikliği" 2. kez çıkarsa) o zaman somutlaşır.
+
+### security_scan.md / verify_report.md
+`İnsan onayı -> PENDING` ve `AI code review -> PENDING` tüm görevlerde
+tekrarlıyor ama bu `verify` şablonunun KASITLI tasarımı (bu ikisi her zaman
+pending başlar, red-team/kullanıcı onayı bekler) — süreç kusuru değil,
+beklenen durum, eyleme dönüştürülmedi. `Güvenlik taraması -> MISSING`
+2 eski görevde (`yet-13-auth-ekranlari`, `yet-14-talent-profil-yetkinlik`)
+çıktı — bu koşumun kapsamındaki 7 yeni görevde tekrar etmedi, izlemeye
+devam, henüz eylem yok.
+
+---
+
 ## Koşum 5 — 2026-09-27
 
 **Görev sayısı:** 34 (biriken: 5 — `koordinator-dashboard-ucu`,

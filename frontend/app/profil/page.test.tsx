@@ -13,6 +13,9 @@ vi.mock("@/app/profil/skills-section", () => ({
 vi.mock("@/app/profil/evidence-section", () => ({
   default: () => <div data-testid="evidence-section">Evidence Section</div>,
 }));
+vi.mock("@/app/profil/institution-link-section", () => ({
+  default: () => <div data-testid="institution-link-section">Institution Link Section</div>,
+}));
 
 /**
  * AC-1: Profil sayfası `AppShell` içinde `ProfileForm` + `SkillsSection` render eder.
@@ -52,6 +55,7 @@ describe("ProfilePage (/profil)", () => {
       // AppShell ve bileşenleri render edilir
       expect(screen.getByTestId("profile-form")).toBeTruthy();
       expect(screen.getByTestId("skills-section")).toBeTruthy();
+      expect(screen.getByTestId("institution-link-section")).toBeTruthy();
     });
 
     it("AC-1: Profil verileri ProfileForm'a prop olarak geçirilir", async () => {

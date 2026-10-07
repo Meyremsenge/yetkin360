@@ -20,7 +20,7 @@ Performance Target: <200ms
 import pytest
 from uuid import uuid4
 
-from app.models import User, TalentProfile, Organization, Institution
+from app.models import User, TalentProfile, Organization, Institution, OrganizationMember
 
 
 # ============================================================================
@@ -47,8 +47,8 @@ def user_talent_b(session):
 
 
 @pytest.fixture
-def talent_a(session, user_talent_a):
-    """Talent profile for user_talent_a."""
+def talent_a(session, user_talent_a, organization_a):
+    """Talent profile for user_talent_a, member of organization_a."""
     profile = TalentProfile(
         user_id=user_talent_a.id,
         full_name="Test Talent A",
@@ -61,12 +61,22 @@ def talent_a(session, user_talent_a):
     )
     session.add(profile)
     session.flush()
+
+    # Add talent as member of organization_a
+    member = OrganizationMember(
+        user_id=user_talent_a.id,
+        organization_id=organization_a.id,
+        role="MEMBER",
+    )
+    session.add(member)
+    session.flush()
+
     return profile
 
 
 @pytest.fixture
-def talent_b(session, user_talent_b):
-    """Talent profile for user_talent_b."""
+def talent_b(session, user_talent_b, organization_b):
+    """Talent profile for user_talent_b, member of organization_b."""
     profile = TalentProfile(
         user_id=user_talent_b.id,
         full_name="Test Talent B",
@@ -79,6 +89,16 @@ def talent_b(session, user_talent_b):
     )
     session.add(profile)
     session.flush()
+
+    # Add talent as member of organization_b
+    member = OrganizationMember(
+        user_id=user_talent_b.id,
+        organization_id=organization_b.id,
+        role="MEMBER",
+    )
+    session.add(member)
+    session.flush()
+
     return profile
 
 
@@ -127,8 +147,8 @@ def institution_a(session):
 
 
 @pytest.fixture
-def talent_a_with_institution(session, user_talent_a, institution_a):
-    """Talent profile A with institution linked."""
+def talent_a_with_institution(session, user_talent_a, institution_a, organization_a):
+    """Talent profile A with institution linked, member of organization_a."""
     profile = TalentProfile(
         user_id=user_talent_a.id,
         full_name="Test Talent A with Institution",
@@ -142,6 +162,16 @@ def talent_a_with_institution(session, user_talent_a, institution_a):
     )
     session.add(profile)
     session.flush()
+
+    # Add talent as member of organization_a
+    member = OrganizationMember(
+        user_id=user_talent_a.id,
+        organization_id=organization_a.id,
+        role="MEMBER",
+    )
+    session.add(member)
+    session.flush()
+
     return profile
 
 
@@ -395,16 +425,18 @@ class TestPostEngagementFKNotFound:
 
 
 class TestPostEngagementInstitutionMismatch:
-    """AC-5: POST with institution_id not matching talent's institution → 400."""
+    """AC-5, GUV-08: POST with institution_id not matching talent's institution → 404."""
 
-    def test_post_engagement_institution_mismatch_400(self, client, session, user_talent_a, talent_a_with_institution, organization_a, institution_a):
+    def test_post_engagement_institution_mismatch_404(self, client, session, user_talent_a, talent_a_with_institution, organization_a, institution_a):
         """
-        AC-5: POST with institution_id that doesn't match talent's institution → 400.
+        AC-5, GUV-08: POST with institution_id that doesn't match talent's institution → 404.
+
+        GUV-08 fix: Institution mismatch is treated as NOT_FOUND to close oracle.
 
         Acceptance Criteria:
-        - Status code: 400
-        - Error code: "INSTITUTION_MISMATCH" or similar
-        - Message doesn't reveal whether institution exists
+        - Status code: 404
+        - Error code: "NOT_FOUND"
+        - Message is generic (doesn't reveal whether institution exists)
         """
         # Create another institution
         other_institution = Institution(
@@ -430,23 +462,23 @@ class TestPostEngagementInstitutionMismatch:
             headers={"X-Debug-User-Id": str(user_talent_a.id)},
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 404
 
         data = response.json()
-        # Error message should be generic, not revealing whether institution exists
-        assert "code" in data or "detail" in data
+        assert data.get("code") == "NOT_FOUND"
 
-    def test_post_engagement_institution_id_null_talent_400(self, client, session, user_talent_a, talent_a, organization_a, institution_a):
+    def test_post_engagement_institution_id_null_talent_404(self, client, session, user_talent_a, talent_a, organization_a, institution_a):
         """
-        AC-5: POST with institution_id when talent has NULL institution → 400.
+        AC-5, GUV-08: POST with institution_id when talent has NULL institution → 404.
 
         Scenario:
         - talent_a has institution_id=NULL
         - POST provides institution_id=institution_a.id
-        - Should fail (mismatch)
+        - Should fail (mismatch) with 404
 
         Acceptance Criteria:
-        - Status code: 400
+        - Status code: 404
+        - Error code: "NOT_FOUND"
         """
         payload = {
             "talent_id": str(talent_a.id),
@@ -462,7 +494,9 @@ class TestPostEngagementInstitutionMismatch:
             headers={"X-Debug-User-Id": str(user_talent_a.id)},
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 404
+        data = response.json()
+        assert data.get("code") == "NOT_FOUND"
 
 
 # ============================================================================
@@ -471,17 +505,18 @@ class TestPostEngagementInstitutionMismatch:
 
 
 class TestPostEngagementInstitutionMessagePrivacy:
-    """AC-S3: Institution error message is generic (doesn't reveal existence/nonexistence)."""
+    """AC-S3, GUV-08: Institution error message is generic (404 closes oracle)."""
 
     def test_post_engagement_institution_error_message_generic(self, client, session, user_talent_a, talent_a_with_institution, organization_a, institution_a):
         """
-        AC-S3: Error message for institution mismatch is single, generic message.
+        AC-S3, GUV-08: Error message for institution mismatch is 404 NOT_FOUND (generic).
+
+        GUV-08 fix: Institution mismatch returns 404 with NOT_FOUND code, preventing oracle attack.
 
         Acceptance Criteria:
-        - Status code: 400
-        - Message does not say "institution not found"
-        - Message does not say "institution exists but doesn't match"
-        - Single message for all institution-mismatch cases
+        - Status code: 404
+        - Error code: "NOT_FOUND"
+        - Message is generic (same for all not-found cases)
         """
         other_institution = Institution(
             name="Other",
@@ -506,14 +541,10 @@ class TestPostEngagementInstitutionMessagePrivacy:
             headers={"X-Debug-User-Id": str(user_talent_a.id)},
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 404
 
         data = response.json()
-        message_text = data.get("message") or data.get("detail", {}).get("message", "")
-
-        # Message should NOT contain phrases that reveal institution state
-        assert "not found" not in message_text.lower()
-        assert "exists" not in message_text.lower()
+        assert data.get("code") == "NOT_FOUND"
 
 
 # ============================================================================
@@ -562,6 +593,7 @@ class TestEngagementResponseSchema:
 
     def test_success_response_schema_201(self, client, session, user_talent_a, talent_a, organization_a):
         """201 response must have engagement object with required fields."""
+        # talent_a is already a member of organization_a (via fixture)
         payload = {
             "talent_id": str(talent_a.id),
             "organization_id": str(organization_a.id),
@@ -575,7 +607,7 @@ class TestEngagementResponseSchema:
             headers={"X-Debug-User-Id": str(user_talent_a.id)},
         )
 
-        assert response.status_code == 201
+        assert response.status_code == 201, f"Expected 201, got {response.status_code}: {response.text}"
 
         data = response.json()
 

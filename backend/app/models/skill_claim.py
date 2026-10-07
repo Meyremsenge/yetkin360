@@ -1,11 +1,15 @@
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, uuid7_default
+
+if TYPE_CHECKING:
+    from app.models.skill import Skill
 
 
 class SkillClaim(Base, TimestampMixin):
@@ -46,3 +50,5 @@ class SkillClaim(Base, TimestampMixin):
     claimed_level: Mapped[str | None] = mapped_column(String)
     source: Mapped[str] = mapped_column(String, nullable=False, server_default="MANUAL")
     confirmed_by_user_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    skill: Mapped["Skill"] = relationship("Skill")

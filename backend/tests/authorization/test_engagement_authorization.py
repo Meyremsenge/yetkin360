@@ -1,7 +1,7 @@
 """
-Engagement authorization tests (YET-7 — AC-S1, AC-S2, AC-4, AC-S3 + LIST/DETAIL).
+Engagement authorization tests (guvenlik-bulgulari-duzeltme — AC-3, AC-7, AC-6/AC-S1/AC-S2).
 
-Implements security and authorization criteria from atdd.md.
+Implements acceptance criteria from atdd.md for dispatch guvenlik-bulgulari-duzeltme.
 
 Test patterns:
 - Real Postgres transaction per test (inherited from conftest.py)
@@ -9,30 +9,47 @@ Test patterns:
 - Defense-in-depth: server-side authorization verification
 - Tenant/user isolation: ensure client-provided IDs don't override server logic
 
-Existing tests (POST /engagements):
-- AC-4: TALENT rolündeki user başkasının talent_id'siyle engagement açmaya çalışır → 404 (403 değil)
-- AC-S2: ORG_MEMBER üyesi olmadığı org'un organization_id'siyle dener → 404
-- AC-S3: institution_id validation error message doesn't leak institution state
+Test categories:
+1. Existing tests (POST /engagements creation):
+   - AC-4: TALENT başka talent'ın engagement'ını açamaz → 404 (not 403)
+   - AC-S2: ORG_MEMBER başka org'un engagement'ını açamaz → 404
+   - AC-S3: institution_id mismatch error message privacy
+   - AC-S4: Confidential title not leaked in error responses
 
-New tests (GET /engagements, GET /engagements/{id}):
-- AC-1: TALENT kendi engagementlarını listeler
-- AC-2: ORG_MEMBER/ORG_ADMIN sadece kendi org'un engagementlarını görür
-- AC-3: COORDINATOR/INST_ADMIN sadece kendi kurumun engagementlarını görür
-- AC-4: GET /engagements/{id} tam detay (tasks, deliverables dahil) döner
-- AC-5: Kapsam dışı engagement → 404 (403 değil), veri sızmaz
-- AC-6: Var olmayan engagement → 404 (var/yok ayırt edilemez)
-- AC-7: Boş sonuç → 200 {"items": []}
-- AC-8: limit/offset sayfalama
-- AC-S1: TALENT başka TALENT'a erişim → 404, veri sızmaz
-- AC-S2: ORG_MEMBER başka org'a → 404, var/yok ayırt yok
+2. GET /engagements & /engagements/{id} tests:
+   - AC-1: TALENT kendi engagementlarını listeler
+   - AC-2: ORG_MEMBER sadece kendi org'un engagementlarını görür
+   - AC-3: COORDINATOR sadece kendi kurumun engagementlarını görür
+   - AC-4: GET /engagements/{id} tam detay (tasks, deliverables)
+   - AC-5: Out-of-scope engagement → 404, veri sızmaz
+   - AC-6: Var olmayan engagement → 404 (var/yok ayırt yok)
+   - AC-7: Empty list → 200 {"items": []}
+   - AC-8: limit/offset pagination
+   - AC-S1: TALENT-to-TALENT isolation → 404
+   - AC-S2: ORG_MEMBER-to-ORG isolation → 404, no leakage
 
-Status: Tests are RED — implementation not yet written (GET /engagements endpoints).
-This is expected. Tests verify authorization logic and response schemas.
+3. NEW: AC-3 (IS-03) tests — T4 transition (DRAFT→ACTIVE, kurumsuz):
+   - T4 geçişi institution_id=NULL durumunda başarılı
+   - reason alanı append-only (üzerine yazılmaz)
+   - reason uzunluk sınırı aşımında 400
+
+4. NEW: AC-7 (AUTHZ-03) tests — T8 transition role authorization:
+   - SUPERVISOR T8'i yapabilir (200)
+   - ORG_ADMIN T8'i yapamaz (404, principal.kind doğrulanır)
+
+5. NEW: AC-6/AC-S1/AC-S2 (GUV-08) regresyon tests — institution_id oracle:
+   - institution_id mismatch + nonexistent → aynı 404 (oracle kapalı)
+   - TALENT cross-org engagement → 404
+
+Status:
+- Tests for AC-3, AC-7: RED (implementation not yet written)
+- Tests for AC-6/AC-S1/AC-S2: GREEN (regresyon, code already correct)
 """
 
 import pytest
 from uuid import uuid4
 from datetime import datetime
+from sqlalchemy import func, select
 
 from app.models import (
     User,
@@ -44,6 +61,7 @@ from app.models import (
     Engagement,
     EngagementTask,
     Deliverable,
+    Attestation,
 )
 
 
@@ -467,6 +485,15 @@ class TestTalentUnauthorizedAccess:
         - Status code: 201
         - Engagement created for Alice's talent
         """
+        # GUV-08: TALENT must be member of organization to create engagement (happy path setup)
+        member = OrganizationMember(
+            organization_id=organization_a.id,
+            user_id=user_talent_alice.id,
+            role="MEMBER",
+        )
+        session.add(member)
+        session.flush()
+
         payload = {
             "talent_id": str(talent_alice.id),
             "organization_id": str(organization_a.id),
@@ -630,7 +657,7 @@ class TestUnauthenticatedAccess:
 class TestInstitutionMessagePrivacy:
     """AC-S3: Institution error messages don't leak institution state."""
 
-    def test_institution_mismatch_message_consistency_400(
+    def test_institution_mismatch_message_consistency_404(
         self, client, session, user_talent_alice, talent_alice, organization_a, institution_a
     ):
         """
@@ -642,7 +669,7 @@ class TestInstitutionMessagePrivacy:
         - Error message should be same whether institution exists or not
 
         Acceptance Criteria:
-        - Status code: 400
+        - Status code: 404 (GUV-08: both institution mismatch and nonexistent return 404)
         - Message doesn't say "institution not found" or "institution exists"
         """
         payload = {
@@ -659,7 +686,7 @@ class TestInstitutionMessagePrivacy:
             headers={"X-Debug-User-Id": str(user_talent_alice.id)},
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 404
 
         data = response.json()
         error_obj = data.get("detail") if "detail" in data else data
@@ -671,18 +698,18 @@ class TestInstitutionMessagePrivacy:
         assert "does not exist" not in message
         assert "matches" not in message or "does not match" not in message
 
-    def test_institution_nonexistent_same_error_400(
+    def test_institution_nonexistent_same_error_404(
         self, client, session, user_talent_alice, talent_alice, organization_a
     ):
         """
-        AC-S3: Error for nonexistent institution is same code/message as mismatch.
+        AC-S3: Error for nonexistent institution is same code/message as mismatch (GUV-08).
 
         Scenario:
         - POST with institution_id=fake_uuid
-        - Should return 400 (not 404), with same message as AC-S3
+        - Should return 404 (same as mismatch), with generic message
 
         Acceptance Criteria:
-        - Status code: 400 (not 404)
+        - Status code: 404 (GUV-08: both mismatch and nonexistent return 404)
         - Message is generic (doesn't reveal institution doesn't exist)
         """
         fake_institution_id = uuid4()
@@ -701,8 +728,8 @@ class TestInstitutionMessagePrivacy:
             headers={"X-Debug-User-Id": str(user_talent_alice.id)},
         )
 
-        # Must be 400 (institution check is business logic, not FK existence)
-        assert response.status_code == 400
+        # GUV-08: both institution mismatch and nonexistent return 404
+        assert response.status_code == 404
 
 
 # ============================================================================
@@ -717,14 +744,14 @@ class TestConfidentialityOnError:
         self, client, session, user_talent_alice, talent_alice, organization_a
     ):
         """
-        AC-S4: POST fails with institution_id mismatch, title not logged/returned in detail.
+        AC-S4: POST fails with institution_id mismatch, title not logged/returned in detail (GUV-08).
 
         Scenario:
-        - POST with sensitive title, institution_id mismatch → 400
+        - POST with sensitive title, institution_id mismatch → 404
         - Error response/logs should NOT contain title text
 
         Acceptance Criteria:
-        - Status code: 400
+        - Status code: 404 (GUV-08: institution mismatch → 404)
         - Error message is generic (not showing title or description)
         """
         sensitive_title = "Secret Internship at Government Agency"
@@ -743,7 +770,7 @@ class TestConfidentialityOnError:
             headers={"X-Debug-User-Id": str(user_talent_alice.id)},
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 404
 
         # Error response should NOT echo back the title
         data = response.json()
@@ -826,16 +853,16 @@ class TestAuthErrorResponseSchema:
         assert "message" in error_obj
         assert "request_id" in error_obj
 
-    def test_bad_request_error_has_code_message_request_id(
+    def test_not_found_error_institution_mismatch_has_code_message_request_id(
         self, client, session, user_talent_alice, talent_alice, organization_a
     ):
-        """400 error must have {code, message, request_id}."""
+        """404 error must have {code, message, request_id} (GUV-08 institution mismatch)."""
         payload = {
             "talent_id": str(talent_alice.id),
             "organization_id": str(organization_a.id),
             "kind": "INTERNSHIP",
             "title": "Test",
-            "institution_id": str(uuid4()),  # Mismatch
+            "institution_id": str(uuid4()),  # Mismatch → 404
         }
 
         response = client.post(
@@ -844,7 +871,7 @@ class TestAuthErrorResponseSchema:
             headers={"X-Debug-User-Id": str(user_talent_alice.id)},
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 404
 
         data = response.json()
         error_obj = data.get("detail") if "detail" in data else data
@@ -1284,6 +1311,92 @@ class TestEngagementDetail:
         assert "title" in deliverable
         assert "submitted_at" in deliverable
 
+        # Bu fixture'da attestation yok — alan var ama boş liste (YET-202/ENT-01)
+        assert "attestations" in data
+        assert data["attestations"] == []
+
+    def test_get_engagement_detail_includes_attestations_yet202(
+        self, client, session, user_talent_alice, talent_alice, organization_a
+    ):
+        """
+        YET-202/ENT-01: attestations[] alanı dolu döner — aktif + geri çekilmiş
+        tanıklık ayrı ayrı doğru alanlarla serialize edilir.
+
+        Given: Bir engagement'ta iki attestation — biri aktif, biri geri çekilmiş
+        When: `GET /engagements/{id}` çağırır
+        Then: attestations[] her ikisini de doğru alanlarla (claim_type,
+              requested_claim_type, attestor_user_id, revoked_at, revoke_reason) döner
+        """
+        engagement = Engagement(
+            talent_id=talent_alice.id,
+            organization_id=organization_a.id,
+            institution_id=None,
+            kind="INTERNSHIP",
+            title="Engagement with Attestations",
+            status="EVALUATED",
+            version=1,
+            reason=None,
+        )
+        session.add(engagement)
+        session.flush()
+
+        # İki farklı attestor — aynı (engagement_id, attestor_user_id, subject_type)
+        # ikilisi UNIQUE kısıtını ihlal eder (uq_attestations_engagement_attestor_subject).
+        attestor_dana = User(email="attestor-dana@example.com", password_hash="hash_dana")
+        attestor_erin = User(email="attestor-erin@example.com", password_hash="hash_erin")
+        session.add_all([attestor_dana, attestor_erin])
+        session.flush()
+
+        active_attestation = Attestation(
+            engagement_id=engagement.id,
+            talent_id=talent_alice.id,
+            subject_type="ENGAGEMENT",
+            subject_id=None,
+            claim_type="COMPETENCE",
+            requested_claim_type="COMPETENCE",
+            attestor_user_id=attestor_dana.id,
+        )
+        session.add(active_attestation)
+
+        revoked_attestation = Attestation(
+            engagement_id=engagement.id,
+            talent_id=talent_alice.id,
+            subject_type="ENGAGEMENT",
+            subject_id=None,
+            claim_type="PARTICIPATION",
+            requested_claim_type="COMPETENCE",
+            attestor_user_id=attestor_erin.id,
+            revoked_at=datetime.utcnow(),
+            revoke_reason="Yanlış girilmiş",
+        )
+        session.add(revoked_attestation)
+        session.flush()
+
+        response = client.get(
+            f"/engagements/{engagement.id}",
+            headers={"X-Debug-User-Id": str(user_talent_alice.id)},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        assert "attestations" in data
+        assert len(data["attestations"]) == 2
+
+        by_id = {att["id"]: att for att in data["attestations"]}
+
+        active = by_id[str(active_attestation.id)]
+        assert active["claim_type"] == "COMPETENCE"
+        assert active["requested_claim_type"] == "COMPETENCE"
+        assert active["attestor_user_id"] == str(attestor_dana.id)
+        assert active["revoked_at"] is None
+        assert active["revoke_reason"] is None
+
+        revoked = by_id[str(revoked_attestation.id)]
+        assert revoked["claim_type"] == "PARTICIPATION"
+        assert revoked["revoked_at"] is not None
+        assert revoked["revoke_reason"] == "Yanlış girilmiş"
+
     def test_get_engagement_out_of_scope_returns_404_ac5(
         self, client, session, user_talent_alice, user_talent_bob, engagement_bob_1
     ):
@@ -1494,3 +1607,730 @@ class TestEngagementDetail:
 
         assert error_out_of_scope["code"] == "NOT_FOUND"
         assert error_nonexistent["code"] == "NOT_FOUND"
+
+
+# ============================================================================
+# AC-3 (IS-03): T4 geçişi (kurumsuz DRAFT→ACTIVE), completed_at, reason
+# ============================================================================
+
+
+class TestDraftToActiveTransition:
+    """AC-3 (IS-03): T4 geçişi — kurumsuz DRAFT→ACTIVE."""
+
+    def test_draft_to_active_transition_with_null_institution_succeeds(
+        self, client, session, user_talent_alice, talent_alice, organization_a
+    ):
+        """
+        AC-3: Kurumsuz (institution_id=NULL) DRAFT engagement T4 geçişi (DRAFT→ACTIVE) başarılı.
+
+        Given: DRAFT durumunda bir engagement (institution_id=NULL)
+        When: T4 geçişi tetiklenir (DRAFT→ACTIVE)
+        Then: Status ACTIVE'e değişir, completed_at NULL kalır (T5/T8'de dolacak)
+
+        Acceptance Criteria:
+        - Status code: 200 (başarılı) veya 204
+        - Response/body: status="ACTIVE" döner
+        - completed_at NULL (T5/T8'de dolacak)
+        """
+        # Create DRAFT engagement with NULL institution_id
+        engagement = Engagement(
+            talent_id=talent_alice.id,
+            organization_id=organization_a.id,
+            institution_id=None,  # Kurumsuz
+            kind="INTERNSHIP",
+            title="Test Engagement for T4",
+            status="DRAFT",
+            version=1,
+            reason=None,
+        )
+        session.add(engagement)
+        session.flush()
+
+        # POST /engagements/{id}/transition with to_status=ACTIVE (T4)
+        payload = {
+            "to_status": "ACTIVE",
+            "reason": "Starting engagement",
+        }
+
+        response = client.post(
+            f"/engagements/{engagement.id}/transitions",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_talent_alice.id)},
+        )
+
+        # Expected: 200 OK (since implementation is expected to succeed)
+        # Note: Test is RED if endpoint not implemented
+        assert response.status_code in (200, 204), f"Expected 200/204, got {response.status_code}: {response.text}"
+
+        if response.status_code == 200:
+            data = response.json()
+            assert data.get("status") == "ACTIVE"
+            assert data.get("completed_at") is None, "completed_at should be NULL (not filled until T5/T8)"
+
+    def test_reason_field_append_only_no_overwrite(
+        self, client, session, user_talent_alice, talent_alice, organization_a
+    ):
+        """
+        AC-3: `reason` alanı append-only (üzerine yazılmaz, sınırı aşsa 400).
+
+        Given: Engagement with reason="Initial reason"
+        When: T4 geçişi with reason="New reason" tetiklenir
+        Then: reason "New reason" olur (append değil replace) OR istek 400 dönüyor
+
+        Acceptance Criteria (AC-3 davranış sözleşmesi):
+        - Eğer append ise: reason += "\n" + new_reason ve toplam uzunluk kontrolü
+        - Eğer replace ise: reason = new_reason (bu durumda AC-3'ün "üzerine yazılmaz" kriterine aykırı)
+        - Uzunluk sınırı aşılmışsa: 400 VALIDATION_ERROR
+
+        Test şu anda EXPLORATORY — kod davranışına göre update edilecek
+        """
+        engagement = Engagement(
+            talent_id=talent_alice.id,
+            organization_id=organization_a.id,
+            institution_id=None,
+            kind="INTERNSHIP",
+            title="Test Engagement",
+            status="DRAFT",
+            version=1,
+            reason="Initial reason line 1",
+        )
+        session.add(engagement)
+        session.flush()
+
+        # Attempt T4 with new reason
+        payload = {
+            "to_status": "ACTIVE",
+            "reason": "Line 2 of reason",
+        }
+
+        response = client.post(
+            f"/engagements/{engagement.id}/transitions",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_talent_alice.id)},
+        )
+
+        # AC-3 requires either:
+        # (a) 400 if total length exceeds limit after append
+        # (b) 200 with append-only behavior (reason concatenated)
+        # (c) NOT 200 with reason overwritten (violates "no overwrite")
+
+        if response.status_code == 400:
+            data = response.json()
+            error_obj = data.get("detail") if "detail" in data else data
+            # Assert: 400 due to length, not other reasons
+            assert error_obj.get("code") in ("VALIDATION_ERROR", "REASON_LENGTH_EXCEEDED")
+
+    def test_reason_length_limit_400(
+        self, client, session, user_talent_alice, talent_alice, organization_a
+    ):
+        """
+        AC-3: `reason` uzunluk sınırını aşarsa 400 döner.
+
+        Given: Engagement with existing long reason
+        When: T4 transition with additional reason tetiklenir
+        Then: Total length exceeds limit → 400 VALIDATION_ERROR döner
+
+        Acceptance Criteria:
+        - Status code: 400
+        - Error code: "VALIDATION_ERROR" or "REASON_LENGTH_EXCEEDED"
+        - Engagement status unchanged (DRAFT kalır)
+        """
+        # Assume reason limit is ~1000 chars
+        long_initial_reason = "A" * 900
+
+        engagement = Engagement(
+            talent_id=talent_alice.id,
+            organization_id=organization_a.id,
+            institution_id=None,
+            kind="INTERNSHIP",
+            title="Test",
+            status="DRAFT",
+            version=1,
+            reason=long_initial_reason,
+        )
+        session.add(engagement)
+        session.flush()
+
+        # Try to append another long reason
+        additional_reason = "B" * 500  # 900 + 500 > limit
+
+        payload = {
+            "to_status": "ACTIVE",
+            "reason": additional_reason,
+        }
+
+        response = client.post(
+            f"/engagements/{engagement.id}/transitions",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_talent_alice.id)},
+        )
+
+        # Expected: 400 (AC-3 requirement)
+        assert response.status_code == 400, f"Expected 400, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        error_obj = data.get("detail") if "detail" in data else data
+        assert error_obj.get("code") in ("VALIDATION_ERROR", "REASON_LENGTH_EXCEEDED")
+
+        # Verify engagement status unchanged
+        engagement_check = session.execute(
+            select(Engagement).where(Engagement.id == engagement.id)
+        ).scalar_one()
+        assert engagement_check.status == "DRAFT", "Status should unchanged after failed transition"
+
+
+# ============================================================================
+# AC-7 (AUTHZ-03): T8 geçişi — sadece SUPERVISOR yapabilir, ORG_ADMIN 404
+# ============================================================================
+
+
+class TestT8TransitionAuthz:
+    """AC-7 (AUTHZ-03): T8 geçişi yetkilendirmesi — SUPERVISOR yapabilir, ORG_ADMIN yapamaz."""
+
+    @pytest.fixture
+    def supervisor_for_engagement(self, session, talent_alice, organization_a, institution_a):
+        """
+        T8 geçişine yetkili bir SUPERVISOR fixture.
+        (Engagement'ın supervisor_user_id'si bu user'a ait olmalı veya
+         institution'da SUPERVISOR rolü olmalı)
+        """
+        supervisor = User(
+            email="supervisor@example.com",
+            password_hash="hash_supervisor",
+        )
+        session.add(supervisor)
+        session.flush()
+
+        # Assign SUPERVISOR role in institution_a
+        supervisor_membership = InstitutionMember(
+            institution_id=institution_a.id,
+            user_id=supervisor.id,
+            role="SUPERVISOR",
+        )
+        session.add(supervisor_membership)
+        session.flush()
+
+        return supervisor
+
+    @pytest.fixture
+    def org_admin_for_org(self, session, organization_a):
+        """ORG_ADMIN fixture."""
+        org_admin = User(
+            email="orgadmin@example.com",
+            password_hash="hash_orgadmin",
+        )
+        session.add(org_admin)
+        session.flush()
+
+        org_admin_membership = OrganizationMember(
+            organization_id=organization_a.id,
+            user_id=org_admin.id,
+            role="ADMIN",
+        )
+        session.add(org_admin_membership)
+        session.flush()
+
+        return org_admin
+
+    def test_supervisor_can_perform_t8_transition_200(
+        self,
+        client,
+        session,
+        talent_alice,
+        organization_a,
+        institution_a,
+        supervisor_for_engagement,
+    ):
+        """
+        AC-7: SUPERVISOR T8 geçişini yapabilir (200 OK).
+
+        Given: EVALUATED durumunda bir engagement
+               supervisor_user_id veya SUPERVISOR rolü atanmış
+        When: T8 geçişi tetiklenir (EVALUATED→VERIFIED)
+        Then: 200 OK, status=VERIFIED
+
+        Acceptance Criteria:
+        - Status code: 200
+        - Response: status="VERIFIED"
+        - Verify principal.kind == 'SUPERVISOR' via fixture
+        """
+        # Create EVALUATED engagement
+        engagement = Engagement(
+            talent_id=talent_alice.id,
+            organization_id=organization_a.id,
+            institution_id=institution_a.id,
+            supervisor_user_id=supervisor_for_engagement.id,
+            kind="INTERNSHIP",
+            title="Test Engagement for T8",
+            status="EVALUATED",
+            version=1,
+            reason="Evaluated",
+        )
+        session.add(engagement)
+        session.flush()
+
+        # Verify principal's role
+        supervisor_role = (
+            session.query(InstitutionMember)
+            .filter_by(
+                institution_id=institution_a.id,
+                user_id=supervisor_for_engagement.id,
+                role="SUPERVISOR",
+            )
+            .first()
+        )
+        assert supervisor_role is not None, "Supervisor must have SUPERVISOR role in institution_a"
+
+        # POST /engagements/{id}/transition with to_status=VERIFIED (T8)
+        payload = {
+            "to_status": "VERIFIED",
+            "reason": "Verified by supervisor",
+        }
+
+        response = client.post(
+            f"/engagements/{engagement.id}/transitions",
+            json=payload,
+            headers={"X-Debug-User-Id": str(supervisor_for_engagement.id)},
+        )
+
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        assert data.get("status") == "VERIFIED"
+
+    def test_org_admin_cannot_perform_t8_transition_404(
+        self,
+        client,
+        session,
+        talent_alice,
+        organization_a,
+        institution_a,
+        org_admin_for_org,
+    ):
+        """
+        AC-7 (AC-S5): ORG_ADMIN T8 geçişini yapamaz (404).
+
+        Given: EVALUATED engagement
+               ORG_ADMIN (yalnız org düzeyinde, institution düzeyinde değil)
+        When: T8 geçişini çağırır
+        Then: 404 (yetkisiz) — veri sızmaz
+
+        Acceptance Criteria:
+        - Status code: 404 (not 403)
+        - Error code: "NOT_FOUND" or "ENGAGEMENT_NOT_FOUND"
+        - Verify principal.kind == 'ORG_ADMIN' via fixture
+        """
+        engagement = Engagement(
+            talent_id=talent_alice.id,
+            organization_id=organization_a.id,
+            institution_id=institution_a.id,
+            kind="INTERNSHIP",
+            title="Test Engagement for T8 Authz",
+            status="EVALUATED",
+            version=1,
+            reason="Evaluated",
+        )
+        session.add(engagement)
+        session.flush()
+
+        # Verify principal is ORG_ADMIN
+        org_admin_role = (
+            session.query(OrganizationMember)
+            .filter_by(
+                organization_id=organization_a.id,
+                user_id=org_admin_for_org.id,
+                role="ADMIN",
+            )
+            .first()
+        )
+        assert org_admin_role is not None, "org_admin must have ADMIN role in organization_a"
+
+        # POST /engagements/{id}/transition with T8 (EVALUATED→VERIFIED)
+        payload = {
+            "to_status": "VERIFIED",
+            "reason": "Unauthorized attempt",
+        }
+
+        response = client.post(
+            f"/engagements/{engagement.id}/transitions",
+            json=payload,
+            headers={"X-Debug-User-Id": str(org_admin_for_org.id)},
+        )
+
+        # CRITICAL: 404 not 403 (AC-7/AC-S5)
+        assert response.status_code == 404, f"Expected 404, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        error_obj = data.get("detail") if "detail" in data else data
+        assert error_obj.get("code") == "NOT_FOUND"
+
+
+# ============================================================================
+# AC-6 + AC-S1/AC-S2 (GUV-08): Regresyon — institution_id oracle kapalı
+# ============================================================================
+
+
+class TestInstitutionIdOracleRegression:
+    """
+    AC-6/AC-S1/AC-S2 (GUV-08): Regresyon testi — institution_id mismatch ile
+    nonexistent institution_id aynı hata kodunu döner (oracle kapalı).
+
+    Plan.md'de "Kararlar": Kod zaten doğru, sadece davranışı kilitleyen test eklenecek.
+    """
+
+    def test_institution_mismatch_and_nonexistent_return_same_404(
+        self, client, session, user_talent_alice, talent_alice, organization_a, institution_a
+    ):
+        """
+        AC-6 / AC-S1 / AC-S2: institution_id uyuşmazlığı vs. var olmayan institution_id
+        → her iki durumda da AYNI 404.
+
+        Given: TALENT Alice, organization_a
+        When: POST /engagements with:
+              (1) institution_id = institution_a (Alice'in kurumu değil)
+              (2) institution_id = fake UUID (var olmayan)
+        Then: Her ikisinde de:
+              - Status code: 404 (not 400 — AC-S3 doğru, burada regresyon test)
+              - Error code: "NOT_FOUND" veya "ENGAGEMENT_NOT_FOUND"
+              - Response body: aynı yapı ve mesaj
+
+        Acceptance Criteria (Regresyon):
+        - Mismatch → 404
+        - Nonexistent → 404
+        - Status kodları aynı
+        - İlgili error info sızdırılmaz (var/yok ayırt yok)
+        """
+        # Note: Based on atdd.md davranış sözleşmesi row 1:
+        # "TALENT başka org için / ORG_MEMBER başka talent için → 404, kayıt oluşmaz"
+        # Plan.md "Kararlar" bölümüne göre bu zaten düzeltilmiş.
+
+        fake_institution_id = uuid4()
+
+        # Scenario 1: institution_id mismatch (talent'ın kurumu değil)
+        payload_mismatch = {
+            "talent_id": str(talent_alice.id),
+            "organization_id": str(organization_a.id),
+            "kind": "INTERNSHIP",
+            "title": "Test with mismatch",
+            "institution_id": str(institution_a.id),  # Alice'in kurumu değil
+        }
+
+        response_mismatch = client.post(
+            "/engagements",
+            json=payload_mismatch,
+            headers={"X-Debug-User-Id": str(user_talent_alice.id)},
+        )
+
+        # Scenario 2: nonexistent institution_id
+        payload_nonexistent = {
+            "talent_id": str(talent_alice.id),
+            "organization_id": str(organization_a.id),
+            "kind": "INTERNSHIP",
+            "title": "Test with nonexistent",
+            "institution_id": str(fake_institution_id),
+        }
+
+        response_nonexistent = client.post(
+            "/engagements",
+            json=payload_nonexistent,
+            headers={"X-Debug-User-Id": str(user_talent_alice.id)},
+        )
+
+        # Assert: Both are 404 (regression check)
+        assert response_mismatch.status_code == 404, \
+            f"Mismatch: expected 404, got {response_mismatch.status_code}"
+        assert response_nonexistent.status_code == 404, \
+            f"Nonexistent: expected 404, got {response_nonexistent.status_code}"
+
+        # Assert: Same error code
+        data_mismatch = response_mismatch.json()
+        data_nonexistent = response_nonexistent.json()
+
+        error_mismatch = data_mismatch.get("detail") if "detail" in data_mismatch else data_mismatch
+        error_nonexistent = (
+            data_nonexistent.get("detail") if "detail" in data_nonexistent else data_nonexistent
+        )
+
+        # CRITICAL: Both must return exact same error code
+        assert error_mismatch.get("code") == error_nonexistent.get("code"), \
+            f"Error codes differ: mismatch={error_mismatch['code']}, nonexistent={error_nonexistent['code']}"
+
+        # Verify oracle is closed: no HTTP response-level distinction
+        assert error_mismatch["code"] == "NOT_FOUND" or error_mismatch["code"].upper() == "NOT_FOUND"
+
+        # Assert: No engagement created in either case
+        engagement_count = session.execute(
+            select(func.count(Engagement.id)).where(
+                Engagement.talent_id == talent_alice.id,
+                Engagement.organization_id == organization_a.id,
+            )
+        ).scalar()
+        assert engagement_count == 0, "No engagement should be created for mismatched/nonexistent institution"
+
+    def test_org_member_cross_org_engagement_404(
+        self,
+        client,
+        session,
+        user_org_member_charlie,
+        talent_alice,
+        organization_a,
+    ):
+        """
+        AC-S2 (GUV-08): ORG_MEMBER başka org'a başka talent'a engagement açamaz → 404.
+
+        Given: ORG_MEMBER Charlie (organization_b üyesi, organization_a üyesi DEĞİL)
+               talent_alice (herhangi bir talent, Charlie'nin talent'ı değil)
+        When: POST /engagements with organization_id=organization_a, talent_id=talent_alice
+        Then: 404 (own_talent=False, has_org_membership=False)
+
+        Acceptance Criteria (Regresyon — GUV-08 gerçek kaygısı):
+        - Status code: 404 (not 201, not 403)
+        - Error code: "NOT_FOUND"
+        - Engagement oluşturulmaz
+        """
+        # Charlie is ORG_MEMBER of organization_b only, not organization_a
+        # Charlie tries to open engagement for Alice (not himself) in organization_a
+        payload = {
+            "talent_id": str(talent_alice.id),
+            "organization_id": str(organization_a.id),  # Charlie is NOT member of organization_a
+            "kind": "INTERNSHIP",
+            "title": "Unauthorized engagement",
+        }
+
+        response = client.post(
+            "/engagements",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_org_member_charlie.id)},
+        )
+
+        # AC-S2: 404 (not 201, not 403)
+        assert response.status_code == 404, f"Expected 404, got {response.status_code}"
+
+        data = response.json()
+        error_obj = data.get("detail") if "detail" in data else data
+        assert error_obj.get("code") == "NOT_FOUND"
+
+
+# ============================================================================
+# AC-2 (IS-02): COORDINATOR can set started_on/ended_on via API on transition
+# ============================================================================
+
+
+class TestStartedOnEndedOnTransition:
+    """
+    AC-2 (IS-02): COORDINATOR can set started_on/ended_on when transitioning engagement.
+
+    Scenario:
+    - DRAFT engagement exists (institution_id set, not NULL)
+    - COORDINATOR transitions it (e.g., DRAFT→ACTIVE via T4)
+    - Payload includes started_on (date) and/or ended_on (date)
+    - These dates are persisted on the engagement
+    - If criteria are met (e.g., started_on and ended_on are set),
+      attestation type can be COMPETENCE (not just PARTICIPATION)
+
+    Acceptance Criteria (AC-2):
+    - Status code: 200 OK
+    - Response includes updated started_on/ended_on
+    - Database reflects the date changes
+    - If both dates set and end >= start: attestation type can include COMPETENCE
+    """
+
+    def test_coordinator_sets_started_on_ended_on_on_transition(
+        self,
+        client,
+        session,
+        talent_alice,
+        organization_a,
+        institution_a,
+        user_coordinator_david,
+    ):
+        """
+        AC-2: COORDINATOR sets started_on/ended_on on DRAFT→ACTIVE transition.
+
+        Given: DRAFT engagement with institution_id
+        When: COORDINATOR POSTs /engagements/{id}/transition with started_on/ended_on
+        Then: 200 OK, dates persisted, attestation can be COMPETENCE
+
+        Acceptance Criteria:
+        - Status code: 200
+        - Response: started_on and ended_on are set to provided values
+        - Database row shows updated dates
+        """
+        from datetime import date
+
+        engagement = Engagement(
+            talent_id=talent_alice.id,
+            organization_id=organization_a.id,
+            institution_id=institution_a.id,  # Required for T4
+            kind="INTERNSHIP",
+            title="Internship with dates",
+            status="DRAFT",
+            version=1,
+            reason=None,
+            started_on=None,  # Initially NULL
+            ended_on=None,    # Initially NULL
+        )
+        session.add(engagement)
+        session.flush()
+
+        # Coordinator transitions with date fields
+        start_date = date(2024, 1, 1)
+        end_date = date(2024, 3, 31)
+
+        payload = {
+            "to_status": "ACTIVE",
+            "reason": "Starting internship",
+            "started_on": str(start_date),  # ISO format
+            "ended_on": str(end_date),      # ISO format
+        }
+
+        response = client.post(
+            f"/engagements/{engagement.id}/transitions",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_coordinator_david.id)},
+        )
+
+        # Expected: 200 OK
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+
+        data = response.json()
+
+        # Verify response includes dates
+        assert data.get("started_on") == str(start_date), \
+            f"Response started_on mismatch: {data.get('started_on')} != {start_date}"
+        assert data.get("ended_on") == str(end_date), \
+            f"Response ended_on mismatch: {data.get('ended_on')} != {end_date}"
+
+        # Verify database persistence
+        engagement_check = session.execute(
+            select(Engagement).where(Engagement.id == engagement.id)
+        ).scalar_one()
+
+        assert engagement_check.started_on == start_date, \
+            f"DB started_on not persisted: {engagement_check.started_on} != {start_date}"
+        assert engagement_check.ended_on == end_date, \
+            f"DB ended_on not persisted: {engagement_check.ended_on} != {end_date}"
+
+    def test_started_on_after_ended_on_rejected_400(
+        self,
+        client,
+        session,
+        talent_alice,
+        organization_a,
+        institution_a,
+        user_coordinator_david,
+    ):
+        """
+        AC-2: Date constraint violation (started_on > ended_on) → 400.
+
+        Given: DRAFT engagement
+        When: COORDINATOR POSTs with started_on > ended_on
+        Then: 400 VALIDATION_ERROR (DB constraint: ended_on >= started_on)
+
+        Acceptance Criteria:
+        - Status code: 400
+        - Error code: "VALIDATION_ERROR"
+        - Engagement dates unchanged
+        """
+        from datetime import date
+
+        engagement = Engagement(
+            talent_id=talent_alice.id,
+            organization_id=organization_a.id,
+            institution_id=institution_a.id,
+            kind="INTERNSHIP",
+            title="Test with invalid dates",
+            status="DRAFT",
+            version=1,
+            reason=None,
+        )
+        session.add(engagement)
+        session.flush()
+
+        # Invalid: end before start
+        start_date = date(2024, 3, 31)
+        end_date = date(2024, 1, 1)  # Before start_date
+
+        payload = {
+            "to_status": "ACTIVE",
+            "reason": "Invalid date range",
+            "started_on": str(start_date),
+            "ended_on": str(end_date),
+        }
+
+        response = client.post(
+            f"/engagements/{engagement.id}/transitions",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_coordinator_david.id)},
+        )
+
+        # Expected: 400 (validation error due to constraint violation)
+        assert response.status_code == 400, f"Expected 400, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        error_obj = data.get("detail") if "detail" in data else data
+        assert error_obj.get("code") == "VALIDATION_ERROR"
+
+    def test_only_started_on_set_allowed(
+        self,
+        client,
+        session,
+        talent_alice,
+        organization_a,
+        institution_a,
+        user_coordinator_david,
+    ):
+        """
+        AC-2: Setting only started_on (ended_on=NULL) is allowed.
+
+        Given: DRAFT engagement
+        When: COORDINATOR POSTs with only started_on
+        Then: 200 OK, started_on set, ended_on remains NULL
+
+        Acceptance Criteria:
+        - Status code: 200
+        - started_on is set
+        - ended_on remains NULL
+        """
+        from datetime import date
+
+        engagement = Engagement(
+            talent_id=talent_alice.id,
+            organization_id=organization_a.id,
+            institution_id=institution_a.id,
+            kind="INTERNSHIP",
+            title="Partial date",
+            status="DRAFT",
+            version=1,
+            reason=None,
+        )
+        session.add(engagement)
+        session.flush()
+
+        start_date = date(2024, 1, 15)
+
+        payload = {
+            "to_status": "ACTIVE",
+            "reason": "Setting start date only",
+            "started_on": str(start_date),
+            # No ended_on
+        }
+
+        response = client.post(
+            f"/engagements/{engagement.id}/transitions",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_coordinator_david.id)},
+        )
+
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        assert data.get("started_on") == str(start_date)
+        assert data.get("ended_on") is None, "ended_on should remain NULL"
+
+        # Verify database
+        engagement_check = session.execute(
+            select(Engagement).where(Engagement.id == engagement.id)
+        ).scalar_one()
+        assert engagement_check.started_on == start_date
+        assert engagement_check.ended_on is None

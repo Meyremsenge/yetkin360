@@ -496,6 +496,162 @@ class TestTenantIsolationBOLA:
         ).first()
         assert member is None, "No member should be added to B"
 
+    # ========================================================================
+    # YET-197/IS-10: Reject link request — BOLA
+    # ========================================================================
+
+    def test_coordinator_a_cannot_reject_link_request_for_b(
+        self,
+        client,
+        session,
+        institution_a,
+        institution_b,
+        inst_a_coordinator_member,
+        inst_b_coordinator_member,
+        talent_b,
+        student_b,
+        user_a_coordinator,
+    ):
+        """AC-S2 (BOLA): Coordinator of A cannot reject B's link request → 404, status unchanged."""
+        from app.models import InstitutionLinkRequest
+
+        link_req = InstitutionLinkRequest(
+            talent_profile_id=talent_b.id,
+            institution_id=institution_b.id,
+            status="PENDING"
+        )
+        session.add(link_req)
+        session.flush()
+        request_id = link_req.id
+
+        response = client.post(f"/institutions/{institution_b.id}/link-requests/{request_id}/reject", headers={"X-Debug-User-Id": str(user_a_coordinator.id)})
+
+        assert response.status_code == 404, (
+            "Coordinator of A should not access/reject resources of B (404)"
+        )
+
+        link_req = session.query(InstitutionLinkRequest).filter_by(id=request_id).first()
+        assert link_req.status == "PENDING", "Link request should remain PENDING"
+
+    def test_admin_a_cannot_reject_link_request_for_b(
+        self,
+        client,
+        session,
+        institution_a,
+        institution_b,
+        inst_a_admin_member,
+        inst_b_coordinator_member,
+        talent_b,
+        student_b,
+        user_a_admin,
+    ):
+        """AC-S2: Admin of A also cannot reject link for B."""
+        from app.models import InstitutionLinkRequest
+
+        link_req = InstitutionLinkRequest(
+            talent_profile_id=talent_b.id,
+            institution_id=institution_b.id,
+            status="PENDING"
+        )
+        session.add(link_req)
+        session.flush()
+        request_id = link_req.id
+
+        response = client.post(f"/institutions/{institution_b.id}/link-requests/{request_id}/reject", headers={"X-Debug-User-Id": str(user_a_admin.id)})
+
+        assert response.status_code == 404
+
+    # ========================================================================
+    # YET-197/IS-10: List pending link requests — BOLA
+    # ========================================================================
+
+    def test_coordinator_a_can_list_pending_requests_for_a(
+        self,
+        client,
+        session,
+        institution_a,
+        inst_a_coordinator_member,
+        talent_a,
+        student_a,
+        user_a_coordinator,
+    ):
+        """Positive: coordinator of A can list A's own pending requests."""
+        from app.models import InstitutionLinkRequest
+
+        link_req = InstitutionLinkRequest(
+            talent_profile_id=talent_a.id,
+            institution_id=institution_a.id,
+            status="PENDING"
+        )
+        session.add(link_req)
+        session.flush()
+
+        response = client.get(f"/institutions/{institution_a.id}/link-requests", headers={"X-Debug-User-Id": str(user_a_coordinator.id)})
+
+        assert response.status_code == 200
+        items = response.json()["items"]
+        assert len(items) == 1
+        assert items[0]["id"] == str(link_req.id)
+
+    def test_coordinator_a_cannot_list_pending_requests_for_b(
+        self,
+        client,
+        session,
+        institution_a,
+        institution_b,
+        inst_a_coordinator_member,
+        inst_b_coordinator_member,
+        talent_b,
+        student_b,
+        user_a_coordinator,
+    ):
+        """AC-S2 (BOLA): Coordinator of A cannot list B's pending requests → 404, no data leak."""
+        from app.models import InstitutionLinkRequest
+
+        link_req = InstitutionLinkRequest(
+            talent_profile_id=talent_b.id,
+            institution_id=institution_b.id,
+            status="PENDING"
+        )
+        session.add(link_req)
+        session.flush()
+
+        response = client.get(f"/institutions/{institution_b.id}/link-requests", headers={"X-Debug-User-Id": str(user_a_coordinator.id)})
+
+        assert response.status_code == 404
+        # No leak of B's talent name/id in the body
+        body = response.text
+        assert str(link_req.id) not in body
+        assert talent_b.full_name not in body
+
+    def test_talent_cannot_list_pending_requests(
+        self,
+        client,
+        institution_a,
+        talent_a,
+        student_a,
+    ):
+        """TALENT principal has no institution role → 404 (not 403) listing pending requests."""
+        response = client.get(f"/institutions/{institution_a.id}/link-requests", headers={"X-Debug-User-Id": str(student_a.id)})
+
+        assert response.status_code == 404, (
+            f"TALENT should receive 404, got {response.status_code}"
+        )
+
+    def test_unauthenticated_reject_and_list_401(
+        self,
+        client,
+        institution_a,
+    ):
+        """No X-Debug-User-Id header → 401 for both reject and list-pending."""
+        nonexistent_id = "550e8400-e29b-41d4-a716-446655440099"
+
+        reject_response = client.post(f"/institutions/{institution_a.id}/link-requests/{nonexistent_id}/reject")
+        assert reject_response.status_code == 401
+
+        list_response = client.get(f"/institutions/{institution_a.id}/link-requests")
+        assert list_response.status_code == 401
+
 
 # ============================================================================
 # Authorization Core Tests (can() + scoped_institutions())

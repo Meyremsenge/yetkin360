@@ -1,0 +1,46 @@
+{
+  "task": "admin-link-rol-sizintisi",
+  "reviewed_at": "2026-10-06T00:00:00Z",
+  "summary": "Değişiklik atdd.md ile tam uyumlu: backend sadece is_platform_admin alanını ekliyor, frontend bunu === true kesin eşitliğiyle fail-closed koşullayarak admin linklerini gizliyor; admin.py'ye dokunulmamış, AC-S1/AC-S2 testlerle korunmuş. Küçük, caveman-uyumlu bir diff; bulunan tek konu düşük önemde bir belgeleme/netlik notu.",
+  "findings": [
+    {
+      "severity": "low",
+      "category": "reliability",
+      "file": "frontend/components/app-shell.tsx",
+      "issue": "Admin linklerinin render edilip edilmediği yalnızca component/unit testleriyle doğrulanmış; e2e/vision-test adımı (gate 7 ve 12) ortam kısıtı (seed admin şifresine .env okumadan erişilememesi) nedeniyle KISMİ kaldı.",
+      "better_approach": "Seed script'inde .env okumadan test amaçlı sabit bir admin kullanıcı/şifre oluşturulabilir ki vision-test tam otomatik koşulabilsin.",
+      "reason": "atdd.md Test Strategy e2e %10 hedefi koyuyor; mevcut durumda bu kısım component testiyle ikame edilmiş, bu kabul edilebilir ama kalıcı bir ortam kısıtı olarak işaretlenmeli, aksi halde her nav değişikliğinde aynı kısım hep atlanır."
+    }
+  ],
+  "strengths": [
+    "frontend/components/app-shell.tsx:100 — koşul `session.data.user.is_platform_admin === true` şeklinde kesin eşitlik kullanıyor; ||/??/truthy kontrolü yok, bu sayede undefined/null/false hepsi aynı şekilde (gizli) davranıyor — AC-3/4 fail-closed gereksinimini doğru karşılıyor.",
+    "backend/app/api/me.py:48-57 — UserResponse şemasına SADECE is_platform_admin eklenmiş; institution_admin_ids/org_admin_ids/supervisor_institution_ids gibi ek rol alanı yok, AC-S2 bilgi ifşası minimizasyonu doğru uygulanmış.",
+    "backend/app/api/admin.py dokunulmamış (git diff --stat boş çıktı verdi) — AC-S1 regresyon koruması (_require_admin() davranışı) değişmemiş, savunma-derinliği ilkesi korunmuş.",
+    "frontend/lib/session/types.ts:31 — is_platform_admin opsiyonel (?: boolean) eklenmiş, isMeResponse guard'ı bu alanı zorunlu kılmıyor; eski/kısmi response şemalarıyla geriye dönük uyumluluk korunmuş.",
+    "Nav yerleşimi (Çalışmalarım/Profil) üst bar'a taşınmış, eski border-t footer kaldırılmış — AC-5 ve Jira'daki tasarım sorunu birlikte çözülmüş, kapsam genişlemesi yok."
+  ],
+  "risks": [
+    "Risk kabul edilmiş ve atdd.md'de belgelenmiş: admin yetkisi backend'de kaldırıldığında frontend TanStack Query refetch'e kadar eski admin linkini kısa süre gösterebilir — gerçek yetki her zaman backend'de (_require_admin, 404) yeniden kontrol edildiği için bu sadece görünürlük gecikmesi, authz açığı değil."
+  ],
+  "caveman_review": {
+    "complexity": "low",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve"
+}

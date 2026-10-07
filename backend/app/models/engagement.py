@@ -1,7 +1,7 @@
 import uuid
-from datetime import date
+from datetime import date, datetime
 
-from sqlalchemy import CheckConstraint, ForeignKey, String, false
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, false
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -52,6 +52,7 @@ class Engagement(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String, nullable=False, server_default="DRAFT")
     started_on: Mapped[date | None] = mapped_column(nullable=True)
     ended_on: Mapped[date | None] = mapped_column(nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     confidential: Mapped[bool] = mapped_column(nullable=False, server_default=false())
     version: Mapped[int] = mapped_column(nullable=False, server_default="1")
     reason: Mapped[str | None] = mapped_column(nullable=True)

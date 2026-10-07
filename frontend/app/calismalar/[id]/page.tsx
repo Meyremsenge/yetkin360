@@ -8,6 +8,10 @@ import { getEngagement } from "@/lib/api/engagements";
 import { ApiError } from "@/lib/api/errors";
 import { TransitionActions } from "./transition-actions";
 import { EvidenceUploadForm } from "./evidence-upload-form";
+import { DeliverableForm } from "./deliverable-form";
+import { AttestationForm } from "./attestation-form";
+import { TaskForm } from "./task-form";
+import { AttestationRevoke } from "./attestation-revoke";
 import messages from "@/messages/tr.json";
 
 export default function CalismaDetayPage() {
@@ -67,6 +71,11 @@ export default function CalismaDetayPage() {
               onSuccess={() => queryClient.invalidateQueries({ queryKey: ENGAGEMENT_QUERY_KEY })}
             />
 
+            <AttestationForm
+              engagement={engagement}
+              onSuccess={() => queryClient.invalidateQueries({ queryKey: ENGAGEMENT_QUERY_KEY })}
+            />
+
             {engagement.status === "PENDING_EVALUATION" && (
               <div className="mb-6">
                 <Link
@@ -80,6 +89,12 @@ export default function CalismaDetayPage() {
 
             <section className="mt-8">
               <h2 className="text-lg font-bold mb-3">{messages.calismalar.tasksTitle}</h2>
+
+              <TaskForm
+                engagement={engagement}
+                onSuccess={() => queryClient.invalidateQueries({ queryKey: ENGAGEMENT_QUERY_KEY })}
+              />
+
               {engagement.tasks.length === 0 ? (
                 <p className="text-sm text-slate-600">{messages.calismalar.emptyTasksMessage}</p>
               ) : (
@@ -94,7 +109,35 @@ export default function CalismaDetayPage() {
             </section>
 
             <section className="mt-8">
+              <h2 className="text-lg font-bold mb-3">{messages.calismalar.attestationsTitle}</h2>
+              {engagement.attestations.length === 0 ? (
+                <p className="text-sm text-slate-600">{messages.calismalar.emptyAttestationsMessage}</p>
+              ) : (
+                <ul className="space-y-2">
+                  {engagement.attestations.map((attestation) => (
+                    <li
+                      key={attestation.id}
+                      className="bg-white p-3 rounded-md border border-slate-200 text-sm"
+                    >
+                      {messages.calismalar.claimType[attestation.claim_type as keyof typeof messages.calismalar.claimType] ?? attestation.claim_type}
+                      <AttestationRevoke
+                        attestation={attestation}
+                        onSuccess={() => queryClient.invalidateQueries({ queryKey: ENGAGEMENT_QUERY_KEY })}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section className="mt-8">
               <h2 className="text-lg font-bold mb-3">{messages.calismalar.deliverablesTitle}</h2>
+
+              <DeliverableForm
+                engagement={engagement}
+                onSuccess={() => queryClient.invalidateQueries({ queryKey: ENGAGEMENT_QUERY_KEY })}
+              />
+
               {engagement.deliverables.length === 0 ? (
                 <p className="text-sm text-slate-600">{messages.calismalar.emptyDeliverablesMessage}</p>
               ) : (

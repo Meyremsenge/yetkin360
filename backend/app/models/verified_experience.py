@@ -20,6 +20,7 @@ Schema:
   - created_at: timestamptz (append-only)
 """
 
+import secrets
 import uuid
 from datetime import date, datetime
 
@@ -35,6 +36,23 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, uuid7_default
+
+
+def generate_public_token() -> str:
+    """
+    Generate a cryptographically secure random token for public verification link.
+
+    Uses secrets.token_urlsafe() with 32 bytes (256 bits) entropy.
+    This exceeds AC-S1 minimum requirement of ≥128 bits.
+
+    Alphabet: base64url (64 chars)
+    Length: typically 43-44 characters (encoding 32 bytes)
+    Entropy: 256 bits >> 128 bits minimum (AC-S1)
+
+    Returns:
+        str: Randomly generated token suitable for URL-safe use
+    """
+    return secrets.token_urlsafe(32)
 
 
 class VerifiedExperience(Base):
@@ -82,7 +100,8 @@ class VerifiedExperience(Base):
     visibility: Mapped[str] = mapped_column(String(50), nullable=False, server_default="PRIVATE")
 
     # Public verification link token (YET-106)
-    public_token: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
+    # AC-1 (IS-01): Auto-generate token on VerifiedExperience creation
+    public_token: Mapped[str | None] = mapped_column(String, unique=True, nullable=True, default=generate_public_token)
 
     # Timestamps (append-only: no updated_at, except visibility changes which happen via separate mechanism)
     created_at: Mapped[datetime] = mapped_column(

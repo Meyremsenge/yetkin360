@@ -5,6 +5,7 @@ import {
   listEngagements,
   getEngagement,
   transitionEngagement,
+  createEngagement,
 } from "./engagements";
 import type { EngagementDetail, EngagementStatus, EngagementSummary } from "./engagements";
 import * as client from "./client";
@@ -42,6 +43,17 @@ describe("lib/api/engagements", () => {
       expect(availableTransitions("REJECTED")).toEqual([]);
       expect(availableTransitions("CANCELLED")).toEqual([]);
       expect(availableTransitions("PENDING_EVALUATION")).toEqual([]);
+    });
+
+    it("EVALUATED/VERIFIED/DISPUTED/RESOLVED için genel /transitions ucundan aday yok (YET-194/IS-04)", () => {
+      // EVALUATED: sistem tarafından otomatik tetiklenir (değerlendirme gönderimi).
+      // VERIFIED: ayrı bir uçtan yapılır (POST .../attestations), /transitions değil.
+      // DISPUTED/RESOLVED: docs/STATE_MACHINE.md §7 — backend'de hiç gerçeklenmemiş.
+      // Üçü de bu yüzden burada [] döner; UI'da yanlış bir geçiş düğmesi oluşmasın.
+      expect(availableTransitions("EVALUATED")).toEqual([]);
+      expect(availableTransitions("VERIFIED")).toEqual([]);
+      expect(availableTransitions("DISPUTED")).toEqual([]);
+      expect(availableTransitions("RESOLVED")).toEqual([]);
     });
   });
 
@@ -162,6 +174,17 @@ describe("lib/api/engagements", () => {
         deliverables: [
           { id: "del-1", title: "Tasarım dosyası", submitted_at: "2026-09-20T15:00:00Z" },
         ],
+        attestations: [
+          {
+            id: "att-1",
+            claim_type: "COMPETENCE",
+            requested_claim_type: "COMPETENCE",
+            attestor_user_id: "user-9",
+            created_at: "2026-09-27T10:00:00Z",
+            revoked_at: null,
+            revoke_reason: null,
+          },
+        ],
       };
 
       mockApiFetch.mockResolvedValueOnce(mockDetail);
@@ -173,6 +196,8 @@ describe("lib/api/engagements", () => {
       expect(result.status).toBe("ACTIVE");
       expect(result.tasks).toHaveLength(1);
       expect(result.deliverables).toHaveLength(1);
+      expect(result.attestations).toHaveLength(1);
+      expect(result.attestations[0].revoked_at).toBeNull();
       expect(result.talent_id).toBe("talent-1");
       expect(result.organization_id).toBe("org-1");
       expect(result.institution_id).toBe("inst-1");
@@ -201,6 +226,7 @@ describe("lib/api/engagements", () => {
           { id: "del-1", title: "API dokümanı", submitted_at: "2026-09-18T10:00:00Z" },
           { id: "del-2", title: "Test raporu", submitted_at: "2026-09-24T16:00:00Z" },
         ],
+        attestations: [],
       };
 
       mockApiFetch.mockResolvedValueOnce(mockDetail);
@@ -214,6 +240,7 @@ describe("lib/api/engagements", () => {
       expect(result.created_at).toBe("2026-08-15T08:00:00Z");
       expect(result.tasks).toHaveLength(2);
       expect(result.deliverables).toHaveLength(2);
+      expect(result.attestations).toEqual([]);
       expect(mockApiFetch).toHaveBeenCalledWith("/engagements/eng-2");
     });
 
@@ -298,6 +325,7 @@ describe("lib/api/engagements", () => {
         deliverables: [
           { id: "del-1", title: "Tasarım dosyası", submitted_at: "2026-09-20T15:00:00Z" },
         ],
+        attestations: [],
       };
 
       mockApiFetch.mockResolvedValueOnce(updatedDetail);
@@ -335,6 +363,7 @@ describe("lib/api/engagements", () => {
         updated_at: "2026-09-27T12:00:00Z",
         tasks: [],
         deliverables: [],
+        attestations: [],
       };
 
       mockApiFetch.mockResolvedValueOnce(cancelledDetail);
@@ -399,6 +428,72 @@ describe("lib/api/engagements", () => {
           version: 1,
         })
       ).rejects.toMatchObject({ status: 422, code: "ILLEGAL_TRANSITION" });
+    });
+  });
+
+  /**
+   * YET-202/ENT-01: createEngagement — talent kendi engagement'ını oluşturur.
+   */
+  describe("createEngagement", () => {
+    it("happy path - POST /engagements çağırır, oluşturulan kaydı döner", async () => {
+      const response = {
+        id: "eng-new-1", talent_id: "talent-1", organization_id: "org-1", institution_id: "inst-1",
+        kind: "INTERNSHIP", title: "Yeni Staj", status: "DRAFT", version: 1, reason: null,
+        created_at: "2026-10-05T00:00:00Z", updated_at: "2026-10-05T00:00:00Z",
+      };
+      mockApiFetch.mockResolvedValueOnce(response);
+
+      const result = await createEngagement({
+        talent_id: "talent-1", organization_id: "org-1", kind: "INTERNSHIP", title: "Yeni Staj", institution_id: "inst-1",
+      });
+
+      expect(result).toEqual(response);
+      expect(mockApiFetch).toHaveBeenCalledWith("/engagements", {
+        method: "POST",
+        body: { talent_id: "talent-1", organization_id: "org-1", kind: "INTERNSHIP", title: "Yeni Staj", institution_id: "inst-1" },
+      });
+    });
+
+    it("institution_id opsiyonel - olmadan çağrılabilir", async () => {
+      mockApiFetch.mockResolvedValueOnce({
+        id: "eng-new-2", talent_id: "talent-1", organization_id: "org-1", institution_id: null,
+        kind: "SHORT_PROJECT", title: "x", status: "DRAFT", version: 1, reason: null,
+        created_at: "2026-10-05T00:00:00Z", updated_at: "2026-10-05T00:00:00Z",
+      });
+
+      await createEngagement({ talent_id: "talent-1", organization_id: "org-1", kind: "SHORT_PROJECT", title: "x" });
+
+      expect(mockApiFetch).toHaveBeenCalledWith("/engagements", {
+        method: "POST",
+        body: { talent_id: "talent-1", organization_id: "org-1", kind: "SHORT_PROJECT", title: "x", institution_id: undefined },
+      });
+    });
+
+    it("404 ORGANIZATION_NOT_FOUND - geçersiz link için ApiError fırlatır", async () => {
+      const error = new ApiError({ status: 404, code: "ORGANIZATION_NOT_FOUND", message: "x", requestId: null });
+      mockApiFetch.mockRejectedValueOnce(error);
+
+      await expect(
+        createEngagement({ talent_id: "talent-1", organization_id: "org-missing", kind: "INTERNSHIP", title: "x" })
+      ).rejects.toMatchObject({ status: 404, code: "ORGANIZATION_NOT_FOUND" });
+    });
+
+    it("400 INSTITUTION_MISMATCH - talent'ın kendi institution_id'siyle uyuşmazsa ApiError fırlatır", async () => {
+      const error = new ApiError({ status: 400, code: "INSTITUTION_MISMATCH", message: "x", requestId: null });
+      mockApiFetch.mockRejectedValueOnce(error);
+
+      await expect(
+        createEngagement({ talent_id: "talent-1", organization_id: "org-1", kind: "INTERNSHIP", title: "x", institution_id: "wrong-inst" })
+      ).rejects.toMatchObject({ status: 400, code: "INSTITUTION_MISMATCH" });
+    });
+
+    it("422 - geçersiz kind/boş title için ApiError fırlatır", async () => {
+      const error = new ApiError({ status: 422, code: "VALIDATION_ERROR", message: "x", requestId: null });
+      mockApiFetch.mockRejectedValueOnce(error);
+
+      await expect(
+        createEngagement({ talent_id: "talent-1", organization_id: "org-1", kind: "INTERNSHIP", title: "" })
+      ).rejects.toMatchObject({ status: 422 });
     });
   });
 });

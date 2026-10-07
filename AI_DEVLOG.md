@@ -5,6 +5,67 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## next-font-kurulumu — YET-249 Inter font + başlık ölçeği (2026-10-06)
+
+**Kaynak:** `obss_project/artifacts/next-font-kurulumu/` — YET-247'nin alt görevi.
+
+### Gerçek zorluk/bug (kaynak: code_diff.md, verify_report.md)
+- **`.next` build çıktısına bu ortamda dosya sistemi izni engelliydi** — AC-4'ü (self-host, runtime'da Google'a ağ çağrısı yok) statik build dosyası okuyarak doğrulamak yerine canlı Browser pane ile `read_network_requests` kullanılarak doğrulandı (`fonts.googleapis.com`/`fonts.gstatic.com`'a hiç istek gitmediği teyit edildi).
+- **Bir test `renderToStaticMarkup`'ın HTML çıktısında literal `"className"` string'i arıyordu** — HTML'de JSX'in `className` prop'u her zaman `"class"` attribute'üne dönüşür, bu test implementasyon ne olursa olsun hep kırmızı kalırdı. Gerçek koşuyla (alt-ajanın "1 test yanlış yazılmış" iddiasına güvenilmeden) doğrulanıp mock class adını (`mock-inter-font`) arayacak şekilde düzeltildi.
+- `vitest.setup.ts`'e eklenen global `next/font/google` mock'u (jsdom'un gerçek Next.js font-loading webpack mekanizmasını çalıştıramaması nedeniyle gerekli) diğer testleri etkilemediği (1155/1155 PASS) doğrulandı.
+
+## tasarim-sistemi-temel-bilesenler — YET-247 Card/Badge/Alert + Button variant (2026-10-06)
+
+**Kaynak:** `obss_project/artifacts/tasarim-sistemi-temel-bilesenler/` — Jira'nın geniş kapsamlı tasarım sistemi görevi (TASARIM-04), kullanıcı onayıyla DARALTILDI: sadece bileşen kurulumu, mevcut sayfaların migrasyonu/marka rengi/font/boşluk standardizasyonu ayrı takip görevlerine bırakıldı.
+
+### Bilinçli kapsam/mimari kararları (kaynak: atdd.md)
+- Jira'nın "cva (class-variance-authority) zaten shadcn kalıbında mevcut" iddiası YANLIŞTI — proje bu bağımlılığı hiç kullanmıyordu. CLAUDE.md yeni bağımlılık eklemeyi onay gerektiren işlem saydığından, mevcut `clsx`+`tailwind-merge` (`lib/utils.ts`'teki `cn()`) ile basit obje-tabanlı variant deseni kuruldu — kullanıcı onayıyla.
+- Bu turda hiçbir sayfa yeni bileşenleri kullanmadığından `vision-test`/e2e bilinçli olarak N/A bırakıldı; tek gerçek risk (`button.tsx`'in mevcut kullanıcıları) tam test suite koşusuyla (1134/1134) kapatıldı.
+
+### Gerçek zorluk/bug (kaynak: code_diff.md, red_team.json)
+- **Test-copilot'un 4 test dosyasının tamamında geçersiz bir JSX kalıbı vardı:** `<Button variant="primary" as any>` — `as any` JSX'te bir type-cast değil, iki ayrı anlamsız boolean prop (`as`, `any`) olarak parse ediliyordu; niyet edilen tip-atlatma işlevini hiç görmüyordu ve `typecheck` gate'ini kıracaktı. 62 yerde (4 dosyada) tespit edilip düzeltildi.
+- **Code-copilot'un ilk turu icat edilmiş bir kural ekledi:** `hasBackgroundOverride = className?.includes("bg-")` — className "bg-" içerirse variant'ın hover class'ını TAMAMEN siliyordu. Bu hem gereksizdi (tailwind-merge zaten çakışan hover class'larını doğru çözer) hem de yanlış davranış üretiyordu (sadece arka plan rengini override eden bir çağıran istemeden hover'ını da kaybediyordu). Kod incelemesiyle (alt-ajanın "tüm testler PASS" raporuna güvenilmeden) bulunup kaldırıldı.
+- **Bir test substring-çakışması yüzünden yanlışlıkla kırmızıydı:** `not.toContain("bg-destructive")`, kalması GEREKEN `hover:bg-destructive/90`'ı da substring olarak yakalıyordu — implementasyon doğruydu, test yanlış yazılmıştı. Gerçek test koşusuyla (alt-ajanın iddiasına güvenilmeden) yakalanıp tam-token-eşleşmeye çevrildi.
+- **Red-team, projenin kendi erişilebilirlik kuralını (`frontend.md`: "hata mesajları aria-live ile duyurulur") `alert.tsx`'in karşılamadığını buldu** — commit öncesi `role="alert"` + koşullu `aria-live` eklendi.
+
+## admin-link-rol-sizintisi — YET-245 admin link rol kontrolü + nav yerleşimi (2026-10-06)
+
+**Kaynak:** `obss_project/artifacts/admin-link-rol-sizintisi/` — admin linklerinin (Kurum Doğrulama, Yetkinlik Yönetimi) rol kontrolü olmadan tüm kullanıcılara gösterilmesi + nav'ın sayfa altında olması.
+
+### Bilinçli kapsam/davranış kararları (kaynak: atdd.md)
+- Bu GERÇEK bir yetki açığı değildi — backend `_require_admin()` zaten `is_platform_admin` kontrolüyle 404 dönüyordu; değişiklik sadece UI'ı backend'in zaten uyguladığı sınırla tutarlı hale getirdi (savunma-derinliği, authz sınırı değişmedi).
+- Kabul edilen risk: admin yetkisi backend'de kaldırıldığında frontend, TanStack Query refetch'e kadar eski admin linkini kısa süre gösterebilir — gerçek yetki her zaman backend'de yeniden kontrol edildiği için (AC-S1) bu sadece görünürlük gecikmesi, bu görevde ele alınmadı.
+- Migration gerekmedi — `is_platform_admin` kolonu `85ce30db9b84` migration'ıyla zaten vardı, sadece response şemasına/frontend tipine eklendi.
+
+### Gerçek zorluk/bug (kaynak: verify_report.md, red_team.json)
+- **E2E/vision-test tam otomatik koşulamadı:** Seed admin şifresi `.env`'de ve CLAUDE.md kuralı gereği (`.env okunmaz`) gerçek giriş bilgisine erişilemedi — component/unit testleriyle (29 DOM assertion) ikame edildi. Red-team bunu "kalıcı ortam kısıtı" olarak işaretledi: seed script'inde `.env` dışı bir test-only admin credential olmadıkça her nav değişikliğinde bu kısım atlanacak.
+- `tests/authorization` paketinin tamamı (857 test) bu değişiklikten sonra da yeşil kaldı — AC-S1 regresyon koruması canlı pytest koşusuyla doğrulandı, sadece statik kod okumayla değil.
+
+## bg-renk-token-tanimsiz — YET-244 arka plan/renk token'ları (2026-10-05)
+
+**Kaynak:** `obss_project/artifacts/bg-renk-token-tanimsiz/` — body/html'de background-color tanımsız olduğu için sistem koyu temada kart dışı alanların siyah/saydam göründüğü bug (shadcn-standart CSS değişkenleri + Tailwind bağlantısı eklendi).
+
+### Gerçek zorluk/bug (kaynak: test_diff.md, verify_report.md)
+- **Test dosya adı vitest include desenine uymuyordu:** `test-copilot`'un ilk teslim ettiği `globals.test.css.ts` dosyası `.css.ts` ile bittiği için `vitest.config.ts`'in `include: ["**/*.test.{ts,tsx}"]` deseniyle eşleşmiyordu — içindeki 14 test (AC-3/4/5) sessizce hiç çalışmıyordu. `verify` adımında hedefli test çalıştırmasıyla (sadece 1 dosya/18 test döndüğü fark edilerek) yakalandı, `globals-css.test.ts` olarak yeniden adlandırıldı.
+- **`next dev` stale Tailwind cache:** `tailwind.config.ts`'e yeni `colors` token'ları eklendikten sonra zaten çalışmakta olan `next dev` süreci `bg-background` class'ını "mevcut değil" sayıp 500 hatası verdi — `npm run build` (production, her zaman temiz derleme) bu sorunu hiç yaşamadı. Dev sunucusunun yeniden başlatılmasıyla (`preview_stop`/`preview_start`) düzeldi. **Ders:** `tailwind.config.ts` değişikliklerinde (yeni token ekleme) çalışan bir `next dev` prosesi varsa restart gerekebilir, HMR bazen yetersiz kalıyor.
+- **AC-2'nin ilk test tasarımı yanlıştı:** `renderToStaticMarkup` çıktısında `color-scheme`/`light` string'lerini arayan bir test yazılmıştı — ama bu bilgi harici `globals.css`'ten geldiği için SSR string'ine hiç karışmaz, doğru implementasyonla bile sonsuza dek kırmızı kalırdı. `test-copilot` adımında (implementasyon yazılmadan önce) fark edilip kaldırıldı, yalnız kaynak-dosya okuyan (doğru) test korundu.
+
+## guvenlik-bulgulari-duzeltme — 14 Jira güvenlik/yetkilendirme bulgusu (2026-10-05)
+
+**Kaynak:** `obss_project/artifacts/guvenlik-bulgulari-duzeltme/` — GUV-04/05/08, IS-01/02/03/05/06, AUTHZ-03, VER-02, L-06/08/09/10 (tek turda, kullanıcı onayıyla birleştirildi).
+
+### Bilinçli kapsam/davranış kararları (kaynak: atdd.md, plan.md)
+- **GUV-04 "B seçeneği" (atdd.md AC-5 kararı):** TALENT_TO_ORG değerlendirmesi engellenmedi (201 kabul edilir) — sadece STRONG skill sinyali üretimi ORG_TO_TALENT yönüyle sınırlandı. İlk implementasyon isteği tamamen 403 ile engellemişti, mevcut `test_talent_can_post_talent_to_org_201` testiyle çatıştığı fark edilince kullanıcı onayıyla düzeltildi.
+- **GUV-08 (institution_id uyuşmazlığı → her zaman 404) ve VER-02 (claimed_level zorunlu alan) kasıtlı davranış değişiklikleri** — bu iki değişiklik ~25 eski (bu görevden önce yazılmış) testi kırdı; kullanıcı açıkça onayladı: davranış değişiklikleri kalır, eski testler yeni davranışa güncellenir (geri alınmaz).
+- **T8 (EVALUATED→VERIFIED) rolü SUPERVISOR olarak netleşti** (AUTHZ-03/AC-7, yeni migration + `InstitutionMember` rol constraint'i) — T4'ün nihai rol kararı hâlâ açık (Unknowns, ayrı tur gerektirir).
+
+### Gerçek zorluk/bug (kaynak: code_diff.md, verify_report.md)
+- **GUV-05'in "zaten doğru" ilk kararı YANLIŞTI** — gerçek pytest koşusu, `revoked_at` filtresinin `scoped_*` fonksiyonlarının 4'ünde de eksik olduğunu kanıtladı (revoke edilen attestation'lar public listelerde görünmeye devam ediyordu). Düzeltildi, bağımsız doğrulandı.
+- **Paralel alt-ajan çakışması:** İki ayrı Haiku alt-ajanı `generate_public_token()`'ı aynı anda farklı modüllere taşıdı (biri `services`'te bıraktı, biri `models`'e taşıdı) — bir test dosyası eski konumdan import edemeyince patladı. Re-export shim ile çözüldü.
+- **Bir alt-ajanın onaysız migration + yetkilendirme mantığı + kırıcı route değişikliği (`/transitions`→`/transition`) yapması:** Kullanıcıya soruldu; route geri alındı (frontend + 2 eski test dosyası `/transitions`'ı kullanıyordu, kırılırdı), migration+authz (SUPERVISOR) onaylandı. **Ders:** dispatch prompt'larına "ASLA onaysız migration/authz/route değişikliği yapma, bulursan sadece raporla" satırı eklenmeli.
+- **`PreconditionFailedError`'ın 400/422 karışıklığı:** Yeni bir AC-3 precondition'ı (reason uzunluk sınırı) eklenirken, aynı exception'ı kullanan ESKİ preconditionlar (institution_null, reason eksik) da yanlışlıkla 400'e düşürüldü — ayrı bir exception sınıfı (`ReasonTooLongError`) ile ayrıştırıldı.
+- **Ortam:** venv'de `psycopg` (3.3.6) ile `psycopg-binary` (3.2.3) versiyon uyumsuzluğu (`cannot import name Deque`) — `python -m pip install --force-reinstall "psycopg[binary]==3.2.3"` ile düzeltildi (önceki `pip install` PATH çakışması nedeniyle yanlış Python'a gidiyordu).
+
 ## YET-165 (HATA.md GUV-02/GUV-07/L-01) — Davet ucu numaralandırma/rol/500 düzeltmesi (2026-09-30)
 
 **Kaynak:** `obss_project/artifacts/guv-02-davet-yaniti-duzeltmesi/` — HATA.md'nin (2026-09-28 kapsamlı denetim) GUV-02 bulgusuna dayalı, HATA_DUZELTME_PROMPT.md K1=(b) kararıyla dar kapsamlı (yalnız A-09, AUTHZ-01/A-08 hariç).

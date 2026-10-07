@@ -5,6 +5,7 @@ import { AppShell } from "@/components/app-shell";
 import ProfileForm from "./profile-form";
 import SkillsSection from "./skills-section";
 import EvidenceSection from "./evidence-section";
+import InstitutionLinkSection from "./institution-link-section";
 import messages from "@/messages/tr.json";
 
 export default function ProfilePage() {
@@ -31,6 +32,7 @@ export default function ProfilePage() {
             <div>
               <EvidenceSection />
             </div>
+            <InstitutionLinkSection />
           </>
         ) : (
           /* AC-12: Error state when talent_profile is null/undefined */

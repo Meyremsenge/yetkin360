@@ -20,6 +20,9 @@ vi.mock("@/lib/api/engagements", async (importOriginal) => {
     transitionEngagement: vi.fn(),
   };
 });
+vi.mock("@/lib/api/deliverables", () => ({ createDeliverable: vi.fn() }));
+vi.mock("@/lib/api/attestations", () => ({ createAttestation: vi.fn(), revokeAttestation: vi.fn() }));
+vi.mock("@/lib/api/tasks", () => ({ createTask: vi.fn() }));
 
 function renderWithQueryClient(ui: React.ReactElement) {
   const queryClient = new QueryClient({
@@ -43,6 +46,7 @@ const baseEngagement: EngagementDetail = {
   updated_at: "2026-09-18T14:30:00Z",
   tasks: [{ id: "task-1", title: "API şeması", status: "DONE" }],
   deliverables: [],
+  attestations: [],
 };
 
 /**
@@ -154,5 +158,76 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
       expect(screen.getByText("Yaz Kısa Projesi")).toBeTruthy();
     });
     expect(screen.queryByText("Değerlendirme Formu")).toBeNull();
+  });
+
+  // YET-202/ENT-01
+  it("ACTIVE durumunda teslim (deliverable) ekleme formu gösterilir, tanıklık formu gösterilmez", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce(baseEngagement); // status: ACTIVE
+
+    renderWithQueryClient(<CalismaDetayPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Yeni Çıktı Ekle")).toBeTruthy();
+    });
+    expect(screen.queryByText("Tanıklık Ver")).toBeNull();
+  });
+
+  it("EVALUATED durumunda tanıklık formu gösterilir, teslim ekleme formu gösterilmez", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce({ ...baseEngagement, status: "EVALUATED" });
+
+    renderWithQueryClient(<CalismaDetayPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Tanıklık Ver")).toBeTruthy();
+    });
+    expect(screen.queryByText("Yeni Çıktı Ekle")).toBeNull();
+  });
+
+  it("terminal durumda (REJECTED) ne teslim ne tanıklık formu gösterilir", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce({ ...baseEngagement, status: "REJECTED" });
+
+    renderWithQueryClient(<CalismaDetayPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Yaz Kısa Projesi")).toBeTruthy();
+    });
+    expect(screen.queryByText("Yeni Çıktı Ekle")).toBeNull();
+    expect(screen.queryByText("Tanıklık Ver")).toBeNull();
+  });
+
+  it("YET-202/ENT-01: ACTIVE durumunda görev ekleme formu gösterilir", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce(baseEngagement); // status: ACTIVE
+
+    renderWithQueryClient(<CalismaDetayPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Yeni Görev Ekle")).toBeTruthy();
+    });
+  });
+
+  it("YET-202/ENT-01: attestations[] boşsa empty-state, doluysa Geri Çek butonuyla listelenir", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce({
+      ...baseEngagement,
+      status: "VERIFIED",
+      attestations: [
+        {
+          id: "att-1",
+          claim_type: "COMPETENCE",
+          requested_claim_type: "COMPETENCE",
+          attestor_user_id: "user-9",
+          created_at: "2026-09-27T10:00:00Z",
+          revoked_at: null,
+          revoke_reason: null,
+        },
+      ],
+    });
+
+    renderWithQueryClient(<CalismaDetayPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Yetkinlik")).toBeTruthy(); // claimType.COMPETENCE etiketi
+      expect(screen.getByText("Geri Çek")).toBeTruthy();
+    });
+    expect(screen.queryByText("Henüz tanıklık yok.")).toBeNull();
   });
 });

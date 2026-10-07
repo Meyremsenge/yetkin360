@@ -1,8 +1,10 @@
 """Skill claim service: core business logic for talent skill claims."""
 
+from datetime import datetime, timezone
+
 from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models import Skill, SkillClaim, SkillSignal
 from app.services.authorization import Principal, scoped_skill_claims
@@ -104,6 +106,7 @@ def add_skill_claim(
         )
 
     # Create skill signal in same transaction (YET-104 AC-1)
+    # Use current UTC time for occurred_at (claim.created_at may not be populated after flush)
     signal = SkillSignal(
         talent_id=principal.talent_id,
         skill_id=skill_uuid,
@@ -111,7 +114,7 @@ def add_skill_claim(
         source_id=claim.id,
         strength="NONE",
         attested_by_org_id=None,
-        occurred_at=claim.created_at,
+        occurred_at=datetime.now(timezone.utc),
         superseded_by_id=None,
     )
     session.add(signal)
@@ -128,6 +131,7 @@ def list_skill_claims(
     List all skill claims for the authenticated talent.
 
     AC-2: GET /talents/me/skills logic.
+    AC-12 (L-09): No N+1 queries — use selectinload for Skill JOIN.
     - Returns claims scoped to talent (via scoped_skill_claims)
     - Each item includes skill details (id, slug, name_tr, name_en, category)
     - Empty list if no claims (AC-8)
@@ -139,17 +143,18 @@ def list_skill_claims(
     Returns:
         List of dicts: [{"skill": {...}, "claimed_level": ...}, ...]
     """
-    # Get scoped claims for this talent
-    scoped_query = scoped_skill_claims(session, principal)
+    # AC-12: Use selectinload to avoid N+1 query per claim
+    # Get scoped claims for this talent with skill eagerly loaded
+    scoped_query = scoped_skill_claims(session, principal).options(
+        selectinload(SkillClaim.skill)
+    )
     claims = session.execute(scoped_query).scalars().all()
 
-    # Build response items with skill details joined
+    # Build response items with skill details (no additional queries)
     items = []
     for claim in claims:
-        # Fetch the skill for this claim
-        skill = session.execute(
-            select(Skill).where(Skill.id == claim.skill_id)
-        ).scalar_one()
+        # Skill already loaded via selectinload — no additional query
+        skill = claim.skill
 
         items.append({
             "skill": {

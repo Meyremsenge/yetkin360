@@ -129,7 +129,9 @@ class TestPostSkillClaim:
 
     def test_post_skills_happy_path(self, client, session, user_talent_a, talent_a, skill_python):
         """
-        AC-1: POST /talents/me/skills with valid skill_id → 201 + claim data.
+        AC-1: POST /talents/me/skills with valid skill_id and claimed_level → 201 + claim data.
+
+        VER-02 fix: claimed_level is now required.
 
         Acceptance Criteria:
         - Status code: 201 Created
@@ -137,7 +139,10 @@ class TestPostSkillClaim:
         - skill_claims table has one new row
         - Transaction committed
         """
-        payload = {"skill_id": str(skill_python.id)}
+        payload = {
+            "skill_id": str(skill_python.id),
+            "claimed_level": "INTERMEDIATE",
+        }
 
         response = client.post(
             "/talents/me/skills",
@@ -151,20 +156,22 @@ class TestPostSkillClaim:
 
         # Assert: response schema
         assert data.get("skill_id") == str(skill_python.id)
-        assert data.get("claimed_level") is None  # claimed_level not provided in request → None
+        assert data.get("claimed_level") == "INTERMEDIATE"
         assert data.get("source") == "MANUAL"
 
         # Verify in database: skill_claim inserted
         # (SkillClaim model not yet defined, this will error at import — expected)
 
-    def test_post_skills_without_claimed_level(self, client, session, user_talent_a, talent_a, skill_python):
+    def test_post_skills_without_claimed_level_returns_400(self, client, session, user_talent_a, talent_a, skill_python):
         """
-        AC-1: POST without claimed_level → 201, level is NULL or default.
+        AC-1, VER-02: POST without claimed_level → 400 VALIDATION_ERROR.
+
+        VER-02 fix: claimed_level is now a required field.
 
         Acceptance Criteria:
-        - Status code: 201
-        - Response contains skill_id and source="MANUAL"
-        - claimed_level may be NULL
+        - Status code: 400
+        - Error code: "VALIDATION_ERROR"
+        - Message indicates claimed_level is required
         """
         payload = {"skill_id": str(skill_python.id)}
 
@@ -174,11 +181,12 @@ class TestPostSkillClaim:
             headers={"X-Debug-User-Id": str(user_talent_a.id)},
         )
 
-        assert response.status_code == 201
+        assert response.status_code == 400
 
         data = response.json()
-        assert data.get("skill_id") == str(skill_python.id)
-        assert data.get("source") == "MANUAL"
+        assert data.get("code") == "VALIDATION_ERROR"
+        # Message should mention claimed_level or validation error
+        assert "claimed_level" in data.get("message", "").lower() or "valid" in data.get("message", "").lower()
 
     def test_post_skills_with_claimed_level(self, client, session, user_talent_a, talent_a, skill_python):
         """
@@ -224,14 +232,17 @@ class TestGetSkillClaims:
         - Response structure: {items: [{skill: {...}, claimed_level: ...}, ...]}
         - Skill fields: id, slug, name_tr, name_en, category
         """
-        # Setup: add a skill claim first
-        payload = {"skill_id": str(skill_python.id)}
+        # Setup: add a skill claim first (with claimed_level now required)
+        payload = {
+            "skill_id": str(skill_python.id),
+            "claimed_level": "INTERMEDIATE",
+        }
         post_response = client.post(
             "/talents/me/skills",
             json=payload,
             headers={"X-Debug-User-Id": str(user_talent_a.id)},
         )
-        assert post_response.status_code == 201
+        assert post_response.status_code == 201, f"Setup failed: {post_response.text}"
 
         # Now GET
         response = client.get(
@@ -268,15 +279,18 @@ class TestGetSkillClaims:
         - Status code: 200
         - items contains both skills
         """
-        # Setup: add two skill claims
+        # Setup: add two skill claims (with claimed_level now required)
         for skill in [skill_python, skill_javascript]:
-            payload = {"skill_id": str(skill.id)}
+            payload = {
+                "skill_id": str(skill.id),
+                "claimed_level": "INTERMEDIATE",
+            }
             response = client.post(
                 "/talents/me/skills",
                 json=payload,
                 headers={"X-Debug-User-Id": str(user_talent_a.id)},
             )
-            assert response.status_code == 201
+            assert response.status_code == 201, f"Setup failed: {response.text}"
 
         # Now GET
         response = client.get(
@@ -311,14 +325,17 @@ class TestDeleteSkillClaim:
         - No response body
         - skill_claim row is hard-deleted from database
         """
-        # Setup: add skill claim
-        payload = {"skill_id": str(skill_python.id)}
+        # Setup: add skill claim (with claimed_level now required)
+        payload = {
+            "skill_id": str(skill_python.id),
+            "claimed_level": "INTERMEDIATE",
+        }
         post_response = client.post(
             "/talents/me/skills",
             json=payload,
             headers={"X-Debug-User-Id": str(user_talent_a.id)},
         )
-        assert post_response.status_code == 201
+        assert post_response.status_code == 201, f"Setup failed: {post_response.text}"
 
         # DELETE
         response = client.delete(
@@ -338,14 +355,17 @@ class TestDeleteSkillClaim:
         Acceptance Criteria:
         - After delete, GET /talents/me/skills → {items: []}
         """
-        # Setup: add skill claim
-        payload = {"skill_id": str(skill_python.id)}
+        # Setup: add skill claim (with claimed_level now required)
+        payload = {
+            "skill_id": str(skill_python.id),
+            "claimed_level": "INTERMEDIATE",
+        }
         post_response = client.post(
             "/talents/me/skills",
             json=payload,
             headers={"X-Debug-User-Id": str(user_talent_a.id)},
         )
-        assert post_response.status_code == 201
+        assert post_response.status_code == 201, f"Setup failed: {post_response.text}"
 
         # DELETE
         delete_response = client.delete(
@@ -386,7 +406,10 @@ class TestSkillNotFound:
 
         fake_skill_id = uuid.uuid4()
 
-        payload = {"skill_id": str(fake_skill_id)}
+        payload = {
+            "skill_id": str(fake_skill_id),
+            "claimed_level": "INTERMEDIATE",
+        }
 
         response = client.post(
             "/talents/me/skills",
@@ -427,7 +450,10 @@ class TestDuplicateSkillClaim:
         - Error code: "ALREADY_CLAIMED"
         - No new row inserted
         """
-        payload = {"skill_id": str(skill_python.id)}
+        payload = {
+            "skill_id": str(skill_python.id),
+            "claimed_level": "INTERMEDIATE",
+        }
 
         # First POST — should succeed
         response1 = client.post(
@@ -435,7 +461,7 @@ class TestDuplicateSkillClaim:
             json=payload,
             headers={"X-Debug-User-Id": str(user_talent_a.id)},
         )
-        assert response1.status_code == 201
+        assert response1.status_code == 201, f"First POST failed: {response1.text}"
 
         # Second POST — should fail
         response2 = client.post(
@@ -472,7 +498,10 @@ class TestMergedDeprecatedSkill:
         - Error code: "SKILL_NOT_FOUND" (not a special code for deprecated)
         - Status difference not revealed to client
         """
-        payload = {"skill_id": str(skill_deprecated.id)}
+        payload = {
+            "skill_id": str(skill_deprecated.id),
+            "claimed_level": "INTERMEDIATE",
+        }
 
         response = client.post(
             "/talents/me/skills",
@@ -497,7 +526,10 @@ class TestMergedDeprecatedSkill:
         - merged_into_id field not exposed
         - No auto-redirect to merged_into_id
         """
-        payload = {"skill_id": str(skill_merged.id)}
+        payload = {
+            "skill_id": str(skill_merged.id),
+            "claimed_level": "INTERMEDIATE",
+        }
 
         response = client.post(
             "/talents/me/skills",
@@ -614,7 +646,10 @@ class TestResponseSchema:
 
         fake_skill_id = uuid.uuid4()
 
-        payload = {"skill_id": str(fake_skill_id)}
+        payload = {
+            "skill_id": str(fake_skill_id),
+            "claimed_level": "INTERMEDIATE",
+        }
 
         response = client.post(
             "/talents/me/skills",
@@ -622,7 +657,7 @@ class TestResponseSchema:
             headers={"X-Debug-User-Id": str(user_talent_a.id)},
         )
 
-        assert response.status_code == 404
+        assert response.status_code == 404, f"Expected 404, got {response.status_code}: {response.text}"
 
         data = response.json()
 

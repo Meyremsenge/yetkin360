@@ -64,9 +64,15 @@ export function useSession() {
   const routerRef = useRef(router);
   const pathnameRef = useRef(pathname);
 
-  // Update refs to always have latest values
-  routerRef.current = router;
-  pathnameRef.current = pathname;
+  // Update refs to always have latest values. Bir effect içinde yapılır
+  // (render sırasında değil) — React 19 sonrası eslint-plugin-react-hooks
+  // bunu "render sırasında ref mutasyonu" olarak yasaklıyor; efektlerin
+  // bildirim sırasına göre çalışması aşağıdaki SessionExpiredError
+  // efektinden ÖNCE tetiklenmesini garantiler, davranış değişmiyor.
+  useEffect(() => {
+    routerRef.current = router;
+    pathnameRef.current = pathname;
+  }, [router, pathname]);
 
   const query = useQuery({
     queryKey: SESSION_QUERY_KEY,

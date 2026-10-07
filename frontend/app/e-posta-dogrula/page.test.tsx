@@ -36,14 +36,20 @@ describe("EmailVerifyPage (e-posta-dogrula/page.tsx)", () => {
       });
 
       // "doğrulandı" mesajı gösterilmelidir
-      const successText = screen.queryByText(
-        (content) =>
-          content.includes("doğrulandı") ||
-          content.includes("Doğrulandı") ||
-          content.includes("doğrulama başarılı") ||
-          content.includes("E-posta adresiniz doğrulandı")
-      );
-      expect(successText).toBeTruthy();
+      // NOT: Önceki waitFor sadece mock çağrısını doğrular, state güncellemesinin
+      // DOM'a yansımasını değil — bu assertion'ın kendi waitFor'u olmazsa ara sıra
+      // (özellikle Node 24 gibi daha hızlı event loop'larda) render henüz
+      // flush olmadan çalışıp yanlışlıkla null döner (gözlenmiş CI kırılması).
+      await waitFor(() => {
+        const successText = screen.queryByText(
+          (content) =>
+            content.includes("doğrulandı") ||
+            content.includes("Doğrulandı") ||
+            content.includes("doğrulama başarılı") ||
+            content.includes("E-posta adresiniz doğrulandı")
+        );
+        expect(successText).toBeTruthy();
+      });
 
       // /giris'e giden link gösterilmelidir
       const loginLink = container.querySelector('a[href="/giris"]');
@@ -83,14 +89,16 @@ describe("EmailVerifyPage (e-posta-dogrula/page.tsx)", () => {
         expect(verifyEmail).toHaveBeenCalledWith(mockToken);
       });
 
-      // Hata mesajı gösterilmelidir
-      const errorText = screen.queryByText(
-        (content) =>
-          content.includes("geçersiz") ||
-          content.includes("Geçersiz") ||
-          content.includes("bağlantı geçersiz")
-      );
-      expect(errorText).toBeTruthy();
+      // Hata mesajı gösterilmelidir (ayrı waitFor — bkz. yukarıdaki not)
+      await waitFor(() => {
+        const errorText = screen.queryByText(
+          (content) =>
+            content.includes("geçersiz") ||
+            content.includes("Geçersiz") ||
+            content.includes("bağlantı geçersiz")
+        );
+        expect(errorText).toBeTruthy();
+      });
 
       // Yeniden başlatma linki (kayıt sayfasına veya sifre-unuttum gibi) gösterilmelidir
       const retryLink = screen.queryByRole("link", {
@@ -122,14 +130,16 @@ describe("EmailVerifyPage (e-posta-dogrula/page.tsx)", () => {
         expect(verifyEmail).toHaveBeenCalledWith(mockToken);
       });
 
-      // Süresi dolmuş mesajı
-      const expiredText = screen.queryByText(
-        (content) =>
-          content.includes("süresi dolmuş") ||
-          content.includes("Süresi dolmuş") ||
-          content.includes("bağlantı süresi dolmuş")
-      );
-      expect(expiredText).toBeTruthy();
+      // Süresi dolmuş mesajı (ayrı waitFor — bkz. yukarıdaki not)
+      await waitFor(() => {
+        const expiredText = screen.queryByText(
+          (content) =>
+            content.includes("süresi dolmuş") ||
+            content.includes("Süresi dolmuş") ||
+            content.includes("bağlantı süresi dolmuş")
+        );
+        expect(expiredText).toBeTruthy();
+      });
 
       // Yeniden başlatma linki gösterilmelidir
       const retryLink = screen.queryByRole("link", {
