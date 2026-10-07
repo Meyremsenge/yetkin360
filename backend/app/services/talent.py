@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import and_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import TalentProfile, User
@@ -97,6 +98,17 @@ def update_talent_profile(
     # Update timestamp
     talent_profile.updated_at = datetime.now(timezone.utc)
 
-    session.flush()
+    # The pre-check above has a race window: two concurrent requests can both
+    # pass it for the same free slug, then both try to commit. The DB's unique
+    # constraint on public_slug is the real guard — catch its violation here
+    # and translate it to the same SlugTakenError instead of letting a bare
+    # IntegrityError surface as a 500.
+    try:
+        session.flush()
+    except IntegrityError:
+        session.rollback()
+        if "public_slug" in updates:
+            raise SlugTakenError(f"Slug {updates['public_slug']} is already taken")
+        raise
 
     return talent_profile
