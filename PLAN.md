@@ -279,7 +279,7 @@ PLAN maddesi olarak açılmamıştı. Detay: `HATA.md`.**
 - [ ] 3.25 Logout refresh token ailesini iptal etsin (HATA_DUZELTME_PROMPT A-02, GUV-06, L-04) @be2
 - [ ] 3.26 MinIO bucket, healthcheck, depolama hataları, .env.example (HATA_DUZELTME_PROMPT A-03, OPS-03) @be2
 - [ ] 3.27 Outbox worker: döngü, tıkanma, e-posta linkleri (HATA_DUZELTME_PROMPT A-04, OPS-01, OPS-02) @be2
-- [ ] 3.28 Seed demo düzeltmesi: COORDINATOR, T2 organizasyon, doğrulanmış e-posta (HATA_DUZELTME_PROMPT A-05, AUTHZ-02, IS-02) @be2
+- [x] 3.28 Seed demo düzeltmesi: COORDINATOR, T2 organizasyon, doğrulanmış e-posta (HATA_DUZELTME_PROMPT A-05, AUTHZ-02, IS-02) @be2
       > Ek bulgu (2026-10-07, frontend incelemesi): seed adları İngilizce ve yer
       > tutucu ("Organization 1", "Institution 1", "Student 1"). Jüriye gösterilen
       > her ekranda (panel başlıkları, `/v/[token]` sertifikası, `/p/[slug]`)
@@ -294,6 +294,12 @@ PLAN maddesi olarak açılmamıştı. Detay: `HATA.md`.**
       > için yakalamamış. Düzeltme: `talent_profile` opsiyonel (`null`) döner; frontend
       > tipi zaten `null` kabul ediyor. **Düzeltildi (2026-10-07)** — profilsiz admin
       > testi `tests/test_talent.py` içinde.
+      > **Tamamlandı (2026-10-07):** seed adları Türkçe ve kurgusal (öğrenci, kurum,
+      > kuruluş, çalışma başlıkları, değerlendirme yorumları); 20 öğrencinin hepsi
+      > kuruma bağlı ve `PUBLIC` + `public_slug`'lı (ör. `/p/ayse-yilmaz`). COORDINATOR
+      > ve doğrulanmış e-posta önceden çözülmüştü (YET-190, YET-196). Mevcut DB için
+      > güncelleme yolu: `python -m scripts.reset_demo --yes --reseed`.
+      > Kapsam dışı kalan: IS-02'nin API tarafı (engagement tarihleri hâlâ yalnız seed'de set ediliyor).
 - [ ] 3.29 Kanıt backend'i: tarama, liste ucu, kayıt sertleştirme (HATA_DUZELTME_PROMPT A-06, IS-07, GUV-12) @be2
 - [ ] 3.30 Çoklu rol: kapsam sorguları `kind`'dan bağımsız (HATA_DUZELTME_PROMPT A-08, AUTHZ-01, GUV-02, AUTHZ-02, L-08) @be2
 - [ ] 3.31 Davet uçları: 500, numaralandırma, rol doğrulama (HATA_DUZELTME_PROMPT A-09, GUV-07, GUV-02, L-01) @be2

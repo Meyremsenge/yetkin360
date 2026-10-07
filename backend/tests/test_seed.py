@@ -645,3 +645,32 @@ def test_yet190_coordinator_seed_is_idempotent_and_repairs_admin_only_db(session
     session.commit()
     assert session.query(func.count(InstitutionMember.id)).scalar() == member_count
     assert session.query(func.count(User.id)).scalar() == user_count
+
+
+# ============================================================================
+# PLAN 3.28: demo-ready data — realistic names, every student linked, public slugs
+# ============================================================================
+
+
+def test_plan_3_28_demo_data_is_realistic_and_linked(session):
+    seed_skills(session)
+    seed_talents(session)
+    seed_institutions_and_organizations(session)
+    seed_engagements(session)
+    session.flush()
+
+    students = session.query(TalentProfile).join(
+        User, TalentProfile.user_id == User.id
+    ).filter(User.email.like("ogrenci%@seed.local")).all()
+    assert len(students) == 20
+    for tp in students:
+        assert not tp.full_name.startswith("Student"), tp.full_name
+        assert tp.institution_id is not None, f"{tp.full_name} is not linked to an institution"
+        assert tp.public_slug and tp.visibility == "PUBLIC"
+
+    names = [i.name for i in session.query(Institution).filter(Institution.domain.like("inst%.seed.local"))]
+    names += [o.name for o in session.query(Organization).filter(Organization.legal_id.like("ORG%"))]
+    assert names and not any(n.startswith(("Institution ", "Organization ")) for n in names)
+
+    titles = [e.title for e in session.query(Engagement).filter(Engagement.status == "VERIFIED")]
+    assert titles and not any(t.startswith("Engagement ") for t in titles)
