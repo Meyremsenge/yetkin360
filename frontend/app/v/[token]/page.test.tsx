@@ -72,6 +72,33 @@ describe("PublicVerificationPage (/v/[token])", () => {
     });
   });
 
+  // YET-243: T1 (doğrulanmamış) kurum belirgin uyarıyla gösterilir, T2+ için uyarı yok
+  it("YET-243: T1 kurum → 'doğrulanmamış' uyarısı görünür", async () => {
+    vi.mocked(getPublicVerification).mockResolvedValueOnce({
+      ...mockPublicVerification,
+      organization_name: "Google",
+      organization_trust_level: "T1",
+      organization_domain: null,
+    });
+
+    renderWithQueryClient(<PublicVerificationPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("note").textContent).toContain("henüz doğrulanmamıştır");
+    });
+  });
+
+  it("YET-243: T2 kurum → uyarı görünmez", async () => {
+    vi.mocked(getPublicVerification).mockResolvedValueOnce(mockPublicVerification);
+
+    renderWithQueryClient(<PublicVerificationPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Acme A.Ş.")).toBeTruthy();
+    });
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
   // AC-4: 404 ApiError — "Kayıt bulunamadı"
   it("AC-4: Geçersiz token → 404 'Kayıt bulunamadı' gösterir", async () => {
     vi.mocked(getPublicVerification).mockRejectedValueOnce(

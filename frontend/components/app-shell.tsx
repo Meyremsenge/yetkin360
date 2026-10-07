@@ -84,6 +84,39 @@ export function AppShell({ children }: { children: ReactNode }) {
   // AC-1/AC-5: Happy path — render children (with optional error banner if data but error)
   return (
     <div>
+      {/* YET-245 AC-5: Top navigation bar with logo, nav links, admin links (conditional), logout */}
+      {session.data && (
+        <div className="flex justify-between items-center p-4 border-b">
+          <div className="flex items-center gap-6">
+            <span className="font-semibold text-slate-900">Yetkin360</span>
+            <Link href="/calismalar" className="text-slate-600 hover:text-slate-900 hover:underline text-sm">
+              {messages.shell.engagementsLink}
+            </Link>
+            <Link href="/profil" className="text-slate-600 hover:text-slate-900 hover:underline text-sm">
+              {messages.shell.profileLink}
+            </Link>
+          </div>
+          <div className="flex items-center gap-4">
+            {session.data.user.is_platform_admin === true && (
+              <>
+                <Link href="/admin/dogrulama-kuyrugu" className="text-slate-600 hover:text-slate-900 hover:underline text-sm">
+                  {messages.shell.adminVerificationQueueLink}
+                </Link>
+                <Link href="/admin/skiller" className="text-slate-600 hover:text-slate-900 hover:underline text-sm">
+                  {messages.shell.adminSkillsLink}
+                </Link>
+              </>
+            )}
+            <Button
+              onClick={() => logoutState.logout()}
+              className="bg-slate-600 hover:bg-slate-700"
+            >
+              {messages.session.logout}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* AC-5: If there's an error but we have cached data, show both */}
       {Boolean(session.error) && session.data && (
         <div className="mb-4 mx-4 mt-4">
@@ -137,26 +170,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div>
         {children}
       </div>
-
-      {/* Admin links and logout button */}
-      {session.data && (
-        <div className="flex justify-between items-center p-4 border-t">
-          <div className="flex gap-4 text-sm">
-            <Link href="/admin/dogrulama-kuyrugu" className="text-slate-600 hover:text-slate-900 hover:underline">
-              Kurum Doğrulama
-            </Link>
-            <Link href="/admin/skiller" className="text-slate-600 hover:text-slate-900 hover:underline">
-              Yetkinlik Yönetimi
-            </Link>
-          </div>
-          <Button
-            onClick={() => logoutState.logout()}
-            className="bg-slate-600 hover:bg-slate-700"
-          >
-            {messages.session.logout}
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

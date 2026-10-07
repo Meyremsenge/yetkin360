@@ -1,6 +1,7 @@
 from pathlib import Path
+from urllib.parse import urlparse
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Repo root, resolved from this file — not from the current working directory.
@@ -8,6 +9,18 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # backend/, so a relative ".env" would resolve differently per command.
 # Real environment variables still win over the file (CI sets them directly).
 REPO_ROOT = Path(__file__).resolve().parents[3]
+
+KNOWN_ENVIRONMENTS = ("development", "staging", "production")
+_LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
+
+
+def _all_public_https(origins: list[str]) -> bool:
+    for origin in origins:
+        parsed = urlparse(origin.strip())
+        host = (parsed.hostname or "").lower()
+        if parsed.scheme != "https" or not host or host in _LOOPBACK_HOSTS:
+            return False
+    return True
 
 
 class Settings(BaseSettings):
@@ -71,6 +84,32 @@ class Settings(BaseSettings):
     # placeholder veya kısa parolayı reddeder, .env'de SEED_ADMIN_PASSWORD verilmeli.
     seed_admin_email: str = "admin@yetkin360.local"
     seed_admin_password: str = ""
+
+    @model_validator(mode="after")
+    def _validate_environment(self) -> "Settings":
+        """YET-207: refuse to start with a cookie/CSRF-weakening production config.
+
+        Supported production topology is a single origin behind a reverse proxy
+        over HTTPS (host-only cookies, no Domain). Problems are collected so the
+        operator sees them all at once; messages name settings, never values.
+        """
+        if self.environment not in KNOWN_ENVIRONMENTS:
+            raise ValueError(f"ENVIRONMENT must be one of {', '.join(KNOWN_ENVIRONMENTS)}")
+        if self.environment != "production":
+            return self
+
+        problems: list[str] = []
+        if not self.cookie_secure:
+            problems.append("COOKIE_SECURE must be true")
+        if self.debug:
+            problems.append("DEBUG must be false")
+        if not _all_public_https([self.frontend_origin]):
+            problems.append("FRONTEND_ORIGIN must be a public https origin")
+        if not _all_public_https(self.allowed_origins.split(",")):
+            problems.append("ALLOWED_ORIGINS must contain only public https origins")
+        if problems:
+            raise ValueError("Unsafe production configuration: " + "; ".join(problems))
+        return self
 
 
 settings = Settings()  # type: ignore[call-arg]  # values come from .env

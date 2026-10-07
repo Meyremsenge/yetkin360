@@ -17,6 +17,8 @@ from app.services.engagement import (
     EngagementNotFoundError,
     IllegalTransitionError,
     PreconditionFailedError,
+    ReasonTooLongError,
+    DateValidationError,
     TransitionForbiddenError,
     VersionConflictError,
     InvalidSkillError as EngInvalidSkillError,
@@ -76,6 +78,9 @@ class PostEngagementResponse(BaseModel):
     status: str
     version: int
     reason: str | None = None
+    started_on: str | None = None
+    ended_on: str | None = None
+    completed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -84,12 +89,20 @@ class PostEngagementResponse(BaseModel):
 
 
 class TransitionEngagementRequest(BaseModel):
-    """Request schema for POST /engagements/{id}/transitions."""
+    """Request schema for POST /engagements/{id}/transition."""
 
     to_status: str = Field(..., description="Target status")
-    version: int = Field(..., description="Current version for optimistic locking")
+    version: int | None = Field(
+        None, description="Current version for optimistic locking (optional)"
+    )
     reason: str | None = Field(
         None, description="Optional reason for REJECTED/CANCELLED transitions"
+    )
+    started_on: str | None = Field(
+        None, description="Optional start date (ISO format) for engagement"
+    )
+    ended_on: str | None = Field(
+        None, description="Optional end date (ISO format) for engagement"
     )
 
     class Config:
@@ -185,6 +198,26 @@ class DeliverableSummaryResponse(BaseModel):
         from_attributes = True
 
 
+class AttestationSummaryResponse(BaseModel):
+    """YET-202/ENT-01: Simplified attestation schema for detail response.
+
+    private_note KASITLI OLARAK burada yok — statement alanı attestor'un
+    girdiği metin değil (bkz. model), ama yine de dışarı sadece gerekli
+    alanlar veriliyor (D9 ile aynı felsefe: minimum ifşa).
+    """
+
+    id: str
+    claim_type: str
+    requested_claim_type: str
+    attestor_user_id: str
+    created_at: datetime
+    revoked_at: datetime | None
+    revoke_reason: str | None
+
+    class Config:
+        from_attributes = True
+
+
 class EngagementSummaryResponse(BaseModel):
     """Summary schema for list response (AC-1, AC-2, AC-3, AC-8)."""
 
@@ -231,6 +264,7 @@ class EngagementDetailResponse(BaseModel):
     # Related data
     tasks: list[TaskSummaryResponse]
     deliverables: list[DeliverableSummaryResponse]
+    attestations: list[AttestationSummaryResponse]
 
     class Config:
         from_attributes = True
@@ -288,30 +322,13 @@ def post_engagements(
             institution_id=payload.institution_id,
             confidential=payload.confidential,
         )
-    except TalentNotFoundError:
+    except (TalentNotFoundError, OrganizationNotFoundError, InstitutionMismatchError):
+        # GUV-08: All "not found" cases return 404 with NOT_FOUND code (oracle closed)
         raise HTTPException(
             status_code=404,
             detail={
-                "code": "TALENT_NOT_FOUND",
-                "message": "Talent bulunamadı.",
-                "request_id": None,
-            },
-        )
-    except OrganizationNotFoundError:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "code": "ORGANIZATION_NOT_FOUND",
-                "message": "Organizasyon bulunamadı.",
-                "request_id": None,
-            },
-        )
-    except InstitutionMismatchError:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "code": "INSTITUTION_MISMATCH",
-                "message": "institution_id does not match talent's institution",
+                "code": "NOT_FOUND",
+                "message": "Engagement bulunamadı.",
                 "request_id": None,
             },
         )
@@ -416,12 +433,14 @@ def get_engagement_detail(
     session: Session = Depends(get_session),
 ) -> EngagementDetailResponse:
     """
-    AC-4, AC-5, AC-6: Get engagement detail (with tasks and deliverables).
+    AC-4, AC-5, AC-6: Get engagement detail (with tasks, deliverables, attestations).
 
     Returns:
         200 + {id, title, kind, status, organization_name, version, updated_at,
                talent_id, organization_id, institution_id, reason, created_at,
-               tasks: [{id, title, status}], deliverables: [{id, title, submitted_at}]}
+               tasks: [{id, title, status}], deliverables: [{id, title, submitted_at}],
+               attestations: [{id, claim_type, requested_claim_type, attestor_user_id,
+                               created_at, revoked_at, revoke_reason}]}
 
     Errors:
         - 404 NOT_FOUND: Engagement not found or not accessible
@@ -446,8 +465,8 @@ def get_engagement_detail(
     try:
         from app.services.engagement import get_engagement_detail, EngagementNotFoundError
 
-        # Fetch engagement with organization name, tasks, and deliverables
-        engagement, organization_name, tasks, deliverables = get_engagement_detail(
+        # Fetch engagement with organization name, tasks, deliverables, and attestations
+        engagement, organization_name, tasks, deliverables, attestations = get_engagement_detail(
             session=session,
             principal=principal,
             engagement_id=engagement_id,
@@ -482,6 +501,18 @@ def get_engagement_detail(
                     submitted_at=deliv.submitted_at,
                 )
                 for deliv in deliverables
+            ],
+            attestations=[
+                AttestationSummaryResponse(
+                    id=str(att.id),
+                    claim_type=att.claim_type,
+                    requested_claim_type=att.requested_claim_type,
+                    attestor_user_id=str(att.attestor_user_id),
+                    created_at=att.created_at,
+                    revoked_at=att.revoked_at,
+                    revoke_reason=att.revoke_reason,
+                )
+                for att in attestations
             ],
         )
 
@@ -555,6 +586,8 @@ def post_engagement_transitions(
             to_status=payload.to_status,
             version=payload.version,
             reason=payload.reason,
+            started_on=payload.started_on,
+            ended_on=payload.ended_on,
         )
     except EngagementNotFoundError:
         raise HTTPException(
@@ -579,6 +612,24 @@ def post_engagement_transitions(
             status_code=422,
             detail={
                 "code": "PRECONDITION_FAILED",
+                "message": str(e),
+                "request_id": None,
+            },
+        )
+    except ReasonTooLongError as e:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "VALIDATION_ERROR",
+                "message": str(e),
+                "request_id": None,
+            },
+        )
+    except DateValidationError as e:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "VALIDATION_ERROR",
                 "message": str(e),
                 "request_id": None,
             },
@@ -615,6 +666,9 @@ def post_engagement_transitions(
         status=engagement.status,
         version=engagement.version,
         reason=engagement.reason,
+        started_on=str(engagement.started_on) if engagement.started_on else None,
+        ended_on=str(engagement.ended_on) if engagement.ended_on else None,
+        completed_at=engagement.completed_at,
         created_at=engagement.created_at,
         updated_at=engagement.updated_at,
     )
@@ -932,7 +986,7 @@ def post_engagement_evaluation(
         raise HTTPException(
             status_code=422,
             detail={
-                "code": "INVALID_REQUEST",
+                "code": "VALIDATION_ERROR",
                 "message": "Geçersiz skill_id.",
                 "request_id": None,
             },

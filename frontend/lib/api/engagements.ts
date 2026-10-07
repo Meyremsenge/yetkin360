@@ -20,7 +20,11 @@ export type EngagementStatus =
   | "ACTIVE"
   | "REJECTED"
   | "CANCELLED"
-  | "PENDING_EVALUATION";
+  | "PENDING_EVALUATION"
+  | "EVALUATED"
+  | "VERIFIED"
+  | "DISPUTED"
+  | "RESOLVED";
 
 export type EngagementKind = "INTERNSHIP" | "CAPSTONE" | "SHORT_PROJECT" | "PART_TIME";
 
@@ -46,6 +50,16 @@ export interface EngagementDeliverable {
   submitted_at: string;
 }
 
+export interface EngagementAttestation {
+  id: string;
+  claim_type: string;
+  requested_claim_type: string;
+  attestor_user_id: string;
+  created_at: string;
+  revoked_at: string | null;
+  revoke_reason: string | null;
+}
+
 export interface EngagementDetail extends EngagementSummary {
   talent_id: string;
   organization_id: string;
@@ -54,6 +68,7 @@ export interface EngagementDetail extends EngagementSummary {
   created_at: string;
   tasks: EngagementTask[];
   deliverables: EngagementDeliverable[];
+  attestations: EngagementAttestation[];
 }
 
 export interface TransitionPayload {
@@ -67,6 +82,16 @@ export interface TransitionPayload {
 // Rol bilgisi /me'den gelmediği için SADECE durum bazlı aday geçişler hesaplanıyor;
 // gerçek yetki sunucuda uygulanır (bkz. dosya başındaki BACKEND GAP notu).
 // ============================================================================
+// PENDING_EVALUATION sonrası (EVALUATED/VERIFIED/DISPUTED/RESOLVED) bilinçli
+// olarak hepsi boş dizi: docs/STATE_MACHINE.md §4 T7-T10.
+//  - T7 (→EVALUATED): sistem tarafından otomatik tetiklenir (değerlendirme
+//    gönderimi, bkz. lib/api/evaluation.ts) — bu genel /transitions ucundan
+//    GEÇMEZ, dolayısıyla burada aday olarak sunulamaz.
+//  - T8 (EVALUATED→VERIFIED): ayrı bir uçtan yapılır (POST .../attestations,
+//    bkz. backend/app/api/engagements.py T8 yorumu) — bu da /transitions
+//    değil, dolayısıyla burada aday değil.
+//  - T9/T10 (DISPUTED/RESOLVED): STATE_MACHINE.md §7'de "vakit kalırsa" —
+//    backend'de hiç gerçeklenmemiş (ne /transitions'ta ne ayrı bir uçta).
 const NEXT_STATUSES: Record<EngagementStatus, EngagementStatus[]> = {
   DRAFT: ["PENDING_APPROVAL"],
   PENDING_APPROVAL: ["ACTIVE", "REJECTED"],
@@ -74,6 +99,10 @@ const NEXT_STATUSES: Record<EngagementStatus, EngagementStatus[]> = {
   REJECTED: [],
   CANCELLED: [],
   PENDING_EVALUATION: [],
+  EVALUATED: [],
+  VERIFIED: [],
+  DISPUTED: [],
+  RESOLVED: [],
 };
 
 const REASON_REQUIRED = new Set<EngagementStatus>(["REJECTED", "CANCELLED"]);
@@ -94,6 +123,53 @@ export function isReasonRequired(toStatus: EngagementStatus): boolean {
 export async function listEngagements(): Promise<{ items: EngagementSummary[] }> {
   const response = await apiFetch<{ items: EngagementSummary[] }>("/engagements");
   return response ?? { items: [] };
+}
+
+export interface CreateEngagementInput {
+  talent_id: string;
+  organization_id: string;
+  kind: EngagementKind;
+  title: string;
+  institution_id?: string;
+}
+
+/**
+ * POST /engagements ve /transitions AYNI dar şemayı döner (PostEngagementResponse) —
+ * organization_name/tasks/deliverables/attestations YOK (bunlar sadece GET detay'da
+ * var). EngagementDetail'ı burada dönüş tipi olarak kullanmak yanlış olurdu — sadece
+ * id'ye ihtiyacımız var (oluşturduktan sonra detay sayfasına yönlendirmek için),
+ * o da kendi GET'ini yapıp tam veriyi çeker.
+ */
+export interface CreateEngagementResponse {
+  id: string;
+  talent_id: string;
+  organization_id: string;
+  institution_id: string | null;
+  kind: EngagementKind;
+  title: string;
+  status: EngagementStatus;
+  version: number;
+  reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * YET-202/ENT-01: TALENT kendi engagement'ını oluşturur (link-tabanlı akış —
+ * organization_id paylaşılan linkten gelir, talent_id/institution_id oturumdan
+ * otomatik doldurulur, bkz. calismalar/olustur/page.tsx). institution_id
+ * verilirse talent.institution_id'yle eşleşmek ZORUNDA (backend kontrolü) —
+ * bu yüzden burada hep oturumdaki değer gönderilir, elle girilmez.
+ */
+export async function createEngagement(input: CreateEngagementInput): Promise<CreateEngagementResponse> {
+  const response = await apiFetch<CreateEngagementResponse>("/engagements", {
+    method: "POST",
+    body: input,
+  });
+  if (!response) {
+    throw new ApiError({ status: 502, code: "UNKNOWN_ERROR", message: "Beklenmeyen yanıt.", requestId: null });
+  }
+  return response;
 }
 
 export async function getEngagement(id: string): Promise<EngagementDetail> {

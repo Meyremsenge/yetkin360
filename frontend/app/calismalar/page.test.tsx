@@ -99,4 +99,56 @@ describe("CalismalarPage (/calismalar)", () => {
     const link = screen.getByText("Frontend Stajı").closest("a");
     expect(link?.getAttribute("href")).toBe("/calismalar/eng-1");
   });
+
+  /**
+   * YET-205/ENT-04: Seed'deki engagement'ların tamamı VERIFIED olduğunda
+   * durum etiketi boş/undefined görünüyordu. YET-194 (PR #36) STATUS_BADGE_CLASS
+   * ve tr.json'a EVALUATED/VERIFIED/DISPUTED/RESOLVED eklemişti — bu test o
+   * düzeltmenin kalıcı regresyon koruması (ticket'ın kendi senaryosuyla).
+   */
+  it("YET-205/ENT-04: VERIFIED durumu gerçek bir etiketle render edilir, 'undefined' değil", async () => {
+    vi.mocked(listEngagements).mockResolvedValueOnce({
+      items: [
+        {
+          id: "eng-verified",
+          title: "Doğrulanmış Staj",
+          kind: "INTERNSHIP",
+          status: "VERIFIED",
+          organization_name: "Acme A.Ş.",
+          version: 3,
+          updated_at: "2026-09-01T00:00:00Z",
+        },
+      ],
+    });
+
+    renderWithQueryClient(<CalismalarPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Doğrulandı")).toBeTruthy();
+      const link = screen.getByText("Doğrulanmış Staj").closest("a");
+      expect(link?.textContent).not.toContain("undefined");
+    });
+  });
+
+  it("YET-205/ENT-04: EVALUATED durumu da gerçek bir etiketle render edilir", async () => {
+    vi.mocked(listEngagements).mockResolvedValueOnce({
+      items: [
+        {
+          id: "eng-evaluated",
+          title: "Değerlendirilmiş Proje",
+          kind: "SHORT_PROJECT",
+          status: "EVALUATED",
+          organization_name: "Acme A.Ş.",
+          version: 2,
+          updated_at: "2026-09-01T00:00:00Z",
+        },
+      ],
+    });
+
+    renderWithQueryClient(<CalismalarPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Değerlendirildi")).toBeTruthy();
+    });
+  });
 });

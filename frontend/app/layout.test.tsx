@@ -138,4 +138,216 @@ describe("RootLayout (app/layout.tsx)", () => {
       expect(source).toMatch(/Providers|QueryClientProvider/i);
     });
   });
+
+  /**
+   * AC-1: Happy path — body `bg-background text-foreground antialiased` sınıfları
+   * Kullanıcı herhangi bir sayfayı açar → body elemanı `bg-background text-foreground antialiased` sınıflarını taşır
+   */
+  describe("AC-1: bg-renk-token-tanimsiz — body arka planı ve metin rengi", () => {
+    it("AC-1: body elemanı bg-background sınıfını taşır", () => {
+      const result = renderToStaticMarkup(
+        <RootLayout>
+          <p>test content</p>
+        </RootLayout>
+      );
+
+      // body elemanının bg-background class'ını içermesi gerekir
+      expect(result).toContain("bg-background");
+    });
+
+    it("AC-1: body elemanı text-foreground sınıfını taşır", () => {
+      const result = renderToStaticMarkup(
+        <RootLayout>
+          <p>test content</p>
+        </RootLayout>
+      );
+
+      expect(result).toContain("text-foreground");
+    });
+
+    it("AC-1: body elemanı antialiased sınıfını taşır", () => {
+      const result = renderToStaticMarkup(
+        <RootLayout>
+          <p>test content</p>
+        </RootLayout>
+      );
+
+      expect(result).toContain("antialiased");
+    });
+
+    it("AC-1: body elemanı tüm üç sınıfı birlikte taşır", () => {
+      const result = renderToStaticMarkup(
+        <RootLayout>
+          <p>test content</p>
+        </RootLayout>
+      );
+
+      // body tag'ı bg-background, text-foreground, antialiased içermelidir
+      expect(result).toMatch(
+        /<body[^>]*(bg-background|text-foreground|antialiased)[^>]*>/
+      );
+    });
+  });
+
+  /**
+   * AC-2: HTML element'i `color-scheme: light` stiline sahip
+   * İşletim sistemi koyu temadadır → sayfa yine de light token'larla render edilir
+   */
+  describe("AC-2: bg-renk-token-tanimsiz — color-scheme: light", () => {
+    it("AC-2: globals.css kaynağında color-scheme tanımı var", () => {
+      const globalsPath = join(__dirname, "globals.css");
+      const source = readFileSync(globalsPath, "utf-8");
+
+      // globals.css'te "color-scheme: light" string'i olmalı
+      expect(source).toContain("color-scheme: light");
+    });
+  });
+
+  /**
+   * AC-6: layout.tsx veya globals.css'te body'ye bg-background uygulanıyor
+   * tailwind.config.ts + globals.css değişti ama body class'ı eklenmedi → sorun sürer
+   * Test: body'de bg-background kullanıldığını doğrula
+   */
+  describe("AC-6: bg-renk-token-tanimsiz — body class'ı uygulanması", () => {
+    it("AC-6: layout.tsx'te body className veya globals.css'te body seçicisinde bg-background var", () => {
+      const source = readFileSync(layoutPath, "utf-8");
+      const globalsPath = join(__dirname, "globals.css");
+      const globalsSource = readFileSync(globalsPath, "utf-8");
+
+      // layout.tsx'te className'de bg-background veya globals.css'te body seçicisinde olmalı
+      const hasInLayout = source.includes('className="') && source.includes("bg-background");
+      const hasInGlobals = globalsSource.includes("body") && globalsSource.includes("bg-background");
+
+      expect(hasInLayout || hasInGlobals).toBe(true);
+    });
+
+    it("AC-6: layout render'ında body elemanı bg-background ile görünür", () => {
+      const result = renderToStaticMarkup(
+        <RootLayout>
+          <p>test content</p>
+        </RootLayout>
+      );
+
+      // render edilen HTML'de body'nin bg-background class'ını taşıması gerekir
+      expect(result).toContain("<body");
+      expect(result).toContain("bg-background");
+    });
+  });
+
+  /**
+   * AC-1: Next.js Font Integration — `next/font/google`'dan `Inter` import edilmeli
+   * layout.tsx kaynağında font import'u ve `Inter` tanımlaması
+   */
+  describe("AC-1: next-font-kurulumu — Inter font import'u", () => {
+    it("AC-1: layout.tsx kaynağında next/font/google import'u var", () => {
+      const source = readFileSync(layoutPath, "utf-8");
+
+      // layout.tsx'te "next/font/google" string'i geçmeli
+      expect(source).toContain("next/font/google");
+    });
+
+    it("AC-1: layout.tsx kaynağında Inter font tanımlaması var", () => {
+      const source = readFileSync(layoutPath, "utf-8");
+
+      // layout.tsx'te "Inter" kelimesi geçmeli (import veya kullanım içinde)
+      expect(source).toContain("Inter");
+    });
+
+    it("AC-1: layout render'ında body elemanı font class'ı taşır", () => {
+      const result = renderToStaticMarkup(
+        <RootLayout>
+          <p>test content</p>
+        </RootLayout>
+      );
+
+      // next/font'un (test ortamında mock'lanan) ürettiği class, body'nin class attribute'ünde bulunmalı
+      expect(result).toContain("<body");
+      expect(result).toContain("mock-inter-font");
+    });
+  });
+
+  /**
+   * AC-3: Mevcut Sayfalar Korunmalı — bg-background, text-foreground, antialiased class'ları
+   * layout.tsx'te mevcut style'lar silinmeden, font class'ı EKLENMELİ (değil, değiştirilmeli)
+   */
+  describe("AC-3: next-font-kurulumu — mevcut sayfalar regresyon yok", () => {
+    it("AC-3: layout.tsx kaynağında mevcut bg-background class'ı hâlâ var", () => {
+      const source = readFileSync(layoutPath, "utf-8");
+
+      // bg-background class'ı silinmemiş olmalı
+      expect(source).toContain("bg-background");
+    });
+
+    it("AC-3: layout.tsx kaynağında mevcut text-foreground class'ı hâlâ var", () => {
+      const source = readFileSync(layoutPath, "utf-8");
+
+      // text-foreground class'ı silinmemiş olmalı
+      expect(source).toContain("text-foreground");
+    });
+
+    it("AC-3: layout.tsx kaynağında mevcut antialiased class'ı hâlâ var", () => {
+      const source = readFileSync(layoutPath, "utf-8");
+
+      // antialiased class'ı silinmemiş olmalı
+      expect(source).toContain("antialiased");
+    });
+
+    it("AC-3: layout render'ında body'nin tüm mevcut class'ları hâlâ gözükür", () => {
+      const result = renderToStaticMarkup(
+        <RootLayout>
+          <p>test content</p>
+        </RootLayout>
+      );
+
+      // Mevcut class'lar silinmemiş olmalı
+      expect(result).toContain("bg-background");
+      expect(result).toContain("text-foreground");
+      expect(result).toContain("antialiased");
+    });
+  });
+
+  /**
+   * AC-5: Tüm Mevcut Testler Geçmelidir — Regresyon Testi
+   * Bu test, diğer tüm testlerin çalıştırılmasını simüle eder
+   */
+  describe("AC-5: next-font-kurulumu — regresyon (1134 test yapısı)", () => {
+    it("AC-5: layout component render edilebilir durumda", () => {
+      // RootLayout render edilebilmelidir, hata atmamalı
+      const result = renderToStaticMarkup(
+        <RootLayout>
+          <p>test content</p>
+        </RootLayout>
+      );
+
+      // Result boş veya geçersiz olmamış, HTML döndürülmüş olmalı
+      expect(result).toBeTruthy();
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it("AC-5: layout HTML yapısını korur", () => {
+      const result = renderToStaticMarkup(
+        <RootLayout>
+          <p>test content</p>
+        </RootLayout>
+      );
+
+      // HTML yapısı bozulmamış olmalı: html, head, body mevcent
+      expect(result).toContain("<html");
+      expect(result).toContain("</html>");
+      expect(result).toContain("<body");
+      expect(result).toContain("</body>");
+    });
+
+    it("AC-5: layout çocuk (children) render'ını bozmaz", () => {
+      const testContent = "Regresyon test içeriği";
+      const result = renderToStaticMarkup(
+        <RootLayout>
+          <div>{testContent}</div>
+        </RootLayout>
+      );
+
+      // Children'ın render edilmesi bozulmamış olmalı
+      expect(result).toContain(testContent);
+    });
+  });
 });

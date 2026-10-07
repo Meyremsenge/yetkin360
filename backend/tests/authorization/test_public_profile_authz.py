@@ -422,12 +422,12 @@ class TestSecurityMatrixRow5PublicTalent:
 
         data = response.json()
 
-        assert "talent_id" in data
+        assert "talent_id" not in data
         assert "display_name" in data
         assert "verified_experiences" in data
 
-        # Verify talent ID
-        assert data["talent_id"] == str(profile_public.id)
+        # YET-230: internal talent UUID is not exposed
+        assert str(profile_public.id) not in response.text
         assert data["display_name"] == "Public Talent Authz"
 
     def test_public_talent_no_pii_fields_ac_s2(
@@ -448,9 +448,9 @@ class TestSecurityMatrixRow5PublicTalent:
 
         data = response.json()
 
-        # Response keys should be ONLY: talent_id, display_name, verified_experiences
+        # Response keys should be ONLY: display_name, verified_experiences
         response_keys = set(data.keys())
-        expected_keys = {"talent_id", "display_name", "verified_experiences"}
+        expected_keys = {"display_name", "verified_experiences"}
 
         assert response_keys == expected_keys, (
             f"AC-S2 VIOLATION: Unexpected keys in response. "

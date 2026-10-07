@@ -270,3 +270,60 @@ def talent_b(session, user_talent_b):
     session.add(profile)
     session.flush()
     return profile
+
+
+# ============================================================================
+# Query Counter Fixture for N+1 Testing (L-09/AC-12)
+# ============================================================================
+
+
+@pytest.fixture
+def query_counter(session):
+    """
+    Fixture: counts SQL queries executed during test.
+
+    Usage:
+        def test_n_plus_one(client, query_counter, ...):
+            query_counter.start()
+            response = client.get("/talents/me/skills", ...)
+            count = query_counter.stop()
+            assert count <= 5, f"Too many queries: {count}"
+
+    Implementation:
+    - Uses SQLAlchemy event.listen(engine, "before_cursor_execute", ...)
+    - Counts queries in current test session
+    - Returns count on stop()
+    """
+    from sqlalchemy import event
+
+    class QueryCounter:
+        def __init__(self, sess):
+            self.sess = sess
+            self.count = 0
+            self.listen_handle = None
+
+        def start(self):
+            """Start counting queries."""
+            self.count = 0
+
+            def receive_before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+                # Ignore EXPLAIN, BEGIN, COMMIT, ROLLBACK, etc.
+                if statement.strip().upper() not in (
+                    'BEGIN', 'COMMIT', 'ROLLBACK', 'SAVEPOINT', 'RELEASE SAVEPOINT'
+                ) and not statement.strip().upper().startswith('EXPLAIN'):
+                    self.count += 1
+
+            # Register listener on session's engine
+            engine = self.sess.get_bind()
+            event.listen(engine, "before_cursor_execute", receive_before_cursor_execute)
+            self.listen_handle = receive_before_cursor_execute
+            return self
+
+        def stop(self):
+            """Stop counting queries and return count."""
+            if self.listen_handle:
+                engine = self.sess.get_bind()
+                event.remove(engine, "before_cursor_execute", self.listen_handle)
+            return self.count
+
+    return QueryCounter(session)

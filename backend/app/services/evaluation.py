@@ -113,7 +113,9 @@ def create_evaluation(
     rel = engagement_relation(principal, engagement)
 
     # AC-S3: Direction/role consistency check
-    # TALENT can only POST TALENT_TO_ORG; ORG_MEMBER can only POST ORG_TO_TALENT
+    # TALENT can only POST TALENT_TO_ORG; ORG_MEMBER can only POST ORG_TO_TALENT.
+    # AC-5 + AC-S4 (GUV-04): Only ORG_TO_TALENT direction generates skill signals (independent attestor requirement).
+    # TALENT can POST TALENT_TO_ORG, but signals are NOT generated (see signal creation logic below).
     if rel.is_subject:
         if direction != "TALENT_TO_ORG":
             raise TransitionForbiddenError(
@@ -190,8 +192,9 @@ def create_evaluation(
         )
         session.add(evaluation_item)
 
-        # YET-71 AC-3/AC-4/AC-5: Create SkillSignal if skill_id present AND rating != NOT_OBSERVED
-        if skill_id is not None and item["rating"] in EVALUATION_RATING_TO_STRENGTH:
+        # AC-5 + AC-S4 (GUV-04): Create SkillSignal ONLY for ORG_TO_TALENT direction (independent attestor)
+        # TALENT_TO_ORG evaluations do not generate signals (prevent self-evaluation)
+        if direction == "ORG_TO_TALENT" and skill_id is not None and item["rating"] in EVALUATION_RATING_TO_STRENGTH:
             strength = EVALUATION_RATING_TO_STRENGTH[item["rating"]]
             skill_signal = SkillSignal(
                 talent_id=engagement.talent_id,

@@ -103,6 +103,37 @@ def talent_b_with_slug(session, user_talent_b):
 class TestGetMe:
     """AC-1: GET /me returns current user's profile and associations."""
 
+    @pytest.fixture
+    def platform_admin_user(self, session):
+        """Platform admin user for testing is_platform_admin field."""
+        user = User(
+            email="admin@example.com",
+            password_hash="hash_admin",
+            is_platform_admin=True,
+        )
+        session.add(user)
+        session.flush()
+        return user
+
+    @pytest.fixture
+    def platform_admin_talent(self, session, platform_admin_user):
+        """Talent profile for platform_admin_user."""
+        from app.models import TalentProfile
+
+        profile = TalentProfile(
+            user_id=platform_admin_user.id,
+            full_name="Admin Talent",
+            visibility="PRIVATE",
+            headline=None,
+            city=None,
+            department=None,
+            study_year=None,
+            public_slug=None,
+        )
+        session.add(profile)
+        session.flush()
+        return profile
+
     def test_get_me_happy_path(self, client, session, user_talent_a, talent_a):
         """
         AC-1: GET /me → 200 + user + talent_profile + organizations[] + institutions[].
@@ -165,6 +196,62 @@ class TestGetMe:
 
         # Should fail because auth middleware requires X-Debug-User-Id
         assert response.status_code == 401
+
+    def test_get_me_admin_user_is_platform_admin_true(self, client, session, platform_admin_user, platform_admin_talent):
+        """
+        AC-1 + AC-S2: GET /me for platform_admin=true user returns is_platform_admin: true.
+
+        Acceptance Criteria:
+        - Status code: 200
+        - response.user.is_platform_admin == True (TAM EŞLEŞME)
+        - Response does not contain institution_admin_ids, org_admin_ids, supervisor_institution_ids (AC-S2)
+        """
+        response = client.get("/me", headers={"X-Debug-User-Id": str(platform_admin_user.id)})
+
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+
+        data = response.json()
+
+        # Assert: user.is_platform_admin is True (TAM EŞLEŞME)
+        assert "user" in data
+        assert "is_platform_admin" in data["user"], "Response must contain is_platform_admin field"
+        assert data["user"]["is_platform_admin"] is True, (
+            f"Expected is_platform_admin=True, got {data['user'].get('is_platform_admin')}"
+        )
+
+        # Assert: AC-S2 — no extra role fields
+        user_obj = data["user"]
+        assert "institution_admin_ids" not in user_obj, "Response must not contain institution_admin_ids"
+        assert "org_admin_ids" not in user_obj, "Response must not contain org_admin_ids"
+        assert "supervisor_institution_ids" not in user_obj, "Response must not contain supervisor_institution_ids"
+
+    def test_get_me_non_admin_user_is_platform_admin_false(self, client, session, user_talent_a, talent_a):
+        """
+        AC-2 + AC-S2: GET /me for is_platform_admin=false user returns is_platform_admin: false.
+
+        Acceptance Criteria:
+        - Status code: 200
+        - response.user.is_platform_admin == False (TAM EŞLEŞME)
+        - Response does not contain extra role fields (AC-S2)
+        """
+        response = client.get("/me", headers={"X-Debug-User-Id": str(user_talent_a.id)})
+
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+
+        data = response.json()
+
+        # Assert: user.is_platform_admin is False (TAM EŞLEŞME)
+        assert "user" in data
+        assert "is_platform_admin" in data["user"], "Response must contain is_platform_admin field"
+        assert data["user"]["is_platform_admin"] is False, (
+            f"Expected is_platform_admin=False, got {data['user'].get('is_platform_admin')}"
+        )
+
+        # Assert: AC-S2 — no extra role fields
+        user_obj = data["user"]
+        assert "institution_admin_ids" not in user_obj, "Response must not contain institution_admin_ids"
+        assert "org_admin_ids" not in user_obj, "Response must not contain org_admin_ids"
+        assert "supervisor_institution_ids" not in user_obj, "Response must not contain supervisor_institution_ids"
 
 
 # ============================================================================

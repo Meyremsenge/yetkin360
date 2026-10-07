@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { EvaluationForm } from "./evaluation-form";
 import { submitEvaluation } from "@/lib/api/evaluation";
 import { ApiError } from "@/lib/api/errors";
@@ -9,6 +10,13 @@ import messages from "@/messages/tr.json";
 vi.mock("@/lib/api/evaluation", () => ({
   submitEvaluation: vi.fn(),
 }));
+
+function renderWithQueryClient(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
 
 /**
  * YET-100/YET-101 (PLAN 2.13): Kurum tarafı değerlendirme formu.
@@ -23,7 +31,7 @@ describe("EvaluationForm", () => {
   });
 
   it("başlangıçta bir kriter satırı ve 4 eşit rating seçeneği gösterir, NOT_OBSERVED varsayılan işaretli", () => {
-    render(<EvaluationForm engagementId="mock-eng-5" onSubmitted={vi.fn()} />);
+    renderWithQueryClient(<EvaluationForm engagementId="mock-eng-5" onSubmitted={vi.fn()} />);
 
     expect(screen.getByLabelText("Kriter")).toBeTruthy();
     expect(screen.getByLabelText("Beklentinin Altında")).toBeTruthy();
@@ -37,7 +45,7 @@ describe("EvaluationForm", () => {
 
   it("'Kriter Ekle' ile satır eklenir, her satırda 'Kaldır' görünür ve satırı kaldırır", async () => {
     const user = userEvent.setup();
-    render(<EvaluationForm engagementId="mock-eng-5" onSubmitted={vi.fn()} />);
+    renderWithQueryClient(<EvaluationForm engagementId="mock-eng-5" onSubmitted={vi.fn()} />);
 
     await user.click(screen.getByText("Kriter Ekle"));
     expect(screen.getAllByLabelText("Kriter")).toHaveLength(2);
@@ -52,7 +60,7 @@ describe("EvaluationForm", () => {
 
   it("kriter boş bırakılırsa gönderilmez, doğrulama hatası gösterilir", async () => {
     const user = userEvent.setup();
-    render(<EvaluationForm engagementId="mock-eng-5" onSubmitted={vi.fn()} />);
+    renderWithQueryClient(<EvaluationForm engagementId="mock-eng-5" onSubmitted={vi.fn()} />);
 
     await user.click(screen.getByText("Değerlendirmeyi Gönder"));
 
@@ -67,12 +75,13 @@ describe("EvaluationForm", () => {
       id: "mock-evaluation-1",
       engagement_id: "mock-eng-5",
       direction: "ORG_TO_TALENT",
+      items: [{ id: "item-1", criterion: "Python kullanımı", skill_id: null, rating: "EXCEEDS", comment: null }],
       submitted_at: "2026-09-24T00:00:00Z",
     });
     const onSubmitted = vi.fn();
 
     const user = userEvent.setup();
-    render(<EvaluationForm engagementId="mock-eng-5" onSubmitted={onSubmitted} />);
+    renderWithQueryClient(<EvaluationForm engagementId="mock-eng-5" onSubmitted={onSubmitted} />);
 
     await user.type(screen.getByLabelText("Kriter"), "Python kullanımı");
     await user.click(screen.getByLabelText("Beklentiyi Aşıyor"));
@@ -88,35 +97,39 @@ describe("EvaluationForm", () => {
     });
   });
 
-  it("409 ALREADY_SUBMITTED hatasında uygun mesaj gösterilir", async () => {
+  it("409 CONFLICT hatasında (zaten değerlendirilmiş veya durum değişmiş) uygun mesaj gösterilir", async () => {
     vi.mocked(submitEvaluation).mockRejectedValueOnce(
-      new ApiError({ status: 409, code: "ALREADY_SUBMITTED", message: "x", requestId: null })
+      new ApiError({ status: 409, code: "CONFLICT", message: "x", requestId: null })
     );
 
     const user = userEvent.setup();
-    render(<EvaluationForm engagementId="mock-eng-5" onSubmitted={vi.fn()} />);
+    renderWithQueryClient(<EvaluationForm engagementId="mock-eng-5" onSubmitted={vi.fn()} />);
 
     await user.type(screen.getByLabelText("Kriter"), "X");
     await user.click(screen.getByText("Değerlendirmeyi Gönder"));
 
     await waitFor(() => {
-      expect(screen.getByText("Bu çalışma için değerlendirme zaten gönderilmiş.")).toBeTruthy();
+      expect(
+        screen.getByText(
+          "Bu çalışma şu anda değerlendirilemiyor (zaten değerlendirilmiş veya durumu değişmiş olabilir). Güncel durum yeniden yüklendi."
+        )
+      ).toBeTruthy();
     });
   });
 
-  it("422 INVALID_STATUS hatasında uygun mesaj gösterilir", async () => {
+  it("403 FORBIDDEN hatasında yetki mesajı gösterilir", async () => {
     vi.mocked(submitEvaluation).mockRejectedValueOnce(
-      new ApiError({ status: 422, code: "INVALID_STATUS", message: "x", requestId: null })
+      new ApiError({ status: 403, code: "FORBIDDEN", message: "x", requestId: null })
     );
 
     const user = userEvent.setup();
-    render(<EvaluationForm engagementId="mock-eng-5" onSubmitted={vi.fn()} />);
+    renderWithQueryClient(<EvaluationForm engagementId="mock-eng-5" onSubmitted={vi.fn()} />);
 
     await user.type(screen.getByLabelText("Kriter"), "X");
     await user.click(screen.getByText("Değerlendirmeyi Gönder"));
 
     await waitFor(() => {
-      expect(screen.getByText("Bu çalışma şu anda değerlendirme aşamasında değil.")).toBeTruthy();
+      expect(screen.getByText("Bu işlemi yapma yetkiniz yok.")).toBeTruthy();
     });
   });
 
@@ -124,7 +137,7 @@ describe("EvaluationForm", () => {
     vi.mocked(submitEvaluation).mockRejectedValueOnce(new Error("boom"));
 
     const user = userEvent.setup();
-    render(<EvaluationForm engagementId="mock-eng-5" onSubmitted={vi.fn()} />);
+    renderWithQueryClient(<EvaluationForm engagementId="mock-eng-5" onSubmitted={vi.fn()} />);
 
     await user.type(screen.getByLabelText("Kriter"), "X");
     await user.click(screen.getByText("Değerlendirmeyi Gönder"));

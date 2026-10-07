@@ -1,11 +1,15 @@
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, uuid7_default
+
+if TYPE_CHECKING:
+    from app.models.skill import Skill
 
 
 class SkillSignal(Base):
@@ -50,3 +54,5 @@ class SkillSignal(Base):
     superseded_by_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("skill_signals.id")
     )
+
+    skill: Mapped["Skill"] = relationship("Skill")

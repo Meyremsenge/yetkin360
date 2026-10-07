@@ -64,7 +64,7 @@ class InstitutionMember(Base, TimestampMixin):
     __tablename__ = "institution_members"
     __table_args__ = (
         UniqueConstraint("institution_id", "user_id", name="uq_institution_members_institution_user"),
-        CheckConstraint("role IN ('ADMIN','COORDINATOR')", name="ck_institution_members_role"),
+        CheckConstraint("role IN ('ADMIN','COORDINATOR','SUPERVISOR')", name="ck_institution_members_role"),
         Index("ix_institution_members_user_id", "user_id"),
     )
 

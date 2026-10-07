@@ -200,7 +200,7 @@ class TestInstitutionCreation:
         data = response.json()
         assert data["verification_level"] == "T1"
         assert data["name"] == "New University"
-        assert data["domain"] == "newuniv.edu.tr"
+        assert data["domain"] is None  # GUV-09: unverified domain is ignored
         assert data["status"] == "ACTIVE"
 
         # Assert: caller is automatically ADMIN
@@ -406,21 +406,131 @@ class TestInstitutionLinkRequestApproval:
 
 
 # ============================================================================
-# AC-6: Duplicate domain rejected (POST /institutions with existing domain → 409)
+# YET-197/IS-10: Reject student link request (POST /institutions/{id}/link-requests/{request_id}/reject)
+# ============================================================================
+
+
+class TestInstitutionLinkRequestRejection:
+    """YET-197/IS-10: Coordinator/Admin rejects student link request."""
+
+    def test_coordinator_rejects_link_request(self, session, user_student_a, user_coordinator, talent_a, institution_a, institution_a_coordinator_member, client):
+        """
+        Coordinator POST .../reject → REJECTED, talent stays unlinked.
+
+        Acceptance Criteria:
+        - Status code: 200
+        - InstitutionLinkRequest.status = REJECTED, decided_at/decided_by_user_id set
+        - TalentProfile.institution_id remains None (no side effect, unlike approve)
+        """
+        from app.models import InstitutionLinkRequest
+
+        link_req = InstitutionLinkRequest(
+            talent_profile_id=talent_a.id,
+            institution_id=institution_a.id,
+            status="PENDING"
+        )
+        session.add(link_req)
+        session.flush()
+        request_id = link_req.id
+
+        response = client.post(f"/institutions/{institution_a.id}/link-requests/{request_id}/reject", headers={"X-Debug-User-Id": str(user_coordinator.id)})
+
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+
+        link_req = session.query(InstitutionLinkRequest).filter_by(id=request_id).first()
+        assert link_req.status == "REJECTED"
+        assert link_req.decided_at is not None
+        assert link_req.decided_by_user_id == user_coordinator.id
+
+        talent = session.query(TalentProfile).filter_by(id=talent_a.id).first()
+        assert talent.institution_id is None, "Rejection must NOT link the talent to the institution"
+
+    def test_reject_non_pending_request_returns_422(self, session, user_student_a, user_coordinator, talent_a, institution_a, institution_a_coordinator_member, client):
+        """Rejecting an already-decided (APPROVED) request → 422."""
+        from app.models import InstitutionLinkRequest
+
+        link_req = InstitutionLinkRequest(
+            talent_profile_id=talent_a.id,
+            institution_id=institution_a.id,
+            status="APPROVED"
+        )
+        session.add(link_req)
+        session.flush()
+        request_id = link_req.id
+
+        response = client.post(f"/institutions/{institution_a.id}/link-requests/{request_id}/reject", headers={"X-Debug-User-Id": str(user_coordinator.id)})
+
+        assert response.status_code == 422, f"Expected 422, got {response.status_code}: {response.text}"
+
+        link_req = session.query(InstitutionLinkRequest).filter_by(id=request_id).first()
+        assert link_req.status == "APPROVED", "Status must not change on a rejected 422 attempt"
+
+    def test_reject_nonexistent_request_returns_404(self, user_coordinator, institution_a, institution_a_coordinator_member, client):
+        """Rejecting a request_id that doesn't exist → 404."""
+        nonexistent_id = "550e8400-e29b-41d4-a716-446655440099"
+
+        response = client.post(f"/institutions/{institution_a.id}/link-requests/{nonexistent_id}/reject", headers={"X-Debug-User-Id": str(user_coordinator.id)})
+
+        assert response.status_code == 404
+
+
+# ============================================================================
+# YET-197/IS-10: List pending link requests (GET /institutions/{id}/link-requests)
+# ============================================================================
+
+
+class TestPendingLinkRequestsList:
+    """YET-197/IS-10: Coordinator/Admin lists PENDING link requests for their institution."""
+
+    def test_coordinator_lists_pending_link_requests(self, session, user_student_a, user_student_b, user_coordinator, talent_a, talent_b, institution_a, institution_a_coordinator_member, client):
+        """
+        GET .../link-requests returns only PENDING requests, with talent_full_name.
+
+        Acceptance Criteria:
+        - Status code: 200
+        - APPROVED/REJECTED requests to the same institution are excluded
+        - Each item includes talent_full_name (joined from TalentProfile)
+        """
+        from app.models import InstitutionLinkRequest
+
+        pending = InstitutionLinkRequest(talent_profile_id=talent_a.id, institution_id=institution_a.id, status="PENDING")
+        approved = InstitutionLinkRequest(talent_profile_id=talent_b.id, institution_id=institution_a.id, status="APPROVED")
+        session.add_all([pending, approved])
+        session.flush()
+
+        response = client.get(f"/institutions/{institution_a.id}/link-requests", headers={"X-Debug-User-Id": str(user_coordinator.id)})
+
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        data = response.json()
+        items = data["items"]
+        assert len(items) == 1, "Only the PENDING request should be listed"
+        assert items[0]["id"] == str(pending.id)
+        assert items[0]["talent_full_name"] == talent_a.full_name
+        assert items[0]["status"] == "PENDING"
+
+    def test_pending_link_requests_empty_list_when_none(self, user_coordinator, institution_a, institution_a_coordinator_member, client):
+        """No PENDING requests → 200 + empty items list (not an error)."""
+        response = client.get(f"/institutions/{institution_a.id}/link-requests", headers={"X-Debug-User-Id": str(user_coordinator.id)})
+
+        assert response.status_code == 200
+        assert response.json()["items"] == []
+
+
+# ============================================================================
+# AC-6: Existing domain is not reservable via POST /institutions (GUV-09 / YET-182)
 # ============================================================================
 
 
 class TestDuplicateDomain:
-    """AC-6: Creating institution with duplicate domain → 409 Conflict."""
+    """AC-6: A domain sent at creation is ignored, so it can never lock out the real institution."""
 
-    def test_duplicate_domain_returns_409(self, client, session, user_creator, institution_a):
+    def test_existing_domain_is_not_conflict(self, client, session, user_creator, institution_a):
         """
-        AC-6: POST /institutions with domain matching existing institution → 409.
+        AC-6: POST /institutions with a domain held by another institution → 201, domain ignored.
 
         Acceptance Criteria:
-        - Status code: 409 Conflict
-        - Error message indicates domain is taken
-        - No new institution created
+        - Status code: 201 (no DOMAIN_TAKEN oracle)
+        - New institution has no domain; the existing holder is untouched
         """
         payload = {
             "name": "Another Name",
@@ -429,10 +539,8 @@ class TestDuplicateDomain:
 
         response = client.post("/institutions", json=payload, headers={"X-Debug-User-Id": str(user_creator.id)})
 
-        assert response.status_code == 409
-        data = response.json()
-        # Check for error code or message containing "DOMAIN_TAKEN" or similar
-        assert "domain" in data or "DOMAIN_TAKEN" in str(data)
+        assert response.status_code == 201
+        assert response.json()["domain"] is None
 
 
 # ============================================================================
