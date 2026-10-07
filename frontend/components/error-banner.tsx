@@ -1,5 +1,6 @@
 import messages from "@/messages/tr.json";
 import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
 
 export function ErrorBanner({
   message,
@@ -11,7 +12,7 @@ export function ErrorBanner({
   onRetry?: () => void;
 }) {
   return (
-    <div role="alert" className="rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-700">
+    <Alert variant="error" className="text-sm">
       <div className="font-medium mb-2">{message}</div>
 
       <div className="flex items-center gap-4 mt-3">
@@ -23,14 +24,11 @@ export function ErrorBanner({
         )}
 
         {onRetry && (
-          <Button
-            onClick={onRetry}
-            className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 text-sm"
-          >
+          <Button onClick={onRetry} variant="destructive" size="sm">
             {messages.errors.retry}
           </Button>
         )}
       </div>
-    </div>
+    </Alert>
   );
 }
