@@ -280,6 +280,19 @@ PLAN maddesi olarak açılmamıştı. Detay: `HATA.md`.**
 - [ ] 3.26 MinIO bucket, healthcheck, depolama hataları, .env.example (HATA_DUZELTME_PROMPT A-03, OPS-03) @be2
 - [ ] 3.27 Outbox worker: döngü, tıkanma, e-posta linkleri (HATA_DUZELTME_PROMPT A-04, OPS-01, OPS-02) @be2
 - [ ] 3.28 Seed demo düzeltmesi: COORDINATOR, T2 organizasyon, doğrulanmış e-posta (HATA_DUZELTME_PROMPT A-05, AUTHZ-02, IS-02) @be2
+      > Ek bulgu (2026-10-07, frontend incelemesi): seed adları İngilizce ve yer
+      > tutucu ("Organization 1", "Institution 1", "Student 1"). Jüriye gösterilen
+      > her ekranda (panel başlıkları, `/v/[token]` sertifikası, `/p/[slug]`)
+      > görünüyor. Gerçekçi Türkçe ad, kurum/kuruluş adı, bölüm ve başlık verilmeli;
+      > en az bir `VERIFIED` çalışma + `public_slug`'lı profil demo için hazır olmalı
+      > (`planfrontend.md` FE-02). Seed idempotent olduğu için mevcut DB'de adlar
+      > kendiliğinden değişmez — güncelleme yolu ayrıca düşünülmeli.
+      > Ek bulgu 2: `GET /me` talent profili olmayan kullanıcıda 404 dönüyor
+      > (`services/talent.py` `get_me_context` ValueError → `api/me.py` 404). Seed'in
+      > platform admini (`seed_admin`) talent profilsiz → admin girişte tüm uygulama
+      > hata ekranı. Testler `platform_admin_talent` fixture'ıyla admine profil verdiği
+      > için yakalamamış. Düzeltme: `talent_profile` opsiyonel (`null`) döner; frontend
+      > tipi zaten `null` kabul ediyor.
 - [ ] 3.29 Kanıt backend'i: tarama, liste ucu, kayıt sertleştirme (HATA_DUZELTME_PROMPT A-06, IS-07, GUV-12) @be2
 - [ ] 3.30 Çoklu rol: kapsam sorguları `kind`'dan bağımsız (HATA_DUZELTME_PROMPT A-08, AUTHZ-01, GUV-02, AUTHZ-02, L-08) @be2
 - [ ] 3.31 Davet uçları: 500, numaralandırma, rol doğrulama (HATA_DUZELTME_PROMPT A-09, GUV-07, GUV-02, L-01) @be2
