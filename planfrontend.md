@@ -97,7 +97,7 @@ Tüm renkler HSL token; bileşenler **yalnız token** kullanır (yeni kodda sabi
 | `--brick` / `--brick-wash` | Hata, red, iptal, geri alındı | `8 58% 40%` / `10 60% 95%` | `#A13B2B` / `#FAEDEB` |
 | `--radius` | Köşe | `0.5rem` | |
 
-**Kontrast (WCAG, hesaplandı):** mürekkep/kâğıt **15.5:1** · ikincil metin/kâğıt **6.2:1** · ikincil metin/kum **5.6:1** · çam/kâğıt **8.1:1** · beyaz yazı/çam buton **8.5:1** · aşı boyası/zemini **5.1:1** · tuğla/zemini **5.8:1**. Hepsi ≥ 4.5:1. FE-04 bunu kodda tekrar doğrular.
+**Kontrast (WCAG, hesaplandı):** mürekkep/kâğıt **15.5:1** · ikincil metin/kâğıt **6.2:1** · ikincil metin/kum **5.6:1** · çam/kâğıt **8.1:1** · beyaz yazı/çam buton **8.57:1** · aşı boyası/zemini **5.46:1** · tuğla/zemini **6.25:1**. Hepsi ≥ 4.5:1. FE-04 bunu kodda tekrar doğruladı — _(düzeltme: son 3 değer (beyaz/çam, aşı/zemin, tuğla/zemin) ilk hesaplamada hatalıydı; standart WCAG formülüyle `frontend/lib/ui/contrast-ratio.ts`'te doğrulanan gerçek değerler kullanılıyor, bkz. `obss_project/artifacts/fe04-kontrast-testi/`)_.
 
 Kullanım oranı (göz kararı): **%90 kâğıt + mürekkep + çizgi**, %8 kum, %2 renk. Bir ekranda yeşil çoksa, yanlış bir şeyler doğrulanmış gibi görünüyordur. Koyu tema **yapılmaz** (`color-scheme: light` kalır).
 
@@ -182,7 +182,7 @@ CLAUDE.md gereği bunlar senin onayın olmadan yapılmaz:
 Hedef: sayfalara dokunmadan önce her sayfanın kullanacağı yapı taşları hazır.
 
 - [x] **FE-03** Token'lar + font: `globals.css`, `tailwind.config.ts` (`§1.2`, `§1.3`); `layout.tsx`'te Inter kaldırılır, Source Serif 4 + IBM Plex Sans + IBM Plex Mono (`latin-ext`) eklenir. Tailwind'in varsayılan renkleri config'den **çıkarılmaz** (dönüştürülmemiş ekranlar renksiz kalır); onun yerine FE-30'daki `grep` sayacı her gün izlenir ve yeni kodda sıfır olmalıdır. **P0** _(commit `81eb150`, `obss_project/artifacts/fe03-token-font-degisimi/`)_
-- [ ] **FE-04** Kontrast kontrolü: §1.2'deki hesaplanmış değerleri token'lar koda girdikten sonra küçük bir unit testle sabitle (renk değişirse test kırılır). **P0**
+- [x] **FE-04** Kontrast kontrolü: §1.2'deki hesaplanmış değerleri token'lar koda girdikten sonra küçük bir unit testle sabitle (renk değişirse test kırılır). **P0** _(commit sırasında işaretlenecek, `obss_project/artifacts/fe04-kontrast-testi/`)_
 - [ ] **FE-05** İlkellerin yeniden yazımı (`components/ui/`): `Button` (variant: primary/secondary/outline/ghost/destructive, `loading` durumu, ikon desteği, görünür focus ring), `Input`, `Textarea`, `Select`, `Label`, `Card` (+`CardHeader/CardTitle/CardContent/CardFooter`), `Badge`, `Alert`. Testler K-5'e göre güncellenir. **P0**
 - [ ] **FE-06** Yeni ilkeller: `Skeleton`, `Spinner`, `Avatar` (baş harf), `Separator`, `Tabs`, `DropdownMenu`, `Dialog` (K-3). **P0**
 - [ ] **FE-07** Ürün bileşenleri (`components/`): **P0**

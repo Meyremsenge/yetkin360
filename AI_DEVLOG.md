@@ -5,6 +5,14 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## fe04-kontrast-testi — planfrontend.md FE-04 (2026-10-07)
+
+**Kaynak:** `obss_project/artifacts/fe04-kontrast-testi/` — `planfrontend.md`'nin kontrast kontrolü görevi.
+
+### Gerçek zorluk/bug (kaynak: code_diff.md, red_team.json) — en değerli bulgu bu oturumda
+- **`planfrontend.md` §1.2'nin kendi dokümantasyon değerleri hatalıydı:** Plan, 3 renk çiftinin (beyaz yazı/çam buton, aşı boyası/zemin, tuğla/zemin) WCAG kontrast oranlarını sırasıyla 8.5/5.1/5.8 olarak "hesaplanmış" diye belirtiyordu. İlk test koşumunda implementasyon bu 3 değerde FAIL verdi. Standart WCAG formülü (CSS Color Module Level 4 HSL→RGB + relative luminance) ile **hem Haiku alt-ajanının implementasyonu hem orkestratörün bağımsız Node.js hesabı** aynı (plandan farklı) sonucu üretti: gerçek değerler 8.57/5.46/6.25. Kullanıcıya bildirilip onayıyla hem testler hem `planfrontend.md`'nin kendisi (tek doğruluk kaynağı ilkesi gereği) gerçek değerlere güncellendi. Tüm çiftler hâlâ ≥4.5 WCAG AA eşiğini geçiyor — bu bir regresyon değil, kaynak planın matematiksel hatasının düzeltilmesi.
+- **Ders:** Bir "hesaplandı" diye sunulan referans değeri (plan/dokümantasyon kaynaklı olsa bile) kör kör kabul etmek yerine, implementasyon standart bir formülü doğru uyguluyorsa ve sonuç tutarlı şekilde farklı çıkıyorsa, kaynağın kendisi sorgulanmalı — CLAUDE.md'nin "mimari karara aykırı somut kanıt görürsen sessizce sapma, sor" ilkesi tam burada devreye girdi.
+
 ## fe03-token-font-degisimi — planfrontend.md FE-03 (2026-10-07)
 
 **Kaynak:** `obss_project/artifacts/fe03-token-font-degisimi/` — `planfrontend.md`'nin ("sunum öncesi frontend yeniden tasarım" planı) ilk büyük adımı.
