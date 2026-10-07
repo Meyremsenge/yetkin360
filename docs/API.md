@@ -260,7 +260,7 @@ sonradan eklenir. Bu kişinin talent profili boş kalır, zararı yoktur.
 |---|---|---|---|---|---|
 | `GET` | `/me` | `AUTH` | — | `200` — `user`, `talent_profile?`, `organizations[]`, `institutions[]` | — |
 | `GET` | `/talents/{id}` | `AUTH` | — | `200` — profil (**`visibility`'ye göre budanmış**) | `404` |
-| `PATCH` | `/talents/me` | `TALENT` | `headline?`, `department?`, `study_year?`, `city?`, `visibility?`, `public_slug?` | `200` — güncel profil | `409 SLUG_TAKEN` |
+| `PATCH` | `/talents/me` | `TALENT` | `full_name?`, `headline?`, `department?`, `study_year?`, `city?`, `visibility?`, `public_slug?` | `200` — güncel profil | `409 SLUG_TAKEN`, `422 FIELD_REQUIRED` |
 | `GET` | `/talents/me/skills` | `TALENT` | — | `200` — `items[]` (`skill`, `claimed_level`) | — |
 | `POST` | `/talents/me/skills` | `TALENT` | `skill_id`, `claimed_level?` | `201` | `404 SKILL_NOT_FOUND`, `409 ALREADY_CLAIMED` |
 | `DELETE` | `/talents/me/skills/{skill_id}` | `TALENT` | — | `204` | `404` |
@@ -346,6 +346,11 @@ onayından gelir.
 
 **`/reminders` `202` döner, `200` değil** — e-postalar `outbox` üzerinden
 asenkron gönderilir, istek anında gönderilmez ([DATABASE.md](DATABASE.md) §5).
+Sınırlar (YET-213): `engagement_ids` en fazla 100, `template` kapalı küme
+(şimdilik yalnız `evaluation_pending`; dışı `422`), aynı (engagement, template)
+için 24 saatte 1 hatırlatma (tekrarlar sessizce atlanır, `queued_count`'a girmez),
+kurum başına saatte 20 istek (aşım `429 RATE_LIMITED` + `Retry-After`).
+Yetkisiz çağıran her zaman `404` alır ve kota harcamaz.
 
 ### 2.6 Engagement — `/engagements`
 

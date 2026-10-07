@@ -49,6 +49,7 @@ from app.services.engagement import (
 from app.services.evaluation import create_evaluation
 from app.services.attestation import create_attestation
 from app.services.authorization import Principal
+from app.services.talent import update_talent_profile
 
 
 SKILLS_DATA = [
@@ -286,6 +287,72 @@ SKILLS_DATA = [
 ]
 
 
+# PLAN 3.28: realistic (fictional) Turkish demo data — shown to the jury on every
+# screen (panels, /v/[token] certificate, /p/[slug] public profile).
+
+# (full_name, public_slug, department, study_year, headline, city) — ogrenci{i}@seed.local
+STUDENTS_DATA = [
+    ("Ayşe Yılmaz", "ayse-yilmaz", "Bilgisayar Mühendisliği", 4, "Backend geliştirmeye odaklı mühendislik öğrencisi", "İstanbul"),
+    ("Mehmet Kaya", "mehmet-kaya", "Yazılım Mühendisliği", 3, "Web uygulamaları ve arayüz geliştirme", "İstanbul"),
+    ("Zeynep Demir", "zeynep-demir", "Endüstri Mühendisliği", 4, "Veri analizi ve süreç iyileştirme", "İstanbul"),
+    ("Emre Çelik", "emre-celik", "Elektrik-Elektronik Mühendisliği", 3, "Gömülü sistemler ve donanım prototipleme", "Kocaeli"),
+    ("Elif Şahin", "elif-sahin", "Grafik Tasarım", 2, "Kullanıcı arayüzü ve marka tasarımı", "İstanbul"),
+    ("Burak Arslan", "burak-arslan", "Bilgisayar Programcılığı", 2, "Frontend geliştirme meraklısı", "İstanbul"),
+    ("Merve Koç", "merve-koc", "İşletme", 4, "Proje yönetimi ve operasyon", "İstanbul"),
+    ("Can Aydın", "can-aydin", "Bilgisayar Mühendisliği", 4, "Bulut altyapısı ve DevOps", "İstanbul"),
+    ("Selin Öztürk", "selin-ozturk", "İstatistik", 3, "Makine öğrenmesi ve veri bilimi", "İstanbul"),
+    ("Ahmet Yıldız", "ahmet-yildiz", "Lojistik Yönetimi", 3, "Tedarik zinciri ve planlama", "Tekirdağ"),
+    ("Deniz Aksoy", "deniz-aksoy", "Yönetim Bilişim Sistemleri", 3, "İş analizi ve raporlama", "İstanbul"),
+    ("Ece Polat", "ece-polat", "İç Mimarlık", 4, "Mekân ve deneyim tasarımı", "İstanbul"),
+    ("Oğuz Kurt", "oguz-kurt", "Bilgisayar Mühendisliği", 2, "Mobil uygulama geliştirme", "Bursa"),
+    ("İrem Erdem", "irem-erdem", "Matematik", 3, "Algoritmalar ve veri analizi", "İstanbul"),
+    ("Kaan Özdemir", "kaan-ozdemir", "Yazılım Mühendisliği", 4, "Siber güvenlik ve sistem yönetimi", "İstanbul"),
+    ("Buse Çınar", "buse-cinar", "Endüstriyel Tasarım", 3, "Ürün tasarımı ve prototipleme", "İstanbul"),
+    ("Yusuf Güneş", "yusuf-gunes", "Elektrik-Elektronik Mühendisliği", 4, "Yenilenebilir enerji sistemleri", "İstanbul"),
+    ("Nisa Karaca", "nisa-karaca", "İşletme", 2, "Dijital pazarlama ve iletişim", "İstanbul"),
+    ("Berk Doğan", "berk-dogan", "Bilgisayar Programcılığı", 2, "Python ile otomasyon", "İstanbul"),
+    ("Melis Aydemir", "melis-aydemir", "Yönetim Bilişim Sistemleri", 4, "Veri tabanı ve iş zekâsı", "İstanbul"),
+]
+
+# (name, admin full_name, coordinator full_name) — kurum{i}-admin / kurum{i}-koordinator
+INSTITUTIONS_DATA = [
+    ("Galata Teknik Üniversitesi", "Nermin Aksoy", "Kerem Taşkın"),
+    ("Sarıyer Teknoloji Enstitüsü", "Haluk Erdem", "Selin Karaca"),
+    ("Kadıköy Uygulamalı Bilimler Üniversitesi", "Leyla Önal", "Burak Yalçın"),
+    ("Levent İşletme ve Bilişim Yüksekokulu", "Cemal Arslan", "Deniz Kurt"),
+    ("Moda Sanat ve Tasarım Akademisi", "Füsun Tekin", "Onur Çelik"),
+]
+
+# (name, admin full_name) — org{i}-admin
+ORGANIZATIONS_DATA = [
+    ("Lale Yazılım A.Ş.", "Murat Demirci"),
+    ("Mavi Liman Lojistik", "Ebru Şahin"),
+    ("Kuzey Enerji Teknolojileri", "Tolga Aydın"),
+    ("Pusula Veri Analitiği", "Gizem Polat"),
+    ("Atölye 34 Tasarım Stüdyosu", "Can Özkan"),
+]
+
+# One entry per seeded engagement (index = eng_idx): matches the student/organization
+# picked in seed_engagements. (title, kind, skill_slug, task, deliverable, evaluation comment)
+ENGAGEMENTS_DATA = [
+    ("Backend Geliştirme Stajı", "INTERNSHIP", "fastapi", "Sipariş API'sinin uç noktalarını yazmak", "Sipariş servisi ve test raporu", "API tasarımı temiz, testleri eksiksiz."),
+    ("Bulut Altyapısı ve DevOps Stajı", "INTERNSHIP", "docker", "Uygulamaları konteynerleştirmek", "Docker Compose kurulumu ve dağıtım belgesi", "Dağıtım süresini belirgin biçimde kısalttı."),
+    ("Siber Güvenlik Değerlendirme Projesi", "SHORT_PROJECT", "cybersecurity", "İç ağ zafiyet taraması", "Zafiyet raporu ve iyileştirme planı", "Bulguları önceliklendirmesi çok yerindeydi."),
+    ("Veri Paneli Arayüz Geliştirme", "PART_TIME", "react", "Müşteri paneli bileşenlerini geliştirmek", "Etkileşimli rapor paneli", "Arayüz kararlarını gerekçeleriyle sundu."),
+    ("Görsel Arşiv Sınıflandırma Projesi", "CAPSTONE", "ml", "Arşiv görsellerini etiketleyen model eğitmek", "Sınıflandırma modeli ve doğruluk raporu", "Model doğruluğu beklentinin üzerinde."),
+    ("Mobil Uygulama Arayüz Tasarımı", "SHORT_PROJECT", "problem-solving", "Kullanıcı akışlarını yeniden tasarlamak", "Tıklanabilir prototip", "Kullanıcı testlerinden doğru sonuçlar çıkardı."),
+    ("Depo Süreçleri Veri Analizi", "INTERNSHIP", "data-analysis", "Toplama süreci verisini analiz etmek", "Süreç iyileştirme raporu", "Önerileri bekleme süresini azalttı."),
+    ("Saha Ekipmanı Tedarik Planlaması", "INTERNSHIP", "project-mgmt", "Tedarik takvimini hazırlamak", "Tedarik planı ve risk tablosu", "Planlamayı düzenli ve zamanında yürüttü."),
+    ("Enerji Tüketimi Tahmin Modeli", "CAPSTONE", "python", "Tüketim verisini temizlemek ve modellemek", "Tahmin modeli ve sunum", "Analizleri sağlam ve iyi belgelenmiş."),
+    ("Etkileşimli Sergi Donanım Prototipi", "SHORT_PROJECT", "problem-solving", "Sensörlü sergi düzeneği kurmak", "Çalışan donanım prototipi", "Teknik sorunlara yaratıcı çözümler üretti."),
+    ("Müşteri Destek Süreçleri İş Analizi", "PART_TIME", "data-analysis", "Destek kayıtlarını sınıflandırmak", "İş analizi dokümanı", "Paydaşlarla iletişimi güçlüydü."),
+    ("Dijital Pazarlama ve İçerik Projesi", "SHORT_PROJECT", "communication", "Sosyal medya içerik takvimi hazırlamak", "Kampanya raporu", "Kampanya etkileşimi hedefi aştı."),
+    ("Kurumsal Kimlik Yenileme Projesi", "SHORT_PROJECT", "presentation", "Marka rehberini güncellemek", "Kurumsal kimlik kılavuzu", "Sunumları net ve ikna ediciydi."),
+    ("Ofis Deneyim Tasarımı Projesi", "SHORT_PROJECT", "teamwork", "Ortak çalışma alanını yeniden düzenlemek", "Mekân tasarım önerisi", "Ekiple uyum içinde çalıştı."),
+    ("Sipariş Takip Otomasyonu", "INTERNSHIP", "python", "Sipariş takibini otomatikleştirmek", "Otomasyon betikleri ve kullanım kılavuzu", "Manuel iş yükünü önemli ölçüde azalttı."),
+]
+
+
 def seed_skills(session: Session) -> None:
     """
     Idempotently seed skills into database.
@@ -385,7 +452,7 @@ def seed_talents(session: Session) -> None:
     inserted_count = 0
     skipped_count = 0
 
-    for i in range(1, 21):
+    for i, (full_name, slug, department, study_year, headline, city) in enumerate(STUDENTS_DATA, start=1):
         email = f"ogrenci{i}@seed.local"
 
         # Check if email already exists
@@ -397,11 +464,27 @@ def seed_talents(session: Session) -> None:
             skipped_count += 1
         else:
             # register_user automatically creates empty TalentProfile
-            register_user(
+            registered = register_user(
                 session=session,
                 email=email,
                 password="SeedTest123!",
-                full_name=f"Student {i}"
+                full_name=full_name
+            )
+            profile = session.execute(
+                select(TalentProfile).where(TalentProfile.user_id == registered.user_id)
+            ).scalar_one()
+            # Public profile so /p/[slug] works in the demo (PLAN 3.28, FE-02)
+            update_talent_profile(
+                profile,
+                {
+                    "department": department,
+                    "study_year": study_year,
+                    "headline": headline,
+                    "city": city,
+                    "visibility": "PUBLIC",
+                    "public_slug": slug,
+                },
+                session,
             )
             inserted_count += 1
 
@@ -430,7 +513,7 @@ def _ensure_institution_coordinator(session: Session, index: int, inst_domain: s
             session=session,
             email=coord_email,
             password="SeedTest123!",
-            full_name=f"Institution {index} Coordinator",
+            full_name=INSTITUTIONS_DATA[index - 1][2],
         )
 
     try:
@@ -480,12 +563,12 @@ def seed_institutions_and_organizations(session: Session) -> None:
                 session=session,
                 email=inst_email,
                 password="SeedTest123!",
-                full_name=f"Institution {i} Admin"
+                full_name=INSTITUTIONS_DATA[i - 1][1]
             )
 
             # Create institution (caller becomes ADMIN)
             create_institution(
-                name=f"Institution {i}",
+                name=INSTITUTIONS_DATA[i - 1][0],
                 domain=inst_domain,
                 caller_user_id=user_result.user_id,
                 session=session
@@ -513,12 +596,12 @@ def seed_institutions_and_organizations(session: Session) -> None:
                 session=session,
                 email=org_email,
                 password="SeedTest123!",
-                full_name=f"Organization {i} Admin"
+                full_name=ORGANIZATIONS_DATA[i - 1][1]
             )
 
             # Create organization (caller becomes ADMIN)
             create_organization(
-                name=f"Organization {i}",
+                name=ORGANIZATIONS_DATA[i - 1][0],
                 domain=org_domain,
                 legal_id=org_legal_id,
                 caller_user_id=user_result.user_id,
@@ -530,12 +613,44 @@ def seed_institutions_and_organizations(session: Session) -> None:
     print(f"Organizations seed: {org_inserted} inserted, {org_skipped} already exist")
 
 
+def _link_to_institution(session: Session, talent: TalentProfile, institution: Institution) -> None:
+    """Request + approve (as the institution's ADMIN) a talent's institution link. Idempotent."""
+    if talent.institution_id == institution.id:
+        return
+
+    try:
+        link_request = request_institution_link(
+            institution_id=institution.id,
+            talent_profile_id=talent.id,
+            session=session
+        )
+    except DuplicateLinkRequestError:
+        return  # pending request already exists
+
+    inst_admin = session.execute(
+        select(User)
+        .join(InstitutionMember, InstitutionMember.user_id == User.id)
+        .where(
+            InstitutionMember.institution_id == institution.id,
+            InstitutionMember.role == "ADMIN",
+        )
+    ).scalars().first()
+
+    if inst_admin:
+        approve_institution_link(
+            request_id=link_request.id,
+            institution_id=institution.id,
+            approver_user_id=inst_admin.id,
+            session=session
+        )
+
+
 def _create_verified_engagement(
     session: Session,
     talent: TalentProfile,
     organization: Organization,
     institution: Institution,
-    sample_skill: Skill,
+    skill: Skill,
     eng_idx: int
 ) -> Engagement:
     """
@@ -547,36 +662,8 @@ def _create_verified_engagement(
     Returns the final engagement object.
     Raises Exception on failure (caught by caller).
     """
-    # Link talent to institution (if not already linked)
-    if talent.institution_id == institution.id:
-        # Already linked, nothing to do (idempotent)
-        pass
-    else:
-        # Request and approve institution link
-        try:
-            link_request = request_institution_link(
-                institution_id=institution.id,
-                talent_profile_id=talent.id,
-                session=session
-            )
-
-            # Approve as institution admin (user who created institution)
-            inst_admin = session.execute(
-                select(User).where(
-                    User.email == f"kurum{(eng_idx % 5) + 1}-admin@seed.local"
-                )
-            ).scalars().first()
-
-            if inst_admin:
-                approve_institution_link(
-                    request_id=link_request.id,
-                    institution_id=institution.id,
-                    approver_user_id=inst_admin.id,
-                    session=session
-                )
-        except DuplicateLinkRequestError:
-            # Pending request already exists, just continue
-            pass
+    _link_to_institution(session, talent, institution)
+    title, kind, _skill_slug, task_title, deliverable_title, comment = ENGAGEMENTS_DATA[eng_idx]
 
     # Construct talent User for Principal
     talent_user = session.execute(
@@ -647,8 +734,8 @@ def _create_verified_engagement(
         principal=talent_principal,
         talent_id=str(talent.id),
         organization_id=str(organization.id),
-        kind="INTERNSHIP",
-        title=f"Engagement {eng_idx + 1}",
+        kind=kind,
+        title=title,
         institution_id=str(institution.id),
         confidential=False
     )
@@ -674,8 +761,8 @@ def _create_verified_engagement(
     )
 
     # Set engagement dates (required for COMPETENCE criterion 2)
-    engagement.started_on = datetime.now(timezone.utc).date() - timedelta(days=40)
-    engagement.ended_on = datetime.now(timezone.utc).date()
+    engagement.ended_on = datetime.now(timezone.utc).date() - timedelta(days=7 * eng_idx)
+    engagement.started_on = engagement.ended_on - timedelta(days=60 + 4 * eng_idx)
     session.flush()
 
     # Create task and deliverable (required for PENDING_EVALUATION transition)
@@ -683,19 +770,19 @@ def _create_verified_engagement(
         session=session,
         principal=coordinator_principal,
         engagement_id=str(engagement.id),
-        title=f"Task {eng_idx + 1}",
-        description="Sample task",
+        title=task_title,
+        description=f"{title} kapsamında görev",
         due_at=datetime.now(timezone.utc) + timedelta(days=7),
-        skill_id=str(sample_skill.id)
+        skill_id=str(skill.id)
     )
 
     create_deliverable(
         session=session,
         principal=talent_principal,
         engagement_id=str(engagement.id),
-        title=f"Deliverable {eng_idx + 1}",
-        description="Sample deliverable",
-        skill_id=str(sample_skill.id)
+        title=deliverable_title,
+        description=f"{title} teslim dosyası",
+        skill_id=str(skill.id)
     )
 
     # T6: ACTIVE → PENDING_EVALUATION (principal = ORG_ADMIN, reason optional for this transition per table)
@@ -716,13 +803,13 @@ def _create_verified_engagement(
         direction="ORG_TO_TALENT",
         items=[
             {
-                "criterion": "Technical Skills",
-                "skill_id": str(sample_skill.id),
+                "criterion": "Teknik yetkinlik",
+                "skill_id": str(skill.id),
                 "rating": "MEETS",
-                "comment": "Good technical knowledge"
+                "comment": comment
             }
         ],
-        private_note="Seed evaluation"
+        private_note="Demo değerlendirmesi"
     )
 
     # Refresh engagement to get updated status/version after evaluation
@@ -735,7 +822,7 @@ def _create_verified_engagement(
         engagement_id=str(engagement.id),
         requested_claim_type="COMPETENCE",
         version=engagement.version,
-        skill_id=str(sample_skill.id)
+        skill_id=str(skill.id)
     )
 
     return engagement
@@ -770,29 +857,45 @@ def seed_engagements(session: Session) -> None:
         print("Engagements seed: 0 inserted, 15 already exist (idempotent)")
         return
 
-    # Fetch all students, institutions, organizations, and one skill for evaluations
-    students = session.execute(
-        select(TalentProfile).join(
+    # Fetch seed students (ogrenci1..20), institutions and organizations in seed order:
+    # ENGAGEMENTS_DATA[eng_idx] is written for the student/organization picked below.
+    student_rows = session.execute(
+        select(User.email, TalentProfile).join(
             User, TalentProfile.user_id == User.id
         ).where(
             User.email.like("ogrenci%@seed.local")
         )
-    ).scalars().all()
+    ).all()
+    students = [
+        tp for _, tp in sorted(student_rows, key=lambda r: int(r[0].removeprefix("ogrenci").split("@")[0]))
+    ]
 
-    institutions = session.execute(select(Institution)).scalars().all()
-    organizations = session.execute(select(Organization)).scalars().all()
+    inst_by_domain = {
+        inst.domain: inst
+        for inst in session.execute(select(Institution).where(Institution.domain.like("inst%.seed.local"))).scalars()
+    }
+    institutions = [inst_by_domain[f"inst{i}.seed.local"] for i in range(1, 6) if f"inst{i}.seed.local" in inst_by_domain]
+    org_by_legal_id = {
+        org.legal_id: org
+        for org in session.execute(select(Organization).where(Organization.legal_id.like("ORG%"))).scalars()
+    }
+    organizations = [org_by_legal_id[f"ORG{i}"] for i in range(1, 6) if f"ORG{i}" in org_by_legal_id]
 
-    # Get a sample skill for evaluations
-    sample_skill = session.execute(select(Skill).where(Skill.slug == "python")).scalars().first()
+    skills = {
+        skill.slug: skill
+        for skill in session.execute(
+            select(Skill).where(Skill.slug.in_({row[2] for row in ENGAGEMENTS_DATA}))
+        ).scalars()
+    }
 
-    if not students or not institutions or not organizations or not sample_skill:
+    if not students or not institutions or not organizations or len(skills) < len({row[2] for row in ENGAGEMENTS_DATA}):
         print("Warning: Cannot seed engagements — missing students, institutions, organizations, or skills")
         return
 
     inserted_count = 0
 
     # Create 15 engagements
-    for eng_idx in range(15):
+    for eng_idx in range(len(ENGAGEMENTS_DATA)):
         # Distribute talents unevenly (some students 0, some 1-2 engagements)
         talent_idx = (eng_idx * 7) % len(students)  # Unevenness via prime number modulo
         talent = students[talent_idx]
@@ -806,10 +909,16 @@ def seed_engagements(session: Session) -> None:
             talent=talent,
             organization=organization,
             institution=institution,
-            sample_skill=sample_skill,
+            skill=skills[ENGAGEMENTS_DATA[eng_idx][2]],
             eng_idx=eng_idx
         )
         inserted_count += 1
+
+    # Students without an engagement still belong to an institution, so no demo
+    # account lands on the "not linked to an institution" screen.
+    for i, talent in enumerate(students):
+        if talent.institution_id is None:
+            _link_to_institution(session, talent, institutions[i % len(institutions)])
 
     print(f"Engagements seed complete: {inserted_count} inserted")
 

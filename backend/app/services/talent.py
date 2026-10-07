@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import and_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import TalentProfile, User
@@ -27,13 +28,12 @@ def get_me_context(principal: Principal, user: User, session: Session) -> dict:
         session: Database session
 
     Returns:
-        Dict with keys: user, talent_profile, organizations, institutions
+        Dict with keys: user, talent_profile, organizations, institutions.
+        talent_profile is None for users without one (e.g. the seeded platform admin).
     """
     # Get talent profile for this user via scoped query
     talent_query = scoped_talent_profiles(session, principal)
-    talent = get_scoped_or_404(talent_query, session)  # Guaranteed by register invariant
-    if talent is None:
-        raise ValueError("TalentProfile not found for authenticated user — register invariant violated")
+    talent = get_scoped_or_404(talent_query, session)
 
     # Get organizations this user is member of via scoped query
     org_query = scoped_organizations(session, principal)
@@ -97,6 +97,17 @@ def update_talent_profile(
     # Update timestamp
     talent_profile.updated_at = datetime.now(timezone.utc)
 
-    session.flush()
+    # The pre-check above has a race window: two concurrent requests can both
+    # pass it for the same free slug, then both try to commit. The DB's unique
+    # constraint on public_slug is the real guard — catch its violation here
+    # and translate it to the same SlugTakenError instead of letting a bare
+    # IntegrityError surface as a 500.
+    try:
+        session.flush()
+    except IntegrityError:
+        session.rollback()
+        if "public_slug" in updates:
+            raise SlugTakenError(f"Slug {updates['public_slug']} is already taken")
+        raise
 
     return talent_profile

@@ -13,9 +13,13 @@ Status: Tests are RED/IMPORT-ERROR — implementation not yet written.
 This is expected behavior. Tests implement behavior contract (ATDD).
 """
 
+from unittest.mock import MagicMock
+
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app.models import TalentProfile, User
+from app.services.talent import SlugTakenError, update_talent_profile
 
 
 # ============================================================================
@@ -253,6 +257,28 @@ class TestGetMe:
         assert "org_admin_ids" not in user_obj, "Response must not contain org_admin_ids"
         assert "supervisor_institution_ids" not in user_obj, "Response must not contain supervisor_institution_ids"
 
+    def test_get_me_user_without_talent_profile_returns_null_profile(
+        self, client, session, platform_admin_user, user_talent_a, talent_a
+    ):
+        """
+        GET /me for a user with no TalentProfile (e.g. the seeded platform admin)
+        returns 200 with talent_profile: null instead of 404.
+
+        A 404 here made the frontend shell treat the session as broken, so such
+        users could not use the app at all. Another talent's profile exists in
+        the database and must not leak into the response.
+        """
+        response = client.get("/me", headers={"X-Debug-User-Id": str(platform_admin_user.id)})
+
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+
+        data = response.json()
+        assert data["talent_profile"] is None
+        assert data["user"]["id"] == str(platform_admin_user.id)
+        assert data["user"]["is_platform_admin"] is True
+        assert data["organizations"] == []
+        assert data["institutions"] == []
+
 
 # ============================================================================
 # AC-3: PATCH /talents/me — Update talent profile (valid fields)
@@ -342,6 +368,163 @@ class TestPatchTalentMe:
         assert response.status_code == 200
         data = response.json()
         assert data["public_slug"] == "my-unique-slug"
+
+    def test_patch_talents_me_full_name_updates(self, client, session, user_talent_a, talent_a):
+        """
+        IS-09 regression: full_name was missing from the request schema and
+        the update loop, so it could never be changed via PATCH /talents/me.
+        """
+        payload = {"full_name": "Updated Full Name"}
+
+        response = client.patch("/talents/me", json=payload, headers={"X-Debug-User-Id": str(user_talent_a.id)})
+
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        data = response.json()
+        assert data["full_name"] == "Updated Full Name"
+
+        db_profile = session.query(TalentProfile).filter_by(id=talent_a.id).first()
+        assert db_profile.full_name == "Updated Full Name"
+
+
+# ============================================================================
+# IS-09 regression: explicit null clears a nullable field instead of being
+# silently ignored (the old "is not None" check could not tell "not sent"
+# apart from "sent as null").
+# ============================================================================
+
+
+class TestClearNullableField:
+    """A clearable field (headline/city/department/study_year/public_slug) can be unset via explicit null."""
+
+    @pytest.mark.parametrize("field,initial", [
+        ("headline", "Some Headline"),
+        ("city", "Istanbul"),
+        ("department", "AI/ML"),
+        ("study_year", 3),
+        ("public_slug", "to-be-cleared"),
+    ])
+    def test_patch_talents_me_clears_field_with_explicit_null(self, client, session, user_talent_a, talent_a, field, initial):
+        # First set the field to a real value.
+        setattr(talent_a, field, initial)
+        session.flush()
+
+        # Then explicitly clear it with null — must NOT be silently dropped.
+        response = client.patch(
+            "/talents/me",
+            json={field: None},
+            headers={"X-Debug-User-Id": str(user_talent_a.id)},
+        )
+
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        assert response.json()[field] is None
+
+        session.refresh(talent_a)
+        assert getattr(talent_a, field) is None
+
+    def test_patch_talents_me_full_name_null_rejected_422(self, client, session, user_talent_a, talent_a):
+        """full_name is NOT NULL in the DB — explicit null must 422, not clear it."""
+        response = client.patch(
+            "/talents/me",
+            json={"full_name": None},
+            headers={"X-Debug-User-Id": str(user_talent_a.id)},
+        )
+
+        assert response.status_code == 422
+        assert response.json()["code"] == "FIELD_REQUIRED"
+
+        db_profile = session.query(TalentProfile).filter_by(id=talent_a.id).first()
+        assert db_profile.full_name == "Test Talent A"
+
+    def test_patch_talents_me_visibility_null_rejected_422(self, client, session, user_talent_a, talent_a):
+        """visibility is NOT NULL in the DB — explicit null must 422, not clear it."""
+        response = client.patch(
+            "/talents/me",
+            json={"visibility": None},
+            headers={"X-Debug-User-Id": str(user_talent_a.id)},
+        )
+
+        assert response.status_code == 422
+        assert response.json()["code"] == "FIELD_REQUIRED"
+
+        db_profile = session.query(TalentProfile).filter_by(id=talent_a.id).first()
+        assert db_profile.visibility == "PRIVATE"
+
+
+# ============================================================================
+# IS-09 regression: public_slug format validation
+# ============================================================================
+
+
+class TestPublicSlugFormat:
+    """public_slug must be URL-safe: lowercase letters, digits, hyphens only."""
+
+    @pytest.mark.parametrize("bad_slug", [
+        "Has Uppercase",
+        "has spaces",
+        "-leading-hyphen",
+        "trailing-hyphen-",
+        "tr//slash",
+        "émoji-ç",
+        "",
+    ])
+    def test_patch_talents_me_public_slug_invalid_format_422(self, client, session, user_talent_a, talent_a, bad_slug):
+        response = client.patch(
+            "/talents/me",
+            json={"public_slug": bad_slug},
+            headers={"X-Debug-User-Id": str(user_talent_a.id)},
+        )
+
+        assert response.status_code == 422, f"Expected 422 for slug={bad_slug!r}, got {response.status_code}"
+
+        db_profile = session.query(TalentProfile).filter_by(id=talent_a.id).first()
+        assert db_profile.public_slug is None
+
+
+# ============================================================================
+# IS-09 regression: public_slug uniqueness race condition → 409, not 500
+# ============================================================================
+
+
+class TestPublicSlugRaceCondition:
+    """
+    The pre-check (SELECT then UPDATE) has a TOCTOU window: two concurrent
+    requests can both pass the SELECT for the same free slug. The DB's unique
+    constraint is the real guard — its violation must surface as SlugTakenError
+    (→ 409), not as a raw IntegrityError (→ 500).
+
+    Real cross-connection concurrency isn't reproducible under this test
+    fixture (each test runs inside one outer transaction), so this unit-tests
+    the service function directly with a mocked session that simulates the
+    race: the pre-check reports no conflict, but flush() still raises
+    IntegrityError, exactly as Postgres would when another transaction wins
+    the race first.
+    """
+
+    def test_integrity_error_on_flush_becomes_slug_taken_error(self):
+        talent_profile = MagicMock()
+        talent_profile.id = "fake-profile-id"
+
+        session = MagicMock()
+        session.execute.return_value.scalar_one_or_none.return_value = None  # pre-check: no conflict seen
+        session.flush.side_effect = IntegrityError("stmt", {}, Exception("duplicate key value violates unique constraint"))
+
+        with pytest.raises(SlugTakenError):
+            update_talent_profile(talent_profile, {"public_slug": "race-slug"}, session)
+
+        session.rollback.assert_called_once()
+
+    def test_integrity_error_on_flush_without_slug_update_propagates(self):
+        """A non-slug IntegrityError must not be swallowed as a false SLUG_TAKEN."""
+        talent_profile = MagicMock()
+        talent_profile.id = "fake-profile-id"
+
+        session = MagicMock()
+        session.flush.side_effect = IntegrityError("stmt", {}, Exception("some other constraint"))
+
+        with pytest.raises(IntegrityError):
+            update_talent_profile(talent_profile, {"headline": "x"}, session)
+
+        session.rollback.assert_called_once()
 
 
 # ============================================================================

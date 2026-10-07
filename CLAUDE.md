@@ -45,6 +45,7 @@ Bu dosyada `@import` **bilinçli olarak yok**: import edilen dosyalar her oturum
 | Lint + tip | `ruff check . && mypy app` · frontend: `npm run lint && npm run typecheck` |
 | Migration | `alembic revision --autogenerate -m "..."` · uygula: `alembic upgrade head` |
 | Seed verisi | `python -m scripts.seed` |
+| Demo sıfırla | `python -m scripts.reset_demo --yes [--reseed]` (skills hariç tüm tabloları TRUNCATE; prod'da çalışmaz) |
 
 *(Komutlar proje kurulduğunda kesinleşecek; değişirse bu tablo güncellenir.)*
 

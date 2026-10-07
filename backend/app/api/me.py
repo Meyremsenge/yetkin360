@@ -1,5 +1,6 @@
 """User profile endpoints (GET /me, PATCH /talents/me)."""
 
+import re
 import uuid
 from datetime import datetime
 
@@ -81,20 +82,43 @@ class GetMeResponse(BaseModel):
     """Response schema for GET /me."""
 
     user: UserResponse
-    talent_profile: TalentProfileResponse
+    talent_profile: TalentProfileResponse | None = None
     organizations: list[OrganizationResponse]
     institutions: list[InstitutionResponse]
+
+
+PUBLIC_SLUG_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
 
 class UpdateTalentProfileRequest(BaseModel):
     """Request schema for PATCH /talents/me."""
 
+    full_name: str | None = Field(None, max_length=255)
     headline: str | None = Field(None, max_length=255)
     city: str | None = Field(None, max_length=100)
     department: str | None = Field(None, max_length=100)
     study_year: int | None = None
     visibility: str | None = None
     public_slug: str | None = Field(None, max_length=100)
+
+    @field_validator("full_name")
+    @classmethod
+    def validate_full_name(cls, v):
+        """full_name gönderildiyse boş/whitespace-only olamaz (NOT NULL alan)."""
+        if v is not None and not v.strip():
+            raise ValueError("full_name boş olamaz")
+        return v
+
+    @field_validator("public_slug")
+    @classmethod
+    def validate_public_slug(cls, v):
+        """public_slug URL-güvenli biçimde olmalı: küçük harf, rakam, tire."""
+        if v is not None and not PUBLIC_SLUG_PATTERN.match(v):
+            raise ValueError(
+                "public_slug yalnızca küçük harf, rakam ve tire (-) içerebilir; "
+                "tire ile başlayıp bitemez"
+            )
+        return v
 
     @field_validator("study_year")
     @classmethod
@@ -135,10 +159,8 @@ def get_me(
     Security:
         - AC-S1: Query/body parameters are ignored, authenticated user's context only
     """
-    try:
-        context = get_me_context(principal, user, session)
-    except ValueError:
-        raise HTTPException(status_code=404, detail={"code": "TALENT_PROFILE_NOT_FOUND", "message": "Talent profili bulunamadı.", "request_id": None})
+    context = get_me_context(principal, user, session)
+    talent_profile = context["talent_profile"]
 
     # Build response
     org_responses = [
@@ -155,7 +177,9 @@ def get_me(
             email_verified=user.email_verified_at is not None,
             is_platform_admin=user.is_platform_admin,
         ),
-        talent_profile=TalentProfileResponse.from_orm(context["talent_profile"]),
+        talent_profile=(
+            TalentProfileResponse.from_orm(talent_profile) if talent_profile is not None else None
+        ),
         organizations=org_responses,
         institutions=inst_responses,
     )
@@ -177,15 +201,18 @@ def patch_talents_me(
     AC-3 through AC-7: Update current user's talent profile.
 
     Accepts:
-        - headline, city, department, study_year, visibility, public_slug
+        - full_name, headline, city, department, study_year, visibility, public_slug
         - Ignores: institution_id, user_id, id, talent_profile_id (if sent)
+        - Explicit null on a clearable field (headline/city/department/study_year/
+          public_slug) clears it; full_name/visibility cannot be cleared (NOT NULL)
 
     Returns:
         200 + updated TalentProfile
 
     Errors:
         - 409 SLUG_TAKEN: public_slug already in use (atomicity: no update)
-        - 422: Invalid study_year (not 1-8) or visibility (invalid enum)
+        - 422: Invalid study_year (not 1-8), visibility (invalid enum), public_slug
+          (invalid format), or full_name/visibility explicitly set to null
 
     Security:
         - AC-S2: Body ID fields ignored, always updates authenticated user's profile (principal.talent_id)
@@ -197,11 +224,27 @@ def patch_talents_me(
     if not talent_profile:
         raise HTTPException(status_code=404, detail={"code": "TALENT_PROFILE_NOT_FOUND", "message": "Talent profili bulunamadı.", "request_id": None})
 
-    # Extract only provided, valid fields (ignore institution_id, user_id, etc.)
+    # Extract only explicitly-provided fields (ignore institution_id, user_id, etc.).
+    # Use model_fields_set, not "is not None", so an explicit null on a clearable
+    # field (headline/city/department/study_year/public_slug) actually clears it
+    # instead of being silently dropped.
+    required_fields = {"full_name", "visibility"}
+    set_fields = payload.model_fields_set
     updates = {}
-    for field in ["headline", "city", "department", "study_year", "visibility", "public_slug"]:
-        if getattr(payload, field) is not None:
-            updates[field] = getattr(payload, field)
+    for field in ["full_name", "headline", "city", "department", "study_year", "visibility", "public_slug"]:
+        if field not in set_fields:
+            continue
+        value = getattr(payload, field)
+        if value is None and field in required_fields:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "FIELD_REQUIRED",
+                    "message": f"{field} alanı boş bırakılamaz.",
+                    "request_id": None,
+                },
+            )
+        updates[field] = value
 
     # Update profile (handles validation, slug uniqueness check, atomicity)
     try:
