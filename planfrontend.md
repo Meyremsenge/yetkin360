@@ -173,7 +173,7 @@ CLAUDE.md gereği bunlar senin onayın olmadan yapılmaz:
 
 ### Faz 0 — Demo engelleri (Gün 1, ilk 1 saat)
 
-- [ ] **FE-00** `alembic upgrade head` (K-1 onayıyla) → `GET /engagements` 200 doğrula. **P0**
+- [x] **FE-00** `alembic upgrade head` (K-1 onayıyla) → `GET /engagements` 200 doğrula. **P0** _(zaten güncel bulundu: `alembic current` = `d85a0529f295` = heads; 177 engagement testi PASS ile doğrulandı, migration çalıştırmaya gerek kalmadı)_
 - [ ] **FE-01** Seed hesaplarının her rolle giriş yapabildiğini doğrula (öğrenci, kuruluş admini, kurum admini/koordinatör, platform admini) ve hangi hesabın hangi ekranı göstereceğini `§5` tablosuna yaz. **P0**
 - [ ] **FE-02** Seed verisinde en az bir `VERIFIED` çalışma + paylaşılabilir `/v/[token]` ve `public_slug`'lı bir profil olduğunu doğrula (yoksa PLAN 3.28 ile birlikte ele al — backend işi, ayrı onay). **P0**
 
@@ -181,7 +181,7 @@ CLAUDE.md gereği bunlar senin onayın olmadan yapılmaz:
 
 Hedef: sayfalara dokunmadan önce her sayfanın kullanacağı yapı taşları hazır.
 
-- [ ] **FE-03** Token'lar + font: `globals.css`, `tailwind.config.ts` (`§1.2`, `§1.3`); `layout.tsx`'te Inter kaldırılır, Source Serif 4 + IBM Plex Sans + IBM Plex Mono (`latin-ext`) eklenir. Tailwind'in varsayılan renkleri config'den **çıkarılmaz** (dönüştürülmemiş ekranlar renksiz kalır); onun yerine FE-30'daki `grep` sayacı her gün izlenir ve yeni kodda sıfır olmalıdır. **P0**
+- [x] **FE-03** Token'lar + font: `globals.css`, `tailwind.config.ts` (`§1.2`, `§1.3`); `layout.tsx`'te Inter kaldırılır, Source Serif 4 + IBM Plex Sans + IBM Plex Mono (`latin-ext`) eklenir. Tailwind'in varsayılan renkleri config'den **çıkarılmaz** (dönüştürülmemiş ekranlar renksiz kalır); onun yerine FE-30'daki `grep` sayacı her gün izlenir ve yeni kodda sıfır olmalıdır. **P0** _(commit `81eb150`, `obss_project/artifacts/fe03-token-font-degisimi/`)_
 - [ ] **FE-04** Kontrast kontrolü: §1.2'deki hesaplanmış değerleri token'lar koda girdikten sonra küçük bir unit testle sabitle (renk değişirse test kırılır). **P0**
 - [ ] **FE-05** İlkellerin yeniden yazımı (`components/ui/`): `Button` (variant: primary/secondary/outline/ghost/destructive, `loading` durumu, ikon desteği, görünür focus ring), `Input`, `Textarea`, `Select`, `Label`, `Card` (+`CardHeader/CardTitle/CardContent/CardFooter`), `Badge`, `Alert`. Testler K-5'e göre güncellenir. **P0**
 - [ ] **FE-06** Yeni ilkeller: `Skeleton`, `Spinner`, `Avatar` (baş harf), `Separator`, `Tabs`, `DropdownMenu`, `Dialog` (K-3). **P0**
