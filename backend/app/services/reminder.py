@@ -8,6 +8,7 @@ import uuid
 from sqlalchemy.orm import Session
 
 from app.models import Engagement, Outbox
+from app.services import rate_limit
 from app.services.audit import log_audit_event
 from app.services.authorization import scoped_engagements, Principal
 
@@ -35,10 +36,12 @@ def create_reminders(
         session: SQLAlchemy Session
 
     Returns:
-        int: Count of engagements queued (0 if all filtered out)
+        int: Count of engagements queued (0 if all filtered out or already reminded
+        for this template within 24 h — YET-213)
 
     Raises:
         ValueError: If template is empty/invalid (Pydantic validates this, but explicit here)
+        rate_limit.RateLimitExceeded: Institution exceeded 20 reminder requests/hour (→ 429)
 
     Transaction safety: All outbox + audit_event rows inserted in single transaction.
     If any error occurs, entire transaction is rolled back.
@@ -58,10 +61,23 @@ def create_reminders(
     )
     valid_engagements = session.execute(scoped_query).scalars().all()
 
+    # YET-213: quota + per-target dedupe. Both counters commit on their own (see
+    # rate_limit._hit), so every hit happens BEFORE any outbox/audit row is added;
+    # otherwise that commit would split the single-transaction guarantee.
+    # The quota is charged only after the scope check above (unauthorized callers
+    # never reach here), and only for requests that match at least one engagement.
+    if valid_engagements:
+        rate_limit.hit(session, rate_limit.REMINDER_INSTITUTION, str(institution_id))
+    fresh_engagements = [
+        engagement
+        for engagement in valid_engagements
+        if rate_limit.try_hit(session, rate_limit.REMINDER_TARGET, f"{engagement.id}:{template}")
+    ]
+
     queued_count = 0
 
-    # Create outbox entry for each valid engagement
-    for engagement in valid_engagements:
+    # Create outbox entry for each engagement not reminded within the dedupe window
+    for engagement in fresh_engagements:
         outbox_entry = Outbox(
             topic=f"reminder.{template}",
             payload={
@@ -86,7 +102,7 @@ def create_reminders(
             metadata={
                 "template": template,
                 "queued_count": queued_count,
-                "engagement_ids": [str(eng.id) for eng in valid_engagements],
+                "engagement_ids": [str(eng.id) for eng in fresh_engagements],
             },
         )
 

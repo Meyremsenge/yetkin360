@@ -25,7 +25,7 @@ import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete
+from sqlalchemy import and_, delete, or_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -51,8 +51,32 @@ RESET_PASSWORD_IP = Rule("reset_password_ip", 20, 3600)
 VERIFY_EMAIL_IP = Rule("verify_email_ip", 20, 3600)
 REFRESH_IP = Rule("refresh_ip", 60, 60)
 
-# Longest window above is 1 hour; keep rows for twice that before purging.
-_RETENTION = timedelta(hours=2)
+# YET-213: bulk reminders. Per-institution request quota, and one reminder per
+# (engagement, template) per day so repeated calls cannot bloat the outbox.
+REMINDER_INSTITUTION = Rule("reminder_institution", 20, 3600)
+REMINDER_TARGET = Rule("reminder_target", 1, 86400)
+
+_RULES = (
+    LOGIN_IP,
+    LOGIN_ACCOUNT,
+    REGISTER_IP,
+    REGISTER_ACCOUNT,
+    FORGOT_PASSWORD_IP,
+    FORGOT_PASSWORD_ACCOUNT,
+    RESET_PASSWORD_IP,
+    VERIFY_EMAIL_IP,
+    REFRESH_IP,
+    REMINDER_INSTITUTION,
+    REMINDER_TARGET,
+)
+
+# Keep a bucket's rows for twice its window (at least 2 hours) before purging;
+# a flat 2 hours would wipe the live 1-day REMINDER_TARGET windows.
+_MIN_RETENTION = timedelta(hours=2)
+
+
+def _retention(rule: Rule) -> timedelta:
+    return max(_MIN_RETENTION, timedelta(seconds=2 * rule.window_seconds))
 _CLEANUP_ONE_IN = 100
 
 
@@ -107,13 +131,36 @@ def _hit(session: Session, rule: Rule, value: str) -> None:
     count = session.execute(stmt).scalar_one()
 
     if secrets.randbelow(_CLEANUP_ONE_IN) == 0:
-        session.execute(delete(AuthRateLimit).where(AuthRateLimit.window_start < now - _RETENTION))
+        session.execute(
+            delete(AuthRateLimit).where(
+                or_(
+                    *(
+                        and_(AuthRateLimit.bucket == r.bucket, AuthRateLimit.window_start < now - _retention(r))
+                        for r in _RULES
+                    )
+                )
+            )
+        )
 
     session.commit()
 
     if count > rule.limit:
         retry_after = window_start_epoch + rule.window_seconds - epoch
         raise RateLimitExceeded(max(1, retry_after))
+
+
+def hit(session: Session, rule: Rule, value: str) -> None:
+    """Count one event against `rule`; raises RateLimitExceeded when over the limit."""
+    _hit(session, rule, value)
+
+
+def try_hit(session: Session, rule: Rule, value: str) -> bool:
+    """Like hit(), but returns False instead of raising when over the limit."""
+    try:
+        _hit(session, rule, value)
+    except RateLimitExceeded:
+        return False
+    return True
 
 
 def enforce(

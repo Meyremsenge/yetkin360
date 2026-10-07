@@ -346,6 +346,11 @@ onayından gelir.
 
 **`/reminders` `202` döner, `200` değil** — e-postalar `outbox` üzerinden
 asenkron gönderilir, istek anında gönderilmez ([DATABASE.md](DATABASE.md) §5).
+Sınırlar (YET-213): `engagement_ids` en fazla 100, `template` kapalı küme
+(şimdilik yalnız `evaluation_pending`; dışı `422`), aynı (engagement, template)
+için 24 saatte 1 hatırlatma (tekrarlar sessizce atlanır, `queued_count`'a girmez),
+kurum başına saatte 20 istek (aşım `429 RATE_LIMITED` + `Retry-After`).
+Yetkisiz çağıran her zaman `404` alır ve kota harcamaz.
 
 ### 2.6 Engagement — `/engagements`
 
