@@ -1,5 +1,12 @@
 import "@testing-library/jest-dom/vitest";
-import { beforeEach } from "vitest";
+import { beforeEach, vi } from "vitest";
+
+// Mock next/font/google for testing
+vi.mock("next/font/google", () => ({
+  Inter: () => ({
+    className: "mock-inter-font",
+  }),
+}));
 
 // localStorage mock for test suites
 const mockStorage: Record<string, string> = {};

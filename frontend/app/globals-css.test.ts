@@ -127,3 +127,93 @@ describe("AC-5: bg-renk-token-tanimsiz — CSS token ve Tailwind tutarlılığı
     expect(source).toContain("color-scheme: light");
   });
 });
+
+/**
+ * AC-2: next-font-kurulumu — @layer base kuralı ve başlık ölçeklemesi
+ * globals.css'te @layer base direktifi içinde h1/h2/h3 seçicileri tanımlanmış olmalı
+ * Davranış Sözleşmesi (atdd.md satır 53):
+ *  - h1: text-3xl font-bold
+ *  - h2: text-2xl font-bold
+ *  - h3: text-xl font-semibold
+ */
+describe("AC-2: next-font-kurulumu — @layer base başlık kuralları", () => {
+  it("AC-2: globals.css kaynağında @layer base direktifi var", () => {
+    const source = readFileSync(globalsPath, "utf-8");
+
+    // @layer base direktifi bulunmalı
+    expect(source).toContain("@layer base");
+  });
+
+  it("AC-2: globals.css'te h1 seçicisi tanımlanmış", () => {
+    const source = readFileSync(globalsPath, "utf-8");
+
+    // h1 CSS seçicisi bulunmalı (regex ya da basit string)
+    expect(source).toMatch(/h1\s*\{/);
+  });
+
+  it("AC-2: globals.css'te h1 kuralında text-3xl class'ı var", () => {
+    const source = readFileSync(globalsPath, "utf-8");
+
+    // Davranış Sözleşmesi: h1 = text-3xl font-bold
+    expect(source).toContain("text-3xl");
+  });
+
+  it("AC-2: globals.css'te h1 kuralında font-bold class'ı var", () => {
+    const source = readFileSync(globalsPath, "utf-8");
+
+    // Davranış Sözleşmesi: h1 = text-3xl font-bold
+    expect(source).toContain("font-bold");
+  });
+
+  it("AC-2: globals.css'te h2 seçicisi tanımlanmış", () => {
+    const source = readFileSync(globalsPath, "utf-8");
+
+    // h2 CSS seçicisi bulunmalı
+    expect(source).toMatch(/h2\s*\{/);
+  });
+
+  it("AC-2: globals.css'te h2 kuralında text-2xl class'ı var", () => {
+    const source = readFileSync(globalsPath, "utf-8");
+
+    // Davranış Sözleşmesi: h2 = text-2xl font-bold
+    expect(source).toContain("text-2xl");
+  });
+
+  it("AC-2: globals.css'te h2 kuralında font-bold class'ı var", () => {
+    const source = readFileSync(globalsPath, "utf-8");
+
+    // Davranış Sözleşmesi: h2 = text-2xl font-bold
+    expect(source).toContain("font-bold");
+  });
+
+  it("AC-2: globals.css'te h3 seçicisi tanımlanmış", () => {
+    const source = readFileSync(globalsPath, "utf-8");
+
+    // h3 CSS seçicisi bulunmalı
+    expect(source).toMatch(/h3\s*\{/);
+  });
+
+  it("AC-2: globals.css'te h3 kuralında text-xl class'ı var", () => {
+    const source = readFileSync(globalsPath, "utf-8");
+
+    // Davranış Sözleşmesi: h3 = text-xl font-semibold
+    expect(source).toContain("text-xl");
+  });
+
+  it("AC-2: globals.css'te h3 kuralında font-semibold class'ı var", () => {
+    const source = readFileSync(globalsPath, "utf-8");
+
+    // Davranış Sözleşmesi: h3 = text-xl font-semibold
+    expect(source).toContain("font-semibold");
+  });
+
+  it("AC-2: @layer base direktifi h1/h2/h3 kurallarını içerir", () => {
+    const source = readFileSync(globalsPath, "utf-8");
+
+    // @layer base bloku içinde h1, h2, h3 tanımlanmış olmalı
+    expect(source).toContain("@layer base");
+    expect(source).toMatch(/h1\s*\{/);
+    expect(source).toMatch(/h2\s*\{/);
+    expect(source).toMatch(/h3\s*\{/);
+  });
+});

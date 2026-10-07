@@ -5,6 +5,15 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## next-font-kurulumu — YET-249 Inter font + başlık ölçeği (2026-10-06)
+
+**Kaynak:** `obss_project/artifacts/next-font-kurulumu/` — YET-247'nin alt görevi.
+
+### Gerçek zorluk/bug (kaynak: code_diff.md, verify_report.md)
+- **`.next` build çıktısına bu ortamda dosya sistemi izni engelliydi** — AC-4'ü (self-host, runtime'da Google'a ağ çağrısı yok) statik build dosyası okuyarak doğrulamak yerine canlı Browser pane ile `read_network_requests` kullanılarak doğrulandı (`fonts.googleapis.com`/`fonts.gstatic.com`'a hiç istek gitmediği teyit edildi).
+- **Bir test `renderToStaticMarkup`'ın HTML çıktısında literal `"className"` string'i arıyordu** — HTML'de JSX'in `className` prop'u her zaman `"class"` attribute'üne dönüşür, bu test implementasyon ne olursa olsun hep kırmızı kalırdı. Gerçek koşuyla (alt-ajanın "1 test yanlış yazılmış" iddiasına güvenilmeden) doğrulanıp mock class adını (`mock-inter-font`) arayacak şekilde düzeltildi.
+- `vitest.setup.ts`'e eklenen global `next/font/google` mock'u (jsdom'un gerçek Next.js font-loading webpack mekanizmasını çalıştıramaması nedeniyle gerekli) diğer testleri etkilemediği (1155/1155 PASS) doğrulandı.
+
 ## tasarim-sistemi-temel-bilesenler — YET-247 Card/Badge/Alert + Button variant (2026-10-06)
 
 **Kaynak:** `obss_project/artifacts/tasarim-sistemi-temel-bilesenler/` — Jira'nın geniş kapsamlı tasarım sistemi görevi (TASARIM-04), kullanıcı onayıyla DARALTILDI: sadece bileşen kurulumu, mevcut sayfaların migrasyonu/marka rengi/font/boşluk standardizasyonu ayrı takip görevlerine bırakıldı.

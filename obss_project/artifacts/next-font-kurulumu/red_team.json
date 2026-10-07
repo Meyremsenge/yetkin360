@@ -1,0 +1,44 @@
+{
+  "task": "next-font-kurulumu",
+  "reviewed_at": "2026-10-06T00:00:00Z",
+  "summary": "Implementasyon atdd.md ile birebir örtüşüyor: Inter next/font/google ile eklendi, mevcut body class'ları korundu, h1/h2/h3 @layer base ile sabitlendi (Tailwind specificity nedeniyle mevcut sayfa class'ları bozulmuyor), vitest.setup.ts'teki global mock yalnızca next/font/google'ı hedefliyor ve diğer testleri etkilemiyor. Küçük, düşük riskli, kapsam dışına taşmayan bir değişiklik.",
+  "findings": [
+    {
+      "severity": "low",
+      "category": "test-gap",
+      "file": "frontend/app/layout.test.tsx",
+      "issue": "AC-1 testi next/font/google'ın gerçek davranışını değil, vitest.setup.ts'teki mock çıktısını (mock-inter-font) doğruluyor. Testler üretim ortamında Inter font-family'nin gerçekten uygulandığını garanti etmiyor — bu güvence yalnızca verify_report.md'deki canlı tarayıcı kontrolüne dayanıyor.",
+      "better_approach": "Mevcut durum kabul edilebilir (jsdom gerçek webpack font-loading'i çalıştıramaz), ancak bu kısıt test dosyasında bir yorum satırıyla açıkça belirtilebilir.",
+      "reason": "Mock'un test güvencesinin sınırlarını belgelemek, ileride test-implementasyon karışıklığını önler."
+    }
+  ],
+  "strengths": [
+    "layout.tsx içinde mevcut bg-background text-foreground antialiased string'i silinmeden inter.className eklendi (AC-3 karşılanıyor).",
+    "globals.css'teki h1/h2/h3 kuralları element seçiciyle @layer base içinde tanımlanmış; Tailwind utility class'ları her zaman daha yüksek specificity'ye sahip olduğundan mevcut sayfalardaki inline class'lı başlıklar bozulmaz.",
+    "vitest.setup.ts'teki vi.mock(\"next/font/google\", ...) yalnızca o modülü mock'luyor, diğer global ayarlarla çakışmıyor; 1155/1155 test PASS bunu destekliyor.",
+    "Kapsam atdd.md ile tam örtüşüyor: sayfa migrasyonu (YET-251) veya marka rengi (YET-250) işine girilmemiş.",
+    "AC-4 (self-host, runtime'da Google'a ağ çağrısı yok) canlı network kontrolüyle doğrulanmış."
+  ],
+  "risks": [],
+  "caveman_review": {
+    "complexity": "low",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve"
+}
