@@ -1,0 +1,46 @@
+{
+  "task": "fe03-token-font-degisimi",
+  "reviewed_at": "2026-10-07T00:00:00Z",
+  "summary": "HSL token değerleri, 9 mevcut Tailwind color key'inin isim korunması, verified/muted-foreground eklenmesi ve latin-ext font desteği atdd.md ile birebir eşleşiyor; test/verify raporları (1172/1172 PASS) tutarlı. Bulunan bir medium sorun (plexSans.variable eksikliği) commit'ten önce düzeltildi.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "correctness",
+      "file": "frontend/app/layout.tsx",
+      "issue": "body className'e plexSans.className eklenmiş ama plexSans.variable eklenmemişti — --font-plex-sans CSS custom property'si DOM'da hiçbir yerde tanımlanmıyordu.",
+      "better_approach": "plexSans.variable da className'e eklendi.",
+      "reason": "tailwind.config.ts'te sans: [\"var(--font-plex-sans)\"] tanımlı; bu değişken DOM'da set edilmezse font-sans utility class'ı (FE-05'te component'lere eklenecek) tarayıcıda geçersiz değere düşerdi — DÜZELTİLDİ, commit öncesi."
+    }
+  ],
+  "strengths": [
+    "globals.css :root içindeki tüm HSL değerleri atdd.md Davranış Sözleşmesi tablosuyla satır satır birebir eşleşiyor.",
+    "9 mevcut Tailwind color key isminin DEĞİŞMEDİĞİ, sadece CSS değişken değerlerinin değiştiği doğrulandı — Button/Card/Badge/Alert/ErrorBanner gibi hiçbir component dosyasının dokunulmadan çalışmaya devam etmesini garanti ediyor.",
+    "verified key'i gerçekten hsl(var(--success)) üzerinden tanımlanmış, ayrı bir --pine CSS değişkeni icat edilmemiş.",
+    "vitest.setup.ts'teki next/font/google mock'u genişletilirken mevcut Inter mock'u silinmeden korunmuş.",
+    "Üç font da subsets: [\"latin\", \"latin-ext\"] ile tanımlanmış, AC-2 canlı ekran görüntüsüyle de doğrulanmış."
+  ],
+  "risks": [
+    "Bu iş YET-249/YET-250'nin (Inter/indigo) üzerine sessizce yazılıyor; atdd.md bunu zaten not etmiş, commit adımında Jira durumunun güncellenmesi hatırlatılacak."
+  ],
+  "caveman_review": {
+    "complexity": "low",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve"
+}

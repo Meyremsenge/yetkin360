@@ -14,6 +14,13 @@ const config: Config = {
         destructive: "hsl(var(--destructive))",
         success: "hsl(var(--success))",
         warning: "hsl(var(--warning))",
+        "muted-foreground": "hsl(var(--ink-soft))",
+        verified: "hsl(var(--success))",
+      },
+      fontFamily: {
+        sans: ["var(--font-plex-sans)"],
+        serif: ["var(--font-source-serif)"],
+        mono: ["var(--font-plex-mono)"],
       },
     },
   },

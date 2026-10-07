@@ -6,6 +6,18 @@ vi.mock("next/font/google", () => ({
   Inter: () => ({
     className: "mock-inter-font",
   }),
+  Source_Serif_4: () => ({
+    className: "mock-source-serif-font",
+    variable: "--font-source-serif",
+  }),
+  IBM_Plex_Sans: () => ({
+    className: "mock-plex-sans-font",
+    variable: "--font-plex-sans",
+  }),
+  IBM_Plex_Mono: () => ({
+    className: "mock-plex-mono-font",
+    variable: "--font-plex-mono",
+  }),
 }));
 
 // localStorage mock for test suites

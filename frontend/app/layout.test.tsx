@@ -235,10 +235,10 @@ describe("RootLayout (app/layout.tsx)", () => {
   });
 
   /**
-   * AC-1: Next.js Font Integration — `next/font/google`'dan `Inter` import edilmeli
-   * layout.tsx kaynağında font import'u ve `Inter` tanımlaması
+   * AC-1: Next.js Font Integration — `next/font/google`'dan üç font import edilmeli
+   * layout.tsx kaynağında font import'u ve `Source Serif 4`, `IBM Plex Sans`, `IBM Plex Mono` tanımlaması
    */
-  describe("AC-1: next-font-kurulumu — Inter font import'u", () => {
+  describe("AC-1: next-font-kurulumu — üç font import'u (Source Serif 4, IBM Plex Sans, IBM Plex Mono)", () => {
     it("AC-1: layout.tsx kaynağında next/font/google import'u var", () => {
       const source = readFileSync(layoutPath, "utf-8");
 
@@ -246,14 +246,35 @@ describe("RootLayout (app/layout.tsx)", () => {
       expect(source).toContain("next/font/google");
     });
 
-    it("AC-1: layout.tsx kaynağında Inter font tanımlaması var", () => {
+    it("AC-1: layout.tsx kaynağında IBM_Plex_Sans font tanımlaması var", () => {
       const source = readFileSync(layoutPath, "utf-8");
 
-      // layout.tsx'te "Inter" kelimesi geçmeli (import veya kullanım içinde)
-      expect(source).toContain("Inter");
+      // layout.tsx'te "IBM_Plex_Sans" kelimesi geçmeli (import veya kullanım içinde)
+      expect(source).toContain("IBM_Plex_Sans");
     });
 
-    it("AC-1: layout render'ında body elemanı font class'ı taşır", () => {
+    it("AC-1: layout.tsx kaynağında Source_Serif_4 font tanımlaması var", () => {
+      const source = readFileSync(layoutPath, "utf-8");
+
+      // layout.tsx'te "Source_Serif_4" kelimesi geçmeli
+      expect(source).toContain("Source_Serif_4");
+    });
+
+    it("AC-1: layout.tsx kaynağında IBM_Plex_Mono font tanımlaması var", () => {
+      const source = readFileSync(layoutPath, "utf-8");
+
+      // layout.tsx'te "IBM_Plex_Mono" kelimesi geçmeli
+      expect(source).toContain("IBM_Plex_Mono");
+    });
+
+    it("AC-1: layout.tsx kaynağında latin-ext desteği var (Türkçe karakter)", () => {
+      const source = readFileSync(layoutPath, "utf-8");
+
+      // layout.tsx'te "latin-ext" string'i geçmeli (subset tanımında)
+      expect(source).toContain("latin-ext");
+    });
+
+    it("AC-1: layout render'ında body elemanı IBM Plex Sans mock font class'ı taşır", () => {
       const result = renderToStaticMarkup(
         <RootLayout>
           <p>test content</p>
@@ -262,7 +283,7 @@ describe("RootLayout (app/layout.tsx)", () => {
 
       // next/font'un (test ortamında mock'lanan) ürettiği class, body'nin class attribute'ünde bulunmalı
       expect(result).toContain("<body");
-      expect(result).toContain("mock-inter-font");
+      expect(result).toContain("mock-plex-sans-font");
     });
   });
 

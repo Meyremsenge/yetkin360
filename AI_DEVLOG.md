@@ -5,6 +5,19 @@ Bu dosya, ATDD pipeline'ının her adımının kendi artefaktına (`atdd.md`,
 bilinçli kararları, kabul edilen riskleri ve gerçek zorlukları commit
 zamanında buraya **aktarır** — yeniden yorumlamaz.
 
+## fe03-token-font-degisimi — planfrontend.md FE-03 (2026-10-07)
+
+**Kaynak:** `obss_project/artifacts/fe03-token-font-degisimi/` — `planfrontend.md`'nin ("sunum öncesi frontend yeniden tasarım" planı) ilk büyük adımı.
+
+### Bilinçli kapsam/mimari kararları (kaynak: atdd.md)
+- **Bu görev, aynı oturumda daha önce yapılan YET-249 (Inter font) ve YET-250 (indigo `--primary`) commit'lerinin ÜZERİNE YAZILDI.** `planfrontend.md` keşfedildikten sonra kullanıcı bu kapsamlı planı takip etmeye karar verdi — planın kendi yasak listesi ("Mor, menekşe, indigo... yok", "Inter + text-slate-*... varsayılan 'Tailwind şablonu' görünümü") doğrudan bu iki önceki kararı geçersiz kıldı. Jira YET-249/250 "Tamamlandı" durumunda kalmaya devam ediyor ama gerçek kod artık onların açıklamalarıyla uyuşmuyor — ileride birinin bu commit geçmişini okuyup kafası karışmasın diye not düşülüyor.
+- `--primary` artık "ink" (mürekkep, neredeyse siyah) — marka rengi DEĞİL yeşil; yeşil (`--pine`/`success`) sadece "doğrulanmış" içerik için ayrı bir semantik rol. Bu, önceki "marka rengi = primary" modelinden kasıtlı bir sapma.
+- Mevcut 9 Tailwind color key ismi (`background`/`foreground`/`card`/`primary`/`muted`/`border`/`destructive`/`success`/`warning`) KORUNDU, sadece CSS custom property değerleri değişti — hiçbir component dosyasına (Button/Card/Badge/Alert/ErrorBanner) dokunulmadı.
+
+### Gerçek zorluk/bug (kaynak: code_diff.md, red_team.json)
+- **`plexSans.variable` eksikliği (red-team bulgusu):** `layout.tsx`'te body className'e `plexSans.className` eklenmiş ama `plexSans.variable` eklenmemişti — `tailwind.config.ts`'teki `font-sans: ["var(--font-plex-sans)"]` utility'sinin dayandığı CSS değişkeni DOM'da hiç tanımlanmıyordu. Bu, şu anki testlerde (body doğrudan className ile boyandığı için) görünmeyip gelecekteki FE-05 component migrasyonunda (`font-sans` class'ı ilk kullanıldığında) sessizce patlayacak bir zaman bombasıydı. Commit öncesi düzeltildi.
+- AC-7'nin (tam suite regresyon) atdd.md'deki Unknown'ı `plan` aşamasında gerçek `grep` ile çözüldü: hiçbir mevcut test tam HSL sayısal değerine bağımlı değildi (sadece `hsl(var(...))` kalıbını arıyorlardı) — bu, token değer değişikliğinin 1172 testin hiçbirini kırmayacağının önceden kanıtlanmasını sağladı.
+
 ## next-font-kurulumu — YET-249 Inter font + başlık ölçeği (2026-10-06)
 
 **Kaynak:** `obss_project/artifacts/next-font-kurulumu/` — YET-247'nin alt görevi.

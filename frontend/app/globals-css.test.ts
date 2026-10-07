@@ -129,6 +129,126 @@ describe("AC-5: bg-renk-token-tanimsiz — CSS token ve Tailwind tutarlılığı
 });
 
 /**
+ * AC-3: Yeni palet — 7 Tailwind color token'ının HSL değerleri güncellendi
+ * globals.css (:root) içinde yeni HSL değerleriyle tanımlanmalı
+ * Davranış Sözleşmesi (atdd.md satır 53-63) — tam HSL match
+ */
+describe("AC-3: fe03-token-font-degisimi — Tailwind color token'ları güncellendi", () => {
+  it("AC-3: globals.css'te success token yeni değeri 160 38% 24%", () => {
+    const source = readFileSync(globalsPath, "utf-8");
+
+    // --success: 160 38% 24%; (pine rengi)
+    expect(source).toContain("--success: 160 38% 24%");
+  });
+
+  it("AC-3: globals.css'te warning token yeni değeri 34 75% 32%", () => {
+    const source = readFileSync(globalsPath, "utf-8");
+
+    // --warning: 34 75% 32%; (ochre rengi)
+    expect(source).toContain("--warning: 34 75% 32%");
+  });
+
+  it("AC-3: globals.css'te destructive token yeni değeri 8 58% 40%", () => {
+    const source = readFileSync(globalsPath, "utf-8");
+
+    // --destructive: 8 58% 40%; (brick rengi)
+    expect(source).toContain("--destructive: 8 58% 40%");
+  });
+
+  it("AC-3: globals.css'te primary token yeni değeri 30 12% 12%", () => {
+    const source = readFileSync(globalsPath, "utf-8");
+
+    // --primary: 30 12% 12%; (ink rengi, foreground ile aynı)
+    expect(source).toContain("--primary: 30 12% 12%");
+  });
+
+  it("AC-3: globals.css'te muted token yeni değeri 38 20% 92%", () => {
+    const source = readFileSync(globalsPath, "utf-8");
+
+    // --muted: 38 20% 92%; (sand rengi)
+    expect(source).toContain("--muted: 38 20% 92%");
+  });
+
+  it("AC-3: globals.css'te border token yeni değeri 36 16% 86%", () => {
+    const source = readFileSync(globalsPath, "utf-8");
+
+    // --border: 36 16% 86%; (line rengi)
+    expect(source).toContain("--border: 36 16% 86%");
+  });
+
+  it("AC-3: globals.css'te card token yeni değeri 40 33% 99.5%", () => {
+    const source = readFileSync(globalsPath, "utf-8");
+
+    // --card: 40 33% 99.5%;
+    expect(source).toContain("--card: 40 33% 99.5%");
+  });
+});
+
+/**
+ * AC-4: Yeni palet — background token'ı güncellendi
+ * globals.css (:root) içinde yeni HSL değeriyle tanımlanmalı
+ * Davranış Sözleşmesi (atdd.md satır 55) — paper rengi
+ */
+describe("AC-4: fe03-token-font-degisimi — background token güncellendi", () => {
+  it("AC-4: globals.css'te background token yeni değeri 40 30% 97%", () => {
+    const source = readFileSync(globalsPath, "utf-8");
+
+    // --background: 40 30% 97%; (paper rengi — saf beyaz değil, krem tonu)
+    expect(source).toContain("--background: 40 30% 97%");
+  });
+
+  it("AC-4: globals.css'te foreground token yeni değeri 30 12% 12%", () => {
+    const source = readFileSync(globalsPath, "utf-8");
+
+    // --foreground: 30 12% 12%; (ink rengi — sıcak kömür)
+    expect(source).toContain("--foreground: 30 12% 12%");
+  });
+});
+
+/**
+ * AC-6: Yeni token'lar eklendi — muted-foreground, verified, fontFamily
+ * globals.css'te --ink-soft, tailwind.config.ts'te yeni color key'leri ve fontFamily
+ */
+describe("AC-6: fe03-token-font-degisimi — yeni token'lar ve fontFamily", () => {
+  it("AC-6: globals.css'te --ink-soft token yeni değeri 30 7% 36%", () => {
+    const source = readFileSync(globalsPath, "utf-8");
+
+    // --ink-soft: 30 7% 36%; (muted-foreground için)
+    expect(source).toContain("--ink-soft: 30 7% 36%");
+  });
+
+  it("AC-6: tailwind.config.ts'te muted-foreground color key tanımlı", () => {
+    const source = readFileSync(tailwindPath, "utf-8");
+
+    // muted-foreground veya mutedForeground key'i olmalı
+    expect(
+      source.includes("muted-foreground") || source.includes("mutedForeground")
+    ).toBe(true);
+  });
+
+  it("AC-6: tailwind.config.ts'te verified color key tanımlı", () => {
+    const source = readFileSync(tailwindPath, "utf-8");
+
+    // verified key'i olmalı
+    expect(source).toContain("verified");
+  });
+
+  it("AC-6: tailwind.config.ts'te fontFamily tanımı var", () => {
+    const source = readFileSync(tailwindPath, "utf-8");
+
+    // fontFamily key'i olmalı
+    expect(source).toContain("fontFamily");
+  });
+
+  it("AC-6: tailwind.config.ts'te muted-foreground hsl(var(--ink-soft))'a bağlı", () => {
+    const source = readFileSync(tailwindPath, "utf-8");
+
+    // muted-foreground veya mutedForeground "hsl(var(--ink-soft))" ile bağlıysa ✓
+    expect(source).toContain("--ink-soft");
+  });
+});
+
+/**
  * AC-2: next-font-kurulumu — @layer base kuralı ve başlık ölçeklemesi
  * globals.css'te @layer base direktifi içinde h1/h2/h3 seçicileri tanımlanmış olmalı
  * Davranış Sözleşmesi (atdd.md satır 53):
