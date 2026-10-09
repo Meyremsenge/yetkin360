@@ -198,7 +198,7 @@ Hedef: sayfalara dokunmadan önce her sayfanın kullanacağı yapı taşları ha
 
 ### Faz 2 — Kabuk ve navigasyon (Gün 1 sonu / Gün 2 başı)
 
-- [ ] **FE-09** `AppShell` yeniden düzeni: **P0**
+- [x] **FE-09** `AppShell` yeniden düzeni: **P0**
   - Masaüstü: sol **sidebar** (logo, rol bazlı menü, altta kullanıcı kartı + çıkış dropdown'u). Mobil: üst bar + açılır menü (Dialog/Sheet).
   - Menü `/me` yanıtından türetilir:
     - Her kullanıcı: Çalışmalarım

@@ -42,7 +42,18 @@
     "adminVerificationQueueLink": "Kurum Doğrulama",
     "adminSkillsLink": "Yetkinlik Yönetimi",
     "engagementsLink": "Çalışmalarım",
-    "profileLink": "Profil"
+    "profileLink": "Profil",
+    "publicProfileLink": "Herkese açık profilim",
+    "groupWork": "Çalışma",
+    "groupOrganizations": "Kuruluşlarım",
+    "groupInstitutions": "Kurumlarım",
+    "groupAdmin": "Yönetim",
+    "mainNav": "Ana menü",
+    "openMenu": "Menüyü aç",
+    "closeMenu": "Menüyü kapat",
+    "userMenu": "Kullanıcı menüsü",
+    "newTab": "(yeni sekmede açılır)",
+    "signIn": "Giriş yap"
   },
   "emailVerificationBanner": {
     "message": "E-posta adresiniz doğrulanmadı. Doğrulanana kadar kayıt oluşturamaz veya değişiklik yapamazsınız.",
