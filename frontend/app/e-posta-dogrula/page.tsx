@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { verifyEmail } from "@/lib/api/client";
 import messages from "@/messages/tr.json";
 import Link from "next/link";
@@ -26,10 +26,16 @@ function EmailVerifyContent() {
     token ? null : { message: messages.epostaDogrula.tokenInvalid }
   );
 
+  // React StrictMode (dev) mount'ı iki kez çalıştırır — token tek kullanımlık
+  // olduğu için ilk çağrı başarılı olur, ikinci çağrı "geçersiz" döner ve son
+  // render'ı o kazanır. Bu ref aynı token için ikinci çağrıyı engeller.
+  const verifiedTokenRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!token) {
+    if (!token || verifiedTokenRef.current === token) {
       return;
     }
+    verifiedTokenRef.current = token;
 
     const verify = async () => {
       try {
