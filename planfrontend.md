@@ -252,7 +252,7 @@ Sıra demo akışına göredir (`§4`). Her ekran için "bitti" tanımı `§6`.
 
 #### 3c. Öğrenci akışı
 
-- [ ] **FE-16** **`/calismalar` liste** — **P0**
+- [x] **FE-16** **`/calismalar` liste** — **P0**
   - `PageHeader` + "Yeni çalışma" aksiyonu (yetkisi olan role).
   - Durum filtre sekmeleri (Tümü / Devam eden / Değerlendirmede / Doğrulanmış) — **yalnız istemci tarafı filtre**, yeni API yok.
   - Kart ızgarası: başlık, kuruluş, tür, `StatusBadge`, mini zincir (4 nokta), güncellenme tarihi (göreli: "3 gün önce").
