@@ -202,7 +202,7 @@ export default function CalismalarPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-[1040px] px-4 py-8 md:px-6 lg:px-10">
+      <div className="max-w-[1120px] px-4 py-8 md:px-6 lg:px-10">
         <header>
           <h1 className="font-serif text-[32px] font-semibold leading-10 text-foreground">
             {messages.calismalar.listTitle}

@@ -22,7 +22,7 @@ const fieldClass =
 function PageFrame({ children }: { children: React.ReactNode }) {
   return (
     <AppShell>
-      <div className="mx-auto max-w-[560px] px-4 py-8 md:px-6">
+      <div className="max-w-[640px] px-4 py-8 md:px-6 lg:px-10">
         <Link
           href="/calismalar"
           className="mb-4 inline-flex items-center gap-2 rounded-sm text-sm text-muted-foreground hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success"

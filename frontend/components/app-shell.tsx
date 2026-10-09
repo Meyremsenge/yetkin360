@@ -664,8 +664,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   // AC-5: error with cached data → banner above content
   const cachedError = Boolean(session.error) && data ? describeError(session.error) : null;
   const showEmailBanner = Boolean(data) && data?.user.email_verified === false;
-  // AC-12: empty organizations is an info state, not an error
-  const showNoOrganizations = Boolean(data) && data?.organizations.length === 0;
+  // AC-12: empty organizations is an info state, not an error. Students,
+  // institution members and admins don't need an organization (brief §5.3).
+  const showNoOrganizations =
+    Boolean(data) &&
+    data?.organizations.length === 0 &&
+    !data.talent_profile &&
+    data.institutions.length === 0 &&
+    data.user.is_platform_admin !== true;
   const showLogoutError = logoutState.isError;
   const hasBanners = Boolean(cachedError) || showEmailBanner || showNoOrganizations || showLogoutError;
 

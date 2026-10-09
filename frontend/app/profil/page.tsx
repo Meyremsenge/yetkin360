@@ -20,7 +20,7 @@ export default function ProfilePage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-[880px] px-4 py-8 sm:px-6 lg:px-10">
+      <div className="max-w-[960px] px-4 py-8 md:px-6 lg:px-10">
         <h1 className="font-serif text-3xl font-semibold text-foreground">{messages.profil.title}</h1>
 
         {/* AC-1: Render ProfileForm + SkillsSection if talent_profile is valid */}

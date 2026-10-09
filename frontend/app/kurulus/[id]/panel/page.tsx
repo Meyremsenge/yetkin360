@@ -112,7 +112,7 @@ export default function KurulusPanelPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-[880px] px-4 py-8 md:px-6 lg:px-10">
+      <div className="max-w-[960px] px-4 py-8 md:px-6 lg:px-10">
         <p className="text-xs text-muted-foreground">{messages.kurulusPanel.title}</p>
 
         {isLoading && (
@@ -161,7 +161,7 @@ export default function KurulusPanelPage() {
             </header>
 
             {/* Alan adı doğrulama */}
-            <section className="mt-8 rounded-lg border border-border bg-card p-6">
+            <section className="mt-8 rounded-lg border border-border bg-card p-4 md:p-6">
               <h2 className="mb-3 font-serif text-xl font-medium leading-7 text-foreground">
                 {messages.kurulusPanel.domainSectionTitle}
               </h2>
@@ -246,7 +246,7 @@ export default function KurulusPanelPage() {
             </section>
 
             {/* Üye davet */}
-            <section className="mt-6 rounded-lg border border-border bg-card p-6">
+            <section className="mt-6 rounded-lg border border-border bg-card p-4 md:p-6">
               <h2 className="mb-3 font-serif text-xl font-medium leading-7 text-foreground">
                 {messages.kurulusPanel.inviteMemberTitle}
               </h2>

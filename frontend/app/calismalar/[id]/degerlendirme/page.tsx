@@ -28,7 +28,7 @@ export default function DegerlendirmePage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-[880px] px-4 py-8 md:px-6 lg:px-10">
+      <div className="max-w-[960px] px-4 py-8 md:px-6 lg:px-10">
         <Link
           href={backHref}
           className="text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success"
