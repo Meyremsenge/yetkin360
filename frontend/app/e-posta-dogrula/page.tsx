@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { verifyEmail } from "@/lib/api/client";
 import messages from "@/messages/tr.json";
 import Link from "next/link";
+import { AuthLayout } from "@/components/ui/auth-layout";
 
 type Status = "idle" | "verifying" | "success" | "error";
 
@@ -75,8 +76,7 @@ function EmailVerifyContent() {
   }, [token]);
 
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="max-w-md w-full p-6">
+    <AuthLayout brandSentence={messages.authLayout.brandSentence}>
         <h1 className="text-2xl font-bold mb-6 text-slate-900">
           E-Posta Doğrulama
         </h1>
@@ -122,8 +122,7 @@ function EmailVerifyContent() {
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </AuthLayout>
   );
 }
 

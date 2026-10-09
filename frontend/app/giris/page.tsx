@@ -1,5 +1,6 @@
 import messages from "@/messages/tr.json";
 import LoginForm from "./form";
+import { AuthLayout } from "@/components/ui/auth-layout";
 
 export default async function LoginPage({
   searchParams,
@@ -11,8 +12,13 @@ export default async function LoginPage({
   const nextPath = params.next;
 
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="max-w-md w-full px-4">
+    <AuthLayout
+      brandSentence={messages.authLayout.brandSentence}
+      links={[
+        { href: "/kayit", label: messages.home.registerLink },
+        { href: "/sifre-unuttum", label: messages.authLayout.forgotPasswordLink },
+      ]}
+    >
         <h1 className="text-2xl font-bold mb-4 text-slate-900">
           {messages.giris.title}
         </h1>
@@ -27,7 +33,6 @@ export default async function LoginPage({
         )}
 
         <LoginForm nextPath={nextPath} />
-      </div>
-    </div>
+    </AuthLayout>
   );
 }

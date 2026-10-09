@@ -10,6 +10,7 @@ import { resetPasswordSchema, type ResetPasswordFormData } from "@/lib/auth/sche
 import messages from "@/messages/tr.json";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { AuthLayout } from "@/components/ui/auth-layout";
 
 type Status = "idle" | "loading" | "success" | "error";
 
@@ -92,8 +93,7 @@ function ResetPasswordContent() {
 
   if (status === "error" && !token) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="max-w-md w-full p-6">
+      <AuthLayout brandSentence={messages.authLayout.brandSentence}>
           <h1 className="text-2xl font-bold mb-6 text-slate-900">
             {messages.sifreSifirla.title}
           </h1>
@@ -112,14 +112,12 @@ function ResetPasswordContent() {
               Şifre sıfırlama talebinde bulun
             </Link>
           </div>
-        </div>
-      </div>
+      </AuthLayout>
     );
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="max-w-md w-full p-6">
+    <AuthLayout brandSentence={messages.authLayout.brandSentence}>
         <h1 className="text-2xl font-bold mb-6 text-slate-900">
           {messages.sifreSifirla.title}
         </h1>
@@ -216,8 +214,7 @@ function ResetPasswordContent() {
             </Button>
           </form>
         )}
-      </div>
-    </div>
+    </AuthLayout>
   );
 }
 

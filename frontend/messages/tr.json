@@ -69,6 +69,10 @@
     "skillAlreadyClaimed": "Bu yetkinliği zaten eklediniz.",
     "skillNotFound": "Bu yetkinlik artık mevcut değil, listeyi yeniledik."
   },
+  "authLayout": {
+    "brandSentence": "Sicil kaydınız, kanıtlarınızla birlikte güvenle saklanır.",
+    "forgotPasswordLink": "Şifremi Unuttum"
+  },
   "notFound": {
     "title": "Sayfa bulunamadı",
     "description": "Aradığınız sayfa bulunamadı.",

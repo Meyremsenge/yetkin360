@@ -10,6 +10,7 @@ const config: Config = {
         card: "hsl(var(--card))",
         primary: "hsl(var(--primary))",
         muted: "hsl(var(--muted))",
+        sand: "hsl(var(--sand))",
         border: "hsl(var(--border))",
         destructive: "hsl(var(--destructive))",
         success: "hsl(var(--success))",

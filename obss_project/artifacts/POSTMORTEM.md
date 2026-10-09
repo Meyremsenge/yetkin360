@@ -4,6 +4,48 @@ Görevler arası tekrar eden kalıpları takip eder. Üzerine eklenir, silinmez.
 
 ---
 
+## Koşum 7 — 2026-10-09
+
+**Görev sayısı:** 49 (biriken: 8 — `a01-giris-kilitleme`'den `fe12-landing-sicil-gazetesi`'ye kadar; tam liste `aggregate.py` çıktısında)
+
+**Kategori dağılımı (8 görev, 14 bulgu):**
+| Kategori | Kaç farklı görevde |
+|---|---|
+| maintainability | 4 |
+| test-gap | 3 |
+| scope | 2 |
+| readability | 2 |
+| correctness | 2 |
+| reliability | 1 |
+
+**Şiddet:** 1 high, 2 medium, 11 low — ağırlık hâlâ düşük şiddette, kritik birikim yok.
+
+**Sıcak dosya:** Yok (her bulgu farklı bir görevden, tek seferlik — `frontend/app/page.tsx`'teki 4 bulgu bile tek görevin (`fe12-landing-sicil-gazetesi`) kendi red-team turundan, kronik değil).
+
+### Tekrar Eden Kalıp 1 — `test-gap`: test implementasyonun kendi çıktısını/mock'unu doğruluyor, gerçek davranışı değil
+`bg-renk-token-tanimsiz` (AC-4 testi `bg-slate-900` literal string'ini arıyor, token'a geçişi değil) ve `next-font-kurulumu` (AC-1 testi `vitest.setup.ts`'teki mock çıktısını doğruluyor, üretimde gerçek font davranışını değil) — Koşum 6'da `test-copilot`'a eklenen "Doğrudan tetikleme" notuna rağmen tekrarladı.
+
+**Eylem:** `test-copilot` SKILL.md'sindeki "Doğrudan tetikleme" notuna somut bir örnek daha eklendi — "bir implementasyon detayını (CSS class'ı, mock dosyası) DEĞİL, kullanıcının gözlemleyeceği gerçek sonucu (render edilen renk, üretimde yüklenen font) doğrula" cümlesi. *(Bu koşumda sadece öneri olarak kaydedildi, skill dosyasına fiilen işlenmedi — kullanıcı onayı bekleniyor.)*
+
+### Tekrar Eden Kalıp 2 — `scope`: `plan.md`'nin "Open Questions: Yok" demesi, atdd.md'nin kendi Unknowns'ını sessizce kapatıyor
+`fe12-landing-sicil-gazetesi` (AC-2'nin ikinci CTA'sı atdd.md'nin Unknowns'ında açıkça netleşmemişti, ama plan.md "Open Questions: Yok" yazıp geçti — red-team bunu sonradan buldu) ve `guvenlik-bulgulari-duzeltme`'de benzer bir kapsam-kayması (atdd.md'nin Kapsam Dışı dediği bir karar, kullanıcı onayıyla sessizce bu tura dahil edilmiş ama plan.md'ye yansıtılmamış).
+
+**Eylem:** `plan` skill'inin 5. adımına (Open Questions kontrolü) şu satır eklenmeli: *"Open Questions'ı boş yazmadan önce atdd.md'nin kendi Unknowns bölümünü tekrar oku — orada netleşmemiş bir madde varsa, plan aşamasında çözülmediği sürece Open Questions'a aynen taşınmalı, 'Yok' yazılmamalı."* (Kullanıcı onayı bekleniyor.)
+
+### Tekrar Eden Kalıp 3 — `maintainability`: bir değişiklik sonrası eskiyen/ölü artık temizlenmiyor
+4 ayrı görev (`bg-renk-token-tanimsiz`: boşaltılmış ama silinmemiş dosya; `guvenlik-bulgulari-duzeltme`: çözülmüş ama "çözüldü" notu düşülmemiş eski FAIL listesi; `tasarim-sistemi-temel-bilesenler`: iki ayrı Record'da tutulan, her eklemede ikisine de dokunulması gereken variant/hover class'ları; `fe12-landing-sicil-gazetesi`: kullanılmayan `home.cta` anahtarı tr.json'da kalmış) — hepsi "bir değişiklik yapıldı ama eskisi temizlenmedi" örüntüsü.
+
+**Eylem:** `code-copilot`'un Definition of Done'ına madde: *"Bu değişiklik bir öncekini gereksiz kılıyorsa (eski dosya, eski anahtar, eski not), o artığı sil veya neden kaldığını gerekçelendir — sessizce bırakma."* (Kullanıcı onayı bekleniyor.)
+
+### Araç/Gate Tekrarı — `Güvenlik taraması` gate'i 2 görevde `MISSING`
+`yet-13-auth-ekranlari` ve `yet-14-talent-profil-yetkinlik`'te `verify_report.md`'nin "Güvenlik taraması" satırı `MISSING` dönmüş (FAIL değil, araç hiç çalışmamış). Sebep bu koşumda araştırılmadı — `security-scan` skill'inin bu iki görev tipinde (auth ekranları, talent-profil) neden tetiklenmediği ayrı bir inceleme gerektiriyor.
+
+**Eylem:** Kullanıcıya ayrı bir inceleme görevi olarak önerilmeli (bu postmortem koşumunun kapsamı dışında, kök neden araştırması gerekiyor).
+
+### Not
+`İnsan onayı -> PENDING` ve `AI code review -> PENDING` gate'lerinin hemen hemen her görevde tekrarlaması bir süreç kusuru DEĞİL — bu ikisi `verify` skill'inin tasarımı gereği her zaman PENDING yazılır (gate 14 her zaman kullanıcı onayına kadar, gate 11 her zaman `red-team`'e kadar beklemede kalır). `aggregate.py` bunu körü körüne "tekrar" olarak işaretliyor; gerçek bir bulgu değil, script'in kategorik sınırlaması.
+
+
 ## Koşum 6 — 2026-10-05
 
 **Görev sayısı:** 41 (biriken: 7 — `a01-giris-kilitleme`,

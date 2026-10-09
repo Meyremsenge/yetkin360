@@ -1,0 +1,71 @@
+{
+  "task": "fe15-auth-duzeni-sicil-gisesi",
+  "reviewed_at": "2026-10-09T00:00:00Z",
+  "summary": "AuthLayout sarmalayıcısı atdd.md'ye sadık kalarak uygulanmış; form.tsx/page.tsx içindeki state, handler ve aria-live mantığına dokunulmamış, sifre-sifirla ve e-posta-dogrula'da çift link riski doğru şekilde önlenmiş. Birkaç düşük/orta önemli bulgu dışında ciddi bir sorun yok.",
+  "findings": [
+    {
+      "severity": "low",
+      "category": "maintainability",
+      "file": "frontend/components/ui/auth-layout.tsx",
+      "issue": "Marka panelindeki nav elemanı aria-label=\"Auth bağlantıları\" ile sabit Türkçe metin kullanıyor; i18n kuralına göre UI metninin tr.json'dan gelmesi beklenirdi. (Şema notu: red-team alt-ajanı bunu 'accessibility' kategorisiyle raporladı — izin verilen sözlükte olmadığı için en yakın karşılığa, maintainability'ye, orkestratör tarafından düzeltildi.)",
+      "better_approach": "aria-label değerini messages.authLayout.navLabel gibi bir anahtardan çekmek.",
+      "reason": "CLAUDE.md: 'UI metni Türkçe; koda gömülmez (sabit metin dosyasından).' Bu etiket tr.json dışında kodun içinde kalmış — tutarsızlık, kapsam ihlali denecek kadar büyük değil ama kural tam uygulanmamış."
+    },
+    {
+      "severity": "low",
+      "category": "readability",
+      "file": "frontend/app/sifre-sifirla/page.tsx",
+      "issue": "AuthLayout children'ı sarmalarken iç JSX girintisi düzeltilmemiş (code_diff.md'de bilinçli olarak belirtilmiş), bu yüzden dosyada tutarsız indentation var.",
+      "better_approach": "Ayrı, davranış değiştirmeyen bir 'yalnızca format' commit'i ile (Prettier) düzeltilebilir — ama bu görevin kapsamı dışında tutulması doğru bir karar, acil değil.",
+      "reason": "Değişiklik kasıtlı ve gerekçeli (regresyon riskini sıfırlamak için 'tek satır değişmez' kuralı); kozmetik borç olarak kabul edilebilir."
+    },
+    {
+      "severity": "low",
+      "category": "scope",
+      "file": "frontend/components/ui/auth-layout.tsx",
+      "issue": "links prop'u verilmediğinde nav tamamen render edilmiyor (AC-7 'belirgin şekilde görünür' şartı sifre-sifirla/e-posta-dogrula'da AuthLayout değil, sayfanın kendi içindeki eski linklerle karşılanıyor) — bu atdd.md ve plan.md'de açıkça gerekçelendirilmiş bir tasarım kararı, kusur değil.",
+      "better_approach": "Değişiklik gerekmiyor; sadece doğrulama notu.",
+      "reason": "plan.md: '/sifre-sifirla zaten kendi içinde linkleri barındırıyor... links prop'una AYRICA eklenmez (çift link olmasın diye)' — kodda bu aynen uygulanmış, doğrulandı."
+    },
+    {
+      "severity": "medium",
+      "category": "maintainability",
+      "file": "frontend/components/ui/auth-layout.tsx",
+      "issue": "CHAIN_STEPS dizisinde 'Doğrulanmış Deneyim' adımı sabit olarak completed: true olarak işaretlenmiş — auth sayfalarında kullanıcının gerçek zincir ilerlemesiyle hiçbir ilişkisi yok, sadece dekoratif.",
+      "better_approach": "Ya tüm adımları completed: false yapıp sadece dekoratif bir zincir göstergesi olduğunu netleştirmek, ya da neden 'tamamlanmış' gösterdiğini bir yorum satırıyla açıklamak.",
+      "reason": "ChainProgress FE-12'de gerçek kullanıcı ilerlemesini göstermek için tasarlanmıştı; burada marka dekorasyonu olarak yeniden kullanılması kullanıcıyı yanıltabilir — düşük ihtimalli ama üzerinde durulmamış bir UX tutarsızlığı."
+    }
+  ],
+  "strengths": [
+    "sifre-sifirla ve e-posta-dogrula içindeki useState/useEffect/onSubmit mantığı, aria-live attribute'ları ve mevcut Link'ler birebir korunmuş; sadece dış iki div AuthLayout ile değiştirilmiş — regresyon riski gerçekten sıfıra indirgenmiş.",
+    "auth-layout.tsx sade, tek sorumluluklu bir bileşen (44 satır); gereksiz soyutlama veya yardımcı fonksiyon yok, CAVEMAN ilkesine uygun.",
+    "--sand token'ı doğru eklenmiş ve sadece marka panelinde (bg-sand) kullanılıyor, form alanına sızmamış.",
+    "giris/page.tsx'te links prop'u doğru biçimde (kayit + sifre-unuttum) geçilmiş, LoginForm importu ve prop'ları değişmemiş.",
+    "security-scan'in tr.json:74 'forgotPasswordLink' false-positive tespiti doğru şekilde araştırılmış ve gerekçeyle işaretlenmiş (gerçek sır yok)."
+  ],
+  "risks": [
+    "ChainProgress'in auth sayfalarında dekoratif amaçla 'completed: true' sabit veriyle kullanılması, ileride gerçek kullanıcı ilerleme verisiyle karıştırılma riski taşıyor — şu an blocking değil.",
+    "form.tsx içindeki eski border/bg-slate-50 kart stilinin kalması (bilinen sınırlama, verify_report.md'de belirtilmiş) görsel hedefi kısmen karşılıyor; kullanıcı/jüri bunu fark edip ayrı bir takip görevi isteyebilir."
+  ],
+  "caveman_review": {
+    "complexity": "low",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve"
+}
