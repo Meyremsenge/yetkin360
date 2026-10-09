@@ -14,7 +14,9 @@ jobs:
         working-directory: backend
     services:
       postgres:
-        image: postgres:16
+        # Same official image via the AWS ECR Public mirror — avoids Docker Hub's
+        # unauthenticated pull rate limit ("toomanyrequests") on shared runners.
+        image: public.ecr.aws/docker/library/postgres:16
         env:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
