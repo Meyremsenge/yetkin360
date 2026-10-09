@@ -5,9 +5,9 @@ import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { ErrorBanner } from "@/components/error-banner";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   getOrganization,
   inviteOrgMember,
@@ -16,6 +16,19 @@ import {
 } from "@/lib/api/organizations";
 import { ApiError, NetworkError, SessionExpiredError } from "@/lib/api/errors";
 import messages from "@/messages/tr.json";
+
+const FIELD_CLASS =
+  "block w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success";
+const LABEL_CLASS = "mb-1 block text-sm font-medium text-foreground";
+const PRIMARY_BUTTON_CLASS =
+  "bg-success text-background hover:bg-success/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2 disabled:opacity-60";
+const TRUST_BADGE_VARIANT: Record<string, "default" | "success" | "warning"> = {
+  T0: "default",
+  T1: "warning",
+  T2: "default",
+  T3: "success",
+  T4: "success",
+};
 
 /**
  * YET-202/ENT-01: Organizasyon paneli — alan adı doğrulama (DNS TXT) + üye davet.
@@ -95,127 +108,186 @@ export default function KurulusPanelPage() {
     inviteMutation.mutate();
   };
 
+  const trustLabels = messages.kurulusPanel.trustLevel as Record<string, string>;
+
   return (
     <AppShell>
-      <div className="p-6 max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">{messages.kurulusPanel.title}</h1>
+      <div className="mx-auto max-w-[880px] px-4 py-8 md:px-6 lg:px-10">
+        <p className="text-xs text-muted-foreground">{messages.kurulusPanel.title}</p>
 
-        {isLoading && <p className="text-slate-600">{messages.shell.loading}</p>}
+        {isLoading && (
+          <div role="status" className="mt-2 space-y-4">
+            <span className="sr-only">{messages.shell.loading}</span>
+            <div aria-hidden="true" className="h-10 w-2/3 animate-pulse rounded-md bg-muted" />
+            <div aria-hidden="true" className="h-40 animate-pulse rounded-lg bg-muted" />
+            <div aria-hidden="true" className="h-32 animate-pulse rounded-lg bg-muted" />
+          </div>
+        )}
 
         {isError && error && (
-          <ErrorBanner
-            message={
-              error instanceof SessionExpiredError
-                ? messages.session.expired
-                : error instanceof ApiError
-                  ? error.message
-                  : error instanceof NetworkError
+          <div className="mt-4">
+            <ErrorBanner
+              message={
+                error instanceof SessionExpiredError
+                  ? messages.session.expired
+                  : error instanceof ApiError
                     ? error.message
-                    : messages.errors.generic
-            }
-            requestId={error instanceof ApiError ? error.requestId : undefined}
-            onRetry={() => refetch()}
-          />
+                    : error instanceof NetworkError
+                      ? error.message
+                      : messages.errors.generic
+              }
+              requestId={error instanceof ApiError ? error.requestId : undefined}
+              onRetry={() => refetch()}
+            />
+          </div>
         )}
 
         {!isLoading && !isError && org && (
           <>
-            <div className="bg-slate-50 rounded-md border border-slate-200 p-4 mb-8">
-              <div className="text-lg font-bold text-slate-900">{org.name}</div>
-              {org.legal_id && (
-                <div className="text-sm text-slate-600 mt-1">
-                  {messages.kurulusPanel.legalIdLabel}: {org.legal_id}
-                </div>
-              )}
-            </div>
+            <header className="mt-1">
+              <h1 className="font-serif text-[32px] font-semibold leading-10 text-foreground">
+                {org.name}
+              </h1>
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+                <Badge variant={TRUST_BADGE_VARIANT[org.verification_level] ?? "default"}>
+                  {trustLabels[org.verification_level] ?? org.verification_level}
+                </Badge>
+                {org.legal_id && (
+                  <span className="font-mono text-[13px] text-muted-foreground">
+                    {messages.kurulusPanel.legalIdLabel}: {org.legal_id}
+                  </span>
+                )}
+              </div>
+            </header>
 
             {/* Alan adı doğrulama */}
-            <section className="mb-8">
-              <h2 className="text-lg font-bold mb-3">{messages.kurulusPanel.domainSectionTitle}</h2>
+            <section className="mt-8 rounded-lg border border-border bg-card p-6">
+              <h2 className="mb-3 font-serif text-xl font-medium leading-7 text-foreground">
+                {messages.kurulusPanel.domainSectionTitle}
+              </h2>
 
               {!org.domain ? (
-                <p className="text-sm text-slate-600 bg-slate-50 rounded-md border border-slate-200 p-4">
+                <Alert variant="info" className="text-sm">
                   {messages.kurulusPanel.noDomainMessage}
-                </p>
+                </Alert>
               ) : org.verification_level !== "T1" ? (
-                <div className="rounded-md bg-green-50 border border-green-200 p-4 text-sm text-green-700">
-                  {messages.kurulusPanel.domainVerifiedBadge}: <strong>{org.domain}</strong>
+                <div className="flex flex-wrap items-center gap-3 text-sm text-foreground">
+                  <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-success text-background">
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-3 w-3"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={3}
+                      aria-hidden="true"
+                    >
+                      <path d="M5 12l5 5L20 7" />
+                    </svg>
+                  </span>
+                  <span>{messages.kurulusPanel.verifiedMessage}</span>
+                  <Badge variant="success">{messages.kurulusPanel.domainVerifiedBadge}</Badge>
+                  <span className="w-full font-mono text-[13px] text-muted-foreground">
+                    {org.domain}
+                  </span>
                 </div>
               ) : (
-                <div className="bg-white rounded-md border border-slate-200 p-4">
-                  <p className="text-sm text-slate-700 mb-3">
+                <div>
+                  <p className="text-sm text-foreground">
                     {messages.kurulusPanel.domainLabel}: <strong>{org.domain}</strong>
                   </p>
 
                   {dnsTxtRecord && (
-                    <div className="mb-3 rounded-md bg-slate-50 border border-slate-200 p-3">
-                      <p className="text-xs text-slate-600 mb-1">{messages.kurulusPanel.txtRecordHint}</p>
-                      <code className="block text-sm font-mono bg-white border border-slate-300 rounded px-2 py-1 break-all">
+                    <div className="mt-3">
+                      <p className="mb-2 text-xs text-muted-foreground">
+                        {messages.kurulusPanel.txtRecordHint}
+                      </p>
+                      <code
+                        aria-label={messages.kurulusPanel.txtRecordLabel}
+                        className="block select-all break-all rounded-md border border-border bg-muted px-3 py-2 font-mono text-sm text-foreground"
+                      >
                         {dnsTxtRecord}
                       </code>
                     </div>
                   )}
 
                   {verifyStatus === "pending" && (
-                    <div role="status" aria-live="polite" className="mb-3 rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+                    <Alert variant="warning" className="mt-3 text-sm">
                       {messages.kurulusPanel.pendingMessage}
-                    </div>
+                    </Alert>
                   )}
                   {verifyStatus === "verified" && (
-                    <div role="status" aria-live="polite" className="mb-3 rounded-md bg-green-50 border border-green-200 p-3 text-sm text-green-700">
+                    <Alert variant="success" className="mt-3 text-sm">
                       {messages.kurulusPanel.verifiedMessage}
-                    </div>
+                    </Alert>
                   )}
                   {verifyError && (
-                    <div role="alert" aria-live="polite" className="mb-3 rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-600">
+                    <Alert variant="error" className="mt-3 text-sm">
                       {verifyError}
-                    </div>
+                    </Alert>
                   )}
 
                   {verifyStatus !== "verified" && (
-                    <Button onClick={() => verifyMutation.mutate()} disabled={verifyMutation.isPending}>
-                      {verifyMutation.isPending
-                        ? messages.kurulusPanel.verifyingButton
-                        : dnsTxtRecord
-                          ? messages.kurulusPanel.retryVerifyButton
-                          : messages.kurulusPanel.verifyButton}
-                    </Button>
+                    <div className="mt-4">
+                      <Button
+                        onClick={() => verifyMutation.mutate()}
+                        disabled={verifyMutation.isPending}
+                        className={PRIMARY_BUTTON_CLASS}
+                      >
+                        {verifyMutation.isPending
+                          ? messages.kurulusPanel.verifyingButton
+                          : dnsTxtRecord
+                            ? messages.kurulusPanel.retryVerifyButton
+                            : messages.kurulusPanel.verifyButton}
+                      </Button>
+                    </div>
                   )}
                 </div>
               )}
             </section>
 
             {/* Üye davet */}
-            <section>
-              <h2 className="text-lg font-bold mb-3">{messages.kurulusPanel.inviteMemberTitle}</h2>
+            <section className="mt-6 rounded-lg border border-border bg-card p-6">
+              <h2 className="mb-3 font-serif text-xl font-medium leading-7 text-foreground">
+                {messages.kurulusPanel.inviteMemberTitle}
+              </h2>
 
-              <form onSubmit={handleInviteSubmit} className="bg-slate-50 p-4 rounded-md border border-slate-200">
-                <div className="flex flex-wrap gap-3 items-end">
-                  <div className="flex-1 min-w-[200px]">
-                    <Label htmlFor="org-invite-email">{messages.kurulusPanel.inviteEmailLabel}</Label>
-                    <Input
+              <form onSubmit={handleInviteSubmit}>
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="min-w-[200px] flex-1">
+                    <label htmlFor="org-invite-email" className={LABEL_CLASS}>
+                      {messages.kurulusPanel.inviteEmailLabel}
+                    </label>
+                    <input
                       id="org-invite-email"
                       type="email"
                       value={inviteEmail}
                       onChange={(e) => setInviteEmail(e.target.value)}
                       required
+                      className={FIELD_CLASS}
                     />
                   </div>
 
-                  <div>
-                    <Label htmlFor="org-invite-role">{messages.kurulusPanel.inviteRoleLabel}</Label>
+                  <div className="w-full sm:w-40">
+                    <label htmlFor="org-invite-role" className={LABEL_CLASS}>
+                      {messages.kurulusPanel.inviteRoleLabel}
+                    </label>
                     <select
                       id="org-invite-role"
                       value={inviteRole}
                       onChange={(e) => setInviteRole(e.target.value as OrgMemberRole)}
-                      className="block px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+                      className={FIELD_CLASS}
                     >
                       <option value="MEMBER">{messages.kurulusPanel.memberRole.MEMBER}</option>
                       <option value="ADMIN">{messages.kurulusPanel.memberRole.ADMIN}</option>
                     </select>
                   </div>
 
-                  <Button type="submit" disabled={inviteMutation.isPending}>
+                  <Button
+                    type="submit"
+                    variant="secondary"
+                    disabled={inviteMutation.isPending}
+                    className="border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success"
+                  >
                     {inviteMutation.isPending
                       ? messages.kurulusPanel.invitingButton
                       : messages.kurulusPanel.inviteButton}
@@ -223,14 +295,14 @@ export default function KurulusPanelPage() {
                 </div>
 
                 {inviteError && (
-                  <div role="alert" aria-live="polite" className="mt-3 rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-600">
+                  <Alert variant="error" className="mt-3 text-sm">
                     {inviteError}
-                  </div>
+                  </Alert>
                 )}
                 {inviteMessage && (
-                  <div role="status" aria-live="polite" className="mt-3 rounded-md bg-green-50 border border-green-200 p-3 text-sm text-green-700">
+                  <Alert variant="success" className="mt-3 text-sm">
                     {inviteMessage}
-                  </div>
+                  </Alert>
                 )}
               </form>
             </section>

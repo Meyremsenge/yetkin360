@@ -204,6 +204,30 @@
     "listTitle": "Çalışmalarım",
     "loadError": "Çalışmalar yüklenemedi.",
     "emptyMessage": "Henüz bir çalışmanız yok.",
+    "emptyHint": "Bir kuruluş sizi bir staja veya projeye eklediğinde ya da size bir başlatma bağlantısı gönderdiğinde çalışmanız burada görünür.",
+    "listCount": "{count} çalışma",
+    "retry": "Tekrar dene",
+    "loadingLabel": "Yükleniyor...",
+    "filterEmpty": "Bu durumda çalışma yok.",
+    "filterTabsLabel": "Durum filtresi",
+    "filterTabs": {
+      "all": "Tümü",
+      "ongoing": "Devam eden",
+      "evaluation": "Değerlendirmede",
+      "verified": "Doğrulanmış",
+      "closed": "Kapanmış"
+    },
+    "chainLabel": "Zincir: 4 adımın {done}’i tamamlandı",
+    "chainBrokenLabel": "Zincir {step}. adımda kesildi",
+    "relative": {
+      "now": "az önce",
+      "minutes": "{n} dk önce",
+      "hours": "{n} saat önce",
+      "days": "{n} gün önce",
+      "weeks": "{n} hafta önce",
+      "months": "{n} ay önce",
+      "years": "{n} yıl önce"
+    },
     "detailBackLink": "Çalışmalara dön",
     "detailLoadError": "Çalışma yüklenemedi.",
     "detailNotFound": "Çalışma bulunamadı.",
@@ -354,7 +378,12 @@
     "submittingButton": "Gönderiliyor...",
     "successMessage": "Değerlendirme gönderildi.",
     "conflictError": "Bu çalışma şu anda değerlendirilemiyor (zaten değerlendirilmiş veya durumu değişmiş olabilir). Güncel durum yeniden yüklendi.",
-    "notEligibleMessage": "Bu çalışma değerlendirme aşamasında değil, form gösterilemiyor."
+    "notEligibleMessage": "Bu çalışma değerlendirme aşamasında değil, form gösterilemiyor.",
+    "subtitle": "Her kriter için gözleminizi işaretleyin. Gönderilen değerlendirme değiştirilemez.",
+    "criterionCaption": "Kriter {n}",
+    "criteriaCount": "{n} kriter",
+    "removeItemAria": "Kriter {n} kaldır",
+    "ratingGroupLabel": "Değerlendirme seçenekleri"
   },
   "publicProfile": {
     "empty": "henüz doğrulanmış deneyim yok",
@@ -476,7 +505,15 @@
     "inviteButton": "Davet Gönder",
     "invitingButton": "Gönderiliyor...",
     "inviteSuccessMessage": "Davet kuyruğa alındı.",
-    "inviteErrorMessage": "Davet gönderilemedi."
+    "inviteErrorMessage": "Davet gönderilemedi.",
+    "trustLevel": {
+      "T0": "Kişinin kendi beyanı",
+      "T1": "Doğrulanmamış kuruluş",
+      "T2": "Alan adı doğrulanmış",
+      "T3": "Kimliği doğrulanmış kuruluş",
+      "T4": "Kuruluş + üniversite ortak onayı"
+    },
+    "txtRecordLabel": "TXT kaydı değeri"
   },
   "adminVerificationQueue": {
     "title": "Kurum Doğrulama Kuyruğu",

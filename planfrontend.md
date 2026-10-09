@@ -252,7 +252,7 @@ Sıra demo akışına göredir (`§4`). Her ekran için "bitti" tanımı `§6`.
 
 #### 3c. Öğrenci akışı
 
-- [ ] **FE-16** **`/calismalar` liste** — **P0**
+- [x] **FE-16** **`/calismalar` liste** — **P0**
   - `PageHeader` + "Yeni çalışma" aksiyonu (yetkisi olan role).
   - Durum filtre sekmeleri (Tümü / Devam eden / Değerlendirmede / Doğrulanmış) — **yalnız istemci tarafı filtre**, yeni API yok.
   - Kart ızgarası: başlık, kuruluş, tür, `StatusBadge`, mini zincir (4 nokta), güncellenme tarihi (göreli: "3 gün önce").
@@ -275,7 +275,7 @@ Sıra demo akışına göredir (`§4`). Her ekran için "bitti" tanımı `§6`.
 
 #### 3d. Kuruluş (işveren) ve kurum (üniversite)
 
-- [ ] **FE-20** **`/kurulus/[id]/panel`** — **P1**
+- [x] **FE-20** **`/kurulus/[id]/panel`** — **P1**
   - `PageHeader` (kuruluş adı + `TrustLevelBadge`).
   - `StatCard` satırı: aktif çalışma, değerlendirme bekleyen, doğrulanmış (mevcut yanıt verisinden sayılır).
   - "Sizden aksiyon bekleyenler" listesi (onay bekleyen, değerlendirme bekleyen) en üstte.
@@ -284,7 +284,7 @@ Sıra demo akışına göredir (`§4`). Her ekran için "bitti" tanımı `§6`.
   - Aynı panel kalıbı: stat kartları, bekleyen bağlantı istekleri, öğrenci/çalışma tablosu.
   - Tablo: başlık satırı sabit, durum rozeti, satır tıklanınca detay.
   - Bileşen dosyalarına bölünür (sayfa dosyası < 200 satır hedefi) — **davranış değişmez**.
-- [ ] **FE-22** **`/calismalar/[id]/degerlendirme`** — **P0** (zincirin "tanıklık" adımı canlı gösterilir)
+- [x] **FE-22** **`/calismalar/[id]/degerlendirme`** — **P0** (zincirin "tanıklık" adımı canlı gösterilir)
   - Değerlendirilen çalışma özeti kartı üstte.
   - Puanlama alanları büyük, seçilebilir kartlar/segmentler; skill tanıklıkları çip seçimi.
   - Gönder → onay `Dialog`'u ("Bu tanıklık geri alınamaz şekilde kaydedilir").
