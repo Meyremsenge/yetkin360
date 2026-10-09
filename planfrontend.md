@@ -236,7 +236,7 @@ Sıra demo akışına göredir (`§4`). Her ekran için "bitti" tanımı `§6`.
   - Güven bilgisi: `TrustLevelBadge` + alan adı; T1 uyarısı nazik ama görünür.
   - "Bu sayfa Yetkin360 tarafından {tarih} tarihinde doğrulanmıştır" + doğrulama kodu.
   - Mobilde (375px) tek sütun, büyük dokunma alanları; `generateMetadata` ile sayfa başlığı ve OG başlık/açıklaması (link paylaşılınca düzgün önizleme). 404 için markalı boş durum.
-- [ ] **FE-14** **`/p/[slug]` public profil** — **P0**
+- [x] **FE-14** **`/p/[slug]` public profil** — **P0**
   - Profil başlığı (Avatar baş harf, ad, başlık/bölüm, kurum).
   - Doğrulanmış deneyimler zaman çizelgesi; her biri `VerifiedSeal` ve `/v/...` linki (API veriyorsa).
   - `claim_type` enum yerine `tr.json` etiketi.

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChainProgress } from "@/components/ui/chain-progress";
 import { VerifiedSeal } from "@/components/ui/verified-seal";
+import { PublicTopBar, publicFocusRing as focusRing } from "@/components/public-top-bar";
 import messages from "@/messages/tr.json";
 
 const t = messages.publicVerification;
@@ -21,9 +22,6 @@ const trustLevelVariant: Record<string, "default" | "warning" | "success"> = {
   T3: "success",
   T4: "success",
 };
-
-const focusRing =
-  "rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success";
 
 function formatDate(value: string, dateOnly = false): string {
   return new Date(value).toLocaleDateString("tr-TR", {
@@ -137,14 +135,7 @@ export default function PublicVerificationPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 md:px-8">
-          <Link href="/" className={`font-serif text-lg font-bold text-foreground ${focusRing}`}>
-            {messages.home.title}
-          </Link>
-          <span className="text-[13px] text-muted-foreground">{t.topBarLabel}</span>
-        </div>
-      </header>
+      <PublicTopBar label={t.topBarLabel} />
 
       <main className="mx-auto max-w-[720px] px-4 pb-16 pt-4 md:pt-10">
         {isLoading ? (

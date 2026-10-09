@@ -333,7 +333,13 @@
   },
   "publicProfile": {
     "empty": "henüz doğrulanmış deneyim yok",
-    "notFound": "Kayıt bulunamadı"
+    "notFound": "Kayıt bulunamadı",
+    "topBarLabel": "Herkese açık profil",
+    "experienceCount": "{n} doğrulanmış deneyim",
+    "timelineTitle": "Doğrulanmış deneyimler",
+    "emptyHint": "Deneyimler kuruluş tanıklığıyla doğrulandığında burada görünür.",
+    "sealLabel": "Doğrulanmış deneyim",
+    "loadingLabel": "Profil yükleniyor"
   },
   "publicVerification": {
     "notFound": "Kayıt bulunamadı",
