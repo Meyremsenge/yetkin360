@@ -22,13 +22,13 @@ function renderWithQueryClient(ui: React.ReactElement) {
   return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
 }
 
-function mockSessionWith(institutions: Array<{ id: string; name: string }>) {
+function mockSessionWith(institutionId: string | null) {
   vi.mocked(useSession).mockReturnValue({
     data: {
       user: { id: "user-1", email: "talent@test.com" },
       organizations: [],
-      institutions,
-      talent_profile: { headline: null },
+      institutions: [],
+      talent_profile: { headline: null, institution_id: institutionId },
     },
     error: null,
     isPending: false,
@@ -50,7 +50,7 @@ describe("InstitutionLinkSection", () => {
   });
 
   it("bağlı değilse 'henüz bağlı değilsiniz' mesajı ve ipucu gösterilir (form/arama YOK)", async () => {
-    mockSessionWith([]);
+    mockSessionWith(null);
     vi.mocked(listMyLinkRequests).mockResolvedValueOnce({ items: [] });
 
     renderWithQueryClient(<InstitutionLinkSection />);
@@ -62,18 +62,33 @@ describe("InstitutionLinkSection", () => {
   });
 
   it("bağlıysa kurum adı gösterilir", async () => {
-    mockSessionWith([{ id: "inst-1", name: "Test Üniversitesi" }]);
+    mockSessionWith("inst-1");
+    vi.mocked(listMyLinkRequests).mockResolvedValueOnce({
+      items: [
+        { id: "r1", institution_id: "inst-1", institution_name: "Test Üniversitesi", status: "APPROVED", requested_at: "2026-09-01T00:00:00Z", decided_at: "2026-09-02T00:00:00Z" },
+      ],
+    });
+
+    renderWithQueryClient(<InstitutionLinkSection />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Test Üniversitesi").length).toBeGreaterThan(0);
+    });
+  });
+
+  it("talent_profile.institution_id doluysa ama onaylı talep bulunamazsa genel 'bağlısınız' mesajı gösterilir", async () => {
+    mockSessionWith("inst-1");
     vi.mocked(listMyLinkRequests).mockResolvedValueOnce({ items: [] });
 
     renderWithQueryClient(<InstitutionLinkSection />);
 
     await waitFor(() => {
-      expect(screen.getByText("Test Üniversitesi")).toBeTruthy();
+      expect(screen.getByText("Bir kuruma bağlısınız.")).toBeTruthy();
     });
   });
 
   it("kendi talep geçmişi listelenir ve statü rozetleri doğru gösterilir", async () => {
-    mockSessionWith([]);
+    mockSessionWith(null);
     vi.mocked(listMyLinkRequests).mockResolvedValueOnce({
       items: [
         { id: "r1", institution_id: "i1", institution_name: "A Üniversitesi", status: "PENDING", requested_at: "2026-10-01T00:00:00Z", decided_at: null },
@@ -92,7 +107,7 @@ describe("InstitutionLinkSection", () => {
   });
 
   it("hiç talep yoksa empty-state mesajı gösterilir", async () => {
-    mockSessionWith([]);
+    mockSessionWith(null);
     vi.mocked(listMyLinkRequests).mockResolvedValueOnce({ items: [] });
 
     renderWithQueryClient(<InstitutionLinkSection />);
@@ -103,7 +118,7 @@ describe("InstitutionLinkSection", () => {
   });
 
   it("geçmiş yüklenemezse hata mesajı ve tekrar dene butonu gösterilir", async () => {
-    mockSessionWith([]);
+    mockSessionWith(null);
     vi.mocked(listMyLinkRequests).mockRejectedValueOnce(new Error("boom"));
 
     renderWithQueryClient(<InstitutionLinkSection />);

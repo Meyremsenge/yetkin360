@@ -165,7 +165,20 @@
     "linkRequestsLoadError": "Bağlanma talepleriniz yüklenemedi.",
     "linkRequestPendingBadge": "Onay Bekliyor",
     "linkRequestApprovedBadge": "Onaylandı",
-    "linkRequestRejectedBadge": "Reddedildi"
+    "linkRequestRejectedBadge": "Reddedildi",
+    "tabProfileInfo": "Profil bilgileri",
+    "tabSkills": "Yetkinlikler",
+    "tabEvidence": "Kanıt dökümü",
+    "tabInstitution": "Kurum bağlantısı",
+    "viewPublicProfileButton": "Herkese açık profili gör",
+    "copyLinkButton": "Linki kopyala",
+    "linkCopiedMessage": "Kopyalandı",
+    "visibilityLabels": {
+      "PRIVATE": "Özel",
+      "INSTITUTION": "Kurum",
+      "ORGANIZATIONS": "Kuruluşlar",
+      "PUBLIC": "Herkese Açık"
+    }
   },
   "kurumBaglan": {
     "title": "Kuruma Bağlanma Talebi",
