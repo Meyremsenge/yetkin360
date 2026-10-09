@@ -15,23 +15,27 @@ Kullanıcıyla **Türkçe** konuş. Kod, yorum, tanımlayıcı İngilizce. UI me
 
 Argüman verildiyse onu al. **Argüman boşsa:** `planfrontend.md`'yi oku ve aşağıdaki sırada FE satırı `[ ]` olan **ilk** kodu seç. `[x]` ve `[~]` olanları atla. `[~]`, başka biri ya da yarım bırakılmış iş demektir. Seçtiğini tek cümleyle söyle ve başla. Soru sorma.
 
-| Sıra | Kod | Ekran | FE | Dosya(lar) | Mockup (`tasarimlar/stitch/proje1-tum-sayfalar/`) |
-|---|---|---|---|---|---|
-| 1 | `2` | `/v/[token]` sertifika | FE-13 | `app/v/[token]/page.tsx` | `19-…`, `04-…` |
-| 2 | `shell` | AppShell sol navbar (brif §5) | FE-09 | `components/app-shell.tsx` | `06-…` (sol kısım) |
-| 3 | `3` | `/p/[slug]` public profil | FE-14 | `app/p/[slug]/page.tsx` | `15-…`, `05-…` |
-| 4 | `10` | `/calismalar/[id]` sayfa iskeleti + zincir + durum butonları | FE-17 | `app/calismalar/[id]/page.tsx`, `transition-actions.tsx` | `06-…` |
-| 5 | `10b` | `/calismalar/[id]` görev/çıktı/kanıt formları | FE-17 | `task-form.tsx`, `deliverable-form.tsx`, `evidence-upload-form.tsx` | `06-…` |
-| 6 | `10c` | `/calismalar/[id]` tanıklık formları | FE-17 | `attestation-form.tsx`, `attestation-revoke.tsx` | `06-…` |
-| 7 | `13` | `/profil` | FE-18 | `app/profil/*` (5 bileşen) | `07-…` |
-| 8 | `11` | değerlendirme formu | FE-22 | `app/calismalar/[id]/degerlendirme/*` | `12-…`, `14-…` |
-| 9 | `9` | `/calismalar` liste | FE-16 | `app/calismalar/page.tsx` | `09-…` |
-| 10 | `14` | kuruluş paneli | FE-20 | `app/kurulus/[id]/panel/page.tsx` | `10-…` |
-| 11 | `21` | 404 / hata | FE-11 | `app/not-found.tsx`, `app/error.tsx` | `18-…` |
-| 12 | `16` | kurum paneli | FE-21 | `app/kurum/[id]/panel/page.tsx` | `16-…` |
-| 13 | `12` | yeni çalışma | FE-19 | `app/calismalar/olustur/page.tsx` | `11-…` |
-| 14 | `18` | kurum/kuruluş oluştur + kuruma bağlan | FE-23 | `app/kurum/[id]/baglan/`, `app/kurum/olustur/`, `app/kurulus/olustur/` | `13-…`, `01-…`, `03-…` |
-| 15 | `19` | admin doğrulama kuyruğu | FE-24 | `app/admin/dogrulama-kuyrugu/page.tsx` | `02-…` |
+| Sıra | Kod | Ekran | FE | Model | Dosya(lar) | Mockup (`tasarimlar/stitch/proje1-tum-sayfalar/`) |
+|---|---|---|---|---|---|---|
+| 1 | `2` | `/v/[token]` sertifika | FE-13 | Sonnet | `app/v/[token]/page.tsx` | `19-…`, `04-…` |
+| 2 | `shell` | AppShell: giriş sonrası tüm sayfaları saran sol menü + mobil çekmece (brif §5) | FE-09 | **Opus** | `components/app-shell.tsx` | `06-…` (sol kısım) |
+| 3 | `3` | `/p/[slug]` public profil | FE-14 | Sonnet | `app/p/[slug]/page.tsx` | `15-…`, `05-…` |
+| 4 | `10` | `/calismalar/[id]` sayfa iskeleti + zincir + durum butonları | FE-17 | **Opus** | `app/calismalar/[id]/page.tsx`, `transition-actions.tsx` | `06-…` |
+| 5 | `10b` | `/calismalar/[id]` görev/çıktı/kanıt formları | FE-17 | **Opus** | `task-form.tsx`, `deliverable-form.tsx`, `evidence-upload-form.tsx` | `06-…` |
+| 6 | `10c` | `/calismalar/[id]` tanıklık formları | FE-17 | **Opus** | `attestation-form.tsx`, `attestation-revoke.tsx` | `06-…` |
+| 7 | `13` | `/profil` | FE-18 | Sonnet | `app/profil/*` (5 bileşen) | `07-…` |
+| 8 | `11` | değerlendirme formu | FE-22 | Sonnet | `app/calismalar/[id]/degerlendirme/*` | `12-…`, `14-…` |
+| 9 | `9` | `/calismalar` liste | FE-16 | Sonnet | `app/calismalar/page.tsx` | `09-…` |
+| 10 | `14` | kuruluş paneli | FE-20 | Sonnet | `app/kurulus/[id]/panel/page.tsx` | `10-…` |
+| 11 | `21` | 404 / hata | FE-11 | Sonnet | `app/not-found.tsx`, `app/error.tsx` | `18-…` |
+| 12 | `16` | kurum paneli | FE-21 | Sonnet | `app/kurum/[id]/panel/page.tsx` | `16-…` |
+| 13 | `12` | yeni çalışma | FE-19 | Sonnet | `app/calismalar/olustur/page.tsx` | `11-…` |
+| 14 | `18` | kurum/kuruluş oluştur + kuruma bağlan | FE-23 | Sonnet | `app/kurum/[id]/baglan/`, `app/kurum/olustur/`, `app/kurulus/olustur/` | `13-…`, `01-…`, `03-…` |
+| 15 | `19` | admin doğrulama kuyruğu | FE-24 | Sonnet | `app/admin/dogrulama-kuyrugu/page.tsx` | `02-…` |
+
+**Model kontrolü:** Seçilen ekran **Opus** ise ve sen Opus değilsen, işe başlamadan tek satır yaz ve dur: "Bu ekran (`<kod>`) Opus önerilir: `/model opus` yazıp `/ekran <kod>` ile yeniden başlat, ya da 'devam' de." Kullanıcı "devam" derse sen yap. Opus ekranları riskli olanlar: çok testli (shell 29 test), durum makinesine bağlı butonlar, dosya yükleme akışı. Sonnet ekranlarını Opus da yapabilir, uyarı gerekmez.
+
+**Kuyruk bittiyse** (15 kodun hepsi `[x]`): ekran dönüştürme yapma. Kullanıcıya şunu söyle ve dur: "Ekran kuyruğu bitti. Kalan cila işleri (`planfrontend.md` Faz 4): FE-26 durumlar turu, FE-27 responsive turu, FE-28 erişilebilirlik turu, FE-31 tam doğrulama, FE-32 demo provası. Hangisiyle devam edelim?"
 
 Dosya yolları `frontend/` altında. Brif bölümü = kodun numarası (`shell` → §5; `10/10b/10c` → "10. Çalışma detayı"; `18` → brif 17+18 ve 15).
 Mockup tam adı: `ls tasarimlar/stitch/proje1-tum-sayfalar/ | grep '^19-'`. Ek referans: `tasarimlar/stitch/proje2-brifi-v2/`.

@@ -27,11 +27,27 @@ Sürenin tamamı **demo zincirinde görünen ekranlara** gider. Yeni özellik, b
 | 0 | 10 dk | Hazırlık: güncel kod, ortam, CI | Prompt **P0** | Uygulama ayakta, CI yeşil |
 | 1 | 15 dk | **FE-01/02 demo verisi kontrolü:** her rol giriş yapabiliyor mu, `VERIFIED` çalışma + `/v/{token}` + `/p/{slug}` var mı | Prompt **P1** | `planfrontend.md` §5 tablosu dolu, demo linkleri not edildi |
 | 2 | 35 dk | **`/v/[token]` sertifika** (FE-13, en kritik) | `/clear` → `/ekran` | 1 commit |
-| 3 | 35 dk | **AppShell sol navbar** (FE-09): içerideki tüm sayfaları tek seferde "yeni" gösterir | `/clear` → `/ekran` | 1 commit |
+| 3 | 35 dk | **AppShell sol navbar** (FE-09): içerideki tüm sayfaları tek seferde "yeni" gösterir | `/clear` → **`/model opus`** → `/ekran` | 1 commit |
 | 4 | 15 dk | **`/p/[slug]`** (FE-14, küçük dosya) | `/clear` → `/ekran` | 1 commit |
 | 5 | 10 dk | Kapanış: tam frontend testi, push, ekibe devir notu | Prompt **P5** | Push, `HANDOFF.md` güncel |
 
 `/ekran` argümansız yazılınca sıradaki ekranı kendisi seçer. Kuyruk skill'in içinde; `planfrontend.md`'de `[ ]` olan ilk satırı alır. Her ekranın özel notları da skill'de. Yani 2–4. adımlar aynı iki komuttan ibaret: `/clear`, sonra `/ekran`.
+
+### Model seçimi ve toplam süre
+
+**Kuyruk tarihe bağlı değil.** `/ekran` kuyruğu `planfrontend.md`'deki `[x]` işaretlerine göre okur. Bu gece, yarın ya da arkadaşının makinesinde (`git pull` sonrası) hep kalınan yerden devam eder. Kuyruk bitince bunu söyler ve cila işlerini (FE-26/27/28/31/32) önerir.
+
+**Opus önerilen ekranlar:** `shell`, `10`, `10b`, `10c`. Bunlar çok testli ya da durum makinesine ve dosya yüklemeye bağlı. Sonnet'le bu ekranlardan birine gelinirse skill durup uyarır: `/model opus` yazıp `/ekran <kod>`, ya da "devam" de. Diğer 11 ekran Sonnet'e uygun.
+
+**Tahmini oturum sayısı** (1 oturum ≈ 25–45 dk):
+
+| Kapsam | Ekran oturumu | + düzeltme / cila | Toplam | Tek kişi süre |
+|---|---|---|---|---|
+| **Demo için şart** (`2`, `shell`, `3`, `10`, `10b`, `10c`, `13`, `11`) | 8 | +2–3 | ~10–11 | ~6 saat |
+| **Tüm kuyruk** (15 kod) | 15 | +4–5 | ~19–20 | ~11 saat |
+| + Faz 4 (P0, P1, P5, responsive/a11y turu, prova) | — | +4–5 | **~24** | ~13 saat |
+
+3 kişi paralel çalışırsa tüm iş kişi başı ~4–5 saate iner. **Gerçekçi hedef:** bu gece + yarın öğlene kadar "demo için şart" satırı bitsin. Gerisi kod dondurmaya (10 Ekim 18:00) kadar ne yetişirse.
 
 ### 2 saatten sonra devam etmek istersen
 
