@@ -11,25 +11,33 @@ export default function GlobalError({
       {/* AC-6: DOCTYPE */}
       {"<!doctype html>"}
       <html lang="tr">
-        <body style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}>
+        <body
+          style={{
+            margin: 0,
+            backgroundColor: "#FAF8F5",
+            color: "#221F1B",
+            fontFamily: "system-ui, -apple-system, sans-serif",
+          }}
+        >
           <div
             style={{
               display: "flex",
-              alignItems: "center",
+              alignItems: "flex-start",
               justifyContent: "center",
+              paddingTop: "6rem",
               minHeight: "100vh",
               margin: 0,
               padding: "1rem",
             }}
           >
-            <div style={{ maxWidth: "500px", textAlign: "center" }}>
-              <h1 style={{ fontSize: "2rem", marginBottom: "1rem", color: "#111827" }}>
+            <div style={{ maxWidth: "560px", width: "100%", textAlign: "left" }}>
+              <h1 style={{ fontFamily: "Georgia, serif", fontWeight: 600, fontSize: "2rem", marginBottom: "0.5rem", color: "#221F1B" }}>
                 Bir hata oluştu
               </h1>
               <p
                 style={{
                   marginBottom: "1.5rem",
-                  color: "#4b5563",
+                  color: "#625C55",
                   fontSize: "1rem",
                 }}
               >
@@ -38,9 +46,10 @@ export default function GlobalError({
               <button
                 onClick={reset}
                 style={{
-                  padding: "0.5rem 1rem",
-                  backgroundColor: "#1e293b",
-                  color: "white",
+                  height: "2.5rem",
+                  padding: "0 1rem",
+                  backgroundColor: "#265445",
+                  color: "#FAF8F5",
                   border: "none",
                   borderRadius: "0.375rem",
                   fontSize: "1rem",

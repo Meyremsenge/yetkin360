@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -11,9 +11,9 @@ import {
 } from "@/lib/evaluation/schemas";
 import { submitEvaluation } from "@/lib/api/evaluation";
 import { ApiError } from "@/lib/api/errors";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import messages from "@/messages/tr.json";
 
 /**
@@ -23,6 +23,13 @@ import messages from "@/messages/tr.json";
  */
 
 const RATING_OPTIONS: EvaluationRating[] = ["BELOW", "MEETS", "EXCEEDS", "NOT_OBSERVED"];
+
+const FIELD_CLASS =
+  "block w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success";
+const LABEL_CLASS = "mb-1 block text-sm font-medium text-foreground";
+const ERROR_CLASS = "mt-1 text-xs text-destructive";
+
+const fill = (template: string, n: number) => template.replace("{n}", String(n));
 
 const emptyItem = () => ({ criterion: "", rating: "NOT_OBSERVED" as EvaluationRating, comment: "" });
 
@@ -50,6 +57,7 @@ export function EvaluationForm({
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
+  const watchedItems = useWatch({ control, name: "items" });
 
   const onSubmit = async (data: EvaluationFormData) => {
     setRootError(null);
@@ -77,97 +85,184 @@ export function EvaluationForm({
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit(onSubmit)}>
       <div className="space-y-4">
         {fields.map((field, index) => (
-          <div key={field.id} className="rounded-md border border-slate-200 bg-slate-50 p-4">
+          <section key={field.id} className="rounded-lg border border-border bg-card p-5">
             <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <Label htmlFor={`items.${index}.criterion`}>{messages.degerlendirme.criterionLabel}</Label>
-                <Input
-                  {...register(`items.${index}.criterion`)}
-                  id={`items.${index}.criterion`}
-                  placeholder={messages.degerlendirme.criterionPlaceholder}
-                />
-                {errors.items?.[index]?.criterion && (
-                  <div className="text-xs text-red-600 mt-1">
-                    {errors.items[index]?.criterion?.message}
-                  </div>
-                )}
-              </div>
+              <span className="font-mono text-xs text-muted-foreground">
+                {fill(messages.degerlendirme.criterionCaption, index + 1)}
+              </span>
               {fields.length > 1 && (
                 <Button
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => remove(index)}
-                  className="bg-red-600 hover:bg-red-700 px-3 py-1 text-xs mt-6"
+                  aria-label={fill(messages.degerlendirme.removeItemAria, index + 1)}
+                  className="-mt-1 inline-flex items-center gap-1.5 text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success"
                 >
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6" />
+                  </svg>
                   {messages.degerlendirme.removeItemButton}
                 </Button>
               )}
             </div>
 
-            <div className="mt-3">
-              <Label>{messages.degerlendirme.ratingLabel}</Label>
-              {/* D8: NOT_OBSERVED diğer üçüyle birebir eşit görünürlükte — ayrı/gizli değil. */}
-              <div className="flex flex-wrap gap-4 mt-1">
-                {RATING_OPTIONS.map((option) => (
-                  <label key={option} className="flex items-center gap-1.5 text-sm text-slate-700">
-                    <input type="radio" value={option} {...register(`items.${index}.rating`)} />
-                    {messages.degerlendirme.rating[option]}
-                  </label>
-                ))}
-              </div>
-              {errors.items?.[index]?.rating && (
-                <div className="text-xs text-red-600 mt-1">{errors.items[index]?.rating?.message}</div>
+            <div className="mt-2">
+              <label htmlFor={`items.${index}.criterion`} className={LABEL_CLASS}>
+                {messages.degerlendirme.criterionLabel}
+              </label>
+              <input
+                {...register(`items.${index}.criterion`)}
+                id={`items.${index}.criterion`}
+                placeholder={messages.degerlendirme.criterionPlaceholder}
+                aria-invalid={errors.items?.[index]?.criterion ? true : undefined}
+                className={FIELD_CLASS}
+              />
+              {errors.items?.[index]?.criterion && (
+                <div role="alert" className={ERROR_CLASS}>
+                  {errors.items[index]?.criterion?.message}
+                </div>
               )}
             </div>
 
-            <div className="mt-3">
-              <Label htmlFor={`items.${index}.comment`}>{messages.degerlendirme.commentLabel}</Label>
+            <fieldset className="mt-4">
+              <legend className={LABEL_CLASS}>{messages.degerlendirme.ratingLabel}</legend>
+              {/* D8: NOT_OBSERVED diğer üçüyle birebir eşit görünürlükte — ayrı/gizli değil. */}
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                {RATING_OPTIONS.map((option) => {
+                  const selected = watchedItems?.[index]?.rating === option;
+                  return (
+                    <label
+                      key={option}
+                      className={cn(
+                        "flex min-h-10 cursor-pointer items-center justify-center rounded-md border px-3 py-2 text-center text-sm font-medium focus-within:ring-2 focus-within:ring-success",
+                        selected
+                          ? "border-success bg-success/10 text-success"
+                          : "border-border bg-card text-foreground hover:bg-muted",
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        value={option}
+                        className="sr-only"
+                        {...register(`items.${index}.rating`)}
+                      />
+                      {messages.degerlendirme.rating[option]}
+                    </label>
+                  );
+                })}
+              </div>
+              {errors.items?.[index]?.rating && (
+                <div role="alert" className={ERROR_CLASS}>
+                  {errors.items[index]?.rating?.message}
+                </div>
+              )}
+            </fieldset>
+
+            <div className="mt-4">
+              <label htmlFor={`items.${index}.comment`} className={LABEL_CLASS}>
+                {messages.degerlendirme.commentLabel}
+              </label>
               <textarea
                 {...register(`items.${index}.comment`)}
                 id={`items.${index}.comment`}
                 rows={2}
-                className="block w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+                className={FIELD_CLASS}
               />
             </div>
-          </div>
+          </section>
         ))}
       </div>
 
-      {errors.items?.message && <div className="text-xs text-red-600">{errors.items.message}</div>}
-
-      <Button type="button" onClick={() => append(emptyItem())} className="bg-slate-600 hover:bg-slate-700">
-        {messages.degerlendirme.addItemButton}
-      </Button>
-
-      <div className="border-t pt-4">
-        <Label htmlFor="private_note">{messages.degerlendirme.privateNoteLabel}</Label>
-        <p className="text-xs text-slate-500 mb-1">{messages.degerlendirme.privateNoteHint}</p>
-        <textarea
-          {...register("private_note")}
-          id="private_note"
-          rows={3}
-          className="block w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-        />
-        {errors.private_note && (
-          <div className="text-xs text-red-600 mt-1">{errors.private_note.message}</div>
-        )}
-      </div>
-
-      {rootError && (
-        <div
-          role="alert"
-          aria-live="polite"
-          className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-600"
-        >
-          {rootError}
+      {errors.items?.message && (
+        <div role="alert" className={ERROR_CLASS}>
+          {errors.items.message}
         </div>
       )}
 
-      <Button type="submit" disabled={isSubmitting} className="w-full">
-        {isSubmitting ? messages.degerlendirme.submittingButton : messages.degerlendirme.submitButton}
-      </Button>
+      <div className="mt-4">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => append(emptyItem())}
+          className="inline-flex items-center gap-2 border border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            strokeLinecap="round"
+            aria-hidden="true"
+          >
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          {messages.degerlendirme.addItemButton}
+        </Button>
+      </div>
+
+      <section className="mt-8 rounded-lg border border-border bg-sand p-4">
+        <label
+          htmlFor="private_note"
+          className="mb-2 flex items-center gap-2 text-base font-semibold text-foreground"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="5" y="11" width="14" height="9" rx="2" />
+            <path d="M8 11V8a4 4 0 018 0v3" />
+          </svg>
+          {messages.degerlendirme.privateNoteLabel}
+        </label>
+        <textarea {...register("private_note")} id="private_note" rows={3} className={FIELD_CLASS} />
+        <p className="mt-2 text-[13px] text-muted-foreground">
+          {messages.degerlendirme.privateNoteHint}
+        </p>
+        {errors.private_note && (
+          <div role="alert" className={ERROR_CLASS}>
+            {errors.private_note.message}
+          </div>
+        )}
+      </section>
+
+      {rootError && (
+        <Alert variant="error" className="mt-6 text-sm">
+          {rootError}
+        </Alert>
+      )}
+
+      <div className="sticky bottom-0 mt-8 flex items-center justify-between gap-4 border-t border-border bg-background py-4">
+        <span className="text-[13px] text-muted-foreground">
+          {fill(messages.degerlendirme.criteriaCount, fields.length)}
+        </span>
+        <Button
+          type="submit"
+          disabled={isSubmitting}
+          className="bg-success text-background hover:bg-success/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2 disabled:opacity-60 max-md:flex-1"
+        >
+          {isSubmitting ? messages.degerlendirme.submittingButton : messages.degerlendirme.submitButton}
+        </Button>
+      </div>
     </form>
   );
 }

@@ -126,3 +126,6 @@ desktop.ini
 *.dump
 *.sql.gz
 backups/
+
+# Claude Code worktree klasörleri (paralel oturumlar)
+.claude/worktrees/

@@ -42,7 +42,18 @@
     "adminVerificationQueueLink": "Kurum Doğrulama",
     "adminSkillsLink": "Yetkinlik Yönetimi",
     "engagementsLink": "Çalışmalarım",
-    "profileLink": "Profil"
+    "profileLink": "Profil",
+    "publicProfileLink": "Herkese açık profilim",
+    "groupWork": "Çalışma",
+    "groupOrganizations": "Kuruluşlarım",
+    "groupInstitutions": "Kurumlarım",
+    "groupAdmin": "Yönetim",
+    "mainNav": "Ana menü",
+    "openMenu": "Menüyü aç",
+    "closeMenu": "Menüyü kapat",
+    "userMenu": "Kullanıcı menüsü",
+    "newTab": "(yeni sekmede açılır)",
+    "signIn": "Giriş yap"
   },
   "emailVerificationBanner": {
     "message": "E-posta adresiniz doğrulanmadı. Doğrulanana kadar kayıt oluşturamaz veya değişiklik yapamazsınız.",
@@ -72,6 +83,9 @@
   "authLayout": {
     "brandSentence": "Sicil kaydınız, kanıtlarınızla birlikte güvenle saklanır.",
     "forgotPasswordLink": "Şifremi Unuttum"
+  },
+  "errorPage": {
+    "title": "Bir şeyler ters gitti"
   },
   "notFound": {
     "title": "Sayfa bulunamadı",
@@ -166,19 +180,17 @@
     "linkRequestPendingBadge": "Onay Bekliyor",
     "linkRequestApprovedBadge": "Onaylandı",
     "linkRequestRejectedBadge": "Reddedildi",
-    "tabProfileInfo": "Profil bilgileri",
-    "tabSkills": "Yetkinlikler",
-    "tabEvidence": "Kanıt dökümü",
-    "tabInstitution": "Kurum bağlantısı",
-    "viewPublicProfileButton": "Herkese açık profili gör",
-    "copyLinkButton": "Linki kopyala",
-    "linkCopiedMessage": "Kopyalandı",
-    "visibilityLabels": {
-      "PRIVATE": "Özel",
-      "INSTITUTION": "Kurum",
-      "ORGANIZATIONS": "Kuruluşlar",
-      "PUBLIC": "Herkese Açık"
-    }
+    "formSection": "Profil bilgileri",
+    "formDescription": "Bu bilgiler profilinizde ve doğrulama sayfalarında kimlik olarak gösterilir.",
+    "slugPrefix": "yetkin360…/p/",
+    "skillsDescription": "Beyan ettiğiniz yetkinlikler gri görünür; kanıtla desteklenenler Kanıt Dökümü bölümünde mühürlenir.",
+    "emptySkillsHint": "Yukarıdan arayarak ilk yetkinliğinizi ekleyin.",
+    "searching": "Aranıyor...",
+    "evidenceDescription": "Yetkinliklerinizi destekleyen kanıt sinyalleri ve doğrulanmış deneyimleriniz.",
+    "emptySignalsHint": "Çalışmalarınız tanıklıkla doğrulandıkça sinyaller burada görünür.",
+    "evidenceBackedLabel": "Kanıtla desteklenen yetkinlik",
+    "verifiedLabel": "Doğrulanmış deneyim",
+    "institutionDescription": "Bağlı olduğunuz kurum ve gönderdiğiniz bağlanma talepleri."
   },
   "kurumBaglan": {
     "title": "Kuruma Bağlanma Talebi",
@@ -195,6 +207,30 @@
     "listTitle": "Çalışmalarım",
     "loadError": "Çalışmalar yüklenemedi.",
     "emptyMessage": "Henüz bir çalışmanız yok.",
+    "emptyHint": "Bir kuruluş sizi bir staja veya projeye eklediğinde ya da size bir başlatma bağlantısı gönderdiğinde çalışmanız burada görünür.",
+    "listCount": "{count} çalışma",
+    "retry": "Tekrar dene",
+    "loadingLabel": "Yükleniyor...",
+    "filterEmpty": "Bu durumda çalışma yok.",
+    "filterTabsLabel": "Durum filtresi",
+    "filterTabs": {
+      "all": "Tümü",
+      "ongoing": "Devam eden",
+      "evaluation": "Değerlendirmede",
+      "verified": "Doğrulanmış",
+      "closed": "Kapanmış"
+    },
+    "chainLabel": "Zincir: 4 adımın {done}’i tamamlandı",
+    "chainBrokenLabel": "Zincir {step}. adımda kesildi",
+    "relative": {
+      "now": "az önce",
+      "minutes": "{n} dk önce",
+      "hours": "{n} saat önce",
+      "days": "{n} gün önce",
+      "weeks": "{n} hafta önce",
+      "months": "{n} ay önce",
+      "years": "{n} yıl önce"
+    },
     "detailBackLink": "Çalışmalara dön",
     "detailLoadError": "Çalışma yüklenemedi.",
     "detailNotFound": "Çalışma bulunamadı.",
@@ -319,7 +355,10 @@
     "submittingButton": "Oluşturuluyor...",
     "missingLinkMessage": "Bu link eksik veya geçersiz. Organizasyonunuzdan doğru linki isteyin.",
     "notATalentMessage": "Bu özellik yalnızca öğrenci hesapları için kullanılabilir.",
-    "invalidLinkError": "Bu organizasyon bulunamadı. Organizasyonunuzdan doğru linki isteyin."
+    "invalidLinkError": "Bu organizasyon bulunamadı. Organizasyonunuzdan doğru linki isteyin.",
+    "description": "Oluşturduğunuz çalışma taslak olarak kaydedilir; ardından kuruluşun onayına gönderirsiniz.",
+    "titlePlaceholder": "Örn. Veri Analisti Yaz Stajı",
+    "loadingLabel": "Form yükleniyor"
   },
   "degerlendirme": {
     "title": "Değerlendirme Formu",
@@ -342,11 +381,22 @@
     "submittingButton": "Gönderiliyor...",
     "successMessage": "Değerlendirme gönderildi.",
     "conflictError": "Bu çalışma şu anda değerlendirilemiyor (zaten değerlendirilmiş veya durumu değişmiş olabilir). Güncel durum yeniden yüklendi.",
-    "notEligibleMessage": "Bu çalışma değerlendirme aşamasında değil, form gösterilemiyor."
+    "notEligibleMessage": "Bu çalışma değerlendirme aşamasında değil, form gösterilemiyor.",
+    "subtitle": "Her kriter için gözleminizi işaretleyin. Gönderilen değerlendirme değiştirilemez.",
+    "criterionCaption": "Kriter {n}",
+    "criteriaCount": "{n} kriter",
+    "removeItemAria": "Kriter {n} kaldır",
+    "ratingGroupLabel": "Değerlendirme seçenekleri"
   },
   "publicProfile": {
     "empty": "henüz doğrulanmış deneyim yok",
-    "notFound": "Kayıt bulunamadı"
+    "notFound": "Kayıt bulunamadı",
+    "topBarLabel": "Herkese açık profil",
+    "experienceCount": "{n} doğrulanmış deneyim",
+    "timelineTitle": "Doğrulanmış deneyimler",
+    "emptyHint": "Deneyimler kuruluş tanıklığıyla doğrulandığında burada görünür.",
+    "sealLabel": "Doğrulanmış deneyim",
+    "loadingLabel": "Profil yükleniyor"
   },
   "publicVerification": {
     "notFound": "Kayıt bulunamadı",
@@ -357,7 +407,26 @@
     "unverifiedOrganizationNotice": "Bu kurum henüz doğrulanmamıştır. Kurum adı kurumun kendi beyanıdır; kimliğini bağımsız olarak teyit edin.",
     "periodLabel": "Dönem",
     "verifiedAtLabel": "Doğrulama Tarihi",
-    "attestedSkillsTitle": "Tanıklık Yapılan Yetkinlikler"
+    "attestedSkillsTitle": "Tanıklık Yapılan Yetkinlikler",
+    "recordHeading": "DOĞRULANMIŞ DENEYİM KAYDI",
+    "topBarLabel": "Doğrulama kaydı",
+    "sealLabel": "Doğrulanmış deneyim mührü",
+    "chainCaption": "Bu deneyim dört adımdan geçti",
+    "recordNo": "Kayıt no",
+    "stampBrand": "Yetkin360",
+    "verifiedStatement": "Bu sayfa Yetkin360 tarafından {date} tarihinde doğrulanmıştır.",
+    "whatIs": "Yetkin360 nedir?",
+    "notFoundDescription": "Bağlantı hatalı olabilir ya da kayıt kaldırılmış olabilir.",
+    "backHome": "Ana sayfaya dön",
+    "retry": "Tekrar dene",
+    "loadingLabel": "Doğrulama kaydı yükleniyor",
+    "trustLevels": {
+      "T0": "Kişinin kendi beyanı",
+      "T1": "Doğrulanmamış kuruluş",
+      "T2": "Alan adı doğrulanmış",
+      "T3": "Kimliği doğrulanmış kuruluş",
+      "T4": "Kuruluş + üniversite ortak onayı"
+    }
   },
   "kurumOlustur": {
     "title": "Yeni Kurum Oluştur",
@@ -414,7 +483,7 @@
     "validationError": "Ad veya alan adı geçersiz. Lütfen kontrol edin."
   },
   "kurulusPanel": {
-    "title": "Organizasyon Paneli",
+    "title": "Kuruluş paneli",
     "legalIdLabel": "Ticari Sicil No",
     "domainSectionTitle": "Alan Adı Doğrulama",
     "domainLabel": "Alan Adı",
@@ -439,7 +508,15 @@
     "inviteButton": "Davet Gönder",
     "invitingButton": "Gönderiliyor...",
     "inviteSuccessMessage": "Davet kuyruğa alındı.",
-    "inviteErrorMessage": "Davet gönderilemedi."
+    "inviteErrorMessage": "Davet gönderilemedi.",
+    "trustLevel": {
+      "T0": "Kişinin kendi beyanı",
+      "T1": "Doğrulanmamış kuruluş",
+      "T2": "Alan adı doğrulanmış",
+      "T3": "Kimliği doğrulanmış kuruluş",
+      "T4": "Kuruluş + üniversite ortak onayı"
+    },
+    "txtRecordLabel": "TXT kaydı değeri"
   },
   "adminVerificationQueue": {
     "title": "Kurum Doğrulama Kuyruğu",

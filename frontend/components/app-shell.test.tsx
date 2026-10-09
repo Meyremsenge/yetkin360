@@ -194,6 +194,30 @@ describe("AppShell", () => {
 
       expect(screen.queryByRole("alert")).toBeNull();
     });
+
+    it("AC-12: öğrenci profili varsa kuruluş yok şeridi gösterilmez", () => {
+      vi.mocked(useSession).mockReturnValueOnce({
+        data: {
+          user: { id: "user-1" },
+          talent_profile: { public_slug: null },
+          organizations: [],
+          institutions: [],
+        },
+        error: null,
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useSession>);
+
+      render(
+        <AppShell>
+          <p>İçerik</p>
+        </AppShell>
+      );
+
+      expect(screen.queryByText(messages.shell.noOrganizations)).toBeNull();
+      expect(screen.getByText("İçerik")).toBeTruthy();
+    });
   });
 
   describe("AC-5: Ağ hatası + cache", () => {

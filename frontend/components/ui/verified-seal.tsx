@@ -1,18 +1,41 @@
+import { cn } from "@/lib/utils";
+
+const sizeClasses = {
+  sm: { circle: "h-5 w-5", icon: "h-3 w-3" },
+  md: { circle: "h-16 w-16", icon: "h-8 w-8" },
+  lg: {
+    circle: "h-24 w-24 -rotate-[4deg] outline outline-1 outline-offset-4 outline-success",
+    icon: "h-12 w-12",
+  },
+} as const;
+
 export function VerifiedSeal({
   name,
   issuedAt,
   registryNo,
+  size = "md",
+  label,
 }: {
   name?: string;
   issuedAt?: string;
   registryNo?: string;
+  size?: "sm" | "md" | "lg";
+  label?: string;
 }) {
+  const classes = sizeClasses[size];
   return (
     <div data-testid="verified-seal" className="flex flex-col items-center gap-4 text-center">
-      <span className="flex h-16 w-16 items-center justify-center rounded-full bg-success text-background">
+      <span
+        role={label ? "img" : undefined}
+        aria-label={label}
+        className={cn(
+          "flex items-center justify-center rounded-full bg-success text-background",
+          classes.circle
+        )}
+      >
         <svg
           viewBox="0 0 24 24"
-          className="h-8 w-8"
+          className={classes.icon}
           fill="none"
           stroke="currentColor"
           strokeWidth={2}

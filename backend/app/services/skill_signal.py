@@ -78,12 +78,12 @@ def list_skill_signals(
     # AC-12: Batch-resolve organization names for EVALUATION signals (not N+1) —
     # attested_by must be a human-readable name, never the raw org UUID.
     org_ids = {s.attested_by_org_id for s in valid_signals if s.source_type == "EVALUATION" and s.attested_by_org_id}
-    org_names: dict = {}
+    org_names: dict[uuid.UUID, str] = {}
     if org_ids:
         org_names = dict(
             session.execute(
                 select(Organization.id, Organization.name).where(Organization.id.in_(org_ids))
-            ).all()
+            ).tuples().all()
         )
 
     # Group signals by skill_id

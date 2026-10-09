@@ -8,9 +8,8 @@ import { updateTalentProfile } from "@/lib/api/client";
 import { SESSION_QUERY_KEY } from "@/lib/session/use-session";
 import { talentProfileSchema, TalentProfileFormData } from "@/lib/talent/schemas";
 import messages from "@/messages/tr.json";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { ProfileSection, fieldClass, labelClass, primaryButtonClass } from "./profile-ui";
 
 interface ProfileFormProps {
   initialData: Record<string, unknown>;
@@ -85,128 +84,127 @@ export default function ProfileForm({ initialData }: ProfileFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 rounded-md bg-slate-50 p-6 border border-slate-200">
-      {/* General error banner */}
-      {generalError && (
-        <div
-          role="alert"
-          aria-live="polite"
-          className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-600"
-        >
-          {generalError}
+    <ProfileSection title={messages.profil.formSection} description={messages.profil.formDescription}>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        {/* General error banner */}
+        {generalError && (
+          <div
+            role="alert"
+            aria-live="polite"
+            className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          >
+            {generalError}
+          </div>
+        )}
+
+        {/* Success message */}
+        {successMessage && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="rounded-md border border-success/30 bg-success/10 px-4 py-3 text-sm text-success"
+          >
+            {successMessage}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label htmlFor="headline" className={labelClass}>{messages.profil.headline}</label>
+            <input
+              {...register("headline")}
+              id="headline"
+              type="text"
+              placeholder="Yazılım Geliştirici"
+              className={fieldClass}
+            />
+            <FieldError message={errors.headline?.message} />
+          </div>
+
+          <div>
+            <label htmlFor="department" className={labelClass}>{messages.profil.department}</label>
+            <input
+              {...register("department")}
+              id="department"
+              type="text"
+              placeholder="Mühendislik"
+              className={fieldClass}
+            />
+            <FieldError message={errors.department?.message} />
+          </div>
+
+          <div>
+            <label htmlFor="study_year" className={labelClass}>{messages.profil.studyYear}</label>
+            <input
+              {...register("study_year", { valueAsNumber: true })}
+              id="study_year"
+              type="number"
+              min="0"
+              max="10"
+              placeholder="3"
+              className={`${fieldClass} tabular-nums`}
+            />
+            <FieldError message={errors.study_year?.message} />
+          </div>
+
+          <div>
+            <label htmlFor="city" className={labelClass}>{messages.profil.city}</label>
+            <input
+              {...register("city")}
+              id="city"
+              type="text"
+              placeholder="İstanbul"
+              className={fieldClass}
+            />
+            <FieldError message={errors.city?.message} />
+          </div>
+
+          <div>
+            <label htmlFor="visibility" className={labelClass}>{messages.profil.visibility}</label>
+            <select {...register("visibility")} id="visibility" className={fieldClass}>
+              <option value="">Seçiniz</option>
+              <option value="PRIVATE">Özel (Sadece Ben)</option>
+              <option value="INSTITUTION">Kurum (Kurumum)</option>
+              <option value="ORGANIZATIONS">Kuruluşlar</option>
+              <option value="PUBLIC">Herkese Açık</option>
+            </select>
+            <FieldError message={errors.visibility?.message} />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label htmlFor="public_slug" className={labelClass}>{messages.profil.publicSlug}</label>
+            <div className="flex">
+              <span className="inline-flex h-10 items-center rounded-l-md border border-r-0 border-border bg-muted px-3 font-mono text-xs text-muted-foreground">
+                {messages.profil.slugPrefix}
+              </span>
+              <input
+                {...register("public_slug")}
+                id="public_slug"
+                type="text"
+                placeholder="profil-linkim"
+                className={`${fieldClass} rounded-l-none font-mono`}
+              />
+            </div>
+            <FieldError message={errors.public_slug?.message} />
+          </div>
         </div>
-      )}
 
-      {/* Success message */}
-      {successMessage && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="rounded-md bg-green-50 border border-green-200 p-3 text-sm text-green-600"
-        >
-          {successMessage}
+        {/* AC-11: Submit button with loading state */}
+        <div className="pt-2">
+          <Button type="submit" disabled={isSubmitting} className={primaryButtonClass}>
+            {isSubmitting ? messages.profil.savingButton : messages.profil.saveButton}
+          </Button>
         </div>
-      )}
+      </form>
+    </ProfileSection>
+  );
+}
 
-      {/* Headline field */}
-      <div>
-        <Label htmlFor="headline">{messages.profil.headline}</Label>
-        <Input
-          {...register("headline")}
-          id="headline"
-          type="text"
-          placeholder="Yazılım Geliştirici"
-        />
-        {errors.headline && (
-          <div className="text-xs text-red-600 mt-1">{errors.headline.message}</div>
-        )}
-      </div>
-
-      {/* Department field */}
-      <div>
-        <Label htmlFor="department">{messages.profil.department}</Label>
-        <Input
-          {...register("department")}
-          id="department"
-          type="text"
-          placeholder="Mühendislik"
-        />
-        {errors.department && (
-          <div className="text-xs text-red-600 mt-1">{errors.department.message}</div>
-        )}
-      </div>
-
-      {/* Study Year field */}
-      <div>
-        <Label htmlFor="study_year">{messages.profil.studyYear}</Label>
-        <Input
-          {...register("study_year", { valueAsNumber: true })}
-          id="study_year"
-          type="number"
-          min="0"
-          max="10"
-          placeholder="3"
-        />
-        {errors.study_year && (
-          <div className="text-xs text-red-600 mt-1">{errors.study_year.message}</div>
-        )}
-      </div>
-
-      {/* City field */}
-      <div>
-        <Label htmlFor="city">{messages.profil.city}</Label>
-        <Input
-          {...register("city")}
-          id="city"
-          type="text"
-          placeholder="İstanbul"
-        />
-        {errors.city && (
-          <div className="text-xs text-red-600 mt-1">{errors.city.message}</div>
-        )}
-      </div>
-
-      {/* Visibility field */}
-      <div>
-        <Label htmlFor="visibility">{messages.profil.visibility}</Label>
-        <select
-          {...register("visibility")}
-          id="visibility"
-          className="block w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-        >
-          <option value="">Seçiniz</option>
-          <option value="PRIVATE">Özel (Sadece Ben)</option>
-          <option value="INSTITUTION">Kurum (Kurumum)</option>
-          <option value="ORGANIZATIONS">Kuruluşlar</option>
-          <option value="PUBLIC">Herkese Açık</option>
-        </select>
-        {errors.visibility && (
-          <div className="text-xs text-red-600 mt-1">{errors.visibility.message}</div>
-        )}
-      </div>
-
-      {/* Public Slug field */}
-      <div>
-        <Label htmlFor="public_slug">{messages.profil.publicSlug}</Label>
-        <Input
-          {...register("public_slug")}
-          id="public_slug"
-          type="text"
-          placeholder="profil-linkim"
-        />
-        {errors.public_slug && (
-          <div className="text-xs text-red-600 mt-1">{errors.public_slug.message}</div>
-        )}
-      </div>
-
-      {/* AC-11: Submit button with loading state */}
-      <Button
-        type="submit"
-        disabled={isSubmitting}
-        className="w-full"
-      >
-        {isSubmitting ? messages.profil.savingButton : messages.profil.saveButton}
-      </Button>
-    </form>
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return (
+    <div aria-live="polite" className="mt-1.5 text-[13px] text-destructive">
+      {message}
+    </div>
   );
 }

@@ -4,6 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { getMySignals, getMyVerifiedExperiences } from "@/lib/api/client";
 import messages from "@/messages/tr.json";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { VerifiedSeal } from "@/components/ui/verified-seal";
+import { ProfileSection, SkeletonRows, EmptyNote, focusRingClass } from "./profile-ui";
 
 interface Signal {
   source_type: string;
@@ -53,6 +56,23 @@ function getStrengthLabel(strength: string): string {
   return strengthMap[strength] || strength;
 }
 
+const STRENGTH_LEVEL: Record<string, number> = { NONE: 0, WEAK: 1, MODERATE: 2, STRONG: 3 };
+
+function StrengthBars({ strength }: { strength: string }) {
+  const filled = STRENGTH_LEVEL[strength] ?? 0;
+  return (
+    <span aria-hidden="true" className="inline-flex items-end gap-0.5">
+      {[1, 2, 3].map((n) => (
+        <span
+          key={n}
+          className={`w-1 rounded-sm ${n <= filled ? "bg-foreground" : "bg-border"}`}
+          style={{ height: 4 + n * 3 }}
+        />
+      ))}
+    </span>
+  );
+}
+
 function formatDate(isoDate: string): string {
   const date = new Date(isoDate);
   return new Intl.DateTimeFormat("tr-TR", {
@@ -95,30 +115,33 @@ export default function EvidenceSection() {
   };
 
   return (
-    <div className="rounded-md bg-slate-50 p-6 border border-slate-200 mt-8">
-      <h2 className="text-xl font-bold mb-6">{messages.profil.evidenceSection}</h2>
-
+    <ProfileSection title={messages.profil.evidenceSection} description={messages.profil.evidenceDescription}>
       {/* ===== Signals Section ===== */}
       <div className="mb-8">
-        <h3 className="text-lg font-semibold mb-4">{messages.profil.signalsSectionTitle}</h3>
+        <h3 className="mb-3 font-serif text-lg font-medium text-foreground">
+          {messages.profil.signalsSectionTitle}
+        </h3>
 
-        {signalsLoading && <p className="text-slate-600">{messages.shell.loading}</p>}
+        {signalsLoading && <SkeletonRows />}
 
         {signalsError && (
-          <div role="alert" className="rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-600 mb-4">
-            <div className="font-medium mb-3">{messages.profil.signalsLoadError}</div>
-            <Button onClick={handleRetry} className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 text-sm">
+          <div
+            role="alert"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          >
+            <div className="font-medium">{messages.profil.signalsLoadError}</div>
+            <Button onClick={handleRetry} variant="secondary" size="sm" className={focusRingClass}>
               {messages.profil.retryButton}
             </Button>
           </div>
         )}
 
         {!signalsLoading && !signalsError && signalGroups.length === 0 && (
-          <p className="text-slate-600">{messages.profil.emptySignalsMessage}</p>
+          <EmptyNote title={messages.profil.emptySignalsMessage} hint={messages.profil.emptySignalsHint} />
         )}
 
         {!signalsLoading && !signalsError && signalGroups.length > 0 && (
-          <div className="space-y-6">
+          <div className="space-y-4">
             {signalGroups.map((group) => {
               // AC-1: Sort signals by occurred_at descending (newest first)
               const sortedSignals = [...group.signals].sort((a, b) => {
@@ -126,44 +149,64 @@ export default function EvidenceSection() {
                 const dateB = new Date(b.occurred_at).getTime();
                 return dateB - dateA;
               });
+              // Sealed only when a real (non self-claim, non superseded) signal backs the skill
+              const hasEvidence = group.signals.some(
+                (s) =>
+                  !s.superseded && s.source_type !== "SELF_CLAIM" && (STRENGTH_LEVEL[s.strength] ?? 0) > 0
+              );
 
               return (
-                <div key={group.skill.id} className="border-l-4 border-slate-300 pl-4">
+                <div
+                  key={group.skill.id}
+                  className={`rounded-md border p-4 ${
+                    hasEvidence ? "border-success/40 bg-success/5" : "border-border"
+                  }`}
+                >
                   {/* AC-1: Skill name grouped */}
-                  <h4 className="font-semibold text-slate-900 mb-3">{group.skill.name_tr}</h4>
+                  <div className="mb-3 flex items-center gap-2">
+                    {hasEvidence && <VerifiedSeal size="sm" label={messages.profil.evidenceBackedLabel} />}
+                    <h4
+                      className={`text-[15px] font-medium ${
+                        hasEvidence ? "text-success" : "text-muted-foreground"
+                      }`}
+                    >
+                      {group.skill.name_tr}
+                    </h4>
+                  </div>
 
-                  <div className="space-y-3">
+                  <ul className="divide-y divide-border">
                     {sortedSignals.map((signal, idx) => (
-                      <div
+                      <li
                         key={idx}
-                        className={`bg-white p-3 rounded border border-slate-200 ${
+                        className={`flex items-start justify-between gap-3 py-2.5 ${
                           signal.superseded ? "opacity-60" : ""
                         }`}
                       >
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1">
-                            {/* AC-1: source_type, strength, date */}
-                            <div className="text-sm text-slate-700 mb-1">
-                              {getSourceTypeLabel(signal.source_type)} • {getStrengthLabel(signal.strength)}
-                            </div>
-                            <div className="text-xs text-slate-500 mb-1">{formatDate(signal.occurred_at)}</div>
-
-                            {/* AC-5: attested_by or "Kendi beyanı" */}
-                            <div className="text-sm font-medium text-slate-900">
-                              {signal.attested_by || messages.profil.selfClaimLabel}
-                            </div>
+                        <div className="min-w-0 flex-1">
+                          {/* AC-1: source_type, strength, date */}
+                          <div className="flex flex-wrap items-center gap-x-2 text-sm text-foreground">
+                            <span>{getSourceTypeLabel(signal.source_type)}</span>
+                            <StrengthBars strength={signal.strength} />
+                            <span className="text-muted-foreground">{getStrengthLabel(signal.strength)}</span>
                           </div>
+                          {/* AC-5: attested_by or "Kendi beyanı" */}
+                          <div className="mt-0.5 text-sm font-medium text-foreground">
+                            {signal.attested_by || messages.profil.selfClaimLabel}
+                          </div>
+                        </div>
 
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {formatDate(signal.occurred_at)}
+                          </span>
                           {/* AC-4: superseded badge */}
                           {signal.superseded && (
-                            <div className="ml-2 bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded">
-                              {messages.profil.supersededBadge}
-                            </div>
+                            <Badge variant="warning">{messages.profil.supersededBadge}</Badge>
                           )}
                         </div>
-                      </div>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 </div>
               );
             })}
@@ -173,34 +216,45 @@ export default function EvidenceSection() {
 
       {/* ===== Verified Experiences Section ===== */}
       <div>
-        <h3 className="text-lg font-semibold mb-4">{messages.profil.verifiedExperiencesSectionTitle}</h3>
+        <h3 className="mb-3 font-serif text-lg font-medium text-foreground">
+          {messages.profil.verifiedExperiencesSectionTitle}
+        </h3>
 
-        {verifiedExpLoading && <p className="text-slate-600">{messages.shell.loading}</p>}
+        {verifiedExpLoading && <SkeletonRows rows={2} />}
 
         {verifiedExpError && (
-          <div role="alert" className="rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-600">
+          <div
+            role="alert"
+            className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          >
             {messages.errors.generic}
           </div>
         )}
 
         {!verifiedExpLoading && !verifiedExpError && verifiedExperiences.length === 0 && (
-          <p className="text-slate-600">{messages.profil.emptyVerifiedExperiencesMessage}</p>
+          <EmptyNote title={messages.profil.emptyVerifiedExperiencesMessage} />
         )}
 
         {!verifiedExpLoading && !verifiedExpError && verifiedExperiences.length > 0 && (
-          <div className="space-y-4">
+          <ul className="space-y-3">
             {verifiedExperiences.map((exp) => (
-              <div key={exp.id} className="bg-white p-4 rounded border border-slate-200">
-                <div className="font-semibold text-slate-900 mb-1">{exp.organization_name_snapshot}</div>
-                <div className="text-sm text-slate-700 mb-2">{exp.role_snapshot}</div>
-                <div className="text-xs text-slate-500">
-                  {exp.started_on_snapshot ? formatDate(exp.started_on_snapshot) : messages.profil.unknownStartLabel} – {exp.ended_on_snapshot ? formatDate(exp.ended_on_snapshot) : messages.profil.ongoingLabel}
+              <li
+                key={exp.id}
+                className="flex items-start gap-3 rounded-md border border-success/40 bg-success/5 p-4"
+              >
+                <VerifiedSeal size="sm" label={messages.profil.verifiedLabel} />
+                <div className="min-w-0">
+                  <div className="font-medium text-foreground">{exp.organization_name_snapshot}</div>
+                  <div className="text-sm text-foreground">{exp.role_snapshot}</div>
+                  <div className="mt-1 font-mono text-xs text-muted-foreground">
+                    {exp.started_on_snapshot ? formatDate(exp.started_on_snapshot) : messages.profil.unknownStartLabel} – {exp.ended_on_snapshot ? formatDate(exp.ended_on_snapshot) : messages.profil.ongoingLabel}
+                  </div>
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </div>
-    </div>
+    </ProfileSection>
   );
 }

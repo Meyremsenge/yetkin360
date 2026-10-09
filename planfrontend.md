@@ -198,7 +198,7 @@ Hedef: sayfalara dokunmadan önce her sayfanın kullanacağı yapı taşları ha
 
 ### Faz 2 — Kabuk ve navigasyon (Gün 1 sonu / Gün 2 başı)
 
-- [ ] **FE-09** `AppShell` yeniden düzeni: **P0**
+- [x] **FE-09** `AppShell` yeniden düzeni: **P0**
   - Masaüstü: sol **sidebar** (logo, rol bazlı menü, altta kullanıcı kartı + çıkış dropdown'u). Mobil: üst bar + açılır menü (Dialog/Sheet).
   - Menü `/me` yanıtından türetilir:
     - Her kullanıcı: Çalışmalarım
@@ -212,7 +212,7 @@ Hedef: sayfalara dokunmadan önce her sayfanın kullanacağı yapı taşları ha
   - Oturum hatası: kabuk ve marka yerinde kalır, içerikte `ErrorState`; `SessionExpiredError` → girişe yönlendiren net mesaj.
   - Mevcut `app-shell.test.tsx` davranışları (AC-1, AC-5, AC-7, AC-8, AC-12, AC-S1) korunur; admin linki testleri yeni menü yapısına göre güncellenir.
 - [ ] **FE-10** Rol bazlı giriş yönlendirmesi (K-6): `?next=` yoksa → kurum varsa kurum paneli, kuruluş varsa kuruluş paneli, admin ise doğrulama kuyruğu, aksi halde `/calismalar`. Saf fonksiyon + unit test (`lib/auth/landing-path.ts`). **P0**
-- [ ] **FE-11** `not-found.tsx`, `error.tsx`, `global-error.tsx` yeni `ErrorState`/`EmptyState` ile; ana sayfaya ve geri dönüş linki. **P1**
+- [x] **FE-11** `not-found.tsx`, `error.tsx`, `global-error.tsx` yeni `ErrorState`/`EmptyState` ile; ana sayfaya ve geri dönüş linki. **P1**
 
 ### Faz 3 — Ekranlar (Gün 2-3)
 
@@ -229,14 +229,14 @@ Sıra demo akışına göredir (`§4`). Her ekran için "bitti" tanımı `§6`.
   - Rakamlar şeridi (opsiyonel): seed'deki gerçek sayılar yoksa **konmaz**; uydurma istatistik yok.
   - Footer: açık kaynak notu + GitHub linki + lisans.
   - Tüm metin `tr.json` → `home.*`.
-- [ ] **FE-13** **`/v/[token]` doğrulama sayfası** — **P0, en kritik ekran**
+- [x] **FE-13** **`/v/[token]` doğrulama sayfası** — **P0, en kritik ekran**
   - "Sertifika" düzeni: kâğıt dokulu kart, ince çift çerçeve, sağ üstte büyük `VerifiedSeal`; serif ile kişi adı, rol/başlık, kuruluş, dönem. Altta Plex Mono ile doğrulama kodu ve tarih damgası. Telefonda açıldığında "gerçek bir belge" hissi vermeli.
   - `ChainProgress` tamamlanmış halde ("bu deneyim 4 adımdan geçti").
   - Tanıklık eden yetkinlikler: skill çipleri + tanıklık eden kuruluş.
   - Güven bilgisi: `TrustLevelBadge` + alan adı; T1 uyarısı nazik ama görünür.
   - "Bu sayfa Yetkin360 tarafından {tarih} tarihinde doğrulanmıştır" + doğrulama kodu.
   - Mobilde (375px) tek sütun, büyük dokunma alanları; `generateMetadata` ile sayfa başlığı ve OG başlık/açıklaması (link paylaşılınca düzgün önizleme). 404 için markalı boş durum.
-- [ ] **FE-14** **`/p/[slug]` public profil** — **P0**
+- [x] **FE-14** **`/p/[slug]` public profil** — **P0**
   - Profil başlığı (Avatar baş harf, ad, başlık/bölüm, kurum).
   - Doğrulanmış deneyimler zaman çizelgesi; her biri `VerifiedSeal` ve `/v/...` linki (API veriyorsa).
   - `claim_type` enum yerine `tr.json` etiketi.
@@ -252,7 +252,7 @@ Sıra demo akışına göredir (`§4`). Her ekran için "bitti" tanımı `§6`.
 
 #### 3c. Öğrenci akışı
 
-- [ ] **FE-16** **`/calismalar` liste** — **P0**
+- [x] **FE-16** **`/calismalar` liste** — **P0**
   - `PageHeader` + "Yeni çalışma" aksiyonu (yetkisi olan role).
   - Durum filtre sekmeleri (Tümü / Devam eden / Değerlendirmede / Doğrulanmış) — **yalnız istemci tarafı filtre**, yeni API yok.
   - Kart ızgarası: başlık, kuruluş, tür, `StatusBadge`, mini zincir (4 nokta), güncellenme tarihi (göreli: "3 gün önce").
@@ -266,16 +266,16 @@ Sıra demo akışına göredir (`§4`). Her ekran için "bitti" tanımı `§6`.
     - Kanıt yükleme: sürükle-bırak alanı görünümü, ilerleme çubuğu, dosya türü/boyut ipucu (davranış aynı).
     - Tanıklıklar: her biri skill + tanıklık eden + tarih; geri alınmışsa üstü çizili + "Geri alındı" rozeti.
   - Görev durumları ham enum (`task.status`) yerine `tr.json` etiketi.
-- [ ] **FE-18** **`/profil`** — **P0**
+- [x] **FE-18** **`/profil`** — **P0**
   - Üstte profil özeti kartı (avatar, ad, başlık, kurum, görünürlük rozeti, "Herkese açık profili gör / linki kopyala").
   - Sekmeler: Profil bilgileri · Yetkinlikler · Kanıt dökümü · Kurum bağlantısı.
   - Yetkinlikler: **beyan** (gri, "Beyan") ile **sinyal/doğrulanmış** (yeşil, kanıt sayısı) görsel olarak ayrışır — ürün iddiasının profildeki karşılığı.
   - `SkillPicker` arama + çip görünümü.
-- [ ] **FE-19** **`/calismalar/olustur`** — **P1** — tek kart form, adım açıklaması, kuruluş/kurum seçimi açık etiketli.
+- [x] **FE-19** **`/calismalar/olustur`** — **P1** — tek kart form, adım açıklaması, kuruluş/kurum seçimi açık etiketli.
 
 #### 3d. Kuruluş (işveren) ve kurum (üniversite)
 
-- [ ] **FE-20** **`/kurulus/[id]/panel`** — **P1**
+- [x] **FE-20** **`/kurulus/[id]/panel`** — **P1**
   - `PageHeader` (kuruluş adı + `TrustLevelBadge`).
   - `StatCard` satırı: aktif çalışma, değerlendirme bekleyen, doğrulanmış (mevcut yanıt verisinden sayılır).
   - "Sizden aksiyon bekleyenler" listesi (onay bekleyen, değerlendirme bekleyen) en üstte.
@@ -284,7 +284,7 @@ Sıra demo akışına göredir (`§4`). Her ekran için "bitti" tanımı `§6`.
   - Aynı panel kalıbı: stat kartları, bekleyen bağlantı istekleri, öğrenci/çalışma tablosu.
   - Tablo: başlık satırı sabit, durum rozeti, satır tıklanınca detay.
   - Bileşen dosyalarına bölünür (sayfa dosyası < 200 satır hedefi) — **davranış değişmez**.
-- [ ] **FE-22** **`/calismalar/[id]/degerlendirme`** — **P0** (zincirin "tanıklık" adımı canlı gösterilir)
+- [x] **FE-22** **`/calismalar/[id]/degerlendirme`** — **P0** (zincirin "tanıklık" adımı canlı gösterilir)
   - Değerlendirilen çalışma özeti kartı üstte.
   - Puanlama alanları büyük, seçilebilir kartlar/segmentler; skill tanıklıkları çip seçimi.
   - Gönder → onay `Dialog`'u ("Bu tanıklık geri alınamaz şekilde kaydedilir").
