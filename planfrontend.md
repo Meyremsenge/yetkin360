@@ -212,7 +212,7 @@ Hedef: sayfalara dokunmadan önce her sayfanın kullanacağı yapı taşları ha
   - Oturum hatası: kabuk ve marka yerinde kalır, içerikte `ErrorState`; `SessionExpiredError` → girişe yönlendiren net mesaj.
   - Mevcut `app-shell.test.tsx` davranışları (AC-1, AC-5, AC-7, AC-8, AC-12, AC-S1) korunur; admin linki testleri yeni menü yapısına göre güncellenir.
 - [ ] **FE-10** Rol bazlı giriş yönlendirmesi (K-6): `?next=` yoksa → kurum varsa kurum paneli, kuruluş varsa kuruluş paneli, admin ise doğrulama kuyruğu, aksi halde `/calismalar`. Saf fonksiyon + unit test (`lib/auth/landing-path.ts`). **P0**
-- [ ] **FE-11** `not-found.tsx`, `error.tsx`, `global-error.tsx` yeni `ErrorState`/`EmptyState` ile; ana sayfaya ve geri dönüş linki. **P1**
+- [x] **FE-11** `not-found.tsx`, `error.tsx`, `global-error.tsx` yeni `ErrorState`/`EmptyState` ile; ana sayfaya ve geri dönüş linki. **P1**
 
 ### Faz 3 — Ekranlar (Gün 2-3)
 
