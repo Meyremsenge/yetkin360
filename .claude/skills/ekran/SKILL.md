@@ -1,59 +1,74 @@
 ---
 name: ekran
-description: Tek bir frontend ekranını docs/sayfa-tasarim-brifi.md + tasarimlar/stitch/ mockup'ına göre yeni görsel dile (kâğıt/mürekkep/mühür) geçirir. Yalnız sunum katmanı; veri/iş mantığı değişmez. Kullanıcı /ekran <sayfa-no veya rota> yazdığında çalışır.
+description: Tek bir frontend ekranını docs/sayfa-tasarim-brifi.md + tasarimlar/stitch/ mockup'ına göre yeni görsel dile (kâğıt/mürekkep/mühür) geçirir. Yalnız sunum katmanı; veri/iş mantığı değişmez. Argümansız çağrılırsa kuyruktaki sıradaki ekranı seçer. Kullanıcı /ekran yazdığında çalışır.
 disable-model-invocation: true
-argument-hint: "<brif sayfa no 1-21 | rota, ör. 2 veya /v/[token] | shell>"
+argument-hint: "(boş = kuyruktaki sıradaki) | <kuyruk kodu: 2, shell, 3, 10, 10b, 10c, 13, 11, 9, 14, 21, 16, 12, 18, 19>"
 ---
 
 # Ekran dönüştür
 
 Amaç: bir ekranı **görünüm olarak** brife uydurmak. Davranış aynı kalır.
 Kullanıcıyla **Türkçe** konuş. Kod, yorum, tanımlayıcı İngilizce. UI metni `frontend/messages/tr.json`'da.
+**Bir oturum = bir kuyruk kodu = bir commit.** Bitince dur; sıradakine kendiliğinden geçme.
 
-## 0. Kapsam kilidi (önce oku, sonra başla)
+## 0. Hangi ekran? (kuyruk)
 
-- **Tek ekran, tek commit.** Argümandaki ekran dışında dosyaya dokunma (o ekranın alt bileşenleri ve testleri hariç).
-- **Yalnız sunum:** JSX yapısı, Tailwind sınıfları, `tr.json` metinleri, `components/ui/` ilkellerinin kullanımı. `fetch`/TanStack Query çağrıları, Zod şemaları, yönlendirme mantığı, prop sözleşmeleri **değişmez**.
-- **Backend'e dokunma.** Ekranda veri eksikse uydurma — `docs/sayfa-tasarim-brifi.md` "Açık noktalar" ruhuyla raporda not düş.
-- **Yeni bağımlılık ekleme** (ikon kütüphanesi dahil). İkon gerekiyorsa küçük inline SVG ya da ikonsuz.
-- **Olmayan veriyi çizme:** istatistik, yüzde, puan, fotoğraf, sayaç yok. Mockup'ta varsa bile.
+Argüman verildiyse onu al. **Argüman boşsa:** `planfrontend.md`'yi oku ve aşağıdaki sırada FE satırı `[ ]` olan **ilk** kodu seç. `[x]` ve `[~]` olanları atla. `[~]`, başka biri ya da yarım bırakılmış iş demektir. Seçtiğini tek cümleyle söyle ve başla. Soru sorma.
+
+| Sıra | Kod | Ekran | FE | Dosya(lar) | Mockup (`tasarimlar/stitch/proje1-tum-sayfalar/`) |
+|---|---|---|---|---|---|
+| 1 | `2` | `/v/[token]` sertifika | FE-13 | `app/v/[token]/page.tsx` | `19-…`, `04-…` |
+| 2 | `shell` | AppShell sol navbar (brif §5) | FE-09 | `components/app-shell.tsx` | `06-…` (sol kısım) |
+| 3 | `3` | `/p/[slug]` public profil | FE-14 | `app/p/[slug]/page.tsx` | `15-…`, `05-…` |
+| 4 | `10` | `/calismalar/[id]` sayfa iskeleti + zincir + durum butonları | FE-17 | `app/calismalar/[id]/page.tsx`, `transition-actions.tsx` | `06-…` |
+| 5 | `10b` | `/calismalar/[id]` görev/çıktı/kanıt formları | FE-17 | `task-form.tsx`, `deliverable-form.tsx`, `evidence-upload-form.tsx` | `06-…` |
+| 6 | `10c` | `/calismalar/[id]` tanıklık formları | FE-17 | `attestation-form.tsx`, `attestation-revoke.tsx` | `06-…` |
+| 7 | `13` | `/profil` | FE-18 | `app/profil/*` (5 bileşen) | `07-…` |
+| 8 | `11` | değerlendirme formu | FE-22 | `app/calismalar/[id]/degerlendirme/*` | `12-…`, `14-…` |
+| 9 | `9` | `/calismalar` liste | FE-16 | `app/calismalar/page.tsx` | `09-…` |
+| 10 | `14` | kuruluş paneli | FE-20 | `app/kurulus/[id]/panel/page.tsx` | `10-…` |
+| 11 | `21` | 404 / hata | FE-11 | `app/not-found.tsx`, `app/error.tsx` | `18-…` |
+| 12 | `16` | kurum paneli | FE-21 | `app/kurum/[id]/panel/page.tsx` | `16-…` |
+| 13 | `12` | yeni çalışma | FE-19 | `app/calismalar/olustur/page.tsx` | `11-…` |
+| 14 | `18` | kurum/kuruluş oluştur + kuruma bağlan | FE-23 | `app/kurum/[id]/baglan/`, `app/kurum/olustur/`, `app/kurulus/olustur/` | `13-…`, `01-…`, `03-…` |
+| 15 | `19` | admin doğrulama kuyruğu | FE-24 | `app/admin/dogrulama-kuyrugu/page.tsx` | `02-…` |
+
+Dosya yolları `frontend/` altında. Brif bölümü = kodun numarası (`shell` → §5; `10/10b/10c` → "10. Çalışma detayı"; `18` → brif 17+18 ve 15).
+Mockup tam adı: `ls tasarimlar/stitch/proje1-tum-sayfalar/ | grep '^19-'`. Ek referans: `tasarimlar/stitch/proje2-brifi-v2/`.
+Mockup **ilham**dir, kaynak değil. Stitch HTML'ini kopyalama: CDN Tailwind, sahte veri ve farklı sınıf adları içerir. Brif ile mockup çelişirse **brif**, brif ile `planfrontend.md` çelişirse yine **brif** kazanır.
+
+**Paralel mod:** `git rev-parse --git-dir` çıktısında `worktrees` geçiyorsa bir worktree'desin; başka oturumlar da çalışıyor demektir. Bu durumda:
+- Argüman boşsa seçme; kullanıcıdan kod iste.
+- `components/ui/` altına yeni dosya ekleme; gerekirse kendi ekran dosyanın içinde küçük yerel bir parça yaz.
+- `tr.json`'da yalnız kendi ekranının bölümüne anahtar ekle.
+- Commit'ten sonra kullanıcıya `git pull --rebase origin main && git push origin HEAD:main` öner.
+
+Ayrıntı: `docs/gece-plani.md` "Paralel oturumlar".
+
+**Başlarken:** `git status --short` temiz değilse DUR ve kullanıcıya göster. Önceki oturumdan commit'lenmemiş iş kalmış olabilir. Temizse `planfrontend.md`'de ilgili FE satırını `[~]` yap.
+
+## 1. Kapsam kilidi
+
+- Kuyruk kodundaki dosyalar + onların `.test.tsx` dosyaları + `tr.json` + gerekirse `components/ui/` altında yeni küçük ilkel. Başka dosyaya dokunma.
+- **Yalnız sunum:** JSX yapısı, Tailwind sınıfları, `tr.json` metinleri, `components/ui/` ilkelleri. `fetch`/TanStack Query çağrıları, Zod şemaları, yönlendirme, prop sözleşmeleri, "hangi buton kime görünür" mantığı **değişmez**.
+- **Backend'e dokunma.** Veri eksikse uydurma, raporda not düş.
+- **Yeni bağımlılık yok** (ikon kütüphanesi, Radix dahil). İkon gerekiyorsa küçük inline SVG ya da ikonsuz.
+- **Olmayan veriyi çizme:** istatistik, yüzde, puan, fotoğraf, sayaç yok. Mockup'ta olsa bile.
+- **Yeni özellik yok:** brifte "*(Öneri)*" yazan şeyleri (linki kopyala, filtre, GitHub linki vb.) yapma.
 - `dangerouslySetInnerHTML`, `localStorage` yasak. Mor/indigo, gradyan, emoji, kalın gölge yasak.
-
-## 1. Hedefi bul
-
-| Brif no | Ekran | Dosya(lar) | Mockup (`tasarimlar/stitch/proje1-tum-sayfalar/`) |
-|---|---|---|---|
-| shell | AppShell (sol navbar) — brif §5 | `frontend/components/app-shell.tsx` | `06-…calisma-detayi-appshell.png` (sol kısım) |
-| 2 | `/v/[token]` sertifika | `frontend/app/v/[token]/page.tsx` | `19-…dogrulama-sertifikasi-masaustu.png`, `04-…mobil-qr.png` |
-| 3 | `/p/[slug]` public profil | `frontend/app/p/[slug]/page.tsx` | `15-…ziyaretci.png`, `05-…profil-sahibi.png` |
-| 9 | `/calismalar` | `frontend/app/calismalar/page.tsx` | `09-…calismalarim-liste.png` |
-| 10 | `/calismalar/[id]` | `frontend/app/calismalar/[id]/page.tsx` + aynı klasördeki formlar | `06-…calisma-detayi-appshell.png` |
-| 11 | değerlendirme formu | `frontend/app/calismalar/[id]/degerlendirme/*` | `12-…appshell.png` (ana), `14-…v2.png` |
-| 12 | yeni çalışma | `frontend/app/calismalar/olustur/page.tsx` | `11-…yeni-calisma-olustur.png` |
-| 13 | `/profil` | `frontend/app/profil/*` | `07-…profil.png` |
-| 14 | kuruluş paneli | `frontend/app/kurulus/[id]/panel/page.tsx` | `10-…kurulus-paneli.png` |
-| 16 | kurum paneli | `frontend/app/kurum/[id]/panel/page.tsx` | `16-…kurum-paneli-itu.png` |
-| 18 | kuruma bağlan | `frontend/app/kurum/[id]/baglan/page.tsx` | `13-…kuruma-baglanma-talebi.png` |
-| 19 | admin doğrulama kuyruğu | `frontend/app/admin/dogrulama-kuyrugu/page.tsx` | `02-…kurum-dogrulama-kuyrugu.png` |
-| 21 | 404 / hata | `frontend/app/not-found.tsx`, `error.tsx` | `18-…hata-sayfalari….png` |
-
-Mockup adları kısaltıldı; tam adı numarayla bul: `ls tasarimlar/stitch/proje1-tum-sayfalar/ | grep '^19-'`. Ek referans: `tasarimlar/stitch/proje2-brifi-v2/` (sertifika, çalışma detayı, giriş).
-
-Mockup **ilham**dir, kaynak değil: Stitch HTML'ini kopyalama (CDN Tailwind, sahte veri, farklı sınıf adları içerir). Brif ile mockup çelişirse **brif** kazanır. `planfrontend.md` ile brif çelişirse **brif** kazanır.
 
 ## 2. Hedefli oku (bu kadar, fazlası değil)
 
-1. Brifte o sayfanın bölümü: `grep -n '^### <no>\.' docs/sayfa-tasarim-brifi.md` ile satırı bul, yalnız o bölümü oku. Oturumda ilk ekransa ek olarak §1 (Temel, ~satır 25–110) ve §2'de kullanacağın bileşen alt başlıklarını oku.
+1. Brifte o sayfanın bölümü: `grep -n '^### ' docs/sayfa-tasarim-brifi.md` ile satırı bul, yalnız o bölümü oku. Ayrıca §1 (Temel, ~satır 25–110), §3 (hizalama, ~282–300) ve §2'de kullanacağın bileşen alt başlıklarını oku.
 2. Mockup PNG'sine bak (Read ile görsel).
-3. Hedef dosya(lar) + **aynı adlı `.test.tsx`** dosyaları.
-4. Kullanacağın ilkeller: `frontend/components/ui/` — `Button` (variant: primary/secondary/destructive/ghost, size: sm/md/lg), `Card`, `Badge` (default/success/error/warning), `Alert` (error/success/warning/info), `Input`, `Label`, `ChainProgress` (`steps: {label, completed}[]`), `VerifiedSeal`, `AuthLayout`. Var olanı kullan; yeni ilkel gerekiyorsa `components/ui/` altına küçük, testli ekle.
+3. Hedef dosya(lar) + aynı adlı `.test.tsx` dosyaları.
+4. İlkeller (`frontend/components/ui/`): `Button` (variant: primary/secondary/destructive/ghost · size: sm/md/lg), `Card`, `Badge` (default/success/error/warning), `Alert` (error/success/warning/info), `Input`, `Label`, `ChainProgress` (`steps: {label, completed}[]`), `VerifiedSeal`, `AuthLayout`. Önce var olanı kullan. Gerekirse `components/ui/` altına küçük ve testli yeni ilkel ekle (ör. `Skeleton`, `EmptyState`). Başka biri eklediyse yeniden yazma, onu kullan.
 
 ## 3. Renk ve yazı — yalnız token
 
-Tailwind sınıfları (`frontend/tailwind.config.ts`):
-`bg-background` (kâğıt) · `bg-card` · `bg-sand` (navbar/vurgu) · `bg-muted` · `border-border` · `text-foreground` (mürekkep) · `text-muted-foreground` (ikincil) · `bg-success`/`text-success` (çam, birincil buton, mühür) · `text-warning` (aşı) · `text-destructive` (tuğla) · `font-serif` (başlık) · `font-sans` (gövde) · `font-mono` (kayıt no, slogan, tarih damgası).
+`bg-background` (kâğıt) · `bg-card` · `bg-sand` (navbar/vurgu) · `bg-muted` · `border-border` · `text-foreground` (mürekkep) · `text-muted-foreground` (ikincil) · `bg-success`/`text-success` (çam: birincil buton, mühür, odak) · `text-warning` (aşı) · `text-destructive` (tuğla) · `font-serif` (başlık) · `font-sans` (gövde) · `font-mono` (kayıt no, slogan, tarih damgası). Saydamlık gerekiyorsa `bg-success/10` gibi.
 
-**Yasak:** `slate-*`, `gray-*`, `red-*`, `green-*`, `blue-*`, `indigo-*`, `amber-*`, `white`, `black` gibi sabit renkler. Bitişte bu dosyalarda sayı **0** olmalı:
+Bitişte hedef dosyalarda şu sayı **0** olmalı:
 
 ```bash
 grep -cE '(slate|gray|zinc|red|green|blue|indigo|amber|emerald|yellow)-[0-9]{2,3}|bg-white|text-white|text-black' <dosyalar>
@@ -61,32 +76,90 @@ grep -cE '(slate|gray|zinc|red|green|blue|indigo|amber|emerald|yellow)-[0-9]{2,3
 
 ## 4. Uygula
 
-- Brif tablosundaki sırayla: düzen → butonlar tablosu → **durumlar** (yükleniyor / boş / hata — üçü de olmadan ekran bitmez) → mobil (375px) notu.
-- Ham enum ekranda görünmez (`ACTIVE`, `T1`, `PENDING_APPROVAL`) → `tr.json` etiketi.
+- Brif tablosundaki sırayla ilerle: düzen → butonlar tablosu → **durumlar** → mobil (375px).
+  Durumlar üç tane: yükleniyor (iskelet; "Yükleniyor…" yazısı yok), boş (ne yapılacağını söyleyen metin + varsa aksiyon), hata (+ "Tekrar dene"). Üçü olmadan ekran bitmez.
+- Ham enum ekranda görünmez (`ACTIVE`, `T1`, `PENDING_APPROVAL`). Yerine `tr.json` etiketi kullan.
 - Yeni metin = `tr.json`'a yeni anahtar. **Var olan anahtarların adını değiştirme** (testler anahtara bağlı); metnini brife göre düzeltebilirsin.
-- Erişilebilirlik: her alanda `<label>`, görünür focus (`focus-visible:ring-2 ring-success`), hata `aria-live`, ikon butonda `aria-label`, başlık sırası h1→h2→h3.
+- Erişilebilirlik:
+  - her form alanında `<label>`
+  - görünür focus (`focus-visible:ring-2 focus-visible:ring-success`)
+  - hatalar `aria-live` ile duyurulur
+  - ikon butonda `aria-label`
+  - başlık sırası h1→h2→h3
 
-## 5. Testler — kural
+## 5. Ekrana özel notlar
+
+**`2` — `/v/[token]`**
+- Brif tablosunu satır satır uygula:
+  - çift çerçeveli kart, sağ üstte `VerifiedSeal` lg (−4°)
+  - kişi adı Serif 32px; bilgi ızgarası 2 kolon (mobilde 1)
+  - T1 uyarısı
+  - 4 adımı tamamlanmış `ChainProgress`
+  - yetkinlik çipleri
+  - Mono damga satırı ("Kayıt no: {token ilk 8}…")
+- 404: aynı kart + mühür yerinde kesik çizgili boş daire + "Ana sayfaya dön".
+- Telefonda açılır: 375px'de mühür üstte ortalı.
+- Yalnız brifin "Veri (yalnız bunlar)" listesindeki alanları kullan.
+
+**`shell` — AppShell**
+- Bugün kodda yatay üst bar var. Yerine sol navbar gelecek: 248px, `bg-sand`, sağda 1px çizgi, sabit, tam yükseklik.
+- Gruplar: Çalışma / Kuruluşlarım / Kurumlarım / Yönetim. **Hangi link kime görünüyor değişmez**; mevcut koşulları aynen taşı.
+- Aktif öğe: `bg-card` + 1px border + solda 2px×20px çam çizgi. `/calismalar/*` alt sayfaları "Çalışmalarım"ı aktif yapar (`usePathname`).
+- Alt kısımda kullanıcı kartı ve yukarı açılan menü (Profil, Çıkış).
+  - Radix yok: buton + koşullu liste.
+  - Esc ve dışarı tıklama menüyü kapatır.
+  - `aria-expanded` ve `aria-haspopup` doğru olmalı.
+- Mobil (<1024px): 56px yapışkan üst bar + soldan açılan 280px çekmece. Esc, arka plana tıklama veya bir öğeye tıklama çekmeceyi kapatır.
+- Tam e-posta gösterilmez, kısaltılır ("meyr…@gmail.com").
+- `email-verification-banner.tsx` içeriğin üstüne yerleşir; bileşenin kendisine dokunma.
+- `app-shell.test.tsx` (29 test): davranış testleri değişmez (görünür linkler, çıkış çağrısı, hata durumları).
+
+**`3` — `/p/[slug]`**
+- 720px ortalı, `/v` ile aynı aile.
+- `/v` ile birebir aynı parça varsa (ör. ince üst bar), `components/` altında ortak küçük bir bileşene çıkarabilirsin. Bu durumda `/v` dosyasına da dokunabilirsin, başka refactor yok.
+- Doğrulanmış deneyim kartlarında `VerifiedSeal` sm kullan; API token veriyorsa kart `/v/{token}`'a gider.
+
+**`10` / `10b` / `10c` — çalışma detayı (demonun kalbi)**
+- Durum makinesi ve izin mantığı değişmez.
+- Durum → zincir adımı eşlemesi brif §2.12'de.
+- `10`: başlık satırı, meta, `ChainProgress`, "sıradaki adım" kutusu, sekme düzeni ve `transition-actions` butonlarının yerleşimi.
+- `10b` ve `10c`: yalnız tablodaki formlar; sayfa iskeletine dokunma.
+- FE-17 `[x]` yalnız `10c` bitince olur. `10` ve `10b`'den sonra `[~]` kalır.
+
+**`13` — `/profil`**
+- 5 bileşenin her birine aynı kart düzenini uygula: başlık + açıklama + içerik.
+- Beyan edilen yetkinlik **gri**, doğrulanmış yetkinlik **çam + mühür** görünür. Bu ayrım demoda gösterilecek, belirgin olmalı.
+
+**`11` — değerlendirme formu**
+- Ana mockup `12-…appshell.png`.
+- Tanıklık verme anı: gönder butonu birincil (çam), gönderim sonrası başarı mesajı.
+
+**Diğerleri (`9`, `14`, `21`, `16`, `12`, `18`, `19`):** brif bölümü + genel kurallar yeterli. Büyük dosyalarda (`16`: ~450 satır) bölme yapma, yalnız sınıf ve düzen değiştir.
+
+## 6. Testler — kural
 
 - **Davranış testi değişmez** (metin, rol, tıklama, çağrılan API, yönlendirme). Kırılırsa **kodu** düzelt.
-- Yalnız **sınıf adı/DOM yapısı** doğrulayan assertion'lar görünüm değişikliği yüzünden güncellenebilir; her birini raporda listele.
-- Testi geçsin diye silme, `skip`'leme, beklentiyi gevşetme **yasak**.
+- Yalnız **sınıf adı/DOM yapısı** doğrulayan assertion'lar güncellenebilir; her birini raporda listele.
+- Testi geçsin diye silmek, `skip`'lemek ya da beklentiyi gevşetmek **yasak**.
+- 3 denemede çözemediğin test olursa dur ve kullanıcıya hatayı göster.
 
-## 6. Doğrula (hepsi `frontend/` içinde)
+## 7. Doğrula (`frontend/` içinde)
 
 ```bash
 npx vitest run <hedef klasör veya test dosyaları>
 npm run typecheck
 npm run lint
 ```
-+ §3'teki grep = 0. Hepsi temiz değilse commit yok.
 
-Sonra kullanıcıya söyle: `npm run dev` açıkken ekranı tarayıcıda **375px ve 1280px** genişlikte kontrol etsin (DevTools → cihaz araç çubuğu). Seed hesapları: `ogrenci1@seed.local`, `org1-admin@seed.local`, `kurum1-admin@seed.local`, `kurum1-koordinator@seed.local` (şifre `backend/scripts/seed.py`'de).
+Ayrıca §3'teki grep = 0 olmalı. Hepsi temiz değilse commit yok.
 
-## 7. Kapat
+Sonra kullanıcıya söyle: `npm run dev` açıkken ekranı tarayıcıda **375px ve 1280px** genişlikte kontrol etsin (DevTools → cihaz araç çubuğu).
+Seed hesapları: `ogrenci1@seed.local`, `org1-admin@seed.local`, `kurum1-admin@seed.local`, `kurum1-koordinator@seed.local`. Şifre `backend/scripts/seed.py`'de; çıktıya yazma.
 
-1. `planfrontend.md`'de ilgili `FE-xx` satırını `[x]` yap (sayfa → FE eşlemesi: shell=FE-09, 2=FE-13, 3=FE-14, 9=FE-16, 10=FE-17, 11=FE-22, 12=FE-19, 13=FE-18, 14=FE-20, 16=FE-21, 18=FE-23, 19=FE-24, 21=FE-11).
-2. Commit — dosyaları **adıyla** ekle (`git add -A`/`git add .` yasak). Mesaj Türkçe, tek satır + gövdede `FE-xx`. **Co-Authored-By satırı ekleme.**
+## 8. Kapat
+
+1. `planfrontend.md`'de FE satırını `[x]` yap (`10`/`10b` için `[~]` kalır).
+2. Commit: dosyaları **adıyla** ekle (`git add -A`/`git add .` yasak). Mesaj Türkçe, tek satır + gövdede FE kodu. **Co-Authored-By satırı ekleme.**
    ```
    feat(ui): /v/[token] sertifika sayfası yeni görsel dile geçirildi
 
@@ -99,4 +172,5 @@ Sonra kullanıcıya söyle: `npm run dev` açıkken ekranı tarayıcıda **375px
    Doğrulanan: vitest <n geçti> · typecheck · lint · sabit renk 0
    Güncellenen sınıf testleri: <liste veya —>
    Açık not: <eksik veri / brif sapması veya —>
+   Sıradaki: <kuyruktaki bir sonraki kod> — devam için /clear, sonra /ekran
    ```
