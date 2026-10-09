@@ -15,9 +15,13 @@ export const talentProfileSchema = z.object({
     .string()
     .max(100, "Bölüm maksimum 100 karakter olmalıdır")
     .nullish(),
-  study_year: z
-    .number()
-    .nullish(),
+  // react-hook-form's `valueAsNumber` turns an emptied number input into NaN,
+  // not undefined — z.number() rejects NaN with its own English message, so
+  // this normalizes NaN to undefined before the nullish() check runs.
+  study_year: z.preprocess(
+    (value) => (typeof value === "number" && Number.isNaN(value) ? undefined : value),
+    z.number().nullish()
+  ),
   city: z
     .string()
     .max(100, "Şehir maksimum 100 karakter olmalıdır")
