@@ -155,7 +155,7 @@ export async function mergeSkill(
 ): Promise<Skill | undefined> {
   return (await apiFetch<Skill>(`/admin/skills/${skillId}/merge`, {
     method: "POST",
-    body: { target_id: targetId },
+    body: { merged_into_id: targetId },
   })) as Skill | undefined;
 }
 
