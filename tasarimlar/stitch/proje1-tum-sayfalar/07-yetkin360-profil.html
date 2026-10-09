@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Profil — Yetkin360</title>
+<!-- Google Fonts: Source Serif 4, IBM Plex Sans, IBM Plex Mono -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS v3 -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            paper: '#FAF8F5',
+            card: '#FEFEFD',
+            sand: '#EBE5DA',
+            muted: '#EFECE7',
+            border: '#E1DCD6',
+            ink: '#221F1B',
+            secondary: '#625C55',
+            pine: '#265445',
+            ochre: '#8F5A14',
+            brick: '#A13B2B',
+            'pine-tint': '#E5E8E3',
+            'ochre-tint': '#EFE8DE',
+            'brick-tint': '#F1E5E1',
+          },
+          borderRadius: {
+            'DEFAULT': '0.25rem',
+            'sm': '6px',
+            'lg': '8px',
+            'xl': '0.75rem',
+            'full': '9999px'
+          },
+          fontFamily: {
+            headline: ['"Source Serif 4"', 'serif'],
+            display: ['"Source Serif 4"', 'serif'],
+            body: ['"IBM Plex Sans"', 'sans-serif'],
+            mono: ['"IBM Plex Mono"', 'monospace'],
+            label: ['"IBM Plex Sans"', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    body {
+      background-color: #FAF8F5;
+      color: #221F1B;
+      font-family: 'IBM Plex Sans', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    .material-symbols-outlined {
+      font-size: 18px;
+      line-height: 1;
+      display: inline-block;
+      vertical-align: middle;
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+    }
+    .verified-seal-dot {
+      font-variation-settings: 'FILL' 1, 'wght' 600;
+    }
+    /* Hide scrollbars for crisp paper aesthetic */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #FAF8F5;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #E1DCD6;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="h-full bg-paper text-ink flex overflow-hidden">
+<!-- ================= SIDEBAR (Shared Component: SideNavBar) ================= -->
+<aside class="fixed top-0 left-0 h-screen w-[248px] bg-sand border-r border-border flex flex-col justify-between select-none z-30">
+<!-- Top Block: Brand Header & Main Nav Tabs -->
+<div class="flex flex-col">
+<!-- Brand Header -->
+<div class="p-4 pb-3">
+<div class="flex items-center gap-2">
+<span class="font-headline font-bold text-xl text-ink tracking-tight">Yetkin360</span>
+<span class="w-2 h-2 rounded-full bg-pine inline-block" title="Resmi Sicil Sistemi"></span>
+</div>
+<p class="font-mono text-[11px] text-secondary mt-1 tracking-tight leading-normal">
+          beyan → kanıt → tanıklık → doğrulanmış deneyim
+        </p>
+</div>
+<div class="h-px bg-border mx-3 mb-3"></div>
+<!-- Nav Section Label -->
+<div class="px-4 mb-1">
+<span class="text-[12px] font-medium text-secondary">Sicil Menüsü</span>
+</div>
+<!-- Navigation Links -->
+<nav class="px-3 space-y-1">
+<!-- 1. Çalışmalarım -->
+<a class="flex items-center gap-3 px-3 py-2 text-secondary rounded hover:bg-muted hover:text-ink transition-colors duration-150 text-[14px]" href="#">
+<span class="material-symbols-outlined text-[18px]">folder_open</span>
+<span>Çalışmalarım</span>
+</a>
+<!-- 2. Doğrulama Talepleri -->
+<a class="flex items-center gap-3 px-3 py-2 text-secondary rounded hover:bg-muted hover:text-ink transition-colors duration-150 text-[14px]" href="#">
+<span class="material-symbols-outlined text-[18px]">verified</span>
+<span>Doğrulama Talepleri</span>
+</a>
+<!-- 3. Sicil Kayıtları -->
+<a class="flex items-center gap-3 px-3 py-2 text-secondary rounded hover:bg-muted hover:text-ink transition-colors duration-150 text-[14px]" href="#">
+<span class="material-symbols-outlined text-[18px]">history_edu</span>
+<span>Sicil Kayıtları</span>
+</a>
+<!-- 4. Belgeler -->
+<a class="flex items-center gap-3 px-3 py-2 text-secondary rounded hover:bg-muted hover:text-ink transition-colors duration-150 text-[14px]" href="#">
+<span class="material-symbols-outlined text-[18px]">description</span>
+<span>Belgeler</span>
+</a>
+<!-- 5. Ayarlar -->
+<a class="flex items-center gap-3 px-3 py-2 text-secondary rounded hover:bg-muted hover:text-ink transition-colors duration-150 text-[14px]" href="#">
+<span class="material-symbols-outlined text-[18px]">settings</span>
+<span>Ayarlar</span>
+</a>
+</nav>
+</div>
+<!-- Bottom Block: Footer Navigation (Active: Profilim) & User Card -->
+<div class="flex flex-col">
+<div class="px-4 mb-1">
+<span class="text-[12px] font-medium text-secondary">Hesap</span>
+</div>
+<!-- Active: Profilim (Exact Style mapping from Shared Components JSON) -->
+<div class="px-3 mb-2">
+<a class="relative flex items-center gap-3 px-3 py-2 bg-card border border-border rounded text-ink font-medium before:content-[''] before:absolute before:left-[-12px] before:top-2 before:bottom-2 before:w-[2px] before:bg-pine text-[14px]" href="#">
+<span class="material-symbols-outlined text-[18px] text-pine">account_circle</span>
+<span>Profilim</span>
+</a>
+</div>
+<div class="h-px bg-border mx-3"></div>
+<!-- User Card -->
+<div class="p-3">
+<div class="flex items-center justify-between p-2 rounded hover:bg-muted transition-colors cursor-pointer">
+<div class="flex items-center gap-2.5 min-w-0">
+<!-- 32px Avatar with Initials -->
+<div class="w-8 h-8 rounded-full bg-muted border border-border flex items-center justify-center font-headline font-semibold text-xs text-ink shrink-0">
+              AY
+            </div>
+<div class="min-w-0 flex flex-col text-left">
+<span class="text-[13px] font-medium text-ink leading-tight truncate">Ayşe Yılmaz</span>
+<span class="text-[11px] font-mono text-secondary truncate mt-0.5">ayse.yilmaz@itu.edu.tr</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-secondary text-[16px] shrink-0 ml-1">unfold_more</span>
+</div>
+</div>
+</div>
+</aside>
+<!-- ================= MAIN CONTENT AREA ================= -->
+<main class="ml-[248px] flex-1 h-screen overflow-y-auto bg-paper">
+<div class="max-w-[880px] mx-auto py-10 px-8">
+<!-- 1. PROFİL ÖZET KARTI -->
+<section class="bg-card border border-border rounded-lg p-6">
+<div class="flex flex-col sm:flex-row justify-between items-start gap-4">
+<!-- Sol Taraf: Avatar & Bilgi Grubu -->
+<div class="flex items-start gap-4">
+<!-- 64px dairesel avatar -->
+<div class="w-16 h-16 rounded-full bg-sand border border-border flex items-center justify-center shrink-0">
+<span class="font-headline font-semibold text-[22px] text-pine tracking-normal select-none">AY</span>
+</div>
+<!-- Metin Kümesi -->
+<div class="space-y-1">
+<h1 class="font-headline font-semibold text-[28px] text-ink leading-tight">
+                Ayşe Yılmaz
+              </h1>
+<p class="text-[14px] text-secondary leading-snug">
+                Veri Bilimi · Bilgisayar Mühendisliği · İstanbul
+              </p>
+<!-- Görünürlük Rozeti -->
+<div class="pt-1">
+<span class="inline-flex items-center gap-1.5 bg-[#F4F1EA] border border-border rounded px-2.5 py-0.5 text-[12px] font-medium text-[#4A453E]">
+<span class="material-symbols-outlined text-[14px]">public</span>
+<span>Herkese Açık</span>
+</span>
+</div>
+</div>
+</div>
+<!-- Sağ Taraf: İkincil / Hızlı İşlem Düğmeleri -->
+<div class="flex items-center gap-2 self-start sm:self-auto shrink-0 pt-1">
+<!-- Profil Gör Butonu -->
+<a class="inline-flex items-center gap-1 text-[13px] font-medium text-ink bg-card hover:bg-[#F7F5F0] border border-[#D5CFC7] px-3 py-1.5 rounded transition-colors" href="#">
+<span>Herkese açık profili gör</span>
+<span class="material-symbols-outlined text-[14px]">open_in_new</span>
+</a>
+<!-- Link Kopyala Butonu -->
+<button class="inline-flex items-center gap-1 text-[13px] font-medium text-secondary hover:text-ink hover:bg-[#F0ECE4] px-2.5 py-1.5 rounded transition-colors" type="button">
+<span class="material-symbols-outlined text-[15px]">content_copy</span>
+<span>Linki kopyala</span>
+</button>
+</div>
+</div>
+</section>
+<!-- 2. SEKMELER (TABS BARI) -->
+<nav aria-label="Profil Sekmeleri" class="mt-8 flex gap-6 text-[14px] font-medium border-b border-border">
+<!-- Profil Bilgileri -->
+<button class="text-secondary hover:text-ink pb-3 transition-colors cursor-pointer" type="button">
+          Profil bilgileri
+        </button>
+<!-- Yetkinlikler 5 (SEÇİLİ) -->
+<button class="text-ink font-semibold pb-3 border-b-2 border-pine relative -mb-px flex items-center gap-1.5 cursor-default" type="button">
+<span>Yetkinlikler</span>
+<span class="font-mono text-[12px] text-secondary bg-muted px-1.5 py-0.2 rounded border border-border">5</span>
+</button>
+<!-- Kanıt Dökümü -->
+<button class="text-secondary hover:text-ink pb-3 transition-colors cursor-pointer" type="button">
+          Kanıt dökümü
+        </button>
+<!-- Kurum Bağlantısı -->
+<button class="text-secondary hover:text-ink pb-3 transition-colors cursor-pointer" type="button">
+          Kurum bağlantısı
+        </button>
+</nav>
+<!-- 3. SEÇİLİ "YETKİNLİKLER" SEKME İÇERİĞİ -->
+<section class="mt-6 bg-card border border-border rounded-lg overflow-hidden">
+<!-- Üst Bölüm: Arama ve Ekleme Kutusu (Kum Zeminli Bar) -->
+<div class="bg-[#F5F2EB] p-4 border-b border-border">
+<form class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3" onsubmit="event.preventDefault();">
+<!-- Arama Kutusu -->
+<div class="relative flex-1">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-secondary pointer-events-none text-[16px]">
+                search
+              </span>
+<input class="w-full bg-card border border-[#DCD5C9] rounded pl-9 pr-3 py-2 text-sm text-ink placeholder-[#9E988F] focus:outline-none focus:ring-1 focus:ring-pine focus:border-pine font-body transition-colors" placeholder="Yetkinlik ara…" type="text"/>
+</div>
+<!-- Seviye Seçici Dropdown -->
+<div class="w-full sm:w-44">
+<select class="w-full bg-card border border-[#DCD5C9] rounded px-3 py-2 text-sm text-ink focus:outline-none focus:ring-1 focus:ring-pine focus:border-pine font-body transition-colors cursor-pointer">
+<option selected="" value="">Seviye seçin</option>
+<option value="beginner">Başlangıç</option>
+<option value="intermediate">Orta</option>
+<option value="advanced">İleri</option>
+</select>
+</div>
+<!-- Ekle Butonu -->
+<button class="bg-ink hover:bg-[#383430] text-paper px-4 py-2 rounded text-sm font-medium transition-colors shrink-0 text-center flex items-center justify-center gap-1.5" type="submit">
+<span class="material-symbols-outlined text-[15px]">add</span>
+<span>Ekle</span>
+</button>
+</form>
+</div>
+<!-- Alt Bölüm: Yetkinlik Maddeleri Listesi -->
+<div class="divide-y divide-border">
+<!-- Satır 1: Python -->
+<div class="min-h-[56px] py-3.5 px-5 flex items-center justify-between hover:bg-[#FAF9F6] transition-colors">
+<!-- Sol: Yetkinlik Başlığı ve Seviye -->
+<div class="flex flex-col">
+<span class="text-[15px] font-medium text-ink leading-snug">Python</span>
+<span class="text-[12px] text-secondary">İleri</span>
+</div>
+<!-- Orta: Kanıt Rozeti (Onaylı Çam Yeşili Mühürlü) -->
+<div class="flex items-center">
+<span class="bg-[#EBF2EE] text-[#1E4337] border border-[#C5D9CE] px-2.5 py-0.5 rounded text-xs font-medium inline-flex items-center gap-1.5">
+<span class="material-symbols-outlined verified-seal-dot text-[#1E4337] text-[14px]">verified</span>
+<span>3 kanıt</span>
+</span>
+</div>
+<!-- Sağ: Satır Aksiyonu -->
+<div class="flex items-center justify-end w-16">
+<button class="text-xs text-[#8C8479] hover:text-[#B3261E] hover:bg-[#F1E5E1] px-2 py-1 rounded transition-colors font-medium" type="button">
+                Kaldır
+              </button>
+</div>
+</div>
+<!-- Satır 2: Proje Yönetimi -->
+<div class="min-h-[56px] py-3.5 px-5 flex items-center justify-between hover:bg-[#FAF9F6] transition-colors">
+<!-- Sol: Yetkinlik Başlığı ve Seviye -->
+<div class="flex flex-col">
+<span class="text-[15px] font-medium text-ink leading-snug">Proje Yönetimi</span>
+<span class="text-[12px] text-secondary">Orta</span>
+</div>
+<!-- Orta: Kendi Beyanı Rozeti (Nötr Kum Grisi) -->
+<div class="flex items-center">
+<span class="bg-[#F0ECE5] text-secondary border border-[#DDD7CD] px-2.5 py-0.5 rounded text-xs font-medium inline-flex items-center gap-1.5">
+<span>Kendi beyanı</span>
+</span>
+</div>
+<!-- Sağ: Satır Aksiyonu -->
+<div class="flex items-center justify-end w-16">
+<button class="text-xs text-[#8C8479] hover:text-[#B3261E] hover:bg-[#F1E5E1] px-2 py-1 rounded transition-colors font-medium" type="button">
+                Kaldır
+              </button>
+</div>
+</div>
+<!-- Satır 3: Veri Analizi -->
+<div class="min-h-[56px] py-3.5 px-5 flex items-center justify-between hover:bg-[#FAF9F6] transition-colors">
+<!-- Sol: Yetkinlik Başlığı ve Seviye -->
+<div class="flex flex-col">
+<span class="text-[15px] font-medium text-ink leading-snug">Veri Analizi</span>
+<span class="text-[12px] text-secondary">İleri</span>
+</div>
+<!-- Orta: Kanıt Rozeti (Onaylı) -->
+<div class="flex items-center">
+<span class="bg-[#EBF2EE] text-[#1E4337] border border-[#C5D9CE] px-2.5 py-0.5 rounded text-xs font-medium inline-flex items-center gap-1.5">
+<span class="material-symbols-outlined verified-seal-dot text-[#1E4337] text-[14px]">verified</span>
+<span>2 kanıt</span>
+</span>
+</div>
+<!-- Sağ: Satır Aksiyonu -->
+<div class="flex items-center justify-end w-16">
+<button class="text-xs text-[#8C8479] hover:text-[#B3261E] hover:bg-[#F1E5E1] px-2 py-1 rounded transition-colors font-medium" type="button">
+                Kaldır
+              </button>
+</div>
+</div>
+<!-- Satır 4: İngilizce -->
+<div class="min-h-[56px] py-3.5 px-5 flex items-center justify-between hover:bg-[#FAF9F6] transition-colors">
+<!-- Sol: Yetkinlik Başlığı ve Seviye -->
+<div class="flex flex-col">
+<span class="text-[15px] font-medium text-ink leading-snug">İngilizce</span>
+<span class="text-[12px] text-secondary">Orta</span>
+</div>
+<!-- Orta: Kendi Beyanı Rozeti -->
+<div class="flex items-center">
+<span class="bg-[#F0ECE5] text-secondary border border-[#DDD7CD] px-2.5 py-0.5 rounded text-xs font-medium inline-flex items-center gap-1.5">
+<span>Kendi beyanı</span>
+</span>
+</div>
+<!-- Sağ: Satır Aksiyonu -->
+<div class="flex items-center justify-end w-16">
+<button class="text-xs text-[#8C8479] hover:text-[#B3261E] hover:bg-[#F1E5E1] px-2 py-1 rounded transition-colors font-medium" type="button">
+                Kaldır
+              </button>
+</div>
+</div>
+<!-- Satır 5: SQL -->
+<div class="min-h-[56px] py-3.5 px-5 flex items-center justify-between hover:bg-[#FAF9F6] transition-colors">
+<!-- Sol: Yetkinlik Başlığı ve Seviye -->
+<div class="flex flex-col">
+<span class="text-[15px] font-medium text-ink leading-snug">SQL</span>
+<span class="text-[12px] text-secondary">Başlangıç</span>
+</div>
+<!-- Orta: Kanıt Rozeti (Onaylı) -->
+<div class="flex items-center">
+<span class="bg-[#EBF2EE] text-[#1E4337] border border-[#C5D9CE] px-2.5 py-0.5 rounded text-xs font-medium inline-flex items-center gap-1.5">
+<span class="material-symbols-outlined verified-seal-dot text-[#1E4337] text-[14px]">verified</span>
+<span>1 kanıt</span>
+</span>
+</div>
+<!-- Sağ: Satır Aksiyonu -->
+<div class="flex items-center justify-end w-16">
+<button class="text-xs text-[#8C8479] hover:text-[#B3261E] hover:bg-[#F1E5E1] px-2 py-1 rounded transition-colors font-medium" type="button">
+                Kaldır
+              </button>
+</div>
+</div>
+</div>
+</section>
+<!-- Alt Protokol Dipnotu -->
+<footer class="mt-8 pt-4 border-t border-border flex items-center justify-between text-xs text-[#8C8479] font-mono">
+<span>Yetkin360 Bağımsız Doğrulama Defteri Protokolü v2.4</span>
+<span class="text-[11px] text-secondary">Kayıt: TR-IST-2024-8842</span>
+</footer>
+</div>
+</main>
+</body></html>

@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yetkin360 - Çalışma Detayı</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            paper: '#FAF8F5',
+            'paper-sand': '#EBE5DA',
+            'card-bg': '#FEFEFD',
+            'border-subtle': '#E1DCD6',
+            'border-strong': '#D0C9C0',
+            'ink-primary': '#1E2421',
+            'ink-secondary': '#5A625E',
+            'ink-muted': '#8A928D',
+            'pine-primary': '#265445',
+            'pine-dark': '#1C3E33',
+            'pine-soft': '#EBF2EE',
+            'danger-text': '#B3261E',
+            'danger-border': '#E8B4B1',
+            'danger-soft': '#FDF4F4',
+          },
+          fontFamily: {
+            serif: ['"Source Serif 4"', 'Georgia', 'serif'],
+            sans: ['"IBM Plex Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"IBM Plex Mono"', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #EBE5DA;
+      color: #1E2421;
+      font-family: 'IBM Plex Sans', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    ::selection {
+      background: #EBF2EE;
+      color: #265445;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex bg-paper-sand text-ink-primary antialiased">
+
+  <!-- ================= SOL SABİT SIDEBAR (248px) ================= -->
+  <aside class="w-[248px] fixed inset-y-0 left-0 bg-paper-sand border-r border-border-subtle flex flex-col justify-between select-none z-30">
+    <!-- Üst Marka & Navigasyon -->
+    <div class="flex flex-col">
+      <!-- Logo ve Slogan Bölümü -->
+      <div class="p-6 pb-5 border-b border-border-subtle/70">
+        <div class="flex items-center gap-2">
+          <span class="font-serif text-2xl font-bold tracking-tight text-ink-primary">Yetkin360</span>
+          <span class="inline-block w-2 h-2 rounded-full bg-pine-primary"></span>
+        </div>
+        <div class="mt-2 text-[10.5px] font-mono leading-relaxed text-ink-secondary tracking-tight">
+          beyan <span class="text-ink-muted">→</span> kanıt <span class="text-ink-muted">→</span> tanıklık <span class="text-ink-muted">→</span> doğrulanmış deneyim
+        </div>
+      </div>
+
+      <!-- Menü Grupları -->
+      <nav class="py-5 px-3 space-y-6">
+        <div>
+          <div class="px-3 pb-2 text-[11px] font-mono uppercase tracking-wider text-ink-muted">
+            Çalışma
+          </div>
+          <div class="space-y-1">
+            <!-- Aktif Öğe: Çalışmalarım -->
+            <a href="#" class="relative flex items-center gap-2.5 px-3 py-2 text-sm font-medium text-pine-primary bg-pine-soft/70 rounded-md transition-colors">
+              <!-- Sol 2px pine çizgi -->
+              <span class="absolute left-0 top-1.5 bottom-1.5 w-[2.5px] bg-pine-primary rounded-r"></span>
+              <svg class="w-4 h-4 text-pine-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+              </svg>
+              <span>Çalışmalarım</span>
+            </a>
+
+            <!-- İkincil Öğe: Profil -->
+            <a href="#" class="flex items-center gap-2.5 px-3 py-2 text-sm font-normal text-ink-secondary hover:text-ink-primary hover:bg-card-bg/60 rounded-md transition-colors">
+              <svg class="w-4 h-4 text-ink-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+              </svg>
+              <span>Profil</span>
+            </a>
+          </div>
+        </div>
+      </nav>
+    </div>
+
+    <!-- Alt Kısım: Kullanıcı Kartı -->
+    <div class="p-3 border-t border-border-subtle/80 bg-paper-sand">
+      <div class="flex items-center gap-3 p-2.5 rounded-lg border border-border-subtle/70 bg-card-bg/70 hover:bg-card-bg transition-colors cursor-pointer">
+        <div class="w-9 h-9 rounded-full bg-pine-soft border border-pine-primary/20 flex items-center justify-center font-serif text-sm font-semibold text-pine-primary shrink-0">
+          AY
+        </div>
+        <div class="flex flex-col min-w-0">
+          <span class="text-xs font-semibold text-ink-primary truncate leading-snug">Ayşe Yılmaz</span>
+          <span class="text-[11px] font-mono text-ink-muted truncate leading-snug">ayse.yilmaz@itu.edu.tr</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ================= SAĞ İÇERİK ALANI ================= -->
+  <!-- Sol menü 248px olduğu için ml-[248px] ile ötelenir, min-h-screen ve kağıt zemin -->
+  <main class="ml-[248px] flex-1 min-h-screen bg-paper py-8 px-10">
+    <!-- 880px Sol Hizalı İçerik Sütunu -->
+    <div class="w-full max-w-[880px] space-y-7">
+
+      <!-- 1. Geri Linki -->
+      <div>
+        <a href="#" class="inline-flex items-center gap-1.5 text-sm text-ink-secondary hover:text-ink-primary transition-colors group">
+          <svg class="w-4 h-4 text-ink-muted group-hover:text-ink-primary group-hover:-translate-x-0.5 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+          </svg>
+          <span class="font-normal">Çalışmalara dön</span>
+        </a>
+      </div>
+
+      <!-- 2. Başlık ve Aksiyon Satırı -->
+      <div class="flex items-start justify-between gap-6 pb-2 border-b border-border-subtle">
+        <!-- Sol: H1 + Meta + Durum Rozeti -->
+        <div class="space-y-2">
+          <h1 class="font-serif text-[32px] leading-tight font-semibold tracking-tight text-ink-primary">
+            Veri Analizi Stajı
+          </h1>
+          <div class="text-sm font-normal text-ink-secondary flex items-center gap-2">
+            <span>Staj</span>
+            <span class="text-ink-muted">·</span>
+            <span class="font-medium text-ink-primary">Acme Yazılım A.Ş.</span>
+            <span class="text-ink-muted">·</span>
+            <span class="font-mono text-xs text-ink-muted">Güncellendi 9 Ekim 2026, 14:30</span>
+          </div>
+          <div class="pt-1">
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-mono bg-paper-sand border border-border-subtle rounded text-ink-primary">
+              <span class="w-1.5 h-1.5 rounded-full bg-ink-primary"></span>
+              Aktif
+            </span>
+          </div>
+        </div>
+
+        <!-- Sağ: Başlığın ilk satırıyla hizalı butonlar (8px aralık) -->
+        <div class="flex items-center gap-2 pt-1 shrink-0">
+          <!-- İptal Et (Tehlikeli Outline) -->
+          <button type="button" class="px-3.5 py-2 text-xs font-medium text-danger-text border border-danger-border bg-card-bg hover:bg-danger-soft transition-colors rounded">
+            İptal Et
+          </button>
+          <!-- Değerlendirmeye Gönder (Birincil Dolu Pine Yeşili) -->
+          <button type="button" class="px-4 py-2 text-xs font-medium text-white bg-pine-primary hover:bg-pine-dark transition-colors rounded">
+            Değerlendirmeye Gönder
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. Tam Genişlik Kart: ChainProgress & Sıradaki Adım -->
+      <div class="bg-card-bg border border-border-subtle rounded-md overflow-hidden">
+        <!-- ChainProgress (4 Adım + Yatay Çizgi) -->
+        <div class="p-6 pb-5">
+          <div class="grid grid-cols-4 relative items-start">
+            <!-- Arka Yatay Bağlantı Çizgisi -->
+            <div class="absolute top-4 left-[12.5%] right-[12.5%] h-[1.5px] bg-border-subtle -z-0"></div>
+
+            <!-- Adım 1: Beyan (Tamamlandı - Pine Dolu) -->
+            <div class="flex flex-col items-center text-center relative z-10 px-2">
+              <div class="w-8 h-8 rounded-full bg-pine-primary text-white flex items-center justify-center border-2 border-card-bg ring-1 ring-pine-primary/30 text-xs font-mono font-bold mb-2">
+                <svg class="w-4 h-4 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              </div>
+              <div class="text-xs font-medium text-ink-primary">Beyan</div>
+              <div class="text-[11px] font-mono text-pine-primary mt-0.5">Tamamlandı</div>
+            </div>
+
+            <!-- Adım 2: Kanıt (Şu An Aktif Adım - İnce Mürekkep Kenarlı) -->
+            <div class="flex flex-col items-center text-center relative z-10 px-2">
+              <div class="w-8 h-8 rounded-full bg-card-bg text-ink-primary flex items-center justify-center border-2 border-ink-primary ring-2 ring-paper-sand text-xs font-mono font-semibold mb-2">
+                2
+              </div>
+              <div class="text-xs font-semibold text-ink-primary">Kanıt</div>
+              <div class="text-[11px] font-mono text-ink-secondary mt-0.5">Aktif Adım</div>
+            </div>
+
+            <!-- Adım 3: Tanıklık (Sırada - İnce Gri Kenarlı) -->
+            <div class="flex flex-col items-center text-center relative z-10 px-2">
+              <div class="w-8 h-8 rounded-full bg-paper text-ink-muted flex items-center justify-center border border-border-strong text-xs font-mono mb-2">
+                3
+              </div>
+              <div class="text-xs font-normal text-ink-muted">Tanıklık</div>
+              <div class="text-[11px] font-mono text-ink-muted mt-0.5">Bekliyor</div>
+            </div>
+
+            <!-- Adım 4: Doğrulanmış Deneyim (Sırada - İnce Gri Kenarlı) -->
+            <div class="flex flex-col items-center text-center relative z-10 px-2">
+              <div class="w-8 h-8 rounded-full bg-paper text-ink-muted flex items-center justify-center border border-border-strong text-xs font-mono mb-2">
+                4
+              </div>
+              <div class="text-xs font-normal text-ink-muted">Doğrulanmış Deneyim</div>
+              <div class="text-[11px] font-mono text-ink-muted mt-0.5">Son Mühür</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Üstü Çizgili "Sıradaki adım" Satırı -->
+        <div class="border-t border-border-subtle bg-paper/50 px-6 py-3.5 flex items-start sm:items-center justify-between gap-4">
+          <div class="flex items-center gap-2 shrink-0">
+            <span class="w-1.5 h-1.5 rounded-full bg-pine-primary"></span>
+            <span class="text-xs font-mono font-semibold uppercase tracking-wider text-ink-secondary">Sıradaki adım</span>
+          </div>
+          <div class="text-xs text-ink-primary text-right font-normal">
+            Görevleri tamamlayın, çıktı ekleyin ve kanıt yükleyin. Bitince değerlendirmeye gönderin.
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Sekmeler (Sola Hizalı, Tam Genişlik 1px Çizgi, Seçili Sekmede 2px Pine Alt Çizgi) -->
+      <div>
+        <div class="border-b border-border-subtle flex items-center gap-8 text-sm font-medium">
+          <!-- Sekme 1: Görevler 3 -->
+          <button type="button" class="pb-3 text-ink-secondary hover:text-ink-primary transition-colors relative flex items-center gap-1.5">
+            <span>Görevler</span>
+            <span class="text-xs font-mono text-ink-muted px-1.5 py-0.2 bg-paper-sand rounded">3</span>
+          </button>
+
+          <!-- Sekme 2: Çıktılar ve kanıtlar 2 (Aktif / Seçili) -->
+          <button type="button" class="pb-3 text-pine-primary font-semibold relative flex items-center gap-1.5">
+            <span>Çıktılar ve kanıtlar</span>
+            <span class="text-xs font-mono text-pine-primary px-1.5 py-0.2 bg-pine-soft rounded border border-pine-primary/20">2</span>
+            <!-- 2px Pine Alt Çizgi -->
+            <span class="absolute bottom-0 inset-x-0 h-[2px] bg-pine-primary"></span>
+          </button>
+
+          <!-- Sekme 3: Tanıklıklar 0 -->
+          <button type="button" class="pb-3 text-ink-secondary hover:text-ink-primary transition-colors relative flex items-center gap-1.5">
+            <span>Tanıklıklar</span>
+            <span class="text-xs font-mono text-ink-muted px-1.5 py-0.2 bg-paper-sand rounded">0</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 5. Seçili "Çıktılar ve kanıtlar" Sekmesi İçeriği -->
+      <div class="space-y-5">
+        <!-- Üst Bilgi ve Buton Satırı -->
+        <div class="flex items-center justify-between">
+          <div class="text-sm font-mono text-ink-secondary">
+            2 çıktı
+          </div>
+          <!-- "Çıktı ekle" Nötr Buton (Artı İkonu) -->
+          <button type="button" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-ink-primary border border-border-subtle bg-card-bg hover:bg-paper-sand transition-colors rounded">
+            <svg class="w-3.5 h-3.5 text-ink-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            <span>Çıktı ekle</span>
+          </button>
+        </div>
+
+        <!-- İki Çıktı Kartı -->
+        <div class="space-y-4">
+
+          <!-- ÇIKTI KARTI 1: Veri temizleme scripti -->
+          <div class="bg-card-bg border border-border-subtle rounded-md p-5 space-y-4">
+            <!-- Çıktı Başlığı -->
+            <div class="flex items-center justify-between">
+              <h3 class="font-serif text-[18px] font-semibold text-ink-primary">
+                Veri temizleme scripti
+              </h3>
+              <span class="text-[11px] font-mono text-ink-muted">Çıktı #1</span>
+            </div>
+
+            <!-- Kanıt Dosyası Satırı -->
+            <div class="flex items-center justify-between p-3 bg-paper border border-border-subtle rounded text-xs">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <svg class="w-4 h-4 text-ink-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h6" />
+                </svg>
+                <span class="font-mono text-ink-primary font-medium truncate">temizleme_raporu.pdf</span>
+                <span class="text-ink-muted">·</span>
+                <span class="font-mono text-ink-muted">1.8 MB</span>
+              </div>
+              <div class="shrink-0 pl-3">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-mono font-medium text-pine-primary bg-pine-soft border border-pine-primary/20 rounded">
+                  <svg class="w-3 h-3 text-pine-primary" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                  </svg>
+                  Temiz
+                </span>
+              </div>
+            </div>
+
+            <!-- Kesik Çizgili Yükleme Kutusu -->
+            <div class="border border-dashed border-border-strong rounded p-4 text-center bg-paper/40 hover:bg-paper/70 transition-colors cursor-pointer">
+              <div class="text-xs text-ink-secondary">
+                <span class="font-medium text-pine-primary underline underline-offset-2">Dosyayı buraya bırakın veya seçin</span>
+                <span class="text-ink-muted"> — PDF, JPEG, PNG, DOCX, en fazla 10 MB</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ÇIKTI KARTI 2: Haftalık rapor -->
+          <div class="bg-card-bg border border-border-subtle rounded-md p-5 space-y-4">
+            <!-- Çıktı Başlığı -->
+            <div class="flex items-center justify-between">
+              <h3 class="font-serif text-[18px] font-semibold text-ink-primary">
+                Haftalık rapor
+              </h3>
+              <span class="text-[11px] font-mono text-ink-muted">Çıktı #2</span>
+            </div>
+
+            <!-- Kanıt Dosyası Satırı -->
+            <div class="flex items-center justify-between p-3 bg-paper border border-border-subtle rounded text-xs">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <svg class="w-4 h-4 text-ink-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h6" />
+                </svg>
+                <span class="font-mono text-ink-primary font-medium truncate">rapor.pdf</span>
+                <span class="text-ink-muted">·</span>
+                <span class="font-mono text-ink-muted">2.4 MB</span>
+              </div>
+              <div class="shrink-0 pl-3">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-mono font-medium text-pine-primary bg-pine-soft border border-pine-primary/20 rounded">
+                  <svg class="w-3 h-3 text-pine-primary" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                  </svg>
+                  Temiz
+                </span>
+              </div>
+            </div>
+
+            <!-- Kesik Çizgili Yükleme Kutusu -->
+            <div class="border border-dashed border-border-strong rounded p-4 text-center bg-paper/40 hover:bg-paper/70 transition-colors cursor-pointer">
+              <div class="text-xs text-ink-secondary">
+                <span class="font-medium text-pine-primary underline underline-offset-2">Dosyayı buraya bırakın veya seçin</span>
+                <span class="text-ink-muted"> — PDF, JPEG, PNG, DOCX, en fazla 10 MB</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+</body>
+</html>

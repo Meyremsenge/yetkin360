@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ayşe Yılmaz — Yetkin360 Herkese Açık Profil</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            pine: '#265445',
+            'pine-dark': '#1c3d32',
+            paper: '#FAF8F5',
+            sand: '#EBE5DA',
+            ink: '#1F2937',
+            secondary: '#6B7280',
+            borderline: '#E5E0D8'
+          },
+          fontFamily: {
+            serif: ['Newsreader', 'Georgia', 'serif'],
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #FAF8F5;
+      color: #1F2937;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .serif-text {
+      font-family: 'Newsreader', Georgia, serif;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#FAF8F5] text-[#1F2937] antialiased">
+
+  <!-- 1. İnce Üst Bar (56px) -->
+  <header class="w-full border-b border-[#E5E0D8] bg-[#FAF8F5]">
+    <div class="max-w-[720px] mx-auto px-4 h-14 flex items-center justify-between">
+      <div class="serif-text text-[18px] font-bold text-[#1F2937] tracking-tight">
+        Yetkin360
+      </div>
+      <div class="text-[13px] text-[#6B7280] flex items-center gap-1.5">
+        <span class="inline-block w-1.5 h-1.5 rounded-full bg-[#265445]"></span>
+        Herkese açık profil
+      </div>
+    </div>
+  </header>
+
+  <!-- Ana İçerik: 720px Ortalanmış -->
+  <main class="w-full max-w-[720px] mx-auto px-4 pt-10 pb-16 flex-1">
+    
+    <!-- 2. Profil Başlığı (üstten 40px, sola hizalı) -->
+    <div class="flex items-center gap-4">
+      <!-- 64px Avatar: daire, kum zemin #EBE5DA, 1px çizgi, serif baş harfler "AY" -->
+      <div class="w-16 h-16 rounded-full bg-[#EBE5DA] border border-[#DCD5C9] flex items-center justify-center flex-shrink-0">
+        <span class="serif-text text-[24px] font-medium text-[#1F2937] select-none tracking-tight">AY</span>
+      </div>
+      
+      <!-- Ad ve İkincil Metin -->
+      <div class="flex flex-col">
+        <h1 class="serif-text text-[32px] leading-tight font-normal text-[#1F2937] tracking-tight">
+          Ayşe Yılmaz
+        </h1>
+        <p class="text-[14px] text-[#6B7280] mt-1 font-normal">
+          3 doğrulanmış deneyim
+        </p>
+      </div>
+    </div>
+
+    <!-- 3. 32px Altında 1px Çizgi Ayırıcı -->
+    <hr class="my-8 border-t border-[#E5E0D8]">
+
+    <!-- 4. Bölüm Başlığı & Zaman Çizelgesi -->
+    <section>
+      <h2 class="serif-text text-[24px] font-normal text-[#1F2937] mb-6">
+        Doğrulanmış deneyimler
+      </h2>
+
+      <!-- ZAMAN ÇİZELGESİ -->
+      <div class="relative pl-6">
+        <!-- Dikey 1px Çizgi -->
+        <div class="absolute left-[9px] top-3 bottom-6 w-[1px] bg-[#E5E0D8]"></div>
+
+        <div class="space-y-8">
+          
+          <!-- Öğe 1 -->
+          <div class="relative flex items-start">
+            <!-- VerifiedSeal SM (20px çam yeşili daire + küçük tik) -->
+            <div class="absolute -left-6 top-1 w-5 h-5 rounded-full bg-[#265445] text-white flex items-center justify-center ring-4 ring-[#FAF8F5] shadow-xs">
+              <svg class="w-2.5 h-2.5" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="2.5 6 5 8.5 9.5 3.5"></polyline>
+              </svg>
+            </div>
+
+            <!-- İçerik (çizgiden 24px sağında) -->
+            <div class="pl-4">
+              <h3 class="serif-text text-[20px] font-medium text-[#1F2937] leading-snug">
+                Kıdemli Veri Analisti - Yaz Stajı
+              </h3>
+              <p class="text-[15px] text-[#1F2937] mt-1 font-normal">
+                Acme Yazılım A.Ş.
+              </p>
+              <p class="text-[13px] text-[#6B7280] mt-1 font-normal">
+                12 Eylül 2026 – 20 Aralık 2026 <span class="mx-1">·</span> <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[12px] bg-[#EBE5DA]/60 text-[#1F2937]">Katkı</span>
+              </p>
+            </div>
+          </div>
+
+          <!-- Öğe 2 -->
+          <div class="relative flex items-start">
+            <!-- VerifiedSeal SM -->
+            <div class="absolute -left-6 top-1 w-5 h-5 rounded-full bg-[#265445] text-white flex items-center justify-center ring-4 ring-[#FAF8F5] shadow-xs">
+              <svg class="w-2.5 h-2.5" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="2.5 6 5 8.5 9.5 3.5"></polyline>
+              </svg>
+            </div>
+
+            <!-- İçerik -->
+            <div class="pl-4">
+              <h3 class="serif-text text-[20px] font-medium text-[#1F2937] leading-snug">
+                Mobil Uygulama Geliştirici
+              </h3>
+              <p class="text-[15px] text-[#1F2937] mt-1 font-normal">
+                Beta Teknoloji
+              </p>
+              <p class="text-[13px] text-[#6B7280] mt-1 font-normal">
+                3 Mart 2026 – 15 Haziran 2026 <span class="mx-1">·</span> <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[12px] bg-[#EBE5DA]/60 text-[#1F2937]">Yetkinlik</span>
+              </p>
+            </div>
+          </div>
+
+          <!-- Öğe 3 -->
+          <div class="relative flex items-start">
+            <!-- VerifiedSeal SM -->
+            <div class="absolute -left-6 top-1 w-5 h-5 rounded-full bg-[#265445] text-white flex items-center justify-center ring-4 ring-[#FAF8F5] shadow-xs">
+              <svg class="w-2.5 h-2.5" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="2.5 6 5 8.5 9.5 3.5"></polyline>
+              </svg>
+            </div>
+
+            <!-- İçerik -->
+            <div class="pl-4">
+              <h3 class="serif-text text-[20px] font-medium text-[#1F2937] leading-snug">
+                Kampüs Enerji İzleme Sistemi
+              </h3>
+              <p class="text-[15px] text-[#1F2937] mt-1 font-normal">
+                İstanbul Teknik Üniversitesi
+              </p>
+              <p class="text-[13px] text-[#6B7280] mt-1 font-normal">
+                Eylül 2025 – Ocak 2026 <span class="mx-1">·</span> <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[12px] bg-[#EBE5DA]/60 text-[#1F2937]">Katılım</span>
+              </p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. 40px Altında Ortada 13px İkincil Link -->
+    <div class="mt-10 pt-6 text-center">
+      <a href="#" class="text-[13px] text-[#6B7280] hover:text-[#1F2937] underline underline-offset-4 decoration-[#DCD5C9] hover:decoration-[#1F2937] transition-colors">
+        Yetkin360 nedir?
+      </a>
+    </div>
+
+  </main>
+
+</body>
+</html>

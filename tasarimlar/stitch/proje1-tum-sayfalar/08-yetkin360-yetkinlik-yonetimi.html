@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Yetkinlik Yönetimi — Yetkin360</title>
+<!-- Google Fonts: Source Serif 4, IBM Plex Sans, IBM Plex Mono -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&amp;family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,500&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {},
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          fontFamily: {
+            headline: ["\"Source Serif 4\"", "serif"],
+            display: ["\"Source Serif 4\"", "serif"],
+            body: ["\"IBM Plex Sans\"", "sans-serif"],
+            mono: ["\"IBM Plex Mono\"", "monospace"],
+            label: ["\"Public Sans\"", "sans-serif"]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+      font-size: 18px;
+      line-height: 1;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    body {
+      background-color: #FAF8F5;
+      color: #221F1B;
+      font-family: "IBM Plex Sans", sans-serif;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: #265445 !important;
+      box-shadow: 0 0 0 1px #265445 !important;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-[#FAF8F5] text-[#221F1B] antialiased flex selection:bg-[#E5E8E3] selection:text-[#265445]">
+<!-- FIXED LEFT SIDEBAR (SideNavBar Shared Component Blueprint) -->
+<aside class="fixed top-0 left-0 bottom-0 w-[248px] h-screen bg-[#EBE5DA] border-r border-[#E1DCD6] flex flex-col justify-between z-30 select-none">
+<!-- Top Area: Brand & Navigation Hierarchy -->
+<div class="flex flex-col">
+<!-- Brand & Header -->
+<div class="px-5 pt-6 pb-5 border-b border-[#E1DCD6]">
+<div class="flex items-center gap-2.5">
+<span class="w-6 h-6 rounded-full bg-[#265445] text-[#FAF8F5] flex items-center justify-center font-headline font-semibold text-xs leading-none">
+            Y
+          </span>
+<h1 class="font-headline font-bold text-[20px] leading-tight text-[#221F1B] tracking-tight">Yetkin360</h1>
+</div>
+<p class="font-mono text-[10.5px] leading-relaxed text-[#625C55] mt-2 tracking-tight">
+          beyan → kanıt → tanıklık → doğrulanmış deneyim
+        </p>
+</div>
+<!-- Navigation Content -->
+<nav class="px-3 py-4 space-y-6 overflow-y-auto">
+<!-- Group 1: Sicil Navigasyonu -->
+<div class="space-y-1">
+<p class="px-3 pb-1.5 text-[11px] font-mono uppercase tracking-wider text-[#625C55] font-medium">SİCİL NAVİGASYONU</p>
+<a class="flex items-center gap-3 px-3 py-2 text-sm text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[17px] text-[#625C55]">folder_open</span>
+<span>Çalışmalarım</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-sm text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[17px] text-[#625C55]">verified</span>
+<span>Doğrulama Talepleri</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-sm text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[17px] text-[#625C55]">history_edu</span>
+<span>Sicil Kayıtları</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-sm text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[17px] text-[#625C55]">description</span>
+<span>Belgeler</span>
+</a>
+</div>
+<!-- Group 2: Yönetim -->
+<div class="space-y-1">
+<p class="px-3 pb-1.5 text-[11px] font-mono uppercase tracking-wider text-[#625C55] font-medium">YÖNETİM</p>
+<!-- Active Tab: Yetkinlik Yönetimi -->
+<a class="relative flex items-center gap-3 px-3 py-2 bg-[#FEFEFD] border border-[#E1DCD6] rounded text-[#221F1B] font-medium before:content-[''] before:absolute before:-left-[12px] before:top-2 before:bottom-2 before:w-[2px] before:bg-[#265445] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[17px] text-[#265445]">psychology</span>
+<span class="text-sm">Yetkinlik Yönetimi</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-sm text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[17px] text-[#625C55]">domain_verification</span>
+<span>Kurum Doğrulama</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-sm text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[17px] text-[#625C55]">settings</span>
+<span>Ayarlar</span>
+</a>
+</div>
+</nav>
+</div>
+<!-- Bottom User Card -->
+<div class="p-3 border-t border-[#E1DCD6] bg-[#EBE5DA]">
+<div class="flex items-center justify-between p-2 rounded hover:bg-[#EFECE7] transition-colors cursor-pointer">
+<div class="flex items-center gap-2.5 min-w-0">
+<div class="w-8 h-8 rounded-full bg-[#FAF8F5] border border-[#E1DCD6] flex items-center justify-center font-headline font-semibold text-xs text-[#221F1B] shrink-0">
+            AY
+          </div>
+<div class="truncate">
+<div class="text-[13px] font-medium text-[#221F1B] leading-tight truncate">Ayşe Yılmaz</div>
+<div class="text-[11px] font-mono text-[#625C55] truncate">ayse.yilmaz@itu.edu.tr</div>
+</div>
+</div>
+<span class="material-symbols-outlined text-[#625C55] text-base shrink-0">unfold_more</span>
+</div>
+</div>
+</aside>
+<!-- MAIN CONTENT AREA -->
+<main class="ml-[248px] flex-1 min-h-screen bg-[#FAF8F5] p-8 sm:p-10">
+<div class="max-w-[1040px] mx-auto space-y-6">
+<!-- SECTION 1: Header Row -->
+<section class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
+<div>
+<h1 class="font-headline font-semibold text-3xl text-[#221F1B] tracking-tight">Yetkinlik Yönetimi</h1>
+<p class="font-body text-sm text-[#625C55] mt-1.5">
+            Sistemde tanımlı resmi yetkinlik ontolojisi, hiyerarşi ve durum sicili.
+          </p>
+</div>
+<div class="flex items-center shrink-0">
+<button class="bg-[#265445] text-[#FAF8F5] hover:bg-[#1f4437] transition-colors duration-150 px-4 py-2.5 rounded font-medium text-sm inline-flex items-center gap-2 shadow-none border-0 focus:outline-none" type="button">
+<span class="material-symbols-outlined text-[18px]">add</span>
+<span>Yeni yetkinlik</span>
+</button>
+</div>
+</section>
+<!-- SECTION 2: Search + Filter Bar -->
+<section class="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-2">
+<div class="flex flex-wrap items-center gap-3 flex-1">
+<!-- Search Input -->
+<div class="relative w-full sm:w-[320px]">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#625C55] text-[18px] pointer-events-none">
+              search
+            </span>
+<input class="w-full bg-[#FEFEFD] border border-[#E1DCD6] rounded pl-9 pr-3 py-2 text-sm text-[#221F1B] placeholder-[#857E75] focus:border-[#265445] transition-colors font-body" placeholder="Yetkinlik ara…" type="text"/>
+</div>
+<!-- Kategori Filter -->
+<div class="relative min-w-[130px]">
+<select aria-label="Kategori filtresi" class="w-full bg-[#FEFEFD] border border-[#E1DCD6] rounded px-3 py-2 pr-8 text-sm text-[#221F1B] appearance-none cursor-pointer font-body">
+<option value="">Kategori: Tümü</option>
+<option value="Dil">Dil</option>
+<option value="Alan">Alan</option>
+<option value="Framework">Framework</option>
+<option value="Araç">Araç</option>
+</select>
+<span class="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-[#625C55] pointer-events-none text-base">
+              expand_more
+            </span>
+</div>
+<!-- Durum Filter -->
+<div class="relative min-w-[130px]">
+<select aria-label="Durum filtresi" class="w-full bg-[#FEFEFD] border border-[#E1DCD6] rounded px-3 py-2 pr-8 text-sm text-[#221F1B] appearance-none cursor-pointer font-body">
+<option value="">Durum: Tümü</option>
+<option value="Aktif">Aktif</option>
+<option value="Devre Dışı">Devre Dışı</option>
+<option value="Birleştirildi">Birleştirildi</option>
+</select>
+<span class="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-[#625C55] pointer-events-none text-base">
+              expand_more
+            </span>
+</div>
+</div>
+<!-- Meta count -->
+<div class="font-mono text-xs text-[#625C55] shrink-0 self-end md:self-center">
+          Toplam 5 yetkinlik listeleniyor
+        </div>
+</section>
+<!-- SECTION 3: Official Registry Table -->
+<section class="bg-[#FEFEFD] border border-[#E1DCD6] rounded-lg overflow-hidden">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-[#EFECE7] border-b border-[#E1DCD6] text-[11px] font-semibold text-[#625C55] uppercase tracking-wider">
+<th class="py-3 px-4 font-mono font-medium" scope="col">SLUG</th>
+<th class="py-3 px-4 font-body font-medium" scope="col">ADI</th>
+<th class="py-3 px-4 font-body font-medium" scope="col">KATEGORİ</th>
+<th class="py-3 px-4 font-body font-medium" scope="col">DURUM</th>
+<th class="py-3 px-4 font-body font-medium" scope="col">ÜST YETKİNLİK / HEDEF</th>
+<th class="py-3 px-4 text-right font-body font-medium w-16" scope="col">İŞLEM</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-[#E1DCD6] text-sm">
+<!-- Row 1: python -->
+<tr class="hover:bg-[#FAF8F5]/80 transition-colors">
+<td class="py-3.5 px-4 whitespace-nowrap">
+<span class="font-mono text-xs text-[#625C55] bg-[#F4F0E8] px-2 py-0.5 rounded border border-[#E1DCD6] inline-block">
+                    python
+                  </span>
+</td>
+<td class="py-3.5 px-4 whitespace-nowrap">
+<span class="font-medium text-[#221F1B]">Python</span>
+</td>
+<td class="py-3.5 px-4 whitespace-nowrap text-xs text-[#625C55]">
+                  Dil
+                </td>
+<td class="py-3.5 px-4 whitespace-nowrap">
+<span class="inline-flex items-center gap-1.5 bg-[#EBF2EE] text-[#265445] border border-[#D0DFD7] text-xs px-2.5 py-0.5 rounded-full font-medium">
+<span class="w-1.5 h-1.5 rounded-full bg-[#265445]"></span>
+                    Aktif
+                  </span>
+</td>
+<td class="py-3.5 px-4 whitespace-nowrap text-xs text-[#857E75] italic">
+                  Kök seviye
+                </td>
+<td class="py-3.5 px-4 whitespace-nowrap text-right">
+<button aria-label="İşlemler - Python" class="p-1 rounded text-[#625C55] hover:text-[#221F1B] hover:bg-[#EFECE7] transition-colors focus:outline-none" type="button">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 2: veri-analizi -->
+<tr class="hover:bg-[#FAF8F5]/80 transition-colors">
+<td class="py-3.5 px-4 whitespace-nowrap">
+<span class="font-mono text-xs text-[#625C55] bg-[#F4F0E8] px-2 py-0.5 rounded border border-[#E1DCD6] inline-block">
+                    veri-analizi
+                  </span>
+</td>
+<td class="py-3.5 px-4 whitespace-nowrap">
+<span class="font-medium text-[#221F1B]">Veri Analizi</span>
+</td>
+<td class="py-3.5 px-4 whitespace-nowrap text-xs text-[#625C55]">
+                  Alan
+                </td>
+<td class="py-3.5 px-4 whitespace-nowrap">
+<span class="inline-flex items-center gap-1.5 bg-[#EBF2EE] text-[#265445] border border-[#D0DFD7] text-xs px-2.5 py-0.5 rounded-full font-medium">
+<span class="w-1.5 h-1.5 rounded-full bg-[#265445]"></span>
+                    Aktif
+                  </span>
+</td>
+<td class="py-3.5 px-4 whitespace-nowrap text-xs text-[#857E75] italic">
+                  Kök seviye
+                </td>
+<td class="py-3.5 px-4 whitespace-nowrap text-right">
+<button aria-label="İşlemler - Veri Analizi" class="p-1 rounded text-[#625C55] hover:text-[#221F1B] hover:bg-[#EFECE7] transition-colors focus:outline-none" type="button">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 3: react-js -->
+<tr class="hover:bg-[#FAF8F5]/80 transition-colors">
+<td class="py-3.5 px-4 whitespace-nowrap">
+<span class="font-mono text-xs text-[#625C55] bg-[#F4F0E8] px-2 py-0.5 rounded border border-[#E1DCD6] inline-block">
+                    react-js
+                  </span>
+</td>
+<td class="py-3.5 px-4 whitespace-nowrap">
+<span class="font-medium text-[#221F1B]">React.js</span>
+</td>
+<td class="py-3.5 px-4 whitespace-nowrap text-xs text-[#625C55]">
+                  Framework
+                </td>
+<td class="py-3.5 px-4 whitespace-nowrap">
+<span class="inline-flex items-center gap-1.5 bg-[#EBF2EE] text-[#265445] border border-[#D0DFD7] text-xs px-2.5 py-0.5 rounded-full font-medium">
+<span class="w-1.5 h-1.5 rounded-full bg-[#265445]"></span>
+                    Aktif
+                  </span>
+</td>
+<td class="py-3.5 px-4 whitespace-nowrap text-xs">
+<span class="text-[#221F1B] font-medium bg-[#F5F2EC] px-2 py-0.5 rounded border border-[#E1DCD6] inline-block">
+                    JavaScript
+                  </span>
+</td>
+<td class="py-3.5 px-4 whitespace-nowrap text-right">
+<button aria-label="İşlemler - React.js" class="p-1 rounded text-[#625C55] hover:text-[#221F1B] hover:bg-[#EFECE7] transition-colors focus:outline-none" type="button">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 4: ingilizce-b1 -->
+<tr class="hover:bg-[#FAF8F5]/80 transition-colors">
+<td class="py-3.5 px-4 whitespace-nowrap">
+<span class="font-mono text-xs text-[#625C55] bg-[#F4F0E8] px-2 py-0.5 rounded border border-[#E1DCD6] inline-block">
+                    ingilizce-b1
+                  </span>
+</td>
+<td class="py-3.5 px-4 whitespace-nowrap">
+<span class="font-medium text-[#221F1B]">İngilizce (B1)</span>
+</td>
+<td class="py-3.5 px-4 whitespace-nowrap text-xs text-[#625C55]">
+                  Dil
+                </td>
+<td class="py-3.5 px-4 whitespace-nowrap">
+<span class="inline-flex items-center gap-1.5 bg-[#FEF6E8] text-[#8C6212] border border-[#F3E2BD] text-xs px-2.5 py-0.5 rounded-full font-medium">
+<span class="w-1.5 h-1.5 rounded-full bg-[#8C6212]"></span>
+                    Devre Dışı
+                  </span>
+</td>
+<td class="py-3.5 px-4 whitespace-nowrap text-xs">
+<span class="text-[#221F1B] font-medium bg-[#F5F2EC] px-2 py-0.5 rounded border border-[#E1DCD6] inline-block">
+                    İngilizce
+                  </span>
+</td>
+<td class="py-3.5 px-4 whitespace-nowrap text-right">
+<button aria-label="İşlemler - İngilizce (B1)" class="p-1 rounded text-[#625C55] hover:text-[#221F1B] hover:bg-[#EFECE7] transition-colors focus:outline-none" type="button">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 5: ms-excel -->
+<tr class="hover:bg-[#FAF8F5]/80 transition-colors">
+<td class="py-3.5 px-4 whitespace-nowrap">
+<span class="font-mono text-xs text-[#625C55] bg-[#F4F0E8] px-2 py-0.5 rounded border border-[#E1DCD6] inline-block">
+                    ms-excel
+                  </span>
+</td>
+<td class="py-3.5 px-4 whitespace-nowrap">
+<span class="font-medium text-[#221F1B]">MS Excel</span>
+</td>
+<td class="py-3.5 px-4 whitespace-nowrap text-xs text-[#625C55]">
+                  Araç
+                </td>
+<td class="py-3.5 px-4 whitespace-nowrap">
+<span class="inline-flex items-center gap-1 bg-[#EFECE7] text-[#625C55] border border-[#E1DCD6] text-xs px-2.5 py-0.5 rounded-full font-medium">
+<span class="material-symbols-outlined text-[14px]">call_merge</span>
+                    Birleştirildi
+                  </span>
+</td>
+<td class="py-3.5 px-4 whitespace-nowrap text-xs">
+<span class="text-[#857E75]">Kök seviye</span>
+<span class="mx-1 text-[#857E75]">→</span>
+<span class="text-[#625C55]">Hedef:</span>
+<span class="font-medium text-[#221F1B] bg-[#F5F2EC] px-2 py-0.5 rounded border border-[#E1DCD6] ml-1 inline-block">
+                    Microsoft Excel
+                  </span>
+</td>
+<td class="py-3.5 px-4 whitespace-nowrap text-right">
+<button aria-label="İşlemler - MS Excel" class="p-1 rounded text-[#625C55] hover:text-[#221F1B] hover:bg-[#EFECE7] transition-colors focus:outline-none" type="button">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- SECTION 4: Footer Meta Line -->
+<footer class="pt-4 border-t border-[#E1DCD6] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+<p class="font-mono text-[11px] text-[#857E75]">
+          Yetkin360 Yetkinlik Sicil Kaydı — Ontoloji Protokolü v2.4 • ISO 27001 Uyumlu
+        </p>
+<p class="font-mono text-[11px] text-[#857E75]">
+          Son güncelleme: 24.10.2024 16:42 UTC
+        </p>
+</footer>
+</div>
+</main>
+</body></html>

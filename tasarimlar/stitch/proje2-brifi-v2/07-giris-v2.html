@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="tr" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Giriş — Yetkin360</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            paper: '#FAF8F5',
+            sand: '#EBE5DA',
+            line: '#E1DCD6',
+            pine: '#265445',
+            ink: '#1F2421',
+            muted: '#6B726B',
+            field: '#FEFEFD',
+          },
+          fontFamily: {
+            serif: ['"Source Serif 4"', 'Georgia', 'serif'],
+            sans: ['"IBM Plex Sans"', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+            mono: ['"IBM Plex Mono"', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #FAF8F5;
+      color: #1F2421;
+      font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+    input:focus {
+      outline: none;
+      border-color: #265445;
+    }
+  </style>
+</head>
+<body class="h-full min-h-screen bg-paper text-ink selection:bg-sand">
+  <!-- Layout container: 1440px wide or full viewport, two columns 2fr / 3fr (40% / 60%), full height, no gap, no top bar -->
+  <main class="w-full min-h-screen h-screen flex flex-row overflow-hidden">
+
+    <!-- LEFT COLUMN — Brand Panel (40% width / 2fr), background sand #EBE5DA, padding 40px, content left aligned and spread vertically -->
+    <aside class="w-[40%] bg-sand p-10 flex flex-col justify-between border-r border-line select-none flex-shrink-0">
+      
+      <!-- Top content area -->
+      <div class="flex flex-col">
+        <!-- Logo -->
+        <div class="font-serif font-bold text-[24px] leading-tight text-ink tracking-tight">
+          Yetkin360
+        </div>
+
+        <!-- Brand sentence (32px below) -->
+        <p class="font-serif text-[20px] leading-snug text-ink mt-8 max-w-sm">
+          Sicil kaydınız, kanıtlarınızla birlikte güvenle saklanır.
+        </p>
+
+        <!-- Vertical 4-step chain (32px below) -->
+        <div class="mt-8 relative">
+          <!-- Step 1: Beyan (Outlined) -->
+          <div class="relative flex items-center">
+            <div class="w-8 h-8 rounded-full border border-line bg-transparent flex items-center justify-center font-mono text-[14px] font-medium text-muted z-10">
+              1
+            </div>
+            <span class="font-serif text-[18px] text-muted ml-3.5 leading-none">
+              Beyan
+            </span>
+          </div>
+
+          <!-- Vertical Line 1 -> 2 -->
+          <div class="w-[1px] h-6 bg-line ml-[15.5px]"></div>
+
+          <!-- Step 2: Kanıt (Outlined) -->
+          <div class="relative flex items-center">
+            <div class="w-8 h-8 rounded-full border border-line bg-transparent flex items-center justify-center font-mono text-[14px] font-medium text-muted z-10">
+              2
+            </div>
+            <span class="font-serif text-[18px] text-muted ml-3.5 leading-none">
+              Kanıt
+            </span>
+          </div>
+
+          <!-- Vertical Line 2 -> 3 -->
+          <div class="w-[1px] h-6 bg-line ml-[15.5px]"></div>
+
+          <!-- Step 3: Tanıklık (Outlined) -->
+          <div class="relative flex items-center">
+            <div class="w-8 h-8 rounded-full border border-line bg-transparent flex items-center justify-center font-mono text-[14px] font-medium text-muted z-10">
+              3
+            </div>
+            <span class="font-serif text-[18px] text-muted ml-3.5 leading-none">
+              Tanıklık
+            </span>
+          </div>
+
+          <!-- Vertical Line 3 -> 4 -->
+          <div class="w-[1px] h-6 bg-line ml-[15.5px]"></div>
+
+          <!-- Step 4: Doğrulanmış Deneyim (Filled pine green) -->
+          <div class="relative flex items-center">
+            <div class="w-8 h-8 rounded-full bg-pine flex items-center justify-center font-mono text-[14px] font-medium text-paper z-10">
+              4
+            </div>
+            <span class="font-serif text-[18px] font-semibold text-pine ml-3.5 leading-none">
+              Doğrulanmış Deneyim
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- At the very BOTTOM of the panel: two 14px underlined text links side by side, 16px apart -->
+      <footer class="flex items-center space-x-4 text-[14px] text-muted">
+        <a href="#kayit" class="underline hover:text-ink transition-colors">Kayıt Ol</a>
+        <a href="#sifremi-unuttum" class="underline hover:text-ink transition-colors">Şifremi Unuttum</a>
+      </footer>
+    </aside>
+
+    <!-- RIGHT COLUMN — Form Area (60% width / 3fr), paper #FAF8F5 background, padding 48px -->
+    <section class="w-[60%] bg-paper p-12 flex items-center justify-center overflow-y-auto">
+      
+      <!-- Form Block: centered vertically and horizontally, max-width 448px, no card frame, no border, no shadow -->
+      <div class="w-full max-w-[448px] flex flex-col text-left">
+        
+        <!-- H1 Serif 32px "Giriş" -->
+        <h1 class="font-serif text-[32px] font-bold text-ink leading-tight tracking-tight">
+          Giriş
+        </h1>
+
+        <!-- 8px below: 15px secondary text -->
+        <p class="text-[15px] text-muted mt-2 leading-relaxed">
+          Hesabınıza giriş yaparak çalışmalarınıza devam edin.
+        </p>
+
+        <!-- Form fields container -->
+        <form class="mt-8 flex flex-col" onsubmit="event.preventDefault();">
+          
+          <!-- Field: E-posta -->
+          <div class="flex flex-col">
+            <label for="email" class="text-[12px] font-medium text-ink leading-tight mb-2">
+              E-posta
+            </label>
+            <input 
+              type="email" 
+              id="email" 
+              name="email"
+              placeholder="E-posta adresiniz" 
+              class="w-full h-10 px-3.5 bg-field border border-line rounded-[6px] text-[14px] text-ink placeholder:text-muted/60 transition-colors"
+              required
+            />
+          </div>
+
+          <!-- 16px below: Field: Şifre -->
+          <div class="mt-4 flex flex-col">
+            <div class="flex items-center justify-between mb-2">
+              <label for="password" class="text-[12px] font-medium text-ink leading-tight">
+                Şifre
+              </label>
+              <a href="#sifremi-unuttum" class="text-[13px] text-muted hover:text-ink transition-colors">
+                Şifremi Unuttum
+              </a>
+            </div>
+            <div class="relative w-full">
+              <input 
+                type="password" 
+                id="password" 
+                name="password"
+                class="w-full h-10 pl-3.5 pr-10 bg-field border border-line rounded-[6px] text-[14px] text-ink transition-colors"
+                required
+              />
+              <button 
+                type="button" 
+                tabindex="-1"
+                aria-label="Şifreyi göster veya gizle"
+                onclick="const pwd = document.getElementById('password'); pwd.type = pwd.type === 'password' ? 'text' : 'password';"
+                class="absolute inset-y-0 right-0 pr-3 flex items-center text-muted hover:text-ink focus:outline-none"
+              >
+                <!-- Eye icon (clean SVG) -->
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- 24px below: ONE primary button, full width 448px, 48px high, filled pine green #265445, paper text, 6px radius -->
+          <button 
+            type="submit" 
+            class="mt-6 w-full h-12 bg-pine text-paper rounded-[6px] font-sans font-medium text-[15px] hover:bg-[#1f4538] active:bg-[#18362c] transition-colors flex items-center justify-center tracking-wide"
+          >
+            Giriş Yap
+          </button>
+
+          <!-- 16px below: 14px text: "Hesabınız yok mu? Kayıt Ol" -->
+          <div class="mt-4 text-[14px] text-ink">
+            <span class="text-muted">Hesabınız yok mu? </span>
+            <a href="#kayit" class="underline text-ink hover:text-pine font-normal transition-colors">
+              Kayıt Ol
+            </a>
+          </div>
+
+        </form>
+
+      </div>
+    </section>
+
+  </main>
+</body>
+</html>

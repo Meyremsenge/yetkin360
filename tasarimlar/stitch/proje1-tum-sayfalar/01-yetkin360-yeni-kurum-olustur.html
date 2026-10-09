@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+
+<html lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Yetkin360 — Yeni Kurum Oluştur</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,500;0,8..60,600;1,8..60,400&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {},
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          spacing: {},
+          fontFamily: {
+            headline: ["\"Source Serif 4\"", "serif"],
+            display: ["\"Source Serif 4\"", "serif"],
+            body: ["\"IBM Plex Sans\"", "sans-serif"],
+            mono: ["\"IBM Plex Mono\"", "monospace"],
+            label: ["\"IBM Plex Sans\"", "sans-serif"]
+          },
+          fontSize: {}
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 20;
+      font-size: 18px;
+      line-height: 1;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body class="bg-[#FAF8F5] text-[#221F1B] font-body antialiased min-h-screen">
+<!-- Fixed Sol Sidebar (248px, Full Height, Kesintisiz) -->
+<aside class="fixed top-0 left-0 bottom-0 h-screen w-[248px] bg-[#EBE5DA] border-r border-[#E1DCD6] flex flex-col justify-between z-30 select-none">
+<!-- Üst Kısım: Logo, Slogan ve Navigasyon -->
+<div class="flex flex-col">
+<!-- Marka Başlığı -->
+<div class="p-4 pb-3">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-[#265445] flex items-center justify-center text-[#FAF8F5]">
+<span class="material-symbols-outlined !text-[14px]">history_edu</span>
+</div>
+<span class="font-headline font-bold text-xl text-[#221F1B] tracking-tight">Yetkin360</span>
+</div>
+<p class="font-mono text-[11px] text-[#625C55] mt-1.5 leading-tight tracking-tight">
+          beyan → kanıt → tanıklık → doğrulanmış deneyim
+        </p>
+</div>
+<div class="h-[1px] bg-[#E1DCD6] mx-4 mb-4"></div>
+<!-- Menü Listesi -->
+<nav class="px-3 flex flex-col space-y-1">
+<span class="px-2 pb-1.5 text-[11px] font-medium tracking-wider text-[#625C55] uppercase">
+          Sicil Navigasyonu
+        </span>
+<!-- Çalışmalarım -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors" href="#">
+<span class="material-symbols-outlined">folder_open</span>
+<span class="text-sm font-normal">Çalışmalarım</span>
+</a>
+<!-- Doğrulama Talepleri -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors" href="#">
+<span class="material-symbols-outlined">verified</span>
+<span class="text-sm font-normal">Doğrulama Talepleri</span>
+</a>
+<!-- Sicil Kayıtları -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors" href="#">
+<span class="material-symbols-outlined">history_edu</span>
+<span class="text-sm font-normal">Sicil Kayıtları</span>
+</a>
+<!-- Belgeler -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors" href="#">
+<span class="material-symbols-outlined">description</span>
+<span class="text-sm font-normal">Belgeler</span>
+</a>
+<div class="pt-3 pb-1">
+<span class="px-2 text-[11px] font-medium tracking-wider text-[#625C55] uppercase">
+            Kurum Yönetimi
+          </span>
+</div>
+<!-- Ayarlar (Aktif Sekme) -->
+<a class="relative flex items-center gap-3 px-3 py-2 bg-[#FEFEFD] border border-[#E1DCD6] rounded text-[#221F1B] font-medium before:content-[''] before:absolute before:left-[-12px] before:top-2 before:bottom-2 before:w-[2px] before:bg-[#265445]" href="#">
+<span class="material-symbols-outlined text-[#265445]">settings</span>
+<span class="text-sm font-medium">Ayarlar</span>
+</a>
+</nav>
+</div>
+<!-- Alt Kısım: Kullanıcı Profili (Sabit) -->
+<div class="border-t border-[#E1DCD6] p-3.5 bg-[#EBE5DA]">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2.5 min-w-0">
+<div class="w-8 h-8 rounded-full bg-[#EFECE7] border border-[#E1DCD6] flex items-center justify-center shrink-0">
+<span class="font-headline font-semibold text-xs text-[#221F1B]">AY</span>
+</div>
+<div class="min-w-0">
+<div class="text-[13px] font-medium text-[#221F1B] leading-tight truncate">Ayşe Yılmaz</div>
+<div class="font-mono text-[11px] text-[#625C55] truncate mt-0.5">ayse.yilmaz@itu.edu.tr</div>
+</div>
+</div>
+<span class="material-symbols-outlined text-[#625C55] shrink-0">unfold_more</span>
+</div>
+</div>
+</aside>
+<!-- Ana İçerik Alanı (ml-[248px], Kartsız, Doğrudan Kağıt Zemin) -->
+<main class="ml-[248px] min-h-screen bg-[#FAF8F5] p-12">
+<div class="max-w-[560px]">
+<!-- Başlık Alanı -->
+<header class="mb-8">
+<h1 class="font-headline font-semibold text-3xl text-[#221F1B] tracking-tight leading-tight">
+          Yeni Kurum Oluştur
+        </h1>
+<p class="text-sm text-[#625C55] mt-2 leading-relaxed">
+          Üniversitenizi veya bölümünüzü oluşturun; öğrencileriniz bağlantınızla kurumunuza bağlanabilir.
+        </p>
+</header>
+<!-- Form Alanı (Kartsız, yalın) -->
+<form class="space-y-6" onsubmit="event.preventDefault();">
+<div>
+<label class="block text-[13px] font-medium text-[#221F1B] mb-1.5" for="institution-name">
+            Ad
+          </label>
+<input class="w-full bg-[#FEFEFD] border border-[#E1DCD6] rounded-[8px] py-2.5 px-3.5 text-sm text-[#221F1B] placeholder-[#A39E96] focus:outline-none focus:border-[#265445] transition-colors" id="institution-name" name="institution-name" placeholder="Örn. İstanbul Teknik Üniversitesi" required="" type="text"/>
+</div>
+<!-- Buton -->
+<div>
+<button class="bg-[#265445] text-white px-6 py-2.5 rounded-[8px] text-sm font-medium hover:bg-[#1f4437] transition-colors inline-flex items-center justify-center" type="submit">
+            Oluştur
+          </button>
+</div>
+</form>
+<!-- Ayırıcı ve İkincil Monospace Protokol Bilgisi -->
+<div class="mt-12 pt-6 border-t border-[#E1DCD6]">
+<div class="flex items-center justify-between text-[#625C55] font-mono text-[11px]">
+<span>Sicil Kayıt Protokolü v2.4</span>
+<span>ISO 27001 Uyumlu</span>
+</div>
+</div>
+</div>
+</main>
+</body></html>

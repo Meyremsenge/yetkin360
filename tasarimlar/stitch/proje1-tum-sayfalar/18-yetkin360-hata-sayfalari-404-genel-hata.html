@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Hata Durumları — Yetkin360 Resmi Sicil</title>
+<!-- Typography: Source Serif 4, IBM Plex Sans, IBM Plex Mono, Public Sans -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Public+Sans:wght@500&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,500;0,8..60,600;1,8..60,500&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS with Forms and Container Queries -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            paper: "#FAF8F5",
+            card: "#FEFEFD",
+            sand: "#EBE5DA",
+            muted: "#EFECE7",
+            border: "#E1DCD6",
+            ink: "#221F1B",
+            secondary: "#625C55",
+            pine: "#265445",
+            "pine-hover": "#1e4337",
+            ochre: "#8F5A14",
+            brick: "#A13B2B"
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "sm": "6px",
+            "md": "8px",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          fontFamily: {
+            headline: ["\"Source Serif 4\"", "serif"],
+            display: ["\"Source Serif 4\"", "serif"],
+            body: ["\"IBM Plex Sans\"", "sans-serif"],
+            mono: ["\"IBM Plex Mono\"", "monospace"],
+            label: ["\"Public Sans\"", "sans-serif"]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    /* Material symbol base style */
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 20;
+      font-size: 18px;
+      line-height: 1;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .material-symbols-outlined.fill {
+      font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+    }
+  </style>
+</head>
+<body class="bg-[#FAF8F5] text-[#221F1B] font-body min-h-full flex flex-col antialiased selection:bg-[#E5E8E3] selection:text-[#265445]">
+<!-- Sade Landing Üst Barı (Shell-free destination header) -->
+<header class="w-full bg-[#FEFEFD] border-b border-[#E1DCD6] sticky top-0 z-30">
+<div class="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
+<!-- Marka Kimliği & Mühür Amblemi -->
+<a class="flex items-center gap-2.5 text-[#221F1B] group" href="#">
+<span class="w-7 h-7 rounded-full bg-[#265445] flex items-center justify-center text-[#FAF8F5] shrink-0" title="Yetkin360 Mühür Amblemi">
+<span class="material-symbols-outlined !text-[15px]" style="font-variation-settings: 'FILL' 1, 'wght' 500;">verified</span>
+</span>
+<div class="flex flex-col">
+<span class="font-headline font-semibold text-lg text-[#221F1B] leading-none tracking-tight">Yetkin360</span>
+<span class="font-mono text-[10px] text-[#625C55] tracking-tight mt-0.5 hidden sm:inline">resmi sicil altyapısı</span>
+</div>
+</a>
+<!-- Sağ Taraf Giriş & Kayıt Bağlantıları -->
+<nav class="flex items-center gap-6">
+<a class="text-sm font-body text-[#625C55] hover:text-[#221F1B] transition-colors duration-150" href="#giris">Giriş Yap</a>
+<a class="text-sm font-body font-medium text-[#265445] hover:text-[#1e4337] transition-colors duration-150" href="#kayit">Kayıt Ol</a>
+</nav>
+</div>
+</header>
+<!-- Ana İçerik Kapsayıcısı: Maksimum 560px, Sola Hizalı Grid/Canvas -->
+<main class="flex-1 w-full max-w-[560px] mx-auto px-6 pt-24 pb-20">
+<!-- ========================================== -->
+<!-- VARYANT 1: 404 SAYFA BULUNAMADI            -->
+<!-- ========================================== -->
+<section aria-labelledby="error-404-title" class="flex flex-col items-start">
+<!-- Protokol Kodu / Üst Etiket -->
+<div class="flex items-center gap-2 mb-6">
+<span class="inline-flex items-center h-[22px] px-2.5 rounded-full bg-[#EFECE7] text-[#221F1B] text-xs font-mono tracking-wide">
+<span class="w-1.5 h-1.5 rounded-full bg-[#625C55] mr-1.5"></span>
+          HATA PROTOKOLÜ 404
+        </span>
+</div>
+<!-- 64px Boş Kesik Çizgili Mühür Dairesi (Mühürsüzlük Hissi) -->
+<div aria-hidden="true" class="w-16 h-16 rounded-full border-2 border-dashed border-[#8C827A] flex items-center justify-center bg-transparent text-[#625C55] mb-6 select-none" title="Eksik Sicil Mührü">
+<span class="material-symbols-outlined !text-[26px] opacity-70">close</span>
+</div>
+<!-- Başlık (Source Serif 4, 32px / 36px line-height) -->
+<h1 class="font-headline font-semibold text-[32px] sm:text-[36px] leading-[40px] text-[#221F1B] tracking-tight" id="error-404-title">
+        Sayfa bulunamadı
+      </h1>
+<!-- İkincil Açıklama Metni (IBM Plex Sans, 15px/24px) -->
+<p class="mt-2 font-body text-[15px] leading-6 text-[#625C55]">
+        Aradığınız sayfa bulunamadı. Belirtilen kayıt veya bağlantı sicil kütüğünden kaldırılmış ya da hiç oluşturulmamış olabilir.
+      </p>
+<!-- Aksiyon Butonları (Tek dolu çam yeşili + Outline çam yeşili) -->
+<div class="mt-6 flex flex-wrap items-center gap-2">
+<a class="h-10 px-4 inline-flex items-center justify-center rounded-[6px] bg-[#265445] hover:bg-[#1e4337] text-[#FAF8F5] font-body text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#265445] focus:ring-offset-2 focus:ring-offset-[#FAF8F5]" href="#anasayfa">
+          Ana Sayfaya Dön
+        </a>
+<a class="h-10 px-4 inline-flex items-center justify-center rounded-[6px] bg-transparent border border-[#265445] text-[#265445] hover:bg-[#EFECE7] font-body text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#265445] focus:ring-offset-2 focus:ring-offset-[#FAF8F5]" href="#giris">
+          Giriş Sayfasına Dön
+        </a>
+</div>
+</section>
+<!-- ========================================== -->
+<!-- RESMİ AYIRICI ÇİZGİ & VARYANT GEÇİŞİ       -->
+<!-- ========================================== -->
+<div aria-orientation="horizontal" class="my-16 relative" role="separator">
+<div class="h-px w-full bg-[#E1DCD6]"></div>
+<div class="absolute -top-3 left-0 bg-[#FAF8F5] pr-3">
+<span class="font-mono text-xs text-[#625C55] uppercase tracking-wider">
+          Varyant 2: Genel Sistem Hatası
+        </span>
+</div>
+</div>
+<!-- ========================================== -->
+<!-- VARYANT 2: 500 / GENEL SİSTEM HATASI       -->
+<!-- ========================================== -->
+<section aria-labelledby="error-500-title" class="flex flex-col items-start">
+<!-- Sistem Bildirimi Üst Etiket -->
+<div class="flex items-center gap-2 mb-6">
+<span class="inline-flex items-center h-[22px] px-2.5 rounded-full bg-[#F1E5E1] text-[#A13B2B] text-xs font-mono tracking-wide">
+<span class="w-1.5 h-1.5 rounded-full bg-[#A13B2B] mr-1.5"></span>
+          SİSTEM BİLDİRİMİ — HATA
+        </span>
+</div>
+<!-- 64px İkincil / Kiremit Tonunda Daire İçinde Ünlem İkonu -->
+<div aria-hidden="true" class="w-16 h-16 rounded-full border border-[#E1DCD6] bg-[#FEFEFD] flex items-center justify-center text-[#A13B2B] mb-6 select-none">
+<span class="material-symbols-outlined !text-[28px]" style="font-variation-settings: 'FILL' 0, 'wght' 300;">warning</span>
+</div>
+<!-- Başlık (Source Serif 4, 32px / 36px) -->
+<h2 class="font-headline font-semibold text-[32px] sm:text-[36px] leading-[40px] text-[#221F1B] tracking-tight" id="error-500-title">
+        Bir şeyler ters gitti
+      </h2>
+<!-- İkincil Açıklama Metni (IBM Plex Sans, 15px/24px) -->
+<p class="mt-2 font-body text-[15px] leading-6 text-[#625C55]">
+        İşlem sırasında bir hata oluştu. Lütfen tekrar deneyin veya sistem yöneticisine aşağıdaki referans koduyla başvurun.
+      </p>
+<!-- Kopyalanabilir Destek Kodu Kutusu -->
+<div class="mt-5 w-full bg-[#FEFEFD] border border-[#E1DCD6] rounded-[6px] p-3 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="font-mono text-xs text-[#625C55]">Destek Kodu:</span>
+<span class="font-mono text-sm font-medium text-[#221F1B] select-all" id="support-code-value">a1b2c3d4</span>
+</div>
+<button aria-label="Destek kodunu panoya kopyala" class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-body font-medium text-[#625C55] hover:text-[#221F1B] hover:bg-[#EFECE7] rounded-[4px] border border-[#E1DCD6] transition-colors duration-150 active:bg-[#EBE5DA]" id="copy-btn" onclick="copySupportCode()" type="button">
+<span class="material-symbols-outlined !text-[14px]">content_copy</span>
+<span id="copy-btn-text">Kopyala</span>
+</button>
+</div>
+<!-- Aksiyon Butonları -->
+<div class="mt-6 flex flex-wrap items-center gap-2">
+<button class="h-10 px-4 inline-flex items-center justify-center rounded-[6px] bg-[#265445] hover:bg-[#1e4337] text-[#FAF8F5] font-body text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#265445] focus:ring-offset-2 focus:ring-offset-[#FAF8F5]" onclick="window.location.reload()" type="button">
+          Tekrar dene
+        </button>
+<a class="h-10 px-4 inline-flex items-center justify-center rounded-[6px] bg-transparent border border-[#265445] text-[#265445] hover:bg-[#EFECE7] font-body text-sm font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#265445] focus:ring-offset-2 focus:ring-offset-[#FAF8F5]" href="#anasayfa">
+          Ana sayfaya dön
+        </a>
+</div>
+</section>
+</main>
+<!-- Resmi Sicil Altbilgi Meta Notu -->
+<footer class="w-full border-t border-[#E1DCD6] bg-[#FAF8F5] py-6 px-6">
+<div class="max-w-[560px] mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs font-mono text-[#625C55]">
+<p class="leading-normal">
+        Yetkin360 Resmi Sicil Altyapısı v2.4 • Hata Yönetim Protokolü
+      </p>
+<span class="text-[11px] text-[#8C827A] select-none">
+        ISO-TR-27001 DOĞRULANMIŞ
+      </span>
+</div>
+</footer>
+<!-- Etkileşim Scripti: Destek Kodu Kopyalama -->
+<script>
+    function copySupportCode() {
+      const codeElement = document.getElementById('support-code-value');
+      const copyText = document.getElementById('copy-btn-text');
+      const textToCopy = codeElement ? codeElement.innerText.trim() : 'a1b2c3d4';
+
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(textToCopy).then(showSuccess);
+      } else {
+        // Fallback for non-https contexts
+        const textarea = document.createElement('textarea');
+        textarea.value = textToCopy;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+          document.execCommand('copy');
+          showSuccess();
+        } catch (err) {
+          console.error('Kopyalama başarısız', err);
+        }
+        document.body.removeChild(textarea);
+      }
+
+      function showSuccess() {
+        if (!copyText) return;
+        const originalText = copyText.innerText;
+        copyText.innerText = 'Kopyalandı';
+        setTimeout(() => {
+          copyText.innerText = originalText;
+        }, 2000);
+      }
+    }
+  </script>
+</body></html>

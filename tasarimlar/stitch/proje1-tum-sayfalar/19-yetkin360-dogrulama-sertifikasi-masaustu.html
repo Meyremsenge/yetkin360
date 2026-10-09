@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Doğrulama Sertifikası — Yetkin360</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            paper: '#FAF8F5',
+            'paper-card': '#FEFEFD',
+            pine: {
+              DEFAULT: '#265445',
+              hover: '#1F4337',
+              light: '#EBF1EE'
+            },
+            ink: {
+              primary: '#1D2520',
+              secondary: '#5C6B61',
+              muted: '#8A998F'
+            },
+            borderline: '#E2DED6',
+            'borderline-subtle': '#EDE9E1'
+          },
+          fontFamily: {
+            serif: ['Newsreader', 'Georgia', 'serif'],
+            sans: ['Plus Jakarta Sans', 'sans-serif'],
+            mono: ['IBM Plex Mono', 'monospace'],
+            seal: ['Cinzel', 'serif']
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Resmi Sicil paper texture & hairline borders */
+    body {
+      background-color: #FAF8F5;
+      color: #1D2520;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .paper-border-double {
+      border: 1px solid #E2DED6;
+      outline: 1px solid #E2DED6;
+      outline-offset: -7px;
+    }
+    .seal-rotate {
+      transform: rotate(-4deg);
+      transform-origin: center center;
+    }
+    @media print {
+      body {
+        background-color: #FEFEFD;
+      }
+      .no-print {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-paper flex flex-col items-center antialiased px-3 sm:px-6 py-0 pb-16 selection:bg-pine selection:text-paper">
+
+  <!-- 1. İNCE ÜST BAR (56px, altında 1px çizgi, max-w-[720px] ortalı) -->
+  <header class="w-full max-w-[720px] h-14 border-b border-borderline flex items-center justify-between px-2 sm:px-4">
+    <div class="flex items-center gap-2">
+      <span class="font-serif font-bold text-[18px] tracking-tight text-ink-primary">Yetkin360</span>
+      <span class="text-[11px] font-mono text-ink-muted uppercase tracking-wider hidden xs:inline-block">/ RESMİ SİCİL</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="inline-flex items-center gap-1.5 text-[13px] text-ink-secondary">
+        <span class="w-1.5 h-1.5 rounded-full bg-pine"></span>
+        Doğrulama kaydı
+      </span>
+    </div>
+  </header>
+
+  <!-- 2. SERTİFİKA KARTI (Üstten 32px-40px, kart zemin #FEFEFD, ÇİFT ÇERÇEVE, 8px köşe, max 720px) -->
+  <main class="w-full max-w-[720px] mt-8 sm:mt-10">
+    <div class="bg-paper-card paper-border-double rounded-lg p-6 sm:p-12 relative overflow-hidden">
+      
+      <!-- a) Üst satır: Solda Mono Doğrulanmış Deneyim Kaydı + Sağda VerifiedSeal LG (96px cam yeşili, -4° eğik) -->
+      <div class="flex items-start justify-between gap-4">
+        <div class="pt-2">
+          <div class="inline-flex items-center gap-2">
+            <span class="font-mono text-[12px] uppercase font-semibold text-pine tracking-wider">DOĞRULANMIŞ DENEYİM KAYDI</span>
+          </div>
+          <p class="text-[11px] font-mono text-ink-muted mt-1">BELGE NO: Y360-2026-A3F8C912</p>
+        </div>
+
+        <!-- VerifiedSeal LG (96px cam yeşili #265445 dolu daire, içinde kâğıt tik, dışında 4px boşluklu ikinci ince 1px çam halka, -4° eğik) -->
+        <div class="seal-rotate shrink-0 select-none">
+          <div class="relative w-24 h-24 flex items-center justify-center">
+            <!-- Dış halka (4px boşluklu, 1px çam yeşili halka) -->
+            <div class="absolute inset-0 rounded-full border border-pine opacity-90"></div>
+            <!-- İç dolu mühür (p-1.5 yani ~4px boşlukla içeride) -->
+            <div class="w-[84px] h-[84px] rounded-full bg-pine flex flex-col items-center justify-center text-center shadow-none p-1 border border-pine">
+              <!-- Mühür Daire Çevresi Metni & İkon -->
+              <svg class="w-7 h-7 text-paper mb-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span class="font-seal text-[8px] font-bold text-paper tracking-[0.16em] uppercase leading-none">DOĞRULANDI</span>
+              <span class="font-mono text-[6.5px] text-paper opacity-80 tracking-wider mt-0.5">YETKİN360</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- b) 24px altında: Kişi Adı ve Rol -->
+      <div class="mt-6 sm:mt-7">
+        <h1 class="font-serif text-[28px] sm:text-[32px] font-semibold tracking-tight text-ink-primary leading-tight">
+          Ayşe Yılmaz
+        </h1>
+        <p class="font-serif text-[18px] sm:text-[20px] font-medium text-ink-secondary mt-2 leading-snug">
+          Kıdemli Veri Analisti - Yaz Stajı
+        </p>
+      </div>
+
+      <!-- c) 32px altında 1px çizgi ayırıcı -->
+      <div class="my-8 border-t border-borderline"></div>
+
+      <!-- d) Bilgi ızgarası (2 kolon, satır arası 24px) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-8">
+        
+        <!-- Hücre 1: Kuruluş -->
+        <div class="flex flex-col">
+          <span class="text-[12px] font-sans font-medium text-ink-secondary">Kuruluş</span>
+          <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+            <span class="text-[16px] font-medium text-ink-primary">Acme Yazılım A.Ş.</span>
+            <!-- Rozet: T3 (çam yeşili dolgu) -->
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-pine text-paper">
+              T3 · Kimliği doğrulanmış
+            </span>
+          </div>
+          <span class="text-[13px] font-mono text-ink-secondary mt-1">
+            Doğrulanmış alan adı: acme.com.tr
+          </span>
+        </div>
+
+        <!-- Hücre 2: Eğitim Kurumu -->
+        <div class="flex flex-col">
+          <span class="text-[12px] font-sans font-medium text-ink-secondary">Eğitim Kurumu</span>
+          <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+            <span class="text-[16px] font-medium text-ink-primary">İstanbul Teknik Üniversitesi</span>
+            <!-- Rozet: T4 -->
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-pine text-paper">
+              T4
+            </span>
+          </div>
+          <span class="text-[13px] font-sans text-ink-muted mt-1">
+            Akademik sicil eşleşmesi
+          </span>
+        </div>
+
+        <!-- Hücre 3: Dönem -->
+        <div class="flex flex-col">
+          <span class="text-[12px] font-sans font-medium text-ink-secondary">Dönem</span>
+          <span class="text-[16px] font-medium text-ink-primary mt-1.5">
+            12 Eylül 2026 – 20 Aralık 2026
+          </span>
+        </div>
+
+        <!-- Hücre 4: Doğrulama Tarihi -->
+        <div class="flex flex-col">
+          <span class="text-[12px] font-sans font-medium text-ink-secondary">Doğrulama Tarihi</span>
+          <span class="text-[16px] font-medium text-ink-primary mt-1.5">
+            9 Ekim 2026
+          </span>
+        </div>
+
+      </div>
+
+      <!-- e) 32px altında, üstünde 1px çizgi: ChainProgress LG, 4 adım (hepsi tamamlanmış) -->
+      <div class="mt-8 pt-8 border-t border-borderline">
+        <span class="block text-[12px] font-sans font-medium text-ink-secondary mb-4">
+          Bu deneyim dört adımdan geçti
+        </span>
+
+        <!-- 4 Adım Zinciri -->
+        <div class="relative">
+          <!-- Bağlantı çizgisi (tamamen çam yeşili) -->
+          <div class="absolute top-[15px] left-4 right-4 sm:left-6 sm:right-6 h-[2px] bg-pine -z-0"></div>
+
+          <div class="grid grid-cols-4 relative z-10 text-center gap-1">
+            
+            <!-- Adım 1: Beyan -->
+            <div class="flex flex-col items-center">
+              <div class="w-8 h-8 rounded-full bg-pine flex items-center justify-center text-paper border-2 border-paper-card">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              </div>
+              <span class="text-[12px] sm:text-[13px] font-sans font-semibold text-pine mt-2 leading-tight">Beyan</span>
+              <span class="text-[10px] font-mono text-ink-muted hidden sm:inline-block mt-0.5">Aday</span>
+            </div>
+
+            <!-- Adım 2: Kanıt -->
+            <div class="flex flex-col items-center">
+              <div class="w-8 h-8 rounded-full bg-pine flex items-center justify-center text-paper border-2 border-paper-card">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              </div>
+              <span class="text-[12px] sm:text-[13px] font-sans font-semibold text-pine mt-2 leading-tight">Kanıt</span>
+              <span class="text-[10px] font-mono text-ink-muted hidden sm:inline-block mt-0.5">Belge/Kod</span>
+            </div>
+
+            <!-- Adım 3: Tanıklık -->
+            <div class="flex flex-col items-center">
+              <div class="w-8 h-8 rounded-full bg-pine flex items-center justify-center text-paper border-2 border-paper-card">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              </div>
+              <span class="text-[12px] sm:text-[13px] font-sans font-semibold text-pine mt-2 leading-tight">Tanıklık</span>
+              <span class="text-[10px] font-mono text-ink-muted hidden sm:inline-block mt-0.5">Kurum Teyidi</span>
+            </div>
+
+            <!-- Adım 4: Doğrulanmış Deneyim -->
+            <div class="flex flex-col items-center">
+              <div class="w-8 h-8 rounded-full bg-pine flex items-center justify-center text-paper border-2 border-paper-card">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              </div>
+              <span class="text-[12px] sm:text-[13px] font-sans font-semibold text-pine mt-2 leading-tight">Doğrulanmış Deneyim</span>
+              <span class="text-[10px] font-mono text-ink-muted hidden sm:inline-block mt-0.5">Mühürlü</span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- f) 32px altında, üstünde 1px çizgi: Tanıklık yapılan yetkinlikler -->
+      <div class="mt-8 pt-8 border-t border-borderline">
+        <h3 class="font-serif text-[20px] font-semibold text-ink-primary tracking-tight">
+          Tanıklık yapılan yetkinlikler
+        </h3>
+
+        <!-- Yetkinlik Çipleri (yan yana sarılan satırlar, 8px aralık, 32px yükseklik, kart zemin, 1px çizgi, 6px köşe) -->
+        <div class="flex flex-wrap gap-2 mt-3">
+          
+          <!-- Çip 1: Python -->
+          <div class="h-8 inline-flex items-center px-3 rounded-[6px] bg-paper-card border border-borderline gap-1.5">
+            <span class="text-[14px] font-medium text-ink-primary">Python</span>
+            <span class="text-[13px] text-ink-secondary">· Acme Yazılım A.Ş.</span>
+          </div>
+
+          <!-- Çip 2: SQL -->
+          <div class="h-8 inline-flex items-center px-3 rounded-[6px] bg-paper-card border border-borderline gap-1.5">
+            <span class="text-[14px] font-medium text-ink-primary">SQL</span>
+            <span class="text-[13px] text-ink-secondary">· Acme Yazılım A.Ş.</span>
+          </div>
+
+          <!-- Çip 3: Veri Görselleştirme -->
+          <div class="h-8 inline-flex items-center px-3 rounded-[6px] bg-paper-card border border-borderline gap-1.5">
+            <span class="text-[14px] font-medium text-ink-primary">Veri Görselleştirme</span>
+            <span class="text-[13px] text-ink-secondary">· Acme Yazılım A.Ş.</span>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- g) 40px altında, üstünde KESİK (dashed) 1px çizgi: Doğrulama damgası ve meta -->
+      <div class="mt-10 pt-6 border-t border-dashed border-borderline">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between text-[12px] font-mono text-ink-secondary gap-1">
+          <span>Kayıt no: a3f8c912…</span>
+          <span>Yetkin360 · 9 Ekim 2026, 14:30</span>
+        </div>
+        <p class="text-[13px] text-ink-secondary mt-3">
+          Bu sayfa Yetkin360 tarafından 9 Ekim 2026 tarihinde doğrulanmıştır.
+        </p>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- 3. Kart altında 24px, ortada 13px ikincil link -->
+  <footer class="mt-6 text-center">
+    <a href="#about" class="text-[13px] text-ink-secondary hover:text-pine underline underline-offset-4 transition-colors">
+      Yetkin360 nedir?
+    </a>
+  </footer>
+
+</body>
+</html>

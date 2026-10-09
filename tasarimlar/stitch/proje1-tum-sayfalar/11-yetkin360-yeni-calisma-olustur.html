@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Yeni Çalışma Oluştur — Yetkin360</title>
+<!-- Google Fonts: Source Serif 4, IBM Plex Sans, IBM Plex Mono -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&amp;family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            paper: '#FAF8F5',
+            card: '#FEFEFD',
+            sand: '#EBE5DA',
+            muted: '#EFECE7',
+            border: '#E1DCD6',
+            ink: '#221F1B',
+            secondary: '#625C55',
+            pine: '#265445',
+            ochre: '#8F5A14',
+            brick: '#A13B2B',
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "sm": "0.25rem",
+            "md": "0.375rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          fontFamily: {
+            headline: ["\"Source Serif 4\"", "serif"],
+            display: ["\"Source Serif 4\"", "serif"],
+            body: ["\"IBM Plex Sans\"", "sans-serif"],
+            label: ["\"IBM Plex Sans\"", "sans-serif"],
+            mono: ["\"IBM Plex Mono\"", "monospace"]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    /* Precision styling rules from Resmi Sicil design system */
+    body {
+      background-color: #FAF8F5;
+      color: #221F1B;
+      font-family: 'IBM Plex Sans', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+      font-size: 18px;
+      line-height: 1;
+      display: inline-block;
+    }
+    input::placeholder {
+      color: #9C948A;
+      opacity: 1;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-[#FAF8F5] text-[#221F1B] antialiased flex flex-row">
+<!-- ========================================================================= -->
+<!-- LEFT SIDEBAR: Shared Component Implementation (Mandatory Layout Specs)    -->
+<!-- ========================================================================= -->
+<aside class="fixed top-0 left-0 bottom-0 h-screen w-[248px] bg-[#EBE5DA] border-r border-[#E1DCD6] flex flex-col justify-between select-none z-30">
+<!-- Top Brand & Navigation Cluster -->
+<div class="flex flex-col pt-5 px-3">
+<!-- Brand & Tagline -->
+<div class="px-3 pb-4">
+<div class="flex items-center gap-2">
+<span class="font-headline font-bold text-xl text-[#221F1B] tracking-tight">Yetkin360</span>
+</div>
+<p class="font-mono text-[11px] text-[#625C55] mt-1 tracking-tight leading-relaxed">
+          beyan → kanıt → tanıklık → doğrulanmış deneyim
+        </p>
+</div>
+<!-- Separation line -->
+<div class="h-[1px] bg-[#E1DCD6] mx-2 mb-4"></div>
+<!-- Nav Section Label -->
+<div class="px-3 mb-2">
+<span class="text-[11px] font-medium text-[#625C55] uppercase tracking-wider">Menü</span>
+</div>
+<!-- Navigation Links -->
+<nav class="flex flex-col space-y-1">
+<!-- Item 1: Çalışmalarım (ACTIVE TAB) -->
+<a aria-current="page" class="relative flex items-center gap-3 px-3 py-2 bg-[#FEFEFD] border border-[#E1DCD6] rounded-[6px] text-[#221F1B] font-medium transition-colors before:content-[''] before:absolute before:left-[-12px] before:top-2 before:bottom-2 before:w-[2px] before:bg-[#265445]" href="#">
+<span class="material-symbols-outlined text-[#265445]">folder_open</span>
+<span class="text-sm">Çalışmalarım</span>
+</a>
+<!-- Item 2: Doğrulama Talepleri -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded-[6px] hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors" href="#">
+<span class="material-symbols-outlined text-[#625C55]">verified</span>
+<span class="text-sm">Doğrulama Talepleri</span>
+</a>
+<!-- Item 3: Sicil Kayıtları -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded-[6px] hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors" href="#">
+<span class="material-symbols-outlined text-[#625C55]">history_edu</span>
+<span class="text-sm">Sicil Kayıtları</span>
+</a>
+<!-- Item 4: Belgeler -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded-[6px] hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors" href="#">
+<span class="material-symbols-outlined text-[#625C55]">description</span>
+<span class="text-sm">Belgeler</span>
+</a>
+<!-- Item 5: Ayarlar -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded-[6px] hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors" href="#">
+<span class="material-symbols-outlined text-[#625C55]">settings</span>
+<span class="text-sm">Ayarlar</span>
+</a>
+</nav>
+</div>
+<!-- Bottom User Profile Card -->
+<div class="p-3 border-t border-[#E1DCD6]">
+<div class="flex items-center justify-between p-2 rounded-[6px] hover:bg-[#EFECE7] cursor-pointer transition-colors">
+<div class="flex items-center gap-2.5 min-w-0">
+<!-- Avatar: Neutral monogram disc without photo -->
+<div class="w-8 h-8 rounded-full bg-[#E5E8E3] border border-[#E1DCD6] text-[#265445] font-headline font-semibold text-xs flex items-center justify-center shrink-0">
+            AY
+          </div>
+<div class="flex flex-col min-w-0">
+<span class="text-sm font-medium text-[#221F1B] truncate leading-tight">Ayşe Yılmaz</span>
+<span class="text-[11px] text-[#625C55] font-mono truncate mt-0.5">ayse.yilmaz@itu.edu.tr</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-[#625C55] text-base shrink-0 ml-1">unfold_more</span>
+</div>
+</div>
+</aside>
+<!-- ========================================================================= -->
+<!-- MAIN CONTENT CANVAS (Clean Paper Layout, No Extra Container Card)          -->
+<!-- ========================================================================= -->
+<main class="ml-[248px] flex-1 min-h-screen bg-[#FAF8F5] p-10 sm:p-14">
+<!-- Form Area Constraint: Exactly 560px wide -->
+<div class="max-w-[560px]">
+<!-- 1. Back Action Link -->
+<div>
+<a class="inline-flex items-center gap-1.5 text-sm text-[#625C55] hover:text-[#221F1B] transition-colors group" href="#">
+<span class="material-symbols-outlined text-base transition-transform group-hover:-translate-x-0.5">arrow_back</span>
+<span>Çalışmalara dön</span>
+</a>
+</div>
+<!-- 2. Page Header -->
+<header class="mt-4 mb-8">
+<h1 class="font-headline text-3xl font-semibold text-[#221F1B] tracking-tight">Yeni Çalışma Oluştur</h1>
+<p class="text-sm text-[#625C55] mt-2 leading-relaxed">
+          Oluşturduğunuz çalışma taslak olarak kaydedilir; ardından kuruluşun onayına gönderirsiniz.
+        </p>
+</header>
+<!-- Registry Form Canvas -->
+<form class="space-y-6" id="create-work-form" onsubmit="event.preventDefault();">
+<!-- 3. Work Type Selector (2x2 Grid) -->
+<div>
+<label class="block text-xs font-semibold text-[#625C55] uppercase tracking-wider mb-2.5">
+            Tür
+          </label>
+<div aria-label="Çalışma Türü Seçimi" class="grid grid-cols-2 gap-3" role="radiogroup">
+<!-- Option 1: Staj (SELECTED BY DEFAULT) -->
+<label class="relative h-16 rounded-[6px] p-3 flex flex-col justify-center cursor-pointer border-2 border-[#265445] bg-[#E5E8E3] transition-all select-none">
+<input checked="" class="sr-only peer" name="work_type" type="radio" value="staj"/>
+<span class="font-medium text-sm text-[#221F1B] leading-tight">Staj</span>
+<span class="text-xs text-[#625C55] mt-0.5 leading-tight">Kuruluşta çalışma deneyimi</span>
+</label>
+<!-- Option 2: Bitirme Projesi -->
+<label class="relative h-16 rounded-[6px] p-3 flex flex-col justify-center cursor-pointer border border-[#E1DCD6] bg-[#FEFEFD] hover:border-[#C4BCB1] transition-all select-none">
+<input class="sr-only peer" name="work_type" type="radio" value="bitirme_projesi"/>
+<span class="font-medium text-sm text-[#221F1B] leading-tight">Bitirme Projesi</span>
+<span class="text-xs text-[#625C55] mt-0.5 leading-tight">Akademik bitirme çalışması</span>
+</label>
+<!-- Option 3: Kısa Proje -->
+<label class="relative h-16 rounded-[6px] p-3 flex flex-col justify-center cursor-pointer border border-[#E1DCD6] bg-[#FEFEFD] hover:border-[#C4BCB1] transition-all select-none">
+<input class="sr-only peer" name="work_type" type="radio" value="kisa_proje"/>
+<span class="font-medium text-sm text-[#221F1B] leading-tight">Kısa Proje</span>
+<span class="text-xs text-[#625C55] mt-0.5 leading-tight">Belirli süreli görev</span>
+</label>
+<!-- Option 4: Yarı Zamanlı -->
+<label class="relative h-16 rounded-[6px] p-3 flex flex-col justify-center cursor-pointer border border-[#E1DCD6] bg-[#FEFEFD] hover:border-[#C4BCB1] transition-all select-none">
+<input class="sr-only peer" name="work_type" type="radio" value="yari_zamanli"/>
+<span class="font-medium text-sm text-[#221F1B] leading-tight">Yarı Zamanlı</span>
+<span class="text-xs text-[#625C55] mt-0.5 leading-tight">Düzenli yarı zamanlı çalışma</span>
+</label>
+</div>
+</div>
+<!-- 4. Title Input Field -->
+<div>
+<label class="block text-xs font-semibold text-[#625C55] uppercase tracking-wider mb-2" for="work-title">
+            Başlık
+          </label>
+<input autocomplete="off" class="text-sm bg-[#FEFEFD] border border-[#E1DCD6] focus:border-[#265445] focus:ring-1 focus:ring-[#265445] rounded-[6px] px-3.5 py-2.5 w-full text-[#221F1B] placeholder-[#9C948A] outline-none transition-colors" id="work-title" name="work_title" placeholder="Örn. Veri Analizi Stajı" required="" type="text"/>
+</div>
+<!-- 5. Form Submit Action -->
+<div class="pt-2">
+<button class="inline-flex items-center justify-center bg-[#265445] text-[#FAF8F5] hover:bg-[#1f4538] active:bg-[#18392d] px-6 py-2.5 rounded-[6px] font-medium text-sm transition-colors cursor-pointer select-none" type="submit">
+            Oluştur
+          </button>
+</div>
+</form>
+</div>
+</main>
+<!-- Interactive State Logic: Micro-interaction for 2x2 Type Selectors -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const radioLabels = document.querySelectorAll('div[role="radiogroup"] label');
+      
+      radioLabels.forEach(label => {
+        const input = label.querySelector('input[type="radio"]');
+        
+        input.addEventListener('change', () => {
+          radioLabels.forEach(l => {
+            l.className = "relative h-16 rounded-[6px] p-3 flex flex-col justify-center cursor-pointer border border-[#E1DCD6] bg-[#FEFEFD] hover:border-[#C4BCB1] transition-all select-none";
+          });
+          
+          if (input.checked) {
+            label.className = "relative h-16 rounded-[6px] p-3 flex flex-col justify-center cursor-pointer border-2 border-[#265445] bg-[#E5E8E3] transition-all select-none";
+          }
+        });
+      });
+    });
+  </script>
+</body></html>

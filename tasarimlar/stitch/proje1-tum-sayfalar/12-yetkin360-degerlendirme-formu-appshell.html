@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Değerlendirme Formu — Yetkin360</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration verbatim as requested -->
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {},
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {},
+          "fontFamily": {
+            "headline": [
+              "\"Source Serif 4\""
+            ],
+            "display": [
+              "\"Source Serif 4\""
+            ],
+            "body": [
+              "IBM Plex Sans"
+            ],
+            "label": [
+              "Public Sans"
+            ],
+            "mono": [
+              "IBM Plex Mono", "monospace"
+            ]
+          },
+          "fontSize": {}
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 350, 'GRAD' 0, 'opsz' 20;
+      font-size: 18px;
+      line-height: 1;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .material-symbols-outlined.fill {
+      font-variation-settings: 'FILL' 1, 'wght' 350, 'GRAD' 0, 'opsz' 20;
+    }
+  </style>
+</head>
+<body class="bg-[#FAF8F5] text-[#221F1B] font-body antialiased min-h-screen selection:bg-[#E5E8E3] selection:text-[#265445]">
+<!-- SOL SİDEBAR (MANDATORY APPSHELL AS PER SHARED SPECIFICATION) -->
+<aside class="fixed top-0 left-0 bottom-0 w-[248px] h-screen bg-[#EBE5DA] border-r border-[#E1DCD6] flex flex-col justify-between z-40 select-none">
+<div class="p-4 flex flex-col">
+<!-- Logo & Slogan Header -->
+<div class="px-2 pt-1 pb-4">
+<div class="flex items-center gap-2">
+<span class="font-headline font-bold text-xl text-[#221F1B] tracking-tight">Yetkin360</span>
+</div>
+<p class="font-mono text-[11px] text-[#625C55] mt-1.5 leading-tight tracking-tight">beyan → kanıt → tanıklık → doğrulanmış deneyim</p>
+</div>
+<div class="h-[1px] bg-[#E1DCD6] w-full mb-4"></div>
+<!-- Menü Grubu -->
+<div>
+<span class="block px-2 text-[12px] font-medium text-[#625C55] mb-2 tracking-wide">KAYIT VE YÖNETİM</span>
+<nav class="space-y-1">
+<!-- Çalışmalarım (AKTİF - JSON style_active_navigation strictly applied) -->
+<a class="relative flex items-center gap-3 px-3 py-2 bg-[#FEFEFD] border border-[#E1DCD6] rounded text-[#221F1B] font-medium before:content-[''] before:absolute before:left-[-12px] before:top-2 before:bottom-2 before:w-[2px] before:bg-[#265445] transition-colors" href="#">
+<span class="material-symbols-outlined text-[#265445]" data-icon="folder_open">folder_open</span>
+<span class="text-sm">Çalışmalarım</span>
+</a>
+<!-- Doğrulama Talepleri -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors" href="#">
+<span class="material-symbols-outlined text-[#625C55]" data-icon="verified">verified</span>
+<span class="text-sm">Doğrulama Talepleri</span>
+</a>
+<!-- Sicil Kayıtları -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors" href="#">
+<span class="material-symbols-outlined text-[#625C55]" data-icon="history_edu">history_edu</span>
+<span class="text-sm">Sicil Kayıtları</span>
+</a>
+<!-- Belgeler -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors" href="#">
+<span class="material-symbols-outlined text-[#625C55]" data-icon="description">description</span>
+<span class="text-sm">Belgeler</span>
+</a>
+<!-- Ayarlar -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors" href="#">
+<span class="material-symbols-outlined text-[#625C55]" data-icon="settings">settings</span>
+<span class="text-sm">Ayarlar</span>
+</a>
+</nav>
+</div>
+</div>
+<!-- Sidebar Altı / Kullanıcı Profil Kartı -->
+<div class="p-3 border-t border-[#E1DCD6]">
+<div class="flex items-center justify-between p-2 rounded hover:bg-[#EFECE7] transition-colors cursor-pointer">
+<div class="flex items-center gap-2.5 overflow-hidden">
+<div class="w-8 h-8 rounded-full bg-[#FAF8F5] border border-[#E1DCD6] flex items-center justify-center font-headline font-semibold text-xs text-[#221F1B] shrink-0">
+            AY
+          </div>
+<div class="flex flex-col min-w-0">
+<span class="text-sm font-medium text-[#221F1B] truncate leading-snug">Ayşe Yılmaz</span>
+<span class="text-[12px] text-[#625C55] truncate font-mono">ayse.yilmaz@itu.edu.tr</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-[#625C55] shrink-0" data-icon="unfold_more">unfold_more</span>
+</div>
+</div>
+</aside>
+<!-- ANA SAYFA KAPSAYICISI (Sidebar genişliği kadar sol boşluk, alt bar payı) -->
+<main class="ml-[248px] min-h-screen bg-[#FAF8F5] pb-32">
+<div class="max-w-[880px] mx-auto px-8 pt-8">
+<!-- 1. Geri Bağlantısı -->
+<div>
+<a class="text-[#625C55] hover:text-[#221F1B] text-sm mb-4 inline-flex items-center gap-1.5 transition-colors font-medium" href="#">
+<span class="material-symbols-outlined" data-icon="arrow_back" style="font-size: 16px;">arrow_back</span>
+<span>Çalışmaya dön</span>
+</a>
+</div>
+<!-- 2. Başlık Alanı -->
+<div class="mt-1">
+<h1 class="font-headline text-3xl font-bold text-[#221F1B] tracking-tight">Değerlendirme Formu</h1>
+<p class="text-sm text-[#625C55] mt-1">Her kriter için gözleminizi işaretleyin. Gönderilen değerlendirme değiştirilemez.</p>
+</div>
+<!-- 3. Kum Zeminli Özet Kartı -->
+<section class="bg-[#EBE5DA] p-5 rounded-lg border border-[#E1DCD6] mt-6 flex justify-between items-center">
+<div>
+<h2 class="font-headline text-xl font-bold text-[#221F1B]">Veri Analizi Stajı</h2>
+<p class="text-sm text-[#625C55] mt-0.5">Staj · Acme Yazılım A.Ş.</p>
+</div>
+<div>
+<span class="bg-[#F4EDE2] text-[#9A6700] border border-[#E4D5BC] px-3 py-1 rounded-full text-xs font-medium inline-flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-[#9A6700]"></span>
+<span>Değerlendirmede</span>
+</span>
+</div>
+</section>
+<!-- 4. Kriter Kartları Kapsayıcısı -->
+<div class="space-y-6 mt-6">
+<!-- Kriter 1 Kartı -->
+<article class="bg-[#FEFEFD] border border-[#E1DCD6] rounded-lg p-6 space-y-4">
+<!-- Üst Bar -->
+<div class="flex items-center justify-between border-b border-[#E1DCD6] pb-3">
+<span class="text-xs font-mono uppercase tracking-wider text-[#7A746E]">Kriter 1</span>
+<button aria-label="Kriteri Sil" class="text-[#625C55] hover:text-[#A13B2B] p-1 rounded transition-colors inline-flex items-center justify-center" type="button">
+<span class="material-symbols-outlined" data-icon="delete">delete</span>
+</button>
+</div>
+<!-- Kriter Tanımı -->
+<div>
+<label class="block text-xs font-medium text-[#625C55] mb-1.5">Kriter Tanımı</label>
+<input class="w-full h-10 px-3 bg-[#FEFEFD] border border-[#E1DCD6] rounded text-sm text-[#221F1B] focus:outline-none focus:border-[#265445] cursor-default font-normal" readonly="" type="text" value="Python kullanımı"/>
+</div>
+<!-- Değerlendirme Segment Grubu -->
+<div>
+<span class="block text-xs font-medium text-[#625C55] mb-2">Değerlendirme Seviyesi</span>
+<div class="grid grid-cols-4 gap-2">
+<button class="h-10 px-3 bg-[#FEFEFD] border border-[#E1DCD6] rounded text-xs sm:text-sm text-[#221F1B] hover:bg-[#EFECE7] transition-colors font-normal text-center" type="button">
+                Beklentinin Altında
+              </button>
+<button class="h-10 px-3 bg-[#265445] text-[#FEFEFD] rounded text-xs sm:text-sm font-medium border border-[#265445] text-center" type="button">
+                Beklentiyi Karşılıyor
+              </button>
+<button class="h-10 px-3 bg-[#FEFEFD] border border-[#E1DCD6] rounded text-xs sm:text-sm text-[#221F1B] hover:bg-[#EFECE7] transition-colors font-normal text-center" type="button">
+                Beklentiyi Aşıyor
+              </button>
+<button class="h-10 px-3 bg-[#FEFEFD] border border-[#E1DCD6] rounded text-xs sm:text-sm text-[#221F1B] hover:bg-[#EFECE7] transition-colors font-normal text-center" type="button">
+                Gözlemlenmedi
+              </button>
+</div>
+</div>
+<!-- Yorum Alanı -->
+<div>
+<label class="block text-xs font-medium text-[#625C55] mb-1.5" for="yorum-1">Yorum (opsiyonel)</label>
+<textarea class="w-full p-3 bg-[#FEFEFD] border border-[#E1DCD6] rounded text-sm text-[#221F1B] placeholder-[#9E978E] focus:outline-none focus:border-[#265445] focus:ring-1 focus:ring-[#265445] resize-y" id="yorum-1" placeholder="Öğrencinin bu kriterdeki performansı hakkında kısa not..." rows="2"></textarea>
+</div>
+</article>
+<!-- Kriter 2 Kartı -->
+<article class="bg-[#FEFEFD] border border-[#E1DCD6] rounded-lg p-6 space-y-4">
+<!-- Üst Bar -->
+<div class="flex items-center justify-between border-b border-[#E1DCD6] pb-3">
+<span class="text-xs font-mono uppercase tracking-wider text-[#7A746E]">Kriter 2</span>
+<button aria-label="Kriteri Sil" class="text-[#625C55] hover:text-[#A13B2B] p-1 rounded transition-colors inline-flex items-center justify-center" type="button">
+<span class="material-symbols-outlined" data-icon="delete">delete</span>
+</button>
+</div>
+<!-- Kriter Tanımı -->
+<div>
+<label class="block text-xs font-medium text-[#625C55] mb-1.5">Kriter Tanımı</label>
+<input class="w-full h-10 px-3 bg-[#FEFEFD] border border-[#E1DCD6] rounded text-sm text-[#221F1B] focus:outline-none focus:border-[#265445] cursor-default font-normal" readonly="" type="text" value="Zamanında teslim"/>
+</div>
+<!-- Değerlendirme Segment Grubu -->
+<div>
+<span class="block text-xs font-medium text-[#625C55] mb-2">Değerlendirme Seviyesi</span>
+<div class="grid grid-cols-4 gap-2">
+<button class="h-10 px-3 bg-[#FEFEFD] border border-[#E1DCD6] rounded text-xs sm:text-sm text-[#221F1B] hover:bg-[#EFECE7] transition-colors font-normal text-center" type="button">
+                Beklentinin Altında
+              </button>
+<button class="h-10 px-3 bg-[#FEFEFD] border border-[#E1DCD6] rounded text-xs sm:text-sm text-[#221F1B] hover:bg-[#EFECE7] transition-colors font-normal text-center" type="button">
+                Beklentiyi Karşılıyor
+              </button>
+<button class="h-10 px-3 bg-[#265445] text-[#FEFEFD] rounded text-xs sm:text-sm font-medium border border-[#265445] text-center" type="button">
+                Beklentiyi Aşıyor
+              </button>
+<button class="h-10 px-3 bg-[#FEFEFD] border border-[#E1DCD6] rounded text-xs sm:text-sm text-[#221F1B] hover:bg-[#EFECE7] transition-colors font-normal text-center" type="button">
+                Gözlemlenmedi
+              </button>
+</div>
+</div>
+<!-- Yorum Alanı -->
+<div>
+<label class="block text-xs font-medium text-[#625C55] mb-1.5" for="yorum-2">Yorum (opsiyonel)</label>
+<textarea class="w-full p-3 bg-[#FEFEFD] border border-[#E1DCD6] rounded text-sm text-[#221F1B] placeholder-[#9E978E] focus:outline-none focus:border-[#265445] focus:ring-1 focus:ring-[#265445] resize-y" id="yorum-2" placeholder="Öğrencinin bu kriterdeki performansı hakkında kısa not..." rows="2"></textarea>
+</div>
+</article>
+</div>
+<!-- 5. + Kriter Ekle Butonu -->
+<div class="mt-4">
+<button class="border border-[#E1DCD6] bg-[#FEFEFD] hover:bg-[#F5F2EB] text-[#221F1B] px-4 py-2 rounded text-sm font-medium inline-flex items-center gap-2 transition-colors" type="button">
+<span class="material-symbols-outlined text-[#221F1B]" data-icon="add" style="font-size: 18px;">add</span>
+<span>Kriter Ekle</span>
+</button>
+</div>
+<!-- 6. Kurum İçi Not Kutusu -->
+<section class="bg-[#EBE5DA] border border-[#E1DCD6] rounded-lg p-5 mt-6">
+<div class="flex items-center gap-2 font-medium text-[#221F1B] text-sm">
+<span class="material-symbols-outlined text-[#625C55]" data-icon="lock" style="font-size: 16px;">lock</span>
+<span>Kurum içi not (opsiyonel)</span>
+</div>
+<textarea class="w-full p-3 bg-[#FEFEFD] border border-[#E1DCD6] rounded text-sm text-[#221F1B] placeholder-[#9E978E] focus:outline-none focus:border-[#265445] focus:ring-1 focus:ring-[#265445] mt-2.5 min-h-[80px] resize-y" placeholder="Kurum içi arşiv ve referans için notlarınızı buraya yazabilirsiniz..." rows="3"></textarea>
+<div class="text-xs text-[#625C55] mt-2 flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[#625C55]" data-icon="info" style="font-size: 15px;">info</span>
+<span>Bu not sadece kurumunuz içinde görünür, öğrenciye asla gösterilmez.</span>
+</div>
+</section>
+</div>
+</main>
+<!-- 7. YAPIŞKAN ALT AKSİYON ÇUBUĞU (Sticky / Fixed Bottom Action Bar) -->
+<footer class="fixed bottom-0 left-[248px] right-0 bg-[#FEFEFD] border-t border-[#E1DCD6] px-8 py-4 z-30 flex items-center justify-between">
+<!-- Sol Bilgi -->
+<div class="flex items-center gap-2 text-sm font-mono text-[#221F1B]">
+<span class="w-2 h-2 rounded-full bg-[#265445]"></span>
+<span>2 kriter</span>
+</div>
+<!-- Sağ Aksiyon Butonları -->
+<div class="flex items-center gap-2">
+<button class="border border-[#E1DCD6] bg-[#FEFEFD] hover:bg-[#F5F2EB] text-[#221F1B] px-4 py-2 text-sm font-medium rounded transition-colors" type="button">
+        Taslak Olarak Kaydet
+      </button>
+<button class="bg-[#265445] hover:bg-[#1E4337] text-white px-5 py-2 text-sm font-medium rounded inline-flex items-center gap-2 transition-colors" type="button">
+<span>Değerlendirmeyi Gönder</span>
+<span class="material-symbols-outlined text-white" data-icon="send" style="font-size: 16px;">send</span>
+</button>
+</div>
+</footer>
+</body></html>

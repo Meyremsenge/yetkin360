@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Yetkin360 — Çalışmalarım</title>
+<!-- Google Fonts: Source Serif 4, IBM Plex Sans, IBM Plex Mono, Public Sans -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&amp;family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&amp;family=Public+Sans:wght@400;500;600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,600&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            paper: '#FAF8F5',
+            card: '#FEFEFD',
+            sand: '#EBE5DA',
+            muted: '#EFECE7',
+            borderline: '#E1DCD6',
+            ink: '#221F1B',
+            secondary: '#625C55',
+            pine: '#265445',
+            ochre: '#8F5A14',
+            brick: '#A13B2B',
+            pineTint: '#E5E8E3',
+            ochreTint: '#EFE8DE',
+            brickTint: '#F1E5E1'
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          fontFamily: {
+            headline: ["\"Source Serif 4\"", "serif"],
+            display: ["\"Source Serif 4\"", "serif"],
+            body: ["IBM Plex Sans", "sans-serif"],
+            mono: ["IBM Plex Mono", "monospace"],
+            label: ["Public Sans", "sans-serif"]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+      font-size: 18px;
+      line-height: 1;
+      display: inline-block;
+    }
+    .material-symbols-outlined.fill-1 {
+      font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+    }
+  </style>
+</head>
+<body class="bg-[#FAF8F5] text-[#221F1B] font-body antialiased min-h-screen flex selection:bg-[#E5E8E3] selection:text-[#265445]">
+<!-- SOL SABİT SIDEBAR (Shared Component: SideNavBar) -->
+<aside class="fixed top-0 left-0 h-screen w-[248px] bg-[#EBE5DA] border-r border-[#E1DCD6] flex flex-col justify-between z-30 select-none">
+<!-- Üst Logo & Navigasyon Bölümü -->
+<div class="p-4 flex flex-col gap-6">
+<!-- Logo ve Mühür Başlığı -->
+<div class="pt-2">
+<div class="flex items-center gap-2">
+<span class="font-headline font-bold text-xl text-[#221F1B] tracking-tight">Yetkin360</span>
+<span class="w-2 h-2 rounded-full bg-[#265445] inline-block" title="Yetkin360 Mühür Amblemi"></span>
+</div>
+<p class="font-mono text-[11px] text-[#625C55] leading-relaxed mt-1.5 tracking-tight">
+          beyan → kanıt → tanıklık → doğrulanmış deneyim
+        </p>
+</div>
+<div class="h-[1px] w-full bg-[#E1DCD6]"></div>
+<!-- Navigasyon Grubu: ÇALIŞMA -->
+<div>
+<div class="px-2 mb-2 text-[11px] font-mono uppercase tracking-wider text-[#625C55] font-medium">
+          ÇALIŞMA
+        </div>
+<nav class="flex flex-col gap-1.5">
+<!-- Aktif Öğe: Çalışmalarım -->
+<a class="relative flex items-center gap-3 px-3 py-2 bg-[#FEFEFD] border border-[#E1DCD6] rounded text-[#221F1B] font-medium before:content-[''] before:absolute before:left-[-12px] before:top-2 before:bottom-2 before:w-[2px] before:bg-[#265445] transition-colors" href="#">
+<span class="material-symbols-outlined text-[#265445]" data-icon="folder_open">folder_open</span>
+<span class="text-[14px] leading-none text-[#221F1B] font-medium">Çalışmalarım</span>
+</a>
+<!-- Pasif Öğe: Doğrulama Talepleri -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors" href="#">
+<span class="material-symbols-outlined text-[#625C55]" data-icon="verified">verified</span>
+<span class="text-[14px] leading-none">Doğrulama Talepleri</span>
+</a>
+<!-- Pasif Öğe: Sicil Kayıtları -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors" href="#">
+<span class="material-symbols-outlined text-[#625C55]" data-icon="history_edu">history_edu</span>
+<span class="text-[14px] leading-none">Sicil Kayıtları</span>
+</a>
+<!-- Pasif Öğe: Belgeler -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors" href="#">
+<span class="material-symbols-outlined text-[#625C55]" data-icon="description">description</span>
+<span class="text-[14px] leading-none">Belgeler</span>
+</a>
+<!-- Pasif Öğe: Ayarlar -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors" href="#">
+<span class="material-symbols-outlined text-[#625C55]" data-icon="settings">settings</span>
+<span class="text-[14px] leading-none">Ayarlar</span>
+</a>
+</nav>
+</div>
+</div>
+<!-- Alt Kullanıcı Profili Çubuğu -->
+<div class="p-3 border-t border-[#E1DCD6] bg-[#EBE5DA]">
+<a class="flex items-center justify-between p-2 rounded hover:bg-[#EFECE7] transition-colors group" href="#">
+<div class="flex items-center gap-2.5 min-w-0">
+<div class="w-9 h-9 rounded-full bg-[#E5E8E3] border border-[#E1DCD6] flex items-center justify-center font-headline font-semibold text-sm text-[#265445] shrink-0">
+            AY
+          </div>
+<div class="min-w-0 flex flex-col">
+<span class="text-[13px] font-medium text-[#221F1B] truncate leading-tight group-hover:text-[#265445] transition-colors">Ayşe Yılmaz</span>
+<span class="text-[11px] font-mono text-[#625C55] truncate leading-tight mt-0.5">ayse.yilmaz@itu.edu.tr</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-[#625C55] group-hover:text-[#221F1B] shrink-0 text-[18px]" data-icon="unfold_more">unfold_more</span>
+</a>
+</div>
+</aside>
+<!-- SAĞ ANA İÇERİK ALANI -->
+<main class="ml-[248px] flex-1 min-h-screen bg-[#FAF8F5] overflow-y-auto">
+<div class="max-w-[1040px] mx-auto py-10 px-8">
+<!-- Başlık Bölümü ve Sayfa Düzeyi Eylem (Strict alignment: Right of page title) -->
+<header class="flex items-start justify-between mb-8 pb-1">
+<div>
+<h1 class="font-headline font-semibold text-[32px] leading-[40px] text-[#221F1B]">
+            Çalışmalarım
+          </h1>
+<p class="text-[14px] leading-[20px] text-[#625C55] mt-1 font-body">
+            6 çalışma
+          </p>
+</div>
+<!-- Sayfa Düzeyi Ana Eylem: Yeni Beyan Ekle -->
+<button class="h-10 px-4 bg-[#265445] text-[#FAF8F5] text-[14px] font-medium rounded hover:bg-[#1f4538] transition-colors inline-flex items-center gap-2 shrink-0">
+<span class="material-symbols-outlined text-[18px]" data-icon="add">add</span>
+<span>Yeni Çalışma Ekle</span>
+</button>
+</header>
+<!-- Filtre Sekmeleri (Tabs: left aligned, 40px high, full-width 1px line beneath) -->
+<div class="relative border-b border-[#E1DCD6]">
+<nav aria-label="Sekmeler" class="flex items-center gap-8 -mb-[1px]">
+<!-- 1. Tümü (Seçili) -->
+<button class="h-10 text-[14px] font-medium text-[#265445] border-b-2 border-[#265445] flex items-center gap-2 pb-0.5">
+<span>Tümü</span>
+<span class="font-mono text-[12px] text-[#265445]">(6)</span>
+</button>
+<!-- 2. Devam eden -->
+<button class="h-10 text-[14px] font-normal text-[#625C55] hover:text-[#221F1B] border-b-2 border-transparent flex items-center gap-2 transition-colors pb-0.5">
+<span>Devam eden</span>
+<span class="font-mono text-[12px] text-[#625C55]">(2)</span>
+</button>
+<!-- 3. Değerlendirmede -->
+<button class="h-10 text-[14px] font-normal text-[#625C55] hover:text-[#221F1B] border-b-2 border-transparent flex items-center gap-2 transition-colors pb-0.5">
+<span>Değerlendirmede</span>
+<span class="font-mono text-[12px] text-[#625C55]">(1)</span>
+</button>
+<!-- 4. Doğrulanmış -->
+<button class="h-10 text-[14px] font-normal text-[#625C55] hover:text-[#221F1B] border-b-2 border-transparent flex items-center gap-2 transition-colors pb-0.5">
+<span>Doğrulanmış</span>
+<span class="font-mono text-[12px] text-[#625C55]">(2)</span>
+</button>
+<!-- 5. Kapanmış -->
+<button class="h-10 text-[14px] font-normal text-[#625C55] hover:text-[#221F1B] border-b-2 border-transparent flex items-center gap-2 transition-colors pb-0.5">
+<span>Kapanmış</span>
+<span class="font-mono text-[12px] text-[#625C55]">(1)</span>
+</button>
+</nav>
+</div>
+<!-- KART IZGARASI (2 Kolonlu Grid, shadow-none, border-[#E1DCD6]) -->
+<section class="grid grid-cols-2 gap-4 mt-8">
+<!-- KART 1: Veri Analizi Stajı -->
+<article class="bg-[#FEFEFD] border border-[#E1DCD6] rounded-lg p-5 hover:border-[#221F1B] transition-colors cursor-pointer flex flex-col justify-between min-h-[168px]">
+<div>
+<!-- Üst Satır -->
+<div class="flex items-center justify-between mb-3">
+<span class="text-[12px] text-[#625C55] font-medium tracking-normal">Staj</span>
+<span class="inline-flex items-center gap-1.5 h-[22px] px-2.5 rounded-full bg-[#EFECE7] border border-[#E1DCD6] text-[#221F1B] text-[12px] font-medium leading-none">
+<span class="w-1.5 h-1.5 rounded-full bg-[#625C55]"></span>
+<span>Aktif</span>
+</span>
+</div>
+<!-- Başlık ve Kurum -->
+<h2 class="font-headline font-semibold text-[20px] leading-[26px] text-[#221F1B]">
+              Veri Analizi Stajı
+            </h2>
+<p class="text-[14px] text-[#625C55] mt-1">
+              Acme Yazılım A.Ş.
+            </p>
+</div>
+<!-- Alt Satır: Mini Zincir & Tarih -->
+<div class="flex items-center justify-between pt-5 border-t border-[#E1DCD6] mt-4">
+<!-- Mini Zincir: 2 dolu, 2 boş -->
+<div class="flex items-center" title="Beyan &amp; Kanıt tamamlandı, Tanıklık bekleniyor">
+<span aria-label="1. Adım Tamamlandı" class="w-2.5 h-2.5 rounded-full bg-[#265445]"></span>
+<span class="w-4 h-[1px] bg-[#265445]"></span>
+<span aria-label="2. Adım Tamamlandı" class="w-2.5 h-2.5 rounded-full bg-[#265445]"></span>
+<span class="w-4 h-[1px] bg-[#E1DCD6]"></span>
+<span aria-label="3. Adım Beklemede" class="w-2.5 h-2.5 rounded-full border border-[#E1DCD6] bg-[#FEFEFD]"></span>
+<span class="w-4 h-[1px] bg-[#E1DCD6]"></span>
+<span aria-label="4. Adım Beklemede" class="w-2.5 h-2.5 rounded-full border border-[#E1DCD6] bg-[#FEFEFD]"></span>
+</div>
+<time class="font-mono text-[12px] text-[#625C55] tabular-nums">3 gün önce</time>
+</div>
+</article>
+<!-- KART 2: Kampüs Enerji İzleme Sistemi -->
+<article class="bg-[#FEFEFD] border border-[#E1DCD6] rounded-lg p-5 hover:border-[#221F1B] transition-colors cursor-pointer flex flex-col justify-between min-h-[168px]">
+<div>
+<!-- Üst Satır -->
+<div class="flex items-center justify-between mb-3">
+<span class="text-[12px] text-[#625C55] font-medium tracking-normal">Bitirme Projesi</span>
+<span class="inline-flex items-center gap-1.5 h-[22px] px-2.5 rounded-full bg-[#EFE8DE] border border-[#E1DCD6] text-[#8F5A14] text-[12px] font-medium leading-none">
+<span class="w-1.5 h-1.5 rounded-full bg-[#8F5A14]"></span>
+<span>Onay Bekliyor</span>
+</span>
+</div>
+<!-- Başlık ve Kurum -->
+<h2 class="font-headline font-semibold text-[20px] leading-[26px] text-[#221F1B]">
+              Kampüs Enerji İzleme Sistemi
+            </h2>
+<p class="text-[14px] text-[#625C55] mt-1">
+              İstanbul Teknik Üniversitesi
+            </p>
+</div>
+<!-- Alt Satır: Mini Zincir & Tarih -->
+<div class="flex items-center justify-between pt-5 border-t border-[#E1DCD6] mt-4">
+<!-- Mini Zincir: 1 dolu, 3 boş -->
+<div class="flex items-center" title="Beyan iletildi">
+<span aria-label="1. Adım İnceleniyor" class="w-2.5 h-2.5 rounded-full bg-[#8F5A14]"></span>
+<span class="w-4 h-[1px] bg-[#E1DCD6]"></span>
+<span class="w-2.5 h-2.5 rounded-full border border-[#E1DCD6] bg-[#FEFEFD]"></span>
+<span class="w-4 h-[1px] bg-[#E1DCD6]"></span>
+<span class="w-2.5 h-2.5 rounded-full border border-[#E1DCD6] bg-[#FEFEFD]"></span>
+<span class="w-4 h-[1px] bg-[#E1DCD6]"></span>
+<span class="w-2.5 h-2.5 rounded-full border border-[#E1DCD6] bg-[#FEFEFD]"></span>
+</div>
+<time class="font-mono text-[12px] text-[#625C55] tabular-nums">1 hafta önce</time>
+</div>
+</article>
+<!-- KART 3: Mobil Uygulama Geliştirici -->
+<article class="bg-[#FEFEFD] border border-[#E1DCD6] rounded-lg p-5 hover:border-[#221F1B] transition-colors cursor-pointer flex flex-col justify-between min-h-[168px]">
+<div>
+<!-- Üst Satır -->
+<div class="flex items-center justify-between mb-3">
+<span class="text-[12px] text-[#625C55] font-medium tracking-normal">Kısa Proje</span>
+<span class="inline-flex items-center gap-1.5 h-[22px] px-2.5 rounded-full bg-[#EFECE7] border border-[#E1DCD6] text-[#221F1B] text-[12px] font-medium leading-none">
+<span class="w-1.5 h-1.5 rounded-full bg-[#221F1B]"></span>
+<span>Değerlendirildi</span>
+</span>
+</div>
+<!-- Başlık ve Kurum -->
+<h2 class="font-headline font-semibold text-[20px] leading-[26px] text-[#221F1B]">
+              Mobil Uygulama Geliştirici
+            </h2>
+<p class="text-[14px] text-[#625C55] mt-1">
+              Beta Teknoloji
+            </p>
+</div>
+<!-- Alt Satır: Mini Zincir & Tarih -->
+<div class="flex items-center justify-between pt-5 border-t border-[#E1DCD6] mt-4">
+<!-- Mini Zincir: 3 dolu, 1 boş -->
+<div class="flex items-center" title="Beyan, Kanıt, Tanıklık onaylandı">
+<span class="w-2.5 h-2.5 rounded-full bg-[#265445]"></span>
+<span class="w-4 h-[1px] bg-[#265445]"></span>
+<span class="w-2.5 h-2.5 rounded-full bg-[#265445]"></span>
+<span class="w-4 h-[1px] bg-[#265445]"></span>
+<span class="w-2.5 h-2.5 rounded-full bg-[#265445]"></span>
+<span class="w-4 h-[1px] bg-[#E1DCD6]"></span>
+<span class="w-2.5 h-2.5 rounded-full border border-[#E1DCD6] bg-[#FEFEFD]"></span>
+</div>
+<time class="font-mono text-[12px] text-[#625C55] tabular-nums">2 hafta önce</time>
+</div>
+</article>
+<!-- KART 4: Backend Geliştirme (Doğrulandı) -->
+<article class="bg-[#FEFEFD] border border-[#E1DCD6] rounded-lg p-5 hover:border-[#221F1B] transition-colors cursor-pointer flex flex-col justify-between min-h-[168px]">
+<div>
+<!-- Üst Satır -->
+<div class="flex items-center justify-between mb-3">
+<span class="text-[12px] text-[#625C55] font-medium tracking-normal">Staj</span>
+<span class="inline-flex items-center gap-1.5 h-[22px] px-2.5 rounded-full bg-[#E5E8E3] border border-[#E1DCD6] text-[#265445] text-[12px] font-medium leading-none">
+<span class="material-symbols-outlined text-[13px] leading-none" data-icon="check">check</span>
+<span>Doğrulandı</span>
+</span>
+</div>
+<!-- Başlık, Mühür İkonu ve Kurum -->
+<div class="flex items-center gap-1.5">
+<h2 class="font-headline font-semibold text-[20px] leading-[26px] text-[#221F1B]">
+                Backend Geliştirme
+              </h2>
+<!-- VerifiedSeal (Solid pine circle with paper check) -->
+<span class="w-4 h-4 rounded-full bg-[#265445] flex items-center justify-center text-[#FAF8F5] shrink-0" title="Doğrulanmış Deneyim Mührü">
+<span class="material-symbols-outlined text-[11px] leading-none text-[#FAF8F5]" data-icon="check">check</span>
+</span>
+</div>
+<p class="text-[14px] text-[#625C55] mt-1">
+              Vendi Yazılım
+            </p>
+</div>
+<!-- Alt Satır: Mini Zincir & Tarih -->
+<div class="flex items-center justify-between pt-5 border-t border-[#E1DCD6] mt-4">
+<!-- Mini Zincir: 4 nokta dolu -->
+<div class="flex items-center" title="Tüm 4 aşama tamamlandı (Resmi Sicil Kaydı)">
+<span class="w-2.5 h-2.5 rounded-full bg-[#265445]"></span>
+<span class="w-4 h-[1px] bg-[#265445]"></span>
+<span class="w-2.5 h-2.5 rounded-full bg-[#265445]"></span>
+<span class="w-4 h-[1px] bg-[#265445]"></span>
+<span class="w-2.5 h-2.5 rounded-full bg-[#265445]"></span>
+<span class="w-4 h-[1px] bg-[#265445]"></span>
+<span class="w-2.5 h-2.5 rounded-full bg-[#265445]"></span>
+</div>
+<time class="font-mono text-[12px] text-[#625C55] tabular-nums">1 ay önce</time>
+</div>
+</article>
+<!-- KART 5: Pazarlama Asistanlığı -->
+<article class="bg-[#FEFEFD] border border-[#E1DCD6] rounded-lg p-5 hover:border-[#221F1B] transition-colors cursor-pointer flex flex-col justify-between min-h-[168px]">
+<div>
+<!-- Üst Satır -->
+<div class="flex items-center justify-between mb-3">
+<span class="text-[12px] text-[#625C55] font-medium tracking-normal">Yarı Zamanlı</span>
+<span class="inline-flex items-center gap-1.5 h-[22px] px-2.5 rounded-full bg-[#EFECE7] border border-[#E1DCD6] text-[#625C55] text-[12px] font-medium leading-none">
+<span class="w-1.5 h-1.5 rounded-full bg-[#625C55]"></span>
+<span>Taslak</span>
+</span>
+</div>
+<!-- Başlık ve Kurum -->
+<h2 class="font-headline font-semibold text-[20px] leading-[26px] text-[#221F1B]">
+              Pazarlama Asistanlığı
+            </h2>
+<p class="text-[14px] text-[#625C55] mt-1">
+              Doruk Otomasyon
+            </p>
+</div>
+<!-- Alt Satır: Mini Zincir & Tarih -->
+<div class="flex items-center justify-between pt-5 border-t border-[#E1DCD6] mt-4">
+<!-- Mini Zincir: 1. nokta dolu, 3 boş -->
+<div class="flex items-center" title="Beyan taslağı hazırlanıyor">
+<span class="w-2.5 h-2.5 rounded-full bg-[#625C55]"></span>
+<span class="w-4 h-[1px] bg-[#E1DCD6]"></span>
+<span class="w-2.5 h-2.5 rounded-full border border-[#E1DCD6] bg-[#FEFEFD]"></span>
+<span class="w-4 h-[1px] bg-[#E1DCD6]"></span>
+<span class="w-2.5 h-2.5 rounded-full border border-[#E1DCD6] bg-[#FEFEFD]"></span>
+<span class="w-4 h-[1px] bg-[#E1DCD6]"></span>
+<span class="w-2.5 h-2.5 rounded-full border border-[#E1DCD6] bg-[#FEFEFD]"></span>
+</div>
+<time class="font-mono text-[12px] text-[#625C55] tabular-nums">2 ay önce</time>
+</div>
+</article>
+<!-- KART 6: İçerik Üretimi (Reddedildi) -->
+<article class="bg-[#FEFEFD] border border-[#E1DCD6] rounded-lg p-5 hover:border-[#221F1B] transition-colors cursor-pointer flex flex-col justify-between min-h-[168px]">
+<div>
+<!-- Üst Satır -->
+<div class="flex items-center justify-between mb-3">
+<span class="text-[12px] text-[#625C55] font-medium tracking-normal">Staj</span>
+<span class="inline-flex items-center gap-1.5 h-[22px] px-2.5 rounded-full bg-[#F1E5E1] border border-[#E1DCD6] text-[#A13B2B] text-[12px] font-medium leading-none">
+<span class="w-1.5 h-1.5 rounded-full bg-[#A13B2B]"></span>
+<span>Reddedildi</span>
+</span>
+</div>
+<!-- Başlık ve Kurum -->
+<h2 class="font-headline font-semibold text-[20px] leading-[26px] text-[#221F1B]">
+              İçerik Üretimi
+            </h2>
+<p class="text-[14px] text-[#625C55] mt-1">
+              Softalya
+            </p>
+</div>
+<!-- Alt Satır: Mini Zincir & Tarih -->
+<div class="flex items-center justify-between pt-5 border-t border-[#E1DCD6] mt-4">
+<!-- Mini Zincir: Kesintili / durdurulmuş nokta -->
+<div class="flex items-center" title="Beyan aşamasında reddedildi">
+<span class="w-2.5 h-2.5 rounded-full bg-[#A13B2B] flex items-center justify-center">
+<span class="w-1 h-[1px] bg-[#FAF8F5]"></span>
+</span>
+<span class="w-4 h-[1px] bg-[#E1DCD6] border-dashed"></span>
+<span class="w-2.5 h-2.5 rounded-full border border-[#E1DCD6] bg-[#FEFEFD] opacity-40"></span>
+<span class="w-4 h-[1px] bg-[#E1DCD6] opacity-40"></span>
+<span class="w-2.5 h-2.5 rounded-full border border-[#E1DCD6] bg-[#FEFEFD] opacity-40"></span>
+<span class="w-4 h-[1px] bg-[#E1DCD6] opacity-40"></span>
+<span class="w-2.5 h-2.5 rounded-full border border-[#E1DCD6] bg-[#FEFEFD] opacity-40"></span>
+</div>
+<time class="font-mono text-[12px] text-[#625C55] tabular-nums">3 ay önce</time>
+</div>
+</article>
+</section>
+<!-- Resmi Sicil Alt Bilgilendirme Notu (Paper typographic footer) -->
+<footer class="mt-12 pt-6 border-t border-[#E1DCD6] flex items-center justify-between text-[#625C55]">
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-[#265445]"></span>
+<span class="text-[13px] font-body">Yetkin360 Bağımsız Doğrulama Defteri Protokolü v2.4</span>
+</div>
+<span class="font-mono text-[12px] text-[#625C55]">Sicil No: YTK-34-2024-819</span>
+</footer>
+</div>
+</main>
+</body></html>

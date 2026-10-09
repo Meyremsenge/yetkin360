@@ -1,0 +1,189 @@
+<!DOCTYPE html><html lang="tr"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Doğrulama Sertifikası — Yetkin360</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&amp;display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --bg-paper: #FAF8F5;
+      --card-paper: #FEFEFD;
+      --border-line: #E1DCD6;
+      --pine: #265445;
+      --pine-light: #EBF2EE;
+      --text-main: #1C1917;
+      --text-secondary: #6B655F;
+    }
+    body {
+      background-color: var(--bg-paper);
+      color: var(--text-main);
+      font-family: 'IBM Plex Sans', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .font-serif {
+      font-family: 'Source Serif 4', serif;
+    }
+    .font-mono {
+      font-family: 'IBM Plex Mono', monospace;
+    }
+    /* Double frame technique */
+    .cert-double-border {
+      border: 1px solid var(--border-line);
+      position: relative;
+    }
+    .cert-inner-border {
+      position: absolute;
+      top: 6px;
+      left: 6px;
+      right: 6px;
+      bottom: 6px;
+      border: 1px solid var(--border-line);
+      border-radius: 4px;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex justify-center bg-[#FAF8F5] text-[#1C1917]">
+  <div class="w-full max-w-[375px] min-h-screen flex flex-col pb-10 bg-[#FAF8F5]">
+    
+    <!-- 1. Top bar 56px, 1px bottom line -->
+    <header class="h-14 px-4 flex items-center justify-between border-b border-[#E1DCD6] bg-[#FAF8F5]"><span class="font-serif font-bold text-[18px] tracking-tight text-[#221F1B]">Yetkin360</span>
+      <span class="font-sans text-[13px] text-[#625C55]">Doğrulama kaydı</span></header>
+
+    <!-- 2. Certificate card 16px below, 16px side margins -->
+    <main class="px-4 mt-4">
+      <div class="cert-double-border bg-[#FEFEFD] rounded-[8px] p-6 relative">
+        <div class="cert-inner-border"></div>
+
+        <!-- Verified Seal centered at the top -->
+        <div class="flex justify-center mb-6 pt-1">
+          <!-- Outer thin ring rotated -4deg -->
+          <div class="relative w-[104px] h-[104px] flex items-center justify-center transform -rotate-4">
+            <!-- 1px thin ring 4px outside 96px circle (104px total diameter) -->
+            <div class="absolute inset-0 rounded-full border border-[#265445]"></div>
+            <!-- 96px solid pine green circle -->
+            <div class="w-[96px] h-[96px] rounded-full bg-[#265445] flex items-center justify-center text-[#FAF8F5]">
+              <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#FAF8F5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Below, LEFT aligned -->
+        <div class="text-left mb-5"><div class="font-mono text-[12px] uppercase text-[#625C55] tracking-wide mb-1.5">DOĞRULANMIŞ DENEYİM KAYDI</div>
+          <h1 class="font-serif font-semibold text-[28px] text-[#221F1B] leading-tight tracking-tight">Elif Sara Han</h1>
+          <div class="font-serif text-[18px] text-[#625C55] mt-1 leading-snug">Veri Analizi Stajı</div></div>
+
+        <!-- 1px divider -->
+        <hr class="border-t border-[#E1DCD6] my-6">
+
+        <!-- Info list, single column, 24px gaps -->
+        <div class="space-y-6"><!-- Item 1: Kurum -->
+          <div>
+            <div class="text-[12px] font-medium text-[#625C55] font-sans">Kurum</div>
+            <div class="text-[16px] text-[#221F1B] font-medium mt-1">Acme Yazılım A.Ş.</div>
+            <div class="mt-2 flex items-center">
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-sans font-medium bg-[#E5E8E3] text-[#265445] border border-[#265445]/20">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#265445]"></span>
+                Kimliği doğrulanmış kuruluş
+              </span>
+            </div>
+            <div class="font-mono text-[13px] text-[#625C55] mt-2">Doğrulanmış alan adı: acme.com.tr</div>
+          </div>
+
+          <!-- Item 2: Eğitim Kurumu -->
+          <div>
+            <div class="text-[12px] font-medium text-[#625C55] font-sans">Eğitim kurumu</div>
+            <div class="text-[16px] text-[#221F1B] font-medium mt-1">İstanbul Bilgi Üniversitesi</div>
+            <div class="mt-2 flex items-center">
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-sans font-medium bg-[#E5E8E3] text-[#265445] border border-[#265445]/20">
+                <span class="w-1.5 h-1.5 rounded-full bg-[#265445]"></span>
+                Kimliği doğrulanmış kuruluş
+              </span>
+            </div>
+          </div>
+
+          <!-- Item 3: Dönem -->
+          <div>
+            <div class="text-[12px] font-medium text-[#625C55] font-sans">Dönem</div>
+            <div class="text-[16px] text-[#221F1B] mt-1 font-sans">12 Eylül 2026 – 20 Aralık 2026</div>
+          </div>
+
+          <!-- Item 4: Doğrulama Tarihi -->
+          <div>
+            <div class="text-[12px] font-medium text-[#625C55] font-sans">Doğrulama tarihi</div>
+            <div class="text-[16px] text-[#221F1B] mt-1 font-sans">9 Ekim 2026</div>
+          </div></div>
+
+        <!-- 1px divider -->
+        <hr class="border-t border-[#E1DCD6] my-6">
+
+        <!-- 4 Steps Vertical Chain -->
+        <div><h3 class="font-serif text-[20px] font-semibold text-[#221F1B] mb-3">Tanıklık yapılan yetkinlikler</h3>
+          <div class="flex flex-wrap gap-2">
+            <div class="h-8 px-3 rounded-[6px] border border-[#E1DCD6] bg-[#FEFEFD] flex items-center text-[13px] font-sans">
+              <span class="text-[#221F1B] font-medium">Python</span>
+              <span class="text-[#625C55] mx-1">·</span>
+              <span class="text-[#625C55]">Acme Yazılım A.Ş.</span>
+            </div>
+            <div class="h-8 px-3 rounded-[6px] border border-[#E1DCD6] bg-[#FEFEFD] flex items-center text-[13px] font-sans">
+              <span class="text-[#221F1B] font-medium">SQL</span>
+              <span class="text-[#625C55] mx-1">·</span>
+              <span class="text-[#625C55]">Acme Yazılım A.Ş.</span>
+            </div>
+            <div class="h-8 px-3 rounded-[6px] border border-[#E1DCD6] bg-[#FEFEFD] flex items-center text-[13px] font-sans">
+              <span class="text-[#221F1B] font-medium">Veri Görselleştirme</span>
+              <span class="text-[#625C55] mx-1">·</span>
+              <span class="text-[#625C55]">Acme Yazılım A.Ş.</span>
+            </div>
+          </div></div>
+
+        <!-- 1px divider -->
+        <hr class="border-t border-[#E1DCD6] my-6">
+
+        <!-- Skills section -->
+        <div>
+          <h3 class="font-serif text-[20px] font-semibold text-[#1C1917] mb-3">Tanıklık yapılan yetkinlikler</h3>
+          <div class="flex flex-wrap gap-2">
+            <div class="h-8 px-3 rounded-[6px] border border-[#E1DCD6] bg-[#FAF8F5] flex items-center text-[13px] text-[#1C1917] font-sans">
+              Python · Acme Yazılım A.Ş.
+            </div>
+            <div class="h-8 px-3 rounded-[6px] border border-[#E1DCD6] bg-[#FAF8F5] flex items-center text-[13px] text-[#1C1917] font-sans">
+              SQL · Acme Yazılım A.Ş.
+            </div>
+            <div class="h-8 px-3 rounded-[6px] border border-[#E1DCD6] bg-[#FAF8F5] flex items-center text-[13px] text-[#1C1917] font-sans">
+              Veri Görselleştirme · Acme Yazılım A.Ş.
+            </div>
+          </div>
+        </div>
+
+        <!-- 1px DASHED divider -->
+        <hr class="border-t border-dashed border-[#E1DCD6] my-6">
+
+        <!-- Stamp in mono & verification note -->
+        <div class="space-y-2"><div class="font-mono text-[12px] text-[#625C55] leading-relaxed">
+            <div class="">Kayıt no: 7f3a9c21…</div>
+            <div class="">Yetkin360 · 9 Ekim 2026, 14:30</div>
+          </div>
+          <div class="font-sans text-[13px] text-[#625C55] leading-snug pt-1">
+            Bu sayfa Yetkin360 tarafından 9 Ekim 2026 tarihinde doğrulanmıştır.
+          </div></div>
+
+      </div>
+
+      <!-- 3. 24px below the card, centered 13px secondary underlined link -->
+      <div class="mt-6 text-center">
+        <a href="#" class="text-[13px] text-[#625C55] underline hover:text-[#1C1917] transition-colors font-sans">
+          Yetkin360 nedir?
+        </a>
+      </div>
+    </main>
+
+  </div>
+
+
+
+</body></html>

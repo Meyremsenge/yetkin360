@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Değerlendirme Formu — Yetkin360</title>
+<!-- Typography: Source Serif 4, IBM Plex Sans, IBM Plex Mono -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&amp;family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS v3 -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {},
+          borderRadius: {
+            "DEFAULT": "6px",
+            "lg": "8px",
+            "xl": "12px",
+            "full": "9999px"
+          },
+          fontFamily: {
+            headline: ["\"Source Serif 4\"", "serif"],
+            display: ["\"Source Serif 4\"", "serif"],
+            body: ["\"IBM Plex Sans\"", "sans-serif"],
+            mono: ["\"IBM Plex Mono\"", "monospace"],
+            label: ["\"IBM Plex Sans\"", "sans-serif"]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-family: 'Material Symbols Outlined';
+      font-weight: normal;
+      font-style: normal;
+      font-size: 18px;
+      line-height: 1;
+      letter-spacing: normal;
+      text-transform: none;
+      display: inline-block;
+      white-space: nowrap;
+      word-wrap: normal;
+      direction: ltr;
+      -webkit-font-feature-settings: 'liga';
+      -webkit-font-smoothing: antialiased;
+    }
+  </style>
+</head>
+<body class="h-full bg-[#FAF8F5] text-[#221F1B] font-body antialiased selection:bg-[#E5E8E3] selection:text-[#265445]">
+<div class="min-h-full flex">
+<!-- SOL KENAR ÇUBUĞU (SideNavBar) — strictly fixed, 100vh height, top-0 left-0 bottom-0, w-64, continuous border-r spanning top to very bottom -->
+<aside class="fixed top-0 left-0 bottom-0 h-screen w-64 flex flex-col justify-between bg-[#EBE5DA] border-r border-[#E1DCD6] z-30 select-none">
+<!-- Üst Bölüm: Logo & Menü -->
+<div>
+<!-- Marka Başlığı & Slogan -->
+<div class="p-4 border-b border-[#E1DCD6]">
+<div class="flex items-center gap-2">
+<span class="w-6 h-6 rounded-full bg-[#265445] text-[#FAF8F5] flex items-center justify-center font-headline font-semibold text-xs leading-none">Y</span>
+<span class="font-headline font-bold text-xl text-[#221F1B] tracking-tight">Yetkin360</span>
+</div>
+<p class="font-mono text-[10.5px] leading-tight text-[#625C55] mt-2 tracking-tighter">beyan → kanıt → tanıklık → doğrulanmış deneyim</p>
+</div>
+<!-- Menü Öğeleri -->
+<nav class="p-3 space-y-1">
+<p class="text-[11px] font-mono uppercase tracking-wider text-[#625C55] px-3 pt-2 pb-1">Kayıt ve Yönetim</p>
+<!-- Çalışmalarım (AKTİF) -->
+<a class="relative flex items-center gap-3 px-3 py-2 bg-[#FEFEFD] border border-[#E1DCD6] rounded text-[#221F1B] font-medium before:content-[''] before:absolute before:left-[-12px] before:top-2 before:bottom-2 before:w-[2px] before:bg-[#265445]" href="#">
+<span class="material-symbols-outlined text-[#265445]" data-icon="folder_open">folder_open</span>
+<span class="text-sm">Çalışmalarım</span>
+</a>
+<!-- Doğrulama Talepleri -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="verified">verified</span>
+<span class="text-sm">Doğrulama Talepleri</span>
+</a>
+<!-- Sicil Kayıtları -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="history_edu">history_edu</span>
+<span class="text-sm">Sicil Kayıtları</span>
+</a>
+<!-- Belgeler -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+<span class="text-sm">Belgeler</span>
+</a>
+<!-- Ayarlar -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="text-sm">Ayarlar</span>
+</a>
+</nav>
+</div>
+<!-- Alt Bölüm: Profilim (Sit at the absolute bottom of the sidebar) -->
+<div class="p-3 border-t border-[#E1DCD6] bg-[#EBE5DA]">
+<div class="flex items-center gap-2.5 p-2 rounded hover:bg-[#EFECE7] transition-colors cursor-pointer">
+<div class="w-8 h-8 rounded-full bg-[#EFECE7] border border-[#E1DCD6] text-[#221F1B] flex items-center justify-center font-headline font-semibold text-xs">
+            AY
+          </div>
+<div class="flex-1 min-w-0">
+<div class="text-sm font-medium text-[#221F1B] truncate leading-tight">Ayşe Yılmaz</div>
+<div class="text-[11px] font-mono text-[#625C55] truncate leading-tight mt-0.5">ayse.yilmaz@itu.edu...</div>
+</div>
+<span class="material-symbols-outlined text-[#625C55] text-base" data-icon="unfold_more">unfold_more</span>
+</div>
+</div>
+</aside>
+<!-- ANA İÇERİK ALANI (ml-64 matching sidebar width, bg-[#FAF8F5], min-h-screen) -->
+<main class="ml-64 flex-1 min-h-screen bg-[#FAF8F5] pb-24">
+<div class="max-w-[880px] mx-auto px-8 pt-8">
+<!-- Geri Dönüş Linki -->
+<div class="mb-4">
+<a class="inline-flex items-center gap-1.5 text-sm text-[#625C55] hover:text-[#221F1B] transition-colors group" href="#">
+<span class="material-symbols-outlined text-sm transition-transform group-hover:-translate-x-0.5" data-icon="arrow_back">arrow_back</span>
+<span>Çalışmaya dön</span>
+</a>
+</div>
+<!-- Başlık ve Alt Açıklama -->
+<div class="mb-6">
+<h1 class="font-headline font-semibold text-3xl text-[#221F1B] tracking-tight">Değerlendirme Formu</h1>
+<p class="text-sm text-[#625C55] mt-1.5 font-normal">Her kriter için gözleminizi işaretleyin. Gönderilen değerlendirme değiştirilemez.</p>
+</div>
+<!-- ÖZET KARTI -->
+<div class="bg-[#EBE5DA] border border-[#E1DCD6] rounded-lg p-5 mb-6 flex justify-between items-center">
+<div>
+<h2 class="font-headline text-xl font-semibold text-[#221F1B] leading-snug">Veri Analizi Stajı</h2>
+<p class="text-sm text-[#625C55] mt-0.5 font-normal">Staj · Acme Yazılım A.Ş.</p>
+</div>
+<div class="inline-flex items-center gap-1.5 bg-[#F7EFE1] text-[#935B1A] border border-[#E8D7B8] px-3 py-1 rounded-full text-xs font-mono font-medium">
+<span class="w-1.5 h-1.5 rounded-full bg-[#8F5A14]"></span>
+<span>Değerlendirmede</span>
+</div>
+</div>
+<!-- KRİTER KARTLARI LİSTESİ -->
+<div class="space-y-4" id="criteria-container">
+<!-- KRİTER KARTI 1 -->
+<div class="bg-[#FEFEFD] border border-[#E1DCD6] rounded-lg p-6 transition-all" id="kriter-1">
+<!-- Üst Satır -->
+<div class="flex items-center justify-between mb-4">
+<span class="font-mono text-xs text-[#8A847C] tracking-wide">Kriter 1</span>
+<button aria-label="Kriteri Sil" class="text-[#8A847C] hover:text-[#A13B2B] transition-colors p-1 rounded hover:bg-[#F1E5E1]" title="Kriteri Sil" type="button">
+<span class="material-symbols-outlined text-base" data-icon="delete">delete</span>
+</button>
+</div>
+<!-- Kriter Input -->
+<div class="mb-4">
+<label class="block font-medium text-xs text-[#625C55] mb-1.5" for="kriter-title-1">Kriter Tanımı</label>
+<input class="w-full border border-[#E1DCD6] rounded px-3 py-2 text-sm bg-[#FAF8F5] text-[#221F1B] focus:outline-none focus:ring-1 focus:ring-[#265445] focus:border-[#265445] font-normal transition-colors" id="kriter-title-1" type="text" value="Python kullanımı"/>
+</div>
+<!-- Değerlendirme Segment Seçici -->
+<div class="mb-4">
+<label class="block font-medium text-xs text-[#625C55] mb-1.5">Değerlendirme</label>
+<div class="grid grid-cols-4 gap-2">
+<!-- Seçenek 1 -->
+<button class="criterion-opt px-3 py-2 border border-[#E1DCD6] bg-[#FAF8F5] text-[#625C55] hover:bg-[#EFECE7] hover:text-[#221F1B] rounded text-xs font-medium text-center transition-colors" type="button">
+                  Beklentinin Altında
+                </button>
+<!-- Seçenek 2 (SEÇİLİ) -->
+<button class="criterion-opt px-3 py-2 border border-[#265445] bg-[#265445] text-[#FAF8F5] font-medium rounded text-xs text-center transition-colors" type="button">
+                  Beklentiyi Karşılıyor
+                </button>
+<!-- Seçenek 3 -->
+<button class="criterion-opt px-3 py-2 border border-[#E1DCD6] bg-[#FAF8F5] text-[#625C55] hover:bg-[#EFECE7] hover:text-[#221F1B] rounded text-xs font-medium text-center transition-colors" type="button">
+                  Beklentiyi Aşıyor
+                </button>
+<!-- Seçenek 4 -->
+<button class="criterion-opt px-3 py-2 border border-[#E1DCD6] bg-[#FAF8F5] text-[#625C55] hover:bg-[#EFECE7] hover:text-[#221F1B] rounded text-xs font-medium text-center transition-colors" type="button">
+                  Gözlemlenmedi
+                </button>
+</div>
+</div>
+<!-- Yorum Textarea -->
+<div>
+<label class="block font-medium text-xs text-[#625C55] mb-1.5" for="kriter-comment-1">Yorum (opsiyonel)</label>
+<textarea class="w-full border border-[#E1DCD6] rounded p-2.5 text-sm bg-[#FAF8F5] text-[#221F1B] placeholder-[#8A847C] focus:outline-none focus:ring-1 focus:ring-[#265445] focus:border-[#265445] transition-colors resize-none" id="kriter-comment-1" placeholder="Öğrencinin bu kriterdeki performansı hakkında kısa not..." rows="2"></textarea>
+</div>
+</div>
+<!-- KRİTER KARTI 2 -->
+<div class="bg-[#FEFEFD] border border-[#E1DCD6] rounded-lg p-6 transition-all" id="kriter-2">
+<!-- Üst Satır -->
+<div class="flex items-center justify-between mb-4">
+<span class="font-mono text-xs text-[#8A847C] tracking-wide">Kriter 2</span>
+<button aria-label="Kriteri Sil" class="text-[#8A847C] hover:text-[#A13B2B] transition-colors p-1 rounded hover:bg-[#F1E5E1]" title="Kriteri Sil" type="button">
+<span class="material-symbols-outlined text-base" data-icon="delete">delete</span>
+</button>
+</div>
+<!-- Kriter Input -->
+<div class="mb-4">
+<label class="block font-medium text-xs text-[#625C55] mb-1.5" for="kriter-title-2">Kriter Tanımı</label>
+<input class="w-full border border-[#E1DCD6] rounded px-3 py-2 text-sm bg-[#FAF8F5] text-[#221F1B] focus:outline-none focus:ring-1 focus:ring-[#265445] focus:border-[#265445] font-normal transition-colors" id="kriter-title-2" type="text" value="Zamanında teslim"/>
+</div>
+<!-- Değerlendirme Segment Seçici -->
+<div class="mb-4">
+<label class="block font-medium text-xs text-[#625C55] mb-1.5">Değerlendirme</label>
+<div class="grid grid-cols-4 gap-2">
+<!-- Seçenek 1 -->
+<button class="criterion-opt px-3 py-2 border border-[#E1DCD6] bg-[#FAF8F5] text-[#625C55] hover:bg-[#EFECE7] hover:text-[#221F1B] rounded text-xs font-medium text-center transition-colors" type="button">
+                  Beklentinin Altında
+                </button>
+<!-- Seçenek 2 -->
+<button class="criterion-opt px-3 py-2 border border-[#E1DCD6] bg-[#FAF8F5] text-[#625C55] hover:bg-[#EFECE7] hover:text-[#221F1B] rounded text-xs font-medium text-center transition-colors" type="button">
+                  Beklentiyi Karşılıyor
+                </button>
+<!-- Seçenek 3 (SEÇİLİ) -->
+<button class="criterion-opt px-3 py-2 border border-[#265445] bg-[#265445] text-[#FAF8F5] font-medium rounded text-xs text-center transition-colors" type="button">
+                  Beklentiyi Aşıyor
+                </button>
+<!-- Seçenek 4 -->
+<button class="criterion-opt px-3 py-2 border border-[#E1DCD6] bg-[#FAF8F5] text-[#625C55] hover:bg-[#EFECE7] hover:text-[#221F1B] rounded text-xs font-medium text-center transition-colors" type="button">
+                  Gözlemlenmedi
+                </button>
+</div>
+</div>
+<!-- Yorum Textarea -->
+<div>
+<label class="block font-medium text-xs text-[#625C55] mb-1.5" for="kriter-comment-2">Yorum (opsiyonel)</label>
+<textarea class="w-full border border-[#E1DCD6] rounded p-2.5 text-sm bg-[#FAF8F5] text-[#221F1B] placeholder-[#8A847C] focus:outline-none focus:ring-1 focus:ring-[#265445] focus:border-[#265445] transition-colors resize-none" id="kriter-comment-2" placeholder="Öğrencinin bu kriterdeki performansı hakkında kısa not..." rows="2"></textarea>
+</div>
+</div>
+</div>
+<!-- KRİTER EKLE BUTONU -->
+<div class="mt-4">
+<button class="border border-[#E1DCD6] bg-[#FEFEFD] hover:bg-[#EFECE7] text-[#221F1B] text-sm px-4 py-2 rounded inline-flex items-center gap-2 transition-colors font-medium" id="add-criterion-btn" type="button">
+<span class="material-symbols-outlined text-base" data-icon="add">add</span>
+<span>Kriter Ekle</span>
+</button>
+</div>
+<!-- KURUM İÇİ NOT KUTUSU -->
+<div class="bg-[#EBE5DA] border border-[#E1DCD6] rounded-lg p-5 mt-6">
+<div class="flex items-center gap-2 mb-2.5">
+<span class="material-symbols-outlined text-[#625C55] text-base" data-icon="lock">lock</span>
+<span class="font-medium text-sm text-[#221F1B]">Kurum içi not (opsiyonel)</span>
+</div>
+<textarea class="border border-[#E1DCD6] bg-[#FAF8F5] text-[#221F1B] placeholder-[#8A847C] rounded p-3 text-sm w-full h-20 focus:outline-none focus:ring-1 focus:ring-[#265445] focus:border-[#265445] transition-colors resize-none" placeholder="Yetkili veya yönetici için kurum içi değerlendirme notu..." rows="3"></textarea>
+<p class="text-xs text-[#625C55] mt-2 font-normal">Bu not sadece kurumunuz içinde görünür, öğrenciye asla gösterilmez.</p>
+</div>
+</div>
+<!-- ALT AKSİYON ÇUBUĞU (Fixed Bottom bar to ensure clean submission UX) -->
+<div class="fixed bottom-0 left-64 right-0 bg-[#FAF8F5] border-t border-[#E1DCD6] z-20">
+<div class="max-w-[880px] mx-auto px-8 py-3.5 flex justify-between items-center">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-[#265445]"></span>
+<span class="text-xs font-mono text-[#625C55]" id="criteria-count">2 kriter</span>
+</div>
+<div class="flex items-center gap-2">
+<button class="border border-[#E1DCD6] bg-[#FEFEFD] hover:bg-[#EFECE7] text-[#221F1B] px-4 py-2 rounded text-sm font-medium transition-colors" type="button">
+              Taslak Olarak Kaydet
+            </button>
+<button class="bg-[#265445] hover:bg-[#1e4337] text-[#FAF8F5] px-6 py-2 rounded font-medium text-sm transition-colors flex items-center gap-1.5 shadow-none" type="button">
+<span class="material-symbols-outlined text-base" data-icon="send">send</span>
+<span>Değerlendirmeyi Gönder</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- Micro-interactions logic for segment switching and criterion count -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Interactive segment selector within criterion cards
+      document.addEventListener('click', (e) => {
+        const targetBtn = e.target.closest('.criterion-opt');
+        if (!targetBtn) return;
+
+        const parentRow = targetBtn.closest('.grid');
+        if (!parentRow) return;
+
+        const allSiblings = parentRow.querySelectorAll('.criterion-opt');
+        allSiblings.forEach(btn => {
+          btn.className = 'criterion-opt px-3 py-2 border border-[#E1DCD6] bg-[#FAF8F5] text-[#625C55] hover:bg-[#EFECE7] hover:text-[#221F1B] rounded text-xs font-medium text-center transition-colors';
+        });
+
+        // Set active pine style
+        targetBtn.className = 'criterion-opt px-3 py-2 border border-[#265445] bg-[#265445] text-[#FAF8F5] font-medium rounded text-xs text-center transition-colors';
+      });
+
+      // Update count helper
+      const updateCount = () => {
+        const count = document.querySelectorAll('#criteria-container > div').length;
+        const countEl = document.getElementById('criteria-count');
+        if (countEl) {
+          countEl.textContent = `${count} kriter`;
+        }
+      };
+
+      // Add criterion micro-interaction
+      const addBtn = document.getElementById('add-criterion-btn');
+      const container = document.getElementById('criteria-container');
+
+      if (addBtn && container) {
+        addBtn.addEventListener('click', () => {
+          const currentCount = container.querySelectorAll(':scope > div').length + 1;
+          const newCard = document.createElement('div');
+          newCard.className = 'bg-[#FEFEFD] border border-[#E1DCD6] rounded-lg p-6 transition-all';
+          newCard.id = `kriter-${currentCount}`;
+          newCard.innerHTML = `
+            <div class="flex items-center justify-between mb-4">
+              <span class="font-mono text-xs text-[#8A847C] tracking-wide">Kriter ${currentCount}</span>
+              <button type="button" aria-label="Kriteri Sil" class="delete-btn text-[#8A847C] hover:text-[#A13B2B] transition-colors p-1 rounded hover:bg-[#F1E5E1]" title="Kriteri Sil">
+                <span class="material-symbols-outlined text-base" data-icon="delete">delete</span>
+              </button>
+            </div>
+            <div class="mb-4">
+              <label class="block font-medium text-xs text-[#625C55] mb-1.5">Kriter Tanımı</label>
+              <input type="text" placeholder="Örn: Ekip çalışması ve iletişim" class="w-full border border-[#E1DCD6] rounded px-3 py-2 text-sm bg-[#FAF8F5] text-[#221F1B] focus:outline-none focus:ring-1 focus:ring-[#265445] focus:border-[#265445] font-normal transition-colors">
+            </div>
+            <div class="mb-4">
+              <label class="block font-medium text-xs text-[#625C55] mb-1.5">Değerlendirme</label>
+              <div class="grid grid-cols-4 gap-2">
+                <button type="button" class="criterion-opt px-3 py-2 border border-[#E1DCD6] bg-[#FAF8F5] text-[#625C55] hover:bg-[#EFECE7] hover:text-[#221F1B] rounded text-xs font-medium text-center transition-colors">Beklentinin Altında</button>
+                <button type="button" class="criterion-opt px-3 py-2 border border-[#265445] bg-[#265445] text-[#FAF8F5] font-medium rounded text-xs text-center transition-colors">Beklentiyi Karşılıyor</button>
+                <button type="button" class="criterion-opt px-3 py-2 border border-[#E1DCD6] bg-[#FAF8F5] text-[#625C55] hover:bg-[#EFECE7] hover:text-[#221F1B] rounded text-xs font-medium text-center transition-colors">Beklentiyi Aşıyor</button>
+                <button type="button" class="criterion-opt px-3 py-2 border border-[#E1DCD6] bg-[#FAF8F5] text-[#625C55] hover:bg-[#EFECE7] hover:text-[#221F1B] rounded text-xs font-medium text-center transition-colors">Gözlemlenmedi</button>
+              </div>
+            </div>
+            <div>
+              <label class="block font-medium text-xs text-[#625C55] mb-1.5">Yorum (opsiyonel)</label>
+              <textarea rows="2" placeholder="Öğrencinin bu kriterdeki performansı hakkında kısa not..." class="w-full border border-[#E1DCD6] rounded p-2.5 text-sm bg-[#FAF8F5] text-[#221F1B] placeholder-[#8A847C] focus:outline-none focus:ring-1 focus:ring-[#265445] focus:border-[#265445] transition-colors resize-none"></textarea>
+            </div>
+          `;
+          container.appendChild(newCard);
+          updateCount();
+        });
+      }
+
+      // Delete criterion interaction
+      document.addEventListener('click', (e) => {
+        const deleteBtn = e.target.closest('button[title="Kriteri Sil"]');
+        if (!deleteBtn) return;
+        const card = deleteBtn.closest('#criteria-container > div');
+        if (card) {
+          card.remove();
+          // Renumber cards
+          const allCards = container.querySelectorAll(':scope > div');
+          allCards.forEach((c, idx) => {
+            const label = c.querySelector('span.font-mono');
+            if (label) label.textContent = `Kriter ${idx + 1}`;
+          });
+          updateCount();
+        }
+      });
+    });
+  </script>
+</body></html>

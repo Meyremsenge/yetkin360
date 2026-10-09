@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Giriş — Yetkin360</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html, body {
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      background-color: #FAF8F5;
+      color: #221F1B;
+      font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .login-container {
+      display: flex;
+      width: 100vw;
+      height: 100vh;
+      min-height: 100%;
+    }
+
+    /* LEFT COLUMN - Brand Panel (40% / 2fr) */
+    .brand-panel {
+      width: 40%;
+      flex-shrink: 0;
+      background-color: #EBE5DA;
+      padding: 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      border-right: 1px solid #E1DCD6;
+    }
+
+    .brand-panel-top {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand-logo {
+      font-family: 'Source Serif 4', Georgia, serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: #221F1B;
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+    }
+
+    .brand-statement {
+      margin-top: 32px;
+      font-family: 'Source Serif 4', Georgia, serif;
+      font-size: 20px;
+      line-height: 1.45;
+      color: #221F1B;
+      font-weight: 400;
+      max-width: 380px;
+    }
+
+    /* Vertical 4-step chain */
+    .chain-container {
+      margin-top: 32px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .chain-item {
+      display: flex;
+      align-items: center;
+      position: relative;
+      margin-bottom: 28px;
+    }
+
+    .chain-item:last-child {
+      margin-bottom: 0;
+    }
+
+    /* Vertical connecting line */
+    .chain-line {
+      position: absolute;
+      left: 15.5px;
+      top: 32px;
+      bottom: -28px;
+      width: 1px;
+      background-color: #E1DCD6;
+      z-index: 1;
+    }
+
+    .chain-item:last-child .chain-line {
+      display: none;
+    }
+
+    .chain-circle {
+      position: relative;
+      z-index: 2;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 14px;
+      font-weight: 500;
+      flex-shrink: 0;
+    }
+
+    .chain-circle.step-outline {
+      background-color: #EBE5DA;
+      border: 1px solid #E1DCD6;
+      color: #625C55;
+    }
+
+    .chain-circle.step-filled {
+      background-color: #265445;
+      border: 1px solid #265445;
+      color: #FAF8F5;
+    }
+
+    .chain-label {
+      margin-left: 16px;
+      font-family: 'Source Serif 4', Georgia, serif;
+      font-size: 18px;
+      font-weight: 400;
+      line-height: 1.3;
+    }
+
+    .chain-label.label-neutral {
+      color: #625C55;
+    }
+
+    .chain-label.label-active {
+      color: #265445;
+      font-weight: 600;
+    }
+
+    /* Bottom links */
+    .brand-panel-bottom {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .bottom-link {
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 14px;
+      color: #625C55;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      text-decoration-color: #E1DCD6;
+      transition: color 0.15s, text-decoration-color 0.15s;
+    }
+
+    .bottom-link:hover {
+      color: #221F1B;
+      text-decoration-color: #221F1B;
+    }
+
+    /* RIGHT COLUMN - Form Area (60% / 3fr) */
+    .form-panel {
+      width: 60%;
+      flex-grow: 1;
+      background-color: #FAF8F5;
+      padding: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow-y: auto;
+    }
+
+    .form-block {
+      width: 100%;
+      max-width: 448px;
+      display: flex;
+      flex-direction: column;
+      text-align: left;
+    }
+
+    .form-title {
+      font-family: 'Source Serif 4', Georgia, serif;
+      font-size: 32px;
+      font-weight: 700;
+      color: #221F1B;
+      letter-spacing: -0.015em;
+      line-height: 1.15;
+    }
+
+    .form-subtitle {
+      margin-top: 8px;
+      font-size: 15px;
+      line-height: 1.5;
+      color: #625C55;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .field-group.first {
+      margin-top: 32px;
+    }
+
+    .field-group.second {
+      margin-top: 16px;
+    }
+
+    .field-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+    }
+
+    .field-label {
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      color: #221F1B;
+      text-transform: none;
+    }
+
+    .field-sublink {
+      font-size: 13px;
+      color: #625C55;
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .field-sublink:hover {
+      color: #221F1B;
+      text-decoration: underline;
+    }
+
+    .input-wrapper {
+      position: relative;
+      width: 100%;
+    }
+
+    .text-input {
+      width: 100%;
+      height: 40px;
+      background-color: #FEFEFD;
+      border: 1px solid #E1DCD6;
+      border-radius: 6px;
+      padding: 0 14px;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 14px;
+      color: #221F1B;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .text-input::placeholder {
+      color: #625C55;
+      opacity: 0.7;
+    }
+
+    .text-input:focus {
+      border-color: #265445;
+    }
+
+    .text-input.with-icon {
+      padding-right: 38px;
+    }
+
+    .input-icon-btn {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #625C55;
+    }
+
+    .input-icon-btn:hover {
+      color: #221F1B;
+    }
+
+    .btn-submit {
+      margin-top: 24px;
+      width: 100%;
+      height: 48px;
+      background-color: #265445;
+      color: #FAF8F5;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 500;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background-color 0.15s;
+    }
+
+    .btn-submit:hover {
+      background-color: #1f4538;
+    }
+
+    .footer-signup {
+      margin-top: 16px;
+      font-size: 14px;
+      color: #625C55;
+      line-height: 1.4;
+    }
+
+    .signup-link {
+      color: #221F1B;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      text-decoration-color: #E1DCD6;
+      font-weight: 500;
+      transition: text-decoration-color 0.15s;
+    }
+
+    .signup-link:hover {
+      text-decoration-color: #221F1B;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <!-- SOL SÜTUN — MARKA VE SİCİL ZİNCİRİ PANELİ (%40) -->
+    <aside class="brand-panel">
+      <div class="brand-panel-top">
+        <div class="brand-logo">Yetkin360</div>
+        <p class="brand-statement">Sicil kaydınız, kanıtlarınızla birlikte güvenle saklanır.</p>
+
+        <!-- Dikey 4 Adımlı Zincir -->
+        <div class="chain-container">
+          <!-- 1. Beyan -->
+          <div class="chain-item">
+            <div class="chain-line"></div>
+            <div class="chain-circle step-outline">1</div>
+            <span class="chain-label label-neutral">Beyan</span>
+          </div>
+
+          <!-- 2. Kanıt -->
+          <div class="chain-item">
+            <div class="chain-line"></div>
+            <div class="chain-circle step-outline">2</div>
+            <span class="chain-label label-neutral">Kanıt</span>
+          </div>
+
+          <!-- 3. Tanıklık -->
+          <div class="chain-item">
+            <div class="chain-line"></div>
+            <div class="chain-circle step-outline">3</div>
+            <span class="chain-label label-neutral">Tanıklık</span>
+          </div>
+
+          <!-- 4. Doğrulanmış Deneyim -->
+          <div class="chain-item">
+            <div class="chain-circle step-filled">4</div>
+            <span class="chain-label label-active">Doğrulanmış Deneyim</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Alt Bağlantılar -->
+      <div class="brand-panel-bottom">
+        <a href="#kayit-ol" class="bottom-link">Kayıt Ol</a>
+        <a href="#sifremi-unuttum" class="bottom-link">Şifremi Unuttum</a>
+      </div>
+    </aside>
+
+    <!-- SAĞ SÜTUN — FORMU ALANI (%60) -->
+    <main class="form-panel">
+      <div class="form-block">
+        <h1 class="form-title">Giriş</h1>
+        <p class="form-subtitle">Hesabınıza giriş yaparak çalışmalarınıza devam edin.</p>
+
+        <form onsubmit="return false;" autocomplete="on">
+          <!-- E-posta -->
+          <div class="field-group first">
+            <div class="field-label-row">
+              <label for="email" class="field-label">E-posta</label>
+            </div>
+            <div class="input-wrapper">
+              <input 
+                type="email" 
+                id="email" 
+                name="email" 
+                class="text-input" 
+                placeholder="E-posta adresiniz" 
+                autocomplete="email" 
+                required
+              >
+            </div>
+          </div>
+
+          <!-- Şifre -->
+          <div class="field-group second">
+            <div class="field-label-row">
+              <label for="password" class="field-label">Şifre</label>
+              <a href="#sifremi-unuttum" class="field-sublink">Şifremi Unuttum</a>
+            </div>
+            <div class="input-wrapper">
+              <input 
+                type="password" 
+                id="password" 
+                name="password" 
+                class="text-input with-icon" 
+                autocomplete="current-password" 
+                required
+              >
+              <button type="button" class="input-icon-btn" aria-label="Şifreyi göster veya gizle">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Giriş Yap Butonu -->
+          <button type="submit" class="btn-submit">Giriş Yap</button>
+
+          <!-- Kayıt Ol Metni -->
+          <div class="footer-signup">
+            Hesabınız yok mu? <a href="#kayit-ol" class="signup-link">Kayıt Ol</a>
+          </div>
+        </form>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

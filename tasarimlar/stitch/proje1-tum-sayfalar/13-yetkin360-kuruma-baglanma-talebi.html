@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Kuruma Bağlanma Talebi — Yetkin360</title>
+<!-- Typography -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&amp;family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&amp;family=Public+Sans:wght@500;600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400;1,8..60,600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            paper: '#FAF8F5',
+            card: '#FEFEFD',
+            sand: '#EBE5DA',
+            muted: '#EFECE7',
+            borderline: '#E1DCD6',
+            ink: '#221F1B',
+            secondary: '#625C55',
+            pine: '#265445',
+            'pine-hover': '#1e4236',
+            ochre: '#8F5A14',
+            brick: '#A13B2B'
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          fontFamily: {
+            headline: ["\"Source Serif 4\"", "serif"],
+            display: ["\"Source Serif 4\"", "serif"],
+            body: ["\"IBM Plex Sans\"", "sans-serif"],
+            mono: ["\"IBM Plex Mono\"", "monospace"],
+            label: ["\"Public Sans\"", "sans-serif"]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 350, 'GRAD' 0, 'opsz' 20;
+      line-height: 1;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    ::selection {
+      background-color: #E5E8E3;
+      color: #221F1B;
+    }
+  </style>
+</head>
+<body class="bg-[#FAF8F5] text-[#221F1B] font-body antialiased selection:bg-[#E5E8E3] min-h-screen">
+<!-- ========================================================================= -->
+<!-- SOL SABİT APP SHELL (SIDEBAR)                                            -->
+<!-- ========================================================================= -->
+<aside class="fixed top-0 left-0 h-screen w-[248px] bg-[#EBE5DA] border-r border-[#E1DCD6] flex flex-col justify-between z-30 select-none">
+<!-- Üst Başlık & Brand Bölümü -->
+<div class="flex flex-col">
+<div class="p-4 pb-3">
+<div class="flex items-center gap-2.5">
+<!-- Resmi Mühür Amblem / İkon Rozeti -->
+<div aria-label="Yetkin360 Mühür Amblemi" class="w-8 h-8 rounded bg-[#265445] flex items-center justify-center text-[#FAF8F5] flex-shrink-0">
+<span class="material-symbols-outlined text-[19px]">verified</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline font-bold text-lg text-[#221F1B] tracking-tight leading-none">Yetkin360</span>
+<span class="font-mono text-[10px] text-[#625C55] mt-1 tracking-tight">resmi sicil altyapısı</span>
+</div>
+</div>
+<!-- Slogan Hattı -->
+<div class="mt-3 pt-2.5 border-t border-[#E1DCD6]">
+<p class="font-mono text-[10.5px] leading-relaxed text-[#625C55]">beyan → kanıt → tanıklık → doğrulanmış deneyim</p>
+</div>
+</div>
+<!-- Menü Grupları -->
+<nav aria-label="Ana Gezinti Menüsü" class="px-2 py-2 flex flex-col gap-1">
+<div class="px-3 py-1.5">
+<span class="text-[11px] font-medium text-[#625C55] tracking-normal font-body">Sicil İşlemleri</span>
+</div>
+<!-- 1: Çalışmalarım -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors duration-150 ease-in-out text-[13.5px]" href="#calismalarim">
+<span class="material-symbols-outlined text-[18px]">folder_open</span>
+<span>Çalışmalarım</span>
+</a>
+<!-- 2: Doğrulama Talepleri (Aktif - Kurum Bağlanma bağlamı ile doğrudan eşleşen süreç) -->
+<a class="relative flex items-center gap-3 px-3 py-2 bg-[#FEFEFD] border border-[#E1DCD6] rounded text-[#221F1B] font-medium text-[13.5px] before:content-[''] before:absolute before:left-[-9px] before:top-2 before:bottom-2 before:w-[2px] before:bg-[#265445]" href="#dogrulama-talepleri">
+<span class="material-symbols-outlined text-[18px] text-[#265445]" style="font-variation-settings: 'FILL' 1;">verified</span>
+<span>Doğrulama Talepleri</span>
+</a>
+<!-- 3: Sicil Kayıtları -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors duration-150 ease-in-out text-[13.5px]" href="#sicil-kayitlari">
+<span class="material-symbols-outlined text-[18px]">history_edu</span>
+<span>Sicil Kayıtları</span>
+</a>
+<!-- 4: Belgeler -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors duration-150 ease-in-out text-[13.5px]" href="#belgeler">
+<span class="material-symbols-outlined text-[18px]">description</span>
+<span>Belgeler</span>
+</a>
+<div class="my-1 border-t border-[#E1DCD6] mx-2"></div>
+<!-- 5: Ayarlar -->
+<a class="flex items-center gap-3 px-3 py-2 text-[#625C55] rounded hover:bg-[#EFECE7] hover:text-[#221F1B] transition-colors duration-150 ease-in-out text-[13.5px]" href="#ayarlar">
+<span class="material-symbols-outlined text-[18px]">settings</span>
+<span>Ayarlar</span>
+</a>
+</nav>
+</div>
+<!-- Alt Profil Bölümü -->
+<div class="p-3 border-t border-[#E1DCD6]">
+<div class="flex items-center justify-between p-2 rounded hover:bg-[#EFECE7] transition-colors cursor-pointer group">
+<div class="flex items-center gap-2.5 min-w-0">
+<!-- Sand arkaplanlı resmi monogram avatar -->
+<div class="w-8 h-8 rounded-full bg-[#E5E0D5] border border-[#D5CFC5] flex items-center justify-center font-headline font-semibold text-xs text-[#221F1B] flex-shrink-0">
+            AY
+          </div>
+<div class="flex flex-col min-w-0">
+<span class="text-[13.5px] font-medium text-[#221F1B] truncate leading-snug">Ayşe Yılmaz</span>
+<span class="font-mono text-[11px] text-[#625C55] truncate">a.yilmaz@itu.edu.tr</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-[18px] text-[#625C55] group-hover:text-[#221F1B] flex-shrink-0 ml-1">unfold_more</span>
+</div>
+</div>
+</aside>
+<!-- ========================================================================= -->
+<!-- SAĞ ANA İÇERİK ALANI (DESKTOP LAYOUT - SIFIR KART / DOĞRUDAN KAĞIT YÜZEYİ) -->
+<!-- ========================================================================= -->
+<main class="ml-[248px] min-h-screen bg-[#FAF8F5] p-12 md:p-16 flex flex-col justify-between">
+<div class="w-full max-w-[560px]">
+<!-- 1. Üst Geri Dönüş Bağlantısı -->
+<div>
+<a class="inline-flex items-center gap-1.5 text-[13px] text-[#625C55] hover:text-[#221F1B] transition-colors font-medium" href="#kurum-secimi">
+<span class="font-mono text-xs">←</span>
+<span>Kurum Seçimine Dön</span>
+</a>
+</div>
+<!-- Bilgi Akışı / İçerik Bloğu -->
+<div class="mt-8">
+<!-- Üst Küçük Sicil Etiketi (Registry Indicator) -->
+<div class="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-[#EFE8DE] text-[#8F5A14] text-[12px] font-medium mb-3">
+<span class="w-1.5 h-1.5 rounded-full bg-[#8F5A14]"></span>
+<span class="font-mono tracking-tight text-[11.5px]">TALEBI_BEKLIYOR</span>
+</div>
+<!-- 2. H1 Başlık -->
+<h1 class="font-headline font-semibold text-[32px] md:text-[36px] text-[#221F1B] tracking-tight leading-tight">
+          Kuruma Bağlanma Talebi
+        </h1>
+<!-- 3. Kurum Adı Alt Başlığı -->
+<div class="mt-4 flex items-center gap-2.5">
+<span class="material-symbols-outlined text-[20px] text-[#625C55]">account_balance</span>
+<h2 class="font-headline font-medium text-[20px] text-[#221F1B]">
+            İstanbul Teknik Üniversitesi
+          </h2>
+</div>
+<!-- Kurum Kimlik / Sicil Özeti Detayı (Resmi Belge Tarzı Yalın Çerçevesiz Bilgi Satırı) -->
+<div class="mt-4 py-3 px-3.5 bg-[#EBE5DA]/50 rounded border border-[#E1DCD6] flex items-center justify-between text-[12.5px]">
+<span class="text-[#625C55]">Kurum Sicil Kodu: <strong class="font-mono text-[#221F1B] font-normal">TR-UNIV-ITU-034</strong></span>
+<span class="text-[#625C55] font-mono">Birim: Rektörlük / Lisansüstü</span>
+</div>
+<!-- 4. Açıklama / Gövde Metni -->
+<p class="mt-5 font-body text-[15px] text-[#4A4641] leading-relaxed">
+          Bu kuruma bağlanma talebi göndermek istediğinize emin misiniz? Talebiniz kurum koordinatörünün onayına sunulacak.
+        </p>
+<!-- Bilgilendirici İkaz Metni (Resmi Prosedür Notu) -->
+<p class="mt-2 text-[13px] text-[#625C55] leading-normal font-body">
+          Onaylandığında sicil kayıtlarınız ve beyan ettiğiniz çalışmalar kurumsal doğrulama havuzuyla otomatik olarak eşleştirilir.
+        </p>
+<!-- 5. Sola Hizalı Buton Grubu -->
+<div class="mt-8 flex items-center gap-2">
+<!-- Birincil Buton: Çam Yeşili Dolgulu -->
+<button class="h-10 px-5 rounded bg-[#265445] hover:bg-[#1e4236] text-[#FAF8F5] text-sm font-medium transition-colors duration-150 inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#265445] focus:ring-offset-2 focus:ring-offset-[#FAF8F5]" type="button">
+            Talep Gönder
+          </button>
+<!-- İkincil / Vazgeç Butonu: Hayalet (Ghost) Buton -->
+<button class="h-10 px-4 rounded bg-transparent text-[#625C55] hover:text-[#221F1B] hover:bg-[#EFECE7]/60 text-sm font-medium transition-colors duration-150 inline-flex items-center justify-center focus:outline-none" type="button">
+            Vazgeç
+          </button>
+</div>
+</div>
+</div>
+<!-- 6. Sayfa Altında Minimalist Sicil Dipnotu -->
+<footer class="mt-16 pt-6 border-t border-[#E1DCD6] max-w-[560px]">
+<p class="font-mono text-[12px] text-[#8C857B] tracking-tight">
+        Yetkin360 Resmi Sicil Kaydı — Kurum Bağlantı Protokolü v2.4
+      </p>
+</footer>
+</main>
+</body></html>
