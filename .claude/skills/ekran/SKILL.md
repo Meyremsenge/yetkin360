@@ -40,7 +40,7 @@ Argüman verildiyse onu al. **Argüman boşsa:** `planfrontend.md`'yi oku ve aş
 
 **Kuyruk bittiyse** (tablodaki tüm kodlar `[x]`): ekran dönüştürme yapma. Kullanıcıya şunu söyle ve dur: "Ekran kuyruğu bitti. Kalan cila işleri (`planfrontend.md` Faz 4): FE-26 durumlar turu, FE-27 responsive turu, FE-28 erişilebilirlik turu, FE-31 tam doğrulama, FE-32 demo provası. Hangisiyle devam edelim?"
 
-Dosya yolları `frontend/` altında. Brif bölümü = kodun numarası (`shell` → §5; `10/10b/10c` → "10. Çalışma detayı"; `18` → brif 17+18 ve 15).
+Dosya yolları `frontend/` altında. Brif bölümü = kodun numarası (`shell` → §5; `auth` → brif 4–8; `10/10b/10c` → "10. Çalışma detayı"; `18` → brif 17+18 ve 15).
 Mockup tam adı: `ls tasarimlar/stitch/proje1-tum-sayfalar/ | grep '^19-'`. Ek referans: `tasarimlar/stitch/proje2-brifi-v2/`.
 Mockup **ilham**dir, kaynak değil. Stitch HTML'ini kopyalama: CDN Tailwind, sahte veri ve farklı sınıf adları içerir. Brif ile mockup çelişirse **brif**, brif ile `planfrontend.md` çelişirse yine **brif** kazanır.
 
@@ -85,6 +85,7 @@ grep -cE '(slate|gray|zinc|red|green|blue|indigo|amber|emerald|yellow)-[0-9]{2,3
 
 - Brif tablosundaki sırayla ilerle: düzen → butonlar tablosu → **durumlar** → mobil (375px).
   Durumlar üç tane: yükleniyor (iskelet; "Yükleniyor…" yazısı yok), boş (ne yapılacağını söyleyen metin + varsa aksiyon), hata (+ "Tekrar dene"). Üçü olmadan ekran bitmez.
+- **Sayfa kapsayıcısı (AppShell içindeki sayfalar):** sola yaslı, `mx-auto` yok. Kalıp: `max-w-[1120px] px-4 py-8 md:px-6 lg:px-10` (liste/panel), `max-w-[960px] …` (detay/form), `max-w-[640px] …` (dar form). Brifteki 1040/880/560 yan boşluk hariç genişliktir. Kart iç boşluğu `p-4 md:p-6`. Örnek: `app/calismalar/page.tsx`, `app/kurulus/[id]/panel/page.tsx`.
 - Ham enum ekranda görünmez (`ACTIVE`, `T1`, `PENDING_APPROVAL`). Yerine `tr.json` etiketi kullan.
 - Yeni metin = `tr.json`'a yeni anahtar. **Var olan anahtarların adını değiştirme** (testler anahtara bağlı); metnini brife göre düzeltebilirsin.
 - Erişilebilirlik:
@@ -155,7 +156,7 @@ grep -cE '(slate|gray|zinc|red|green|blue|indigo|amber|emerald|yellow)-[0-9]{2,3
 - Ana mockup `12-…appshell.png`.
 - Tanıklık verme anı: gönder butonu birincil (çam), gönderim sonrası başarı mesajı.
 
-**Diğerleri (`9`, `14`, `21`, `16`, `12`, `18`, `19`):** brif bölümü + genel kurallar yeterli. Büyük dosyalarda (`16`: ~450 satır) bölme yapma, yalnız sınıf ve düzen değiştir.
+**Diğerleri (`9`, `14`, `21`, `16`, `12`, `18`, `19`, `20`):** brif bölümü + genel kurallar yeterli. Büyük dosyalarda (`16`: ~450 satır) bölme yapma, yalnız sınıf ve düzen değiştir.
 
 ## 6. Testler — kural
 
