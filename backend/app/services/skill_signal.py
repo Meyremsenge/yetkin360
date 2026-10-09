@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import SkillSignal, SkillClaim
+from app.models.identity import Organization
 from app.services.authorization import Principal, scoped_skill_signals
 
 
@@ -74,6 +75,17 @@ def list_skill_signals(
             or s.source_id in existing_claim_set
         ]
 
+    # AC-12: Batch-resolve organization names for EVALUATION signals (not N+1) —
+    # attested_by must be a human-readable name, never the raw org UUID.
+    org_ids = {s.attested_by_org_id for s in valid_signals if s.source_type == "EVALUATION" and s.attested_by_org_id}
+    org_names: dict = {}
+    if org_ids:
+        org_names = dict(
+            session.execute(
+                select(Organization.id, Organization.name).where(Organization.id.in_(org_ids))
+            ).all()
+        )
+
     # Group signals by skill_id
     signals_by_skill: dict[uuid.UUID, list] = {}
     for signal in valid_signals:
@@ -93,8 +105,9 @@ def list_skill_signals(
             # AC-9: Calculate attested_by based on signal source_type
             attested_by = None
             if sig.source_type == "EVALUATION":
-                # For EVALUATION signals, attested_by is the organization
-                attested_by = str(sig.attested_by_org_id) if sig.attested_by_org_id else None
+                # For EVALUATION signals, attested_by is the organization's name
+                # (never the raw UUID — that would leak an internal id to the UI).
+                attested_by = org_names.get(sig.attested_by_org_id) if sig.attested_by_org_id else None
             elif sig.source_type == "SELF_CLAIM":
                 # For SELF_CLAIM, attested_by is the claim itself
                 attested_by = str(sig.source_id) if sig.source_id else None
