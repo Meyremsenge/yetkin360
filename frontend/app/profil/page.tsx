@@ -2,6 +2,7 @@
 
 import { useSession } from "@/lib/session/use-session";
 import { AppShell } from "@/components/app-shell";
+import { Alert } from "@/components/ui/alert";
 import ProfileForm from "./profile-form";
 import SkillsSection from "./skills-section";
 import EvidenceSection from "./evidence-section";
@@ -19,29 +20,22 @@ export default function ProfilePage() {
 
   return (
     <AppShell>
-      <div className="p-6 max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">{messages.profil.title}</h1>
+      <div className="mx-auto max-w-[880px] px-4 py-8 sm:px-6 lg:px-10">
+        <h1 className="font-serif text-3xl font-semibold text-foreground">{messages.profil.title}</h1>
 
         {/* AC-1: Render ProfileForm + SkillsSection if talent_profile is valid */}
         {hasValidProfile ? (
           <>
             <ProfileForm initialData={talentProfile as Record<string, unknown>} />
-            <div className="mt-8">
-              <SkillsSection />
-            </div>
-            <div>
-              <EvidenceSection />
-            </div>
+            <SkillsSection />
+            <EvidenceSection />
             <InstitutionLinkSection />
           </>
         ) : (
           /* AC-12: Error state when talent_profile is null/undefined */
-          <div
-            role="alert"
-            className="rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-700"
-          >
+          <Alert variant="error" className="mt-6">
             <div className="font-medium">{messages.profil.loadError}</div>
-          </div>
+          </Alert>
         )}
       </div>
     </AppShell>
