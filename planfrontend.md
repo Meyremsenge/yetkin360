@@ -229,7 +229,7 @@ Sıra demo akışına göredir (`§4`). Her ekran için "bitti" tanımı `§6`.
   - Rakamlar şeridi (opsiyonel): seed'deki gerçek sayılar yoksa **konmaz**; uydurma istatistik yok.
   - Footer: açık kaynak notu + GitHub linki + lisans.
   - Tüm metin `tr.json` → `home.*`.
-- [ ] **FE-13** **`/v/[token]` doğrulama sayfası** — **P0, en kritik ekran**
+- [x] **FE-13** **`/v/[token]` doğrulama sayfası** — **P0, en kritik ekran**
   - "Sertifika" düzeni: kâğıt dokulu kart, ince çift çerçeve, sağ üstte büyük `VerifiedSeal`; serif ile kişi adı, rol/başlık, kuruluş, dönem. Altta Plex Mono ile doğrulama kodu ve tarih damgası. Telefonda açıldığında "gerçek bir belge" hissi vermeli.
   - `ChainProgress` tamamlanmış halde ("bu deneyim 4 adımdan geçti").
   - Tanıklık eden yetkinlikler: skill çipleri + tanıklık eden kuruluş.
