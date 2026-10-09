@@ -165,7 +165,18 @@
     "linkRequestsLoadError": "Bağlanma talepleriniz yüklenemedi.",
     "linkRequestPendingBadge": "Onay Bekliyor",
     "linkRequestApprovedBadge": "Onaylandı",
-    "linkRequestRejectedBadge": "Reddedildi"
+    "linkRequestRejectedBadge": "Reddedildi",
+    "formSection": "Profil bilgileri",
+    "formDescription": "Bu bilgiler profilinizde ve doğrulama sayfalarında kimlik olarak gösterilir.",
+    "slugPrefix": "yetkin360…/p/",
+    "skillsDescription": "Beyan ettiğiniz yetkinlikler gri görünür; kanıtla desteklenenler Kanıt Dökümü bölümünde mühürlenir.",
+    "emptySkillsHint": "Yukarıdan arayarak ilk yetkinliğinizi ekleyin.",
+    "searching": "Aranıyor...",
+    "evidenceDescription": "Yetkinliklerinizi destekleyen kanıt sinyalleri ve doğrulanmış deneyimleriniz.",
+    "emptySignalsHint": "Çalışmalarınız tanıklıkla doğrulandıkça sinyaller burada görünür.",
+    "evidenceBackedLabel": "Kanıtla desteklenen yetkinlik",
+    "verifiedLabel": "Doğrulanmış deneyim",
+    "institutionDescription": "Bağlı olduğunuz kurum ve gönderdiğiniz bağlanma talepleri."
   },
   "kurumBaglan": {
     "title": "Kuruma Bağlanma Talebi",

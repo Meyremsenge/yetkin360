@@ -266,7 +266,7 @@ Sıra demo akışına göredir (`§4`). Her ekran için "bitti" tanımı `§6`.
     - Kanıt yükleme: sürükle-bırak alanı görünümü, ilerleme çubuğu, dosya türü/boyut ipucu (davranış aynı).
     - Tanıklıklar: her biri skill + tanıklık eden + tarih; geri alınmışsa üstü çizili + "Geri alındı" rozeti.
   - Görev durumları ham enum (`task.status`) yerine `tr.json` etiketi.
-- [ ] **FE-18** **`/profil`** — **P0**
+- [x] **FE-18** **`/profil`** — **P0**
   - Üstte profil özeti kartı (avatar, ad, başlık, kurum, görünürlük rozeti, "Herkese açık profili gör / linki kopyala").
   - Sekmeler: Profil bilgileri · Yetkinlikler · Kanıt dökümü · Kurum bağlantısı.
   - Yetkinlikler: **beyan** (gri, "Beyan") ile **sinyal/doğrulanmış** (yeşil, kanıt sayısı) görsel olarak ayrışır — ürün iddiasının profildeki karşılığı.

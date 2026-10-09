@@ -5,11 +5,13 @@ import { useSession } from "@/lib/session/use-session";
 import { listMyLinkRequests } from "@/lib/api/institutions";
 import messages from "@/messages/tr.json";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { ProfileSection, SkeletonRows, EmptyNote, focusRingClass } from "./profile-ui";
 
-const STATUS_BADGE_CLASS: Record<string, string> = {
-  PENDING: "bg-amber-100 text-amber-700",
-  APPROVED: "bg-green-100 text-green-700",
-  REJECTED: "bg-red-100 text-red-700",
+const STATUS_BADGE_VARIANT: Record<string, "warning" | "success" | "error"> = {
+  PENDING: "warning",
+  APPROVED: "success",
+  REJECTED: "error",
 };
 
 function getStatusBadgeLabel(status: string): string {
@@ -50,61 +52,51 @@ export default function InstitutionLinkSection() {
   const linkedInstitutionName = requests.find((req) => req.status === "APPROVED")?.institution_name;
 
   return (
-    <section className="mt-8">
-      <h2 className="text-lg font-bold mb-3">{messages.profil.institutionLinkSection}</h2>
-
+    <ProfileSection
+      title={messages.profil.institutionLinkSection}
+      description={messages.profil.institutionDescription}
+    >
       {!isLinked ? (
-        <div className="bg-slate-50 rounded-md border border-slate-200 p-4 text-sm">
-          <div className="text-slate-700 mb-1">{messages.profil.notLinkedMessage}</div>
-          <div className="text-slate-500">{messages.profil.notLinkedHint}</div>
-        </div>
+        <EmptyNote title={messages.profil.notLinkedMessage} hint={messages.profil.notLinkedHint} />
       ) : (
-        <ul className="space-y-1 mb-4">
-          <li className="text-sm text-slate-900 font-medium">
-            {linkedInstitutionName ?? messages.profil.linkedFallbackMessage}
-          </li>
-        </ul>
+        <p className="text-[15px] font-medium text-foreground">
+          {linkedInstitutionName ?? messages.profil.linkedFallbackMessage}
+        </p>
       )}
 
-      <h3 className="text-sm font-semibold text-slate-700 mt-4 mb-2">
+      <h3 className="mb-3 mt-6 font-serif text-lg font-medium text-foreground">
         {messages.profil.linkRequestHistoryTitle}
       </h3>
 
       {isLoading ? (
-        <p className="text-slate-600 text-sm">{messages.shell.loading}</p>
+        <SkeletonRows rows={2} />
       ) : isError ? (
-        <div className="text-sm text-red-600">
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+        >
           {messages.profil.linkRequestsLoadError}
-          <Button onClick={() => refetch()} className="ml-3 px-3 py-1 text-xs">
+          <Button onClick={() => refetch()} variant="secondary" size="sm" className={focusRingClass}>
             {messages.profil.retryButton}
           </Button>
         </div>
       ) : requests.length === 0 ? (
-        <p className="text-sm text-slate-600 bg-slate-50 rounded-md border border-slate-200 p-4">
-          {messages.profil.emptyLinkRequestsMessage}
-        </p>
+        <EmptyNote title={messages.profil.emptyLinkRequestsMessage} />
       ) : (
-        <ul className="space-y-2">
+        <ul className="divide-y divide-border rounded-md border border-border">
           {requests.map((req) => (
-            <li
-              key={req.id}
-              className="flex items-center justify-between bg-white p-3 rounded-md border border-slate-200 text-sm"
-            >
+            <li key={req.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
               <div>
-                <div className="font-medium text-slate-900">{req.institution_name}</div>
-                <div className="text-xs text-slate-500">{formatDate(req.requested_at)}</div>
+                <div className="text-[15px] font-medium text-foreground">{req.institution_name}</div>
+                <div className="font-mono text-xs text-muted-foreground">{formatDate(req.requested_at)}</div>
               </div>
-              <span
-                className={`text-xs font-medium px-2 py-1 rounded-full ${
-                  STATUS_BADGE_CLASS[req.status] ?? "bg-slate-100 text-slate-700"
-                }`}
-              >
+              <Badge variant={STATUS_BADGE_VARIANT[req.status] ?? "default"}>
                 {getStatusBadgeLabel(req.status)}
-              </span>
+              </Badge>
             </li>
           ))}
         </ul>
       )}
-    </section>
+    </ProfileSection>
   );
 }
