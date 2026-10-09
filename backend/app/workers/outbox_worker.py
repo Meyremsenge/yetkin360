@@ -179,17 +179,22 @@ def email_duplicate_registration_handler(payload: dict, outbox_id: int) -> None:
     """
     from app.core.config import settings
 
-    # For MVP, EMAIL_BACKEND=console means print to console (simulated delivery)
     if settings.email_backend == "console":
         print(
             f"[EMAIL] Duplicate registration attempt email "
             f"(outbox_id={outbox_id})"
         )
-        # In production, SMTP backend would actually send email here
-        # For now, just succeed (no exception raised)
-    elif settings.email_backend == "smtp":
-        # TODO: real SMTP delivery (PLAN 1.6)
-        pass
+        return
+
+    _send_smtp_email(
+        to_email=payload["user_email"],
+        subject="Yetkin360 - Hesabınızla kayıt denemesi",
+        body=(
+            "Bu e-posta adresiyle Yetkin360'a tekrar kayıt olunmaya çalışıldı. "
+            "Zaten bir hesabınız var — giriş yapmak isterseniz giriş sayfasını kullanın. "
+            "Bu isteği siz yapmadıysanız bu e-postayı yok sayabilirsiniz."
+        ),
+    )
 
 
 def _send_smtp_email(to_email: str, subject: str, body: str) -> None:
