@@ -275,7 +275,7 @@ Sıra demo akışına göredir (`§4`). Her ekran için "bitti" tanımı `§6`.
 
 #### 3d. Kuruluş (işveren) ve kurum (üniversite)
 
-- [ ] **FE-20** **`/kurulus/[id]/panel`** — **P1**
+- [x] **FE-20** **`/kurulus/[id]/panel`** — **P1**
   - `PageHeader` (kuruluş adı + `TrustLevelBadge`).
   - `StatCard` satırı: aktif çalışma, değerlendirme bekleyen, doğrulanmış (mevcut yanıt verisinden sayılır).
   - "Sizden aksiyon bekleyenler" listesi (onay bekleyen, değerlendirme bekleyen) en üstte.

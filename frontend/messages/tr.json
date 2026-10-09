@@ -455,7 +455,15 @@
     "inviteButton": "Davet Gönder",
     "invitingButton": "Gönderiliyor...",
     "inviteSuccessMessage": "Davet kuyruğa alındı.",
-    "inviteErrorMessage": "Davet gönderilemedi."
+    "inviteErrorMessage": "Davet gönderilemedi.",
+    "trustLevel": {
+      "T0": "Kişinin kendi beyanı",
+      "T1": "Doğrulanmamış kuruluş",
+      "T2": "Alan adı doğrulanmış",
+      "T3": "Kimliği doğrulanmış kuruluş",
+      "T4": "Kuruluş + üniversite ortak onayı"
+    },
+    "txtRecordLabel": "TXT kaydı değeri"
   },
   "adminVerificationQueue": {
     "title": "Kurum Doğrulama Kuyruğu",
