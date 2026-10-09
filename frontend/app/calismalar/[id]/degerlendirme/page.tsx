@@ -5,9 +5,14 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
+import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { getEngagement } from "@/lib/api/engagements";
 import { EvaluationForm } from "./evaluation-form";
 import messages from "@/messages/tr.json";
+
+const BACK_BUTTON_CLASS =
+  "mt-4 inline-flex h-10 items-center rounded-md border border-border bg-muted px-4 text-sm font-medium text-foreground hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success";
 
 export default function DegerlendirmePage() {
   const params = useParams<{ id: string }>();
@@ -19,31 +24,73 @@ export default function DegerlendirmePage() {
     queryFn: () => getEngagement(id),
   });
 
+  const backHref = `/calismalar/${id}`;
+
   return (
     <AppShell>
-      <div className="p-6 max-w-2xl mx-auto">
-        <Link href={`/calismalar/${id}`} className="text-sm text-slate-600 hover:underline">
+      <div className="mx-auto max-w-[880px] px-4 py-8 md:px-6 lg:px-10">
+        <Link
+          href={backHref}
+          className="text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success"
+        >
           ← {messages.degerlendirme.backLink}
         </Link>
 
-        <h1 className="text-2xl font-bold mt-4 mb-6">{messages.degerlendirme.title}</h1>
+        <h1 className="mt-4 font-serif text-[32px] font-semibold leading-10 text-foreground">
+          {messages.degerlendirme.title}
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">{messages.degerlendirme.subtitle}</p>
 
         {isLoading ? (
-          <p className="text-slate-600">{messages.shell.loading}</p>
+          <div role="status" className="mt-6 space-y-4">
+            <span className="sr-only">{messages.shell.loading}</span>
+            <div aria-hidden="true" className="h-20 animate-pulse rounded-lg bg-muted" />
+            <div aria-hidden="true" className="h-64 animate-pulse rounded-lg bg-muted" />
+          </div>
         ) : isError || !engagement ? (
-          <div role="alert" className="rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-700">
+          <Alert variant="error" className="mt-6 text-sm">
             {messages.calismalar.detailLoadError}
-          </div>
-        ) : engagement.status !== "PENDING_EVALUATION" ? (
-          <div role="alert" className="rounded-md bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
-            {messages.degerlendirme.notEligibleMessage}
-          </div>
-        ) : justSubmitted ? (
-          <div role="status" className="rounded-md bg-green-50 border border-green-200 p-4 text-sm text-green-700">
-            {messages.degerlendirme.successMessage}
-          </div>
+          </Alert>
         ) : (
-          <EvaluationForm engagementId={id} onSubmitted={() => setJustSubmitted(true)} />
+          <>
+            <section className="mt-6 flex items-start justify-between gap-4 rounded-lg border border-border bg-sand p-5">
+              <div>
+                <h2 className="font-serif text-xl font-medium leading-7 text-foreground">
+                  {engagement.title}
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {messages.calismalar.kind[engagement.kind]} · {engagement.organization_name}
+                </p>
+              </div>
+              <Badge variant="warning" className="shrink-0">
+                {messages.calismalar.status[engagement.status]}
+              </Badge>
+            </section>
+
+            <div className="mt-8">
+              {engagement.status !== "PENDING_EVALUATION" ? (
+                <>
+                  <Alert variant="warning" className="text-sm">
+                    {messages.degerlendirme.notEligibleMessage}
+                  </Alert>
+                  <Link href={backHref} className={BACK_BUTTON_CLASS}>
+                    {messages.degerlendirme.backLink}
+                  </Link>
+                </>
+              ) : justSubmitted ? (
+                <>
+                  <Alert variant="success" className="text-sm">
+                    {messages.degerlendirme.successMessage}
+                  </Alert>
+                  <Link href={backHref} className={BACK_BUTTON_CLASS}>
+                    {messages.degerlendirme.backLink}
+                  </Link>
+                </>
+              ) : (
+                <EvaluationForm engagementId={id} onSubmitted={() => setJustSubmitted(true)} />
+              )}
+            </div>
+          </>
         )}
       </div>
     </AppShell>

@@ -284,7 +284,7 @@ Sıra demo akışına göredir (`§4`). Her ekran için "bitti" tanımı `§6`.
   - Aynı panel kalıbı: stat kartları, bekleyen bağlantı istekleri, öğrenci/çalışma tablosu.
   - Tablo: başlık satırı sabit, durum rozeti, satır tıklanınca detay.
   - Bileşen dosyalarına bölünür (sayfa dosyası < 200 satır hedefi) — **davranış değişmez**.
-- [ ] **FE-22** **`/calismalar/[id]/degerlendirme`** — **P0** (zincirin "tanıklık" adımı canlı gösterilir)
+- [x] **FE-22** **`/calismalar/[id]/degerlendirme`** — **P0** (zincirin "tanıklık" adımı canlı gösterilir)
   - Değerlendirilen çalışma özeti kartı üstte.
   - Puanlama alanları büyük, seçilebilir kartlar/segmentler; skill tanıklıkları çip seçimi.
   - Gönder → onay `Dialog`'u ("Bu tanıklık geri alınamaz şekilde kaydedilir").

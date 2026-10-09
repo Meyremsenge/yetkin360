@@ -353,7 +353,12 @@
     "submittingButton": "Gönderiliyor...",
     "successMessage": "Değerlendirme gönderildi.",
     "conflictError": "Bu çalışma şu anda değerlendirilemiyor (zaten değerlendirilmiş veya durumu değişmiş olabilir). Güncel durum yeniden yüklendi.",
-    "notEligibleMessage": "Bu çalışma değerlendirme aşamasında değil, form gösterilemiyor."
+    "notEligibleMessage": "Bu çalışma değerlendirme aşamasında değil, form gösterilemiyor.",
+    "subtitle": "Her kriter için gözleminizi işaretleyin. Gönderilen değerlendirme değiştirilemez.",
+    "criterionCaption": "Kriter {n}",
+    "criteriaCount": "{n} kriter",
+    "removeItemAria": "Kriter {n} kaldır",
+    "ratingGroupLabel": "Değerlendirme seçenekleri"
   },
   "publicProfile": {
     "empty": "henüz doğrulanmış deneyim yok",
