@@ -322,6 +322,17 @@ PLAN maddesi olarak açılmamıştı. Detay: `HATA.md`.**
 - [ ] 3.48 Frontend testleri + CI'da vitest (HATA_DUZELTME_PROMPT B-11, TEST-01) @fe
 - [ ] 3.49 Kurum bağlanma talepleri + admin kuyruğu reddi (HATA_DUZELTME_PROMPT B-12, IS-10, IS-11) @fe
 - [ ] 3.50 Profil düzeltmeleri, skill yönetimi, frontend bağımlılığı (HATA_DUZELTME_PROMPT B-13, IS-09, DEP-02, L-06, L-10) @fe
+- [ ] 3.51 Outbox worker'a eksik bildirim handler'ları eklenmeli: `attestation.created`
+      (öğrenciye tanıklık/doğrulama bildirimi) ve `engagement.pending_approval`
+      (koordinatöre onay bekleyen çalışma bildirimi) — ikisi de servis katmanında
+      kuyruğa ekleniyor ama `app/workers/outbox_worker.py`'deki `DEFAULT_HANDLERS`
+      sözlüğünde kayıtlı değil; worker sonsuza kadar çalışsa bile bu satırlar hiç
+      seçilmiyor (sorgu yalnız handler'ı olan konuları çekiyor), kalıcı olarak
+      işlenmeden kuyrukta birikiyor. Ayrıca outbox worker'ın kendisi hiçbir yerde
+      (launch.json, Docker, systemd) sürekli çalışan bir servis olarak
+      tanımlı değildi — bu oturumda elle `python -m app.workers.outbox_worker`
+      çalıştırılarak `email.verify_email` kuyruğu boşaltıldı, kalıcı çözüm değil.
+      bkz. 3.27. @be2
 - [ ] 3.16 Kod dondurma — Faz 4'e yeni özellik girmez @all
 
 ---
