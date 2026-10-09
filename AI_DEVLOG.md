@@ -1258,3 +1258,32 @@ için gereken en tutarlı yorum.
 - **Ölü kod (red-team, düşük önem):** `scoped_attestations()` yazıldı ama
   hiç kullanılmadı (`revoke_attestation()` bunun yerine
   `scoped_engagements()` + manuel attestor kontrolü kullanıyordu) — silindi.
+
+## fe12-landing-sicil-gazetesi (FE-12 — Landing sayfası yeniden tasarımı)
+- **Next-intl varsayımı yanlış çıktı (kaynak: plan.md):** atdd.md yazılırken
+  projenin next-intl kullandığı varsayılmıştı; Discover adımında gerçek
+  kodun `import messages from "@/messages/tr.json"` ile düz JSON import
+  deseni kullandığı bulundu (next-intl hiç kurulu değil). Plan bu desene
+  göre güncellendi — atdd.md'nin kendi varsayımları bile Discover'da
+  doğrulanmalı, kör güvenilmemeli.
+- **ChainProgress/VerifiedSeal bağımlılık boşluğu (kaynak: atdd.md Risks):**
+  Landing, planfrontend.md'nin FE-07 bileşen setine (ChainProgress,
+  VerifiedSeal) bağımlıydı ama bunlar hiç yazılmamıştı. Kullanıcı kararıyla
+  bu görev kapsamına minimal (display-only, static prop) versiyonları
+  dahil edildi — ileride FE-16/FE-17 bunları genişletecek, prop sözleşmesi
+  o zaman değişebilir (kabul edilen risk).
+- **Red-team bulgusu — sessizce kapanan kapsam (kaynak: code_diff.md/
+  red_team.json):** plan.md'nin Open Questions bölümü "Yok" diye
+  kapatılmıştı ama atdd.md'nin AC-2'si (iki CTA: "Kayıt Ol" + "Örnek bir
+  doğrulamayı incele") sadece yarı karşılanmıştı — ikinci CTA hiç yoktu.
+  Red-team bunu test-gap olarak yakaladı (testler sadece "Kayıt Ol"
+  href'ini kontrol ediyordu, eksik CTA'yı kanıtlayamıyordu). **Ders:**
+  "Open Questions: Yok" yazmak, atdd.md'nin kendi Unknowns bölümündeki
+  netleşmemiş bir maddeyi örtmemeli — plan aşamasında gerçekten çözülmüş
+  mü diye tekrar kontrol edilmeli. Kullanıcı onayıyla düzeltildi: ikinci
+  CTA eklendi, geçici hedef `/giris` (FE-13 bitince gerçek örnek
+  doğrulama sayfasına güncellenecek).
+- **Lighthouse MCP bu oturumda kurulu değil:** Gate 8/9 (performans/
+  erişilebilirlik) INCONCLUSIVE kaldı, sahte PASS yazılmadı. Görsel
+  doğrulama yerine Playwright MCP ile iki viewport'ta manuel inceleme
+  yapıldı (verify_report.md'de detaylı).

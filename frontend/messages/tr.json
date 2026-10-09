@@ -2,7 +2,39 @@
   "home": {
     "title": "Yetkin360",
     "tagline": "beyan → kanıt → tanıklık → doğrulanmış deneyim",
-    "cta": "Başla"
+    "cta": "Başla",
+    "secondaryCta": "Örnek Bir Doğrulamayı İncele",
+    "loginLink": "Giriş Yap",
+    "registerLink": "Kayıt Ol",
+    "heroTitle": "Yetkinliğiniz iddia değil, kanıt olsun.",
+    "heroDescription": "Beyanınızı kanıtla destekleyin, kanıtınızı tanıklıkla doğrulatın. Ortaya çıkan kayıt, bir kurumun gözünden de okunabilir.",
+    "sealCaption": "Doğrulama sertifikası örneği. İsim ve tarih, doğrulama tamamlandığında görünür.",
+    "chainTitle": "Zincir nasıl işler",
+    "chain": {
+      "claim": "Beyan",
+      "evidence": "Kanıt",
+      "attestation": "Tanıklık",
+      "verified": "Doğrulanmış Deneyim"
+    },
+    "comparisonTitle": "Beyan mı, doğrulanmış kayıt mı?",
+    "comparisonClaim": "Kendi beyanınız: yalnızca sizin sözünüzden ibaret.",
+    "comparisonVerified": "Doğrulanmış kayıt: kanıt ve tanıklıkla teyit edilmiş.",
+    "personasTitle": "Kimler için?",
+    "personas": {
+      "student": {
+        "title": "Öğrenci",
+        "description": "Staj ve proje deneyimlerinizi kanıtla belgeleyin."
+      },
+      "organization": {
+        "title": "Kuruluş",
+        "description": "Ekibinizdeki yetkinlikleri kayıtlı kanıtlarla görün."
+      },
+      "institution": {
+        "title": "Kurum",
+        "description": "Öğrencilerinizin doğrulanmış deneyimlerini tek yerden izleyin."
+      }
+    },
+    "footerNote": "Yetkin360 açık kaynak bir projedir."
   },
   "shell": {
     "loading": "Yükleniyor...",

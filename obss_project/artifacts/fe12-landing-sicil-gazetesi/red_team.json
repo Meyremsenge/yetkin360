@@ -1,0 +1,73 @@
+{
+  "task": "fe12-landing-sicil-gazetesi",
+  "reviewed_at": "2026-10-08T00:00:00Z",
+  "summary": "Uygulama genel olarak temiz, CAVEMAN'a uygun ve testlerle iyi örtüşüyor; ancak AC-2'nin açıkça talep ettiği ikinci CTA ('Örnek bir doğrulamayı incele') hiç implemente edilmemiş ve bu eksiklik mevcut testlerle yakalanamıyor çünkü testler sadece 'Kayıt Ol' href'ini doğruluyor. Ayrıca hero'daki asıl CTA metni 'Başla' olup ATDD/plan'ın öngördüğü 'Kayıt Ol' söylemiyle tutarsız, bu da jüri/ziyaretçi için mesaj netliğini zayıflatıyor.",
+  "findings": [
+    {
+      "severity": "high",
+      "category": "test-gap",
+      "file": "frontend/app/page.tsx",
+      "issue": "AC-2, atdd.md'de açıkça iki CTA tanımlıyor: 'Kayıt Ol' VEYA 'Örnek bir doğrulamayı incele' — ikisinin de ilgili route'a link vermesi gerekiyor. Mevcut page.tsx'te sadece tek bir CTA (home.cta='Başla', href=/kayit) ve nav'daki 'Kayıt Ol' linki var; 'örnek doğrulamayı incele' linki hiç yok.",
+      "better_approach": "Hero bölümüne ikinci bir CTA eklenmeli ve page.test.tsx'e bu linki doğrulayan bir AC-2 testi yazılmalı.",
+      "reason": "atdd.md AC-2 bu CTA'yı Critical önceliğinde listeliyor; plan.md'nin Open Questions bölümü bunu çözüldü diye kapatmış ama gerçekte hiç uygulanmamış — sessiz kapsam daralması."
+    },
+    {
+      "severity": "medium",
+      "category": "readability",
+      "file": "frontend/app/page.tsx",
+      "issue": "Hero CTA metni home.cta ('Başla') kullanılırken, nav'daki eşdeğer eylem 'Kayıt Ol' (home.registerLink) farklı metin taşıyor.",
+      "better_approach": "Hero CTA'sı da home.registerLink ('Kayıt Ol') kullanmalı veya tutarlı bir home.heroCta anahtarı tanımlanmalı.",
+      "reason": "İki farklı metin marka tutarlılığını ve jüri okunabilirliğini zayıflatıyor."
+    },
+    {
+      "severity": "low",
+      "category": "scope",
+      "file": "frontend/app/page.tsx",
+      "issue": "plan.md'nin Design Direction'ı 'Neden farklı' bölümü için büyük manifesto alıntısı öngörüyor, gerçek kodda sadece iki düz paragraf var.",
+      "better_approach": "Comparison bölümüne daha büyük, tipografik olarak öne çıkan bir blockquote eklenebilir.",
+      "reason": "Salt görsel/editoryal sapma, hiçbir AC'yi ihlal etmiyor — low severity, Stitch sadakati notu."
+    },
+    {
+      "severity": "low",
+      "category": "maintainability",
+      "file": "frontend/app/page.tsx",
+      "issue": "chainSteps dizisindeki completed değerleri sabit kodlanmış (son adım hep tam).",
+      "better_approach": "Kabul edilebilir — atdd.md bunu display-only/static prop olarak kapsam dışına almış; ileride FE-16/FE-17 bu alanı prop'a bağlarken hatırlatılmalı.",
+      "reason": "atdd.md Risks bölümünde zaten kabul edilmiş risk — hatırlatma niteliğinde."
+    }
+  ],
+  "strengths": [
+    "Tüm Türkçe metinler messages/tr.json üzerinden geliyor, JSX içine gömülü metin yok (AC-8 doğrulandı).",
+    "ChainProgress ve VerifiedSeal savunmacı yazılmış: boş steps/eksik name ile crash etmiyor, sahte veri göstermiyor (AC-5/AC-6).",
+    "Design token kullanımı doğru: ham hex yok, bg-success/text-background/border-border token'ları kullanılmış.",
+    "motion-reduce:transition-none ile prefers-reduced-motion desteği var (AC-7).",
+    "Rakamlar şeridi hiç implemente edilmemiş — 'veri yoksa DOM'a hiç girmez' kuralının en güvenli uygulaması (AC-3).",
+    "CAVEMAN disiplini iyi: gereksiz soyutlama/state management yok, düz JSON import + statik render deseni izlenmiş."
+  ],
+  "risks": [
+    "AC-2'nin ikinci CTA'sının eksik olması, hackathon jürisi sunumunda 'örnek bir doğrulamayı incele' akışının hiç gösterilememesi riskini taşıyor.",
+    "button.tsx'teki design-token-dışı slate-900 tutarsızlığı bu görevde düzeltilmedi (kabul edilmiş kapsam dışı risk, plan.md'de not edilmiş)."
+  ],
+  "caveman_review": {
+    "complexity": "low",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve",
+  "post_fix_note": "High (test-gap) ve medium (readability) bulguları kullanıcı onayıyla düzeltildi: ikinci CTA ('Örnek Bir Doğrulamayı İncele', geçici hedef /giris — FE-13 bitince güncellenecek) eklendi, hero CTA metni 'Kayıt Ol' ile tutarlı hale getirildi. Bağımsız doğrulama: 34/34 yeni/ilgili test PASS, tüm paket 1214/1214 PASS, typecheck temiz. İki low-severity bulgu (manifesto alıntısı eksikliği, chainSteps sabit kodlanması) kullanıcı kararıyla kabul edilmiş risk olarak bırakıldı, düzeltilmedi."
+}
