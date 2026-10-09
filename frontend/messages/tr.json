@@ -306,7 +306,10 @@
     "submittingButton": "Oluşturuluyor...",
     "missingLinkMessage": "Bu link eksik veya geçersiz. Organizasyonunuzdan doğru linki isteyin.",
     "notATalentMessage": "Bu özellik yalnızca öğrenci hesapları için kullanılabilir.",
-    "invalidLinkError": "Bu organizasyon bulunamadı. Organizasyonunuzdan doğru linki isteyin."
+    "invalidLinkError": "Bu organizasyon bulunamadı. Organizasyonunuzdan doğru linki isteyin.",
+    "description": "Oluşturduğunuz çalışma taslak olarak kaydedilir; ardından kuruluşun onayına gönderirsiniz.",
+    "titlePlaceholder": "Örn. Veri Analisti Yaz Stajı",
+    "loadingLabel": "Form yükleniyor"
   },
   "degerlendirme": {
     "title": "Değerlendirme Formu",

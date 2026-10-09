@@ -271,7 +271,7 @@ Sıra demo akışına göredir (`§4`). Her ekran için "bitti" tanımı `§6`.
   - Sekmeler: Profil bilgileri · Yetkinlikler · Kanıt dökümü · Kurum bağlantısı.
   - Yetkinlikler: **beyan** (gri, "Beyan") ile **sinyal/doğrulanmış** (yeşil, kanıt sayısı) görsel olarak ayrışır — ürün iddiasının profildeki karşılığı.
   - `SkillPicker` arama + çip görünümü.
-- [ ] **FE-19** **`/calismalar/olustur`** — **P1** — tek kart form, adım açıklaması, kuruluş/kurum seçimi açık etiketli.
+- [x] **FE-19** **`/calismalar/olustur`** — **P1** — tek kart form, adım açıklaması, kuruluş/kurum seçimi açık etiketli.
 
 #### 3d. Kuruluş (işveren) ve kurum (üniversite)
 
