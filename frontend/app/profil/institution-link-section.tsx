@@ -34,7 +34,12 @@ function formatDate(isoDate: string): string {
  */
 export default function InstitutionLinkSection() {
   const session = useSession();
-  const institutions = (session?.data?.institutions as Array<{ id: string; name: string }> | undefined) ?? [];
+  // `/me.institutions` lists institutions this user STAFFS (coordinator/admin
+  // membership, via principal.institution_ids) — a student is never a member
+  // of their own institution that way, so that field is always empty for
+  // them even when linked. The student's own link lives on their talent
+  // profile (`talent_profile.institution_id`); use that instead.
+  const isLinked = Boolean(session?.data?.talent_profile?.institution_id);
 
   const REQUESTS_QUERY_KEY = ["my-institution-link-requests"] as const;
   const { data, isLoading, isError, refetch } = useQuery({
@@ -42,23 +47,22 @@ export default function InstitutionLinkSection() {
     queryFn: listMyLinkRequests,
   });
   const requests = data?.items ?? [];
+  const linkedInstitutionName = requests.find((req) => req.status === "APPROVED")?.institution_name;
 
   return (
     <section className="mt-8">
       <h2 className="text-lg font-bold mb-3">{messages.profil.institutionLinkSection}</h2>
 
-      {institutions.length === 0 ? (
+      {!isLinked ? (
         <div className="bg-slate-50 rounded-md border border-slate-200 p-4 text-sm">
           <div className="text-slate-700 mb-1">{messages.profil.notLinkedMessage}</div>
           <div className="text-slate-500">{messages.profil.notLinkedHint}</div>
         </div>
       ) : (
         <ul className="space-y-1 mb-4">
-          {institutions.map((inst) => (
-            <li key={inst.id} className="text-sm text-slate-900 font-medium">
-              {inst.name}
-            </li>
-          ))}
+          <li className="text-sm text-slate-900 font-medium">
+            {linkedInstitutionName ?? messages.profil.linkedFallbackMessage}
+          </li>
         </ul>
       )}
 

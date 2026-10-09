@@ -159,6 +159,7 @@
     "institutionLinkSection": "Kurum Bağlantısı",
     "notLinkedMessage": "Henüz bir kuruma bağlı değilsiniz.",
     "notLinkedHint": "Kurumunuzdan aldığınız bağlantıyı kullanarak bağlanma talebi gönderebilirsiniz.",
+    "linkedFallbackMessage": "Bir kuruma bağlısınız.",
     "linkRequestHistoryTitle": "Bağlanma Taleplerim",
     "emptyLinkRequestsMessage": "Henüz bir bağlanma talebiniz yok.",
     "linkRequestsLoadError": "Bağlanma talepleriniz yüklenemedi.",
