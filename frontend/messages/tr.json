@@ -84,6 +84,9 @@
     "brandSentence": "Sicil kaydınız, kanıtlarınızla birlikte güvenle saklanır.",
     "forgotPasswordLink": "Şifremi Unuttum"
   },
+  "errorPage": {
+    "title": "Bir şeyler ters gitti"
+  },
   "notFound": {
     "title": "Sayfa bulunamadı",
     "description": "Aradığınız sayfa bulunamadı.",
