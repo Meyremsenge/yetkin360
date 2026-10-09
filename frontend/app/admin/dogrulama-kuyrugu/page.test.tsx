@@ -159,8 +159,19 @@ describe("DogrulamaKuyruguPage (/admin/dogrulama-kuyrugu)", () => {
   // AC-2: Seviye güncelleme (mutation)
   // =========================================================================
 
-  it("AC-2: seviye güncelleme başarılı — satır güncellenir, yeşil bildirim gösterilir", async () => {
-    const updatedOrg = { ...mockOrganization, verification_level: "T3" };
+  it("AC-2: seviye güncelleme başarılı — satır kuyruktan kaybolur, yeşil bildirim gösterilir", async () => {
+    // Sunucu yanıtı (updated) legal_id/domain döndürmez — satırı o eksik
+    // veriyle yerinde tutmak yerine (brif §19 "işlenen satır kaybolur")
+    // reject ile tutarlı şekilde kuyruktan kaldırılması beklenir.
+    const updatedOrg = {
+      id: mockOrganization.id,
+      name: mockOrganization.name,
+      legal_id: null,
+      domain: null,
+      verification_level: "T3",
+      verified_at: "2026-10-09T22:09:33Z",
+      created_at: mockOrganization.created_at,
+    };
     vi.mocked(adminApi.getVerificationQueue).mockResolvedValueOnce(
       mockVerificationQueue
     );
@@ -193,11 +204,11 @@ describe("DogrulamaKuyruguPage (/admin/dogrulama-kuyrugu)", () => {
       expect(successMessage).toBeTruthy();
     });
 
-    // Satır güncellenmeli
+    // Satır kuyruktan kaybolmalı; diğer satır (Startup Inc.) listede kalmalı
     await waitFor(() => {
-      const updatedRow = within(table).getByText("Tech Startup Inc.").closest("tr");
-      expect(within(updatedRow!).getByDisplayValue("T3")).toBeTruthy();
+      expect(screen.queryByText("Tech Startup Inc.")).toBeNull();
     });
+    expect(screen.getByText("Startup Inc.")).toBeTruthy();
   });
 
   it("YET-198: Reddet — kurum kuyruktan çıkar, rejectVerification çağrılır, seviye güncelleme çağrılmaz", async () => {

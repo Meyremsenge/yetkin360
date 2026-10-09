@@ -27,13 +27,13 @@ export default function DogrulamaKuyruguPage() {
       if (!updated) return;
       setMutationError(null);
       setSuccessMessage(messages.adminVerificationQueue.updated);
+      // Brif §19: işlenen satır kaybolur — onaylanmış kuruluş artık kuyruğun
+      // eligibility kriterini (T2 + legal_id dolu) karşılamayabilir, ayrıca
+      // sunucu yanıtı (updated) legal_id/domain döndürmüyor; satırı o eksik
+      // veriyle yerinde güncellemek yerine reject ile tutarlı şekilde kaldırıyoruz.
       queryClient.setQueryData(QUEUE_KEY, (prev: adminApi.VerificationQueueResponse | undefined) => {
         if (!prev) return prev;
-        return {
-          items: prev.items.map(org =>
-            org.id === updated.id ? updated : org
-          ),
-        };
+        return { items: prev.items.filter((org) => org.id !== updated.id) };
       });
       setTimeout(() => setSuccessMessage(null), 3000);
     },
