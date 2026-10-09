@@ -2,7 +2,7 @@
 name: ekran
 description: Tek bir frontend ekranını docs/sayfa-tasarim-brifi.md + tasarimlar/stitch/ mockup'ına göre yeni görsel dile (kâğıt/mürekkep/mühür) geçirir. Yalnız sunum katmanı; veri/iş mantığı değişmez. Argümansız çağrılırsa kuyruktaki sıradaki ekranı seçer. Kullanıcı /ekran yazdığında çalışır.
 disable-model-invocation: true
-argument-hint: "(boş = kuyruktaki sıradaki) | <kuyruk kodu: 2, shell, 3, 10, 10b, 10c, 13, 11, 9, 14, 21, 16, 12, 18, 19>"
+argument-hint: "(boş = kuyruktaki sıradaki) | <kuyruk kodu: ui, 2, shell, 3, 10, 10b, 10c, auth, 13, 11, 9, 14, 21, 16, 12, 18, 19, 20>"
 ---
 
 # Ekran dönüştür
@@ -17,12 +17,14 @@ Argüman verildiyse onu al. **Argüman boşsa:** `planfrontend.md`'yi oku ve aş
 
 | Sıra | Kod | Ekran | FE | Model | Dosya(lar) | Mockup (`tasarimlar/stitch/proje1-tum-sayfalar/`) |
 |---|---|---|---|---|---|---|
+| 0 | `ui` | Ortak ilkeller + paylaşılan bileşenler (birincil buton bugün siyah, brifte çam) | FE-05 | Sonnet | `components/ui/button.tsx`, `input.tsx`, `label.tsx`, `components/email-verification-banner.tsx`, `components/skill-picker.tsx` | — (brif §2.1, §2.2, §5.3) |
 | 1 | `2` | `/v/[token]` sertifika | FE-13 | Sonnet | `app/v/[token]/page.tsx` | `19-…`, `04-…` |
 | 2 | `shell` | AppShell: giriş sonrası tüm sayfaları saran sol menü + mobil çekmece (brif §5) | FE-09 | **Opus** | `components/app-shell.tsx` | `06-…` (sol kısım) |
 | 3 | `3` | `/p/[slug]` public profil | FE-14 | Sonnet | `app/p/[slug]/page.tsx` | `15-…`, `05-…` |
 | 4 | `10` | `/calismalar/[id]` sayfa iskeleti + zincir + durum butonları | FE-17 | **Opus** | `app/calismalar/[id]/page.tsx`, `transition-actions.tsx` | `06-…` |
 | 5 | `10b` | `/calismalar/[id]` görev/çıktı/kanıt formları | FE-17 | **Opus** | `task-form.tsx`, `deliverable-form.tsx`, `evidence-upload-form.tsx` | `06-…` |
 | 6 | `10c` | `/calismalar/[id]` tanıklık formları | FE-17 | **Opus** | `attestation-form.tsx`, `attestation-revoke.tsx` | `06-…` |
+| 6b | `auth` | Giriş/kayıt/şifre/e-posta formlarının içi (AuthLayout zaten yeni) | FE-15 | Sonnet | `app/giris/*`, `app/kayit/*`, `app/sifre-unuttum/*`, `app/sifre-sifirla/*`, `app/e-posta-dogrula/*` | `proje2-brifi-v2/07-giris-v2.png` |
 | 7 | `13` | `/profil` | FE-18 | Sonnet | `app/profil/*` (5 bileşen) | `07-…` |
 | 8 | `11` | değerlendirme formu | FE-22 | Sonnet | `app/calismalar/[id]/degerlendirme/*` | `12-…`, `14-…` |
 | 9 | `9` | `/calismalar` liste | FE-16 | Sonnet | `app/calismalar/page.tsx` | `09-…` |
@@ -32,10 +34,11 @@ Argüman verildiyse onu al. **Argüman boşsa:** `planfrontend.md`'yi oku ve aş
 | 13 | `12` | yeni çalışma | FE-19 | Sonnet | `app/calismalar/olustur/page.tsx` | `11-…` |
 | 14 | `18` | kurum/kuruluş oluştur + kuruma bağlan | FE-23 | Sonnet | `app/kurum/[id]/baglan/`, `app/kurum/olustur/`, `app/kurulus/olustur/` | `13-…`, `01-…`, `03-…` |
 | 15 | `19` | admin doğrulama kuyruğu | FE-24 | Sonnet | `app/admin/dogrulama-kuyrugu/page.tsx` | `02-…` |
+| 16 | `20` | admin yetkinlik yönetimi (P2, vakit kalırsa) | FE-25 | Sonnet | `app/admin/skiller/page.tsx` | `08-…` |
 
 **Model kontrolü:** Seçilen ekran **Opus** ise ve sen Opus değilsen, işe başlamadan tek satır yaz ve dur: "Bu ekran (`<kod>`) Opus önerilir: `/model opus` yazıp `/ekran <kod>` ile yeniden başlat, ya da 'devam' de." Kullanıcı "devam" derse sen yap. Opus ekranları riskli olanlar: çok testli (shell 29 test), durum makinesine bağlı butonlar, dosya yükleme akışı. Sonnet ekranlarını Opus da yapabilir, uyarı gerekmez.
 
-**Kuyruk bittiyse** (15 kodun hepsi `[x]`): ekran dönüştürme yapma. Kullanıcıya şunu söyle ve dur: "Ekran kuyruğu bitti. Kalan cila işleri (`planfrontend.md` Faz 4): FE-26 durumlar turu, FE-27 responsive turu, FE-28 erişilebilirlik turu, FE-31 tam doğrulama, FE-32 demo provası. Hangisiyle devam edelim?"
+**Kuyruk bittiyse** (tablodaki tüm kodlar `[x]`): ekran dönüştürme yapma. Kullanıcıya şunu söyle ve dur: "Ekran kuyruğu bitti. Kalan cila işleri (`planfrontend.md` Faz 4): FE-26 durumlar turu, FE-27 responsive turu, FE-28 erişilebilirlik turu, FE-31 tam doğrulama, FE-32 demo provası. Hangisiyle devam edelim?"
 
 Dosya yolları `frontend/` altında. Brif bölümü = kodun numarası (`shell` → §5; `10/10b/10c` → "10. Çalışma detayı"; `18` → brif 17+18 ve 15).
 Mockup tam adı: `ls tasarimlar/stitch/proje1-tum-sayfalar/ | grep '^19-'`. Ek referans: `tasarimlar/stitch/proje2-brifi-v2/`.
@@ -92,6 +95,20 @@ grep -cE '(slate|gray|zinc|red|green|blue|indigo|amber|emerald|yellow)-[0-9]{2,3
   - başlık sırası h1→h2→h3
 
 ## 5. Ekrana özel notlar
+
+**`ui` — ortak ilkeller**
+- `Button` primary: `bg-slate-900` yerine `bg-success text-card hover:bg-success/90`. Diğer varyantlar brif §2.1'e göre (secondary = nötr/soluk, ghost, destructive = tuğla). Tümüne `focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2` ve `disabled:opacity-50 disabled:cursor-not-allowed`.
+- `Input`: `border-border bg-card`, focus halkası çam. `Label`: `text-foreground` 14px 500.
+- `email-verification-banner.tsx`: brif §5.3 (uyarı şeridi, aşı tonları: `bg-warning/10 border-warning/30 text-warning`, hata metni `text-destructive`).
+- `skill-picker.tsx`: token renkleri; davranış aynı.
+- **Prop API'si değişmez** (variant/size adları aynı; yeni prop ekleme). Bu bileşenler 25+ dosyada kullanılıyor.
+- `button.test.tsx` ve diğer ilkel testleri sınıf adı doğruluyor. Görünüm değiştiği için bunlar **bilerek** güncellenir (planfrontend K-5). Her değişen assertion'ı raporda listele.
+- Bitince **tüm** frontend testlerini çalıştır (`npx vitest run`), yalnız ilkel testlerini değil. Sayfa testleri sınıfa bağlıysa onlar da kırılabilir.
+- Diğer ekranlar butona `className` ile kendi rengini vermiş olabilir. Onlara dokunma, rapora yaz.
+
+**`auth` — giriş/kayıt formları**
+- `AuthLayout` ve sayfa iskeleti zaten yeni; yalnız form içleri (`form.tsx`, sayfa içi hata/başarı kutuları) token'a geçer. Hata kutusu → `Alert variant="error"`, başarı → `Alert variant="success"`.
+- Form doğrulama (Zod), yönlendirme ve API çağrısı değişmez.
 
 **`2` — `/v/[token]`**
 - Brif tablosunu satır satır uygula:
