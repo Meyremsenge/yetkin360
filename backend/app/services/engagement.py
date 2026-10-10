@@ -985,12 +985,12 @@ def list_engagements(
     principal: Principal,
     limit: int = 50,
     offset: int = 0,
-) -> list[tuple[Engagement, str]]:
+) -> list[tuple[Engagement, str, str]]:
     """
-    List engagements scoped to principal with organization name (AC-1, AC-2, AC-3, AC-8).
+    List engagements scoped to principal with organization and talent name (AC-1, AC-2, AC-3, AC-8).
 
     Returns engagements accessible to principal (by scoped_engagements), sorted by
-    updated_at descending, with organization name joined in single query (N+1-free).
+    updated_at descending, with organization and talent names batch-loaded (N+1-free).
 
     Args:
         session: Database session
@@ -999,7 +999,7 @@ def list_engagements(
         offset: Pagination offset (default 0)
 
     Returns:
-        List of (Engagement, organization_name) tuples, sorted by updated_at DESC
+        List of (Engagement, organization_name, talent_name) tuples, sorted by updated_at DESC
 
     Implements: AC-1 (TALENT), AC-2 (ORG_MEMBER/ORG_ADMIN), AC-3 (COORDINATOR/INST_ADMIN),
                 AC-8 (limit/offset pagination)
@@ -1012,8 +1012,8 @@ def list_engagements(
     stmt = scoped.order_by(Engagement.updated_at.desc()).limit(limit).offset(offset)
     engagements = session.execute(stmt).scalars().all()
 
-    # Fetch all Organization names in a single batch query (not N+1: exactly 2 SQL queries)
-    # Query 1: Engagements above, Query 2: Organizations below via WHERE id IN (...)
+    # Fetch all Organization names in a single batch query (not N+1: exactly 3 SQL queries)
+    # Query 1: Engagements above, Query 2: Organizations, Query 3: talent names via WHERE id IN (...)
     org_ids = set(e.organization_id for e in engagements)
     if org_ids:
         orgs = (
@@ -1025,8 +1025,22 @@ def list_engagements(
     else:
         org_map = {}
 
-    # Return list of (Engagement, organization_name) tuples
-    return [(eng, org_map.get(eng.organization_id, "")) for eng in engagements]
+    # Only the name, and only for talents of engagements already inside the
+    # principal's scope: the organization/institution side lists students by name.
+    talent_ids = set(e.talent_id for e in engagements)
+    if talent_ids:
+        talent_rows = session.execute(
+            select(TalentProfile.id, TalentProfile.full_name).where(TalentProfile.id.in_(talent_ids))
+        ).all()
+        talent_map = {talent_id: full_name for talent_id, full_name in talent_rows}
+    else:
+        talent_map = {}
+
+    # Return list of (Engagement, organization_name, talent_name) tuples
+    return [
+        (eng, org_map.get(eng.organization_id, ""), talent_map.get(eng.talent_id, ""))
+        for eng in engagements
+    ]
 
 
 def get_engagement_detail(

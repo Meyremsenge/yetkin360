@@ -380,7 +380,7 @@ Yetkisiz çağıran her zaman `404` alır ve kota harcamaz.
 |---|---|---|---|---|---|
 | `POST` | `/engagements` | `ORG:MEMBER` veya `TALENT` | `talent_id`, `organization_id`, `institution_id?`, `kind`, `title`, `started_on?`, `ended_on?`, `confidential?` | `201` — engagement (`status: DRAFT`) | `404`, `400` |
 | `GET` | `/engagements/{id}` | taraflardan biri | — | `200` — engagement + `available_transitions[]` | `404` |
-| `GET` | `/engagements` | `AUTH` | `status?`, `role?`, `limit?`, `cursor?` | `200` — **yalnız erişilebilir olanlar** | — |
+| `GET` | `/engagements` | `AUTH` | `status?`, `role?`, `limit?`, `cursor?` | `200` — **yalnız erişilebilir olanlar**; her satır `organization_id`, `institution_id`, `talent_id`, `talent_name` taşır (kuruluş/kurum tarafı listeyi öğrenciye göre gösterir) | — |
 | `POST` | `/engagements/{id}/transitions` | duruma göre | `to_status`, `version`, `reason?` | `200` — güncel engagement | `403`, `404`, `409`, `422 ILLEGAL_TRANSITION`, `422 PRECONDITION_FAILED` |
 | `POST` | `/engagements/{id}/tasks` | Kuruluş üyesi / koordinatör (yalnız `ACTIVE`) veya `TALENT` (kendi çalışması; `DRAFT`, `ACTIVE`) | `title`, `description?`, `due_at?`, `skill_id?` | `201` — görev (`verified`, `verified_at`) | `404`, `403`, `422 PRECONDITION_FAILED` |
 | `POST` | `/engagements/{id}/tasks/{task_id}/verify` | Kuruluş üyesi / koordinatör — **öğrenci kendi görevini doğrulayamaz** | — | `200` — görev (`verified: true`) | `404`, `403`, `409 TASK_ALREADY_VERIFIED`, `422 PRECONDITION_FAILED` |
