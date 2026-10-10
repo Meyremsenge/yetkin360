@@ -6,12 +6,20 @@ from pathlib import Path
 
 # CRITICAL: Initialize test database URL BEFORE importing any app.* modules.
 # This ensures all engines (app, alembic, workers) use the test DB, not dev DB.
-from tests._testdb import resolve_test_database_url, assert_safe_test_url, maintenance_url, session_override
+from tests._testdb import (
+    apply_test_db_suffix,
+    assert_safe_test_url,
+    maintenance_url,
+    resolve_test_database_url,
+    session_override,
+)
 from app.core.config import settings
 
 # Derive or override test database URL.
 dev_url = settings.database_url
 test_url = resolve_test_database_url(dev_url, os.environ.get("TEST_DATABASE_URL"))
+# Parallel sessions (worktrees) each get their own DB: yetkin360_<suffix>_test.
+test_url = apply_test_db_suffix(test_url, os.environ.get("TEST_DB_SUFFIX"))
 assert_safe_test_url(test_url)
 
 # Safety check: refuse to run against a dev DB whose name ends with 'test'.

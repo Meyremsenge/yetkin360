@@ -93,6 +93,8 @@ bitmelidir** (güvenlik kuralı: dev DB'ye yanlışlıkla dokunmaya karşı koru
 TEST_DATABASE_URL="postgresql+psycopg://user:pass@localhost:5432/custom_test" pytest -q
 ```
 
+Paralel oturumlarda (ör. ayrı worktree'ler) her oturum kendi DB'sini kullanır: `TEST_DB_SUFFIX=s0 pytest -q` → `yetkin360_s0_test` (yalnız `[a-z0-9]`, en fazla 16 karakter).
+
 Frontend testleri:
 ```bash
 cd frontend

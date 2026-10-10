@@ -10,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import create_engine
 
 from tests._testdb import (
+    apply_test_db_suffix,
     resolve_test_database_url,
     assert_safe_test_url,
     maintenance_url,
@@ -178,3 +179,50 @@ def test_live_database_connection_safety():
             assert result == db_name
     finally:
         engine.dispose()
+
+
+# S0: TEST_DB_SUFFIX gives each parallel session its own test database
+@pytest.mark.parametrize("suffix", [None, ""], ids=["none", "empty"])
+def test_apply_test_db_suffix_absent_returns_url_unchanged(suffix):
+    url = "postgresql+psycopg://user:pass@localhost:5432/yetkin360_test"  # pragma: allowlist secret
+    assert apply_test_db_suffix(url, suffix) == url
+
+
+def test_apply_test_db_suffix_inserts_before_test():
+    url = "postgresql+psycopg://user:pass@localhost:5432/yetkin360_test"  # pragma: allowlist secret
+    result = apply_test_db_suffix(url, "s0")
+    assert result == "postgresql+psycopg://user:pass@localhost:5432/yetkin360_s0_test"  # pragma: allowlist secret
+    assert_safe_test_url(result)
+
+
+def test_apply_test_db_suffix_bare_test_name():
+    url = "postgresql+psycopg://user:pass@localhost:5432/test"  # pragma: allowlist secret
+    assert apply_test_db_suffix(url, "d1").endswith("/test_d1_test")
+
+
+def test_apply_test_db_suffix_preserves_password_and_query():
+    url = "postgresql+psycopg://user:s3cret@localhost:5432/yetkin360_test?sslmode=require"  # pragma: allowlist secret
+    result = apply_test_db_suffix(url, "h0")
+    assert "user:s3cret@" in result
+    assert "/yetkin360_h0_test?" in result
+    assert "sslmode=require" in result
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    ["a;drop", "A", "a" * 17, 'x"y', "s-0", "s 0", "ş0"],
+    ids=["semicolon", "uppercase", "too_long", "quote", "dash", "space", "non_ascii"],
+)
+def test_apply_test_db_suffix_rejects_invalid(suffix):
+    url = "postgresql+psycopg://user:s3cret@localhost:5432/yetkin360_test"  # pragma: allowlist secret
+    with pytest.raises(ValueError) as exc_info:
+        apply_test_db_suffix(url, suffix)
+    message = str(exc_info.value)
+    # Neither the raw input nor the credentials leak into the error.
+    assert suffix not in message
+    assert "s3cret" not in message
+
+
+def test_apply_test_db_suffix_accepts_max_length():
+    url = "postgresql+psycopg://user:pass@localhost:5432/yetkin360_test"  # pragma: allowlist secret
+    assert apply_test_db_suffix(url, "a" * 16).endswith("/yetkin360_" + "a" * 16 + "_test")
