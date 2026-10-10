@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
+import { useSession } from "@/lib/session/use-session";
 import { ChainLegend, PageBody, PageHeader } from "@/components/page-layout";
 import { SealMark } from "@/components/brand/brand-mark";
 import { getEngagement } from "@/lib/api/engagements";
@@ -91,6 +92,7 @@ export default function CalismaDetayPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
   const queryClient = useQueryClient();
+  const currentUserId = useSession().data?.user.id;
   const ENGAGEMENT_QUERY_KEY = ["engagement", id] as const;
   const refresh = () => queryClient.invalidateQueries({ queryKey: ENGAGEMENT_QUERY_KEY });
 
@@ -266,7 +268,11 @@ export default function CalismaDetayPage() {
                           {formatDate(attestation.created_at)}
                         </span>
                       </div>
-                      <AttestationRevoke attestation={attestation} onSuccess={refresh} />
+                      {/* Only the attestor may revoke (server enforces it too); a revoked
+                          attestation's reason stays visible to everyone. */}
+                      {attestation.revoked_at || attestation.attestor_user_id === currentUserId ? (
+                        <AttestationRevoke attestation={attestation} onSuccess={refresh} />
+                      ) : null}
                     </li>
                   ))}
                 </ul>
