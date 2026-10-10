@@ -642,6 +642,9 @@
     "deliverableNotActiveError": "Çıktı yalnızca aktif çalışmalara eklenebilir.",
     "deliverableInvalidSkillError": "Seçilen yetkinlik geçersiz.",
     "attestationTitle": "Tanıklık Ver",
+    "attestBlocker": {
+      "ORG_NOT_VERIFIED": "Kuruluş henüz doğrulanmadı. Mühür verebilirsiniz, ancak kayıt yetkinlik yerine katılım olarak düşer."
+    },
     "attestationClaimTypeLabel": "Tanıklık Türü",
     "claimType": {
       "PARTICIPATION": "Katılım",

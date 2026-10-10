@@ -2,13 +2,7 @@
 
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import {
-  transitionEngagement,
-  availableTransitions,
-  isReasonRequired,
-  type EngagementDetail,
-  type EngagementStatus,
-} from "@/lib/api/engagements";
+import { transitionEngagement, type EngagementDetail, type EngagementStatus } from "@/lib/api/engagements";
 import { ApiError } from "@/lib/api/errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,10 +19,9 @@ const RECIPIENT_NOTICE_MS = 8000;
 /**
  * PLAN 2.11/YET-97: Durum geçiş aksiyonları — POST /transitions bağlantısı + hata gösterimi.
  *
- * candidates SADECE durum bazlı hesaplanır (bkz. lib/api/engagements.ts başındaki
- * BACKEND GAP notu — /me principal.kind döndürmüyor). Sunucu 403 dönerse (yetkisiz
- * kullanıcı) bunu burada gösteriyoruz; bu, rol filtrelemesinin eksikliğini telafi eden
- * kasıtlı bir davranış, hata değil.
+ * SPRINT A: adaylar sunucunun `viewer.allowed_transitions` listesidir — yalnız bu
+ * kullanıcının yapabileceği geçişler. Liste boşsa bileşen hiç görünmez. 403 yine ele
+ * alınır (ör. sayfa açıkken üyelik değiştiyse); yetki kararı her çağrıda sunucudadır.
  */
 export function TransitionActions({
   engagement,
@@ -71,7 +64,7 @@ export function TransitionActions({
           onSuccess();
           return;
         }
-        // Sunucu yetkilendirmeyi reddetti (rol UX'te filtrelenmedi — bkz. dosya başı notu).
+        // Sunucu yetkilendirmeyi reddetti (ör. sayfa açıkken rol değişti).
         if (error.status === 403) {
           setFormError(messages.calismalar.transitionForbiddenError);
           return;
@@ -90,7 +83,7 @@ export function TransitionActions({
     },
   });
 
-  const candidates = availableTransitions(engagement.status, engagement.institution_id);
+  const candidates = engagement.viewer.allowed_transitions;
 
   // AC-S4 (backend) sonrası refetch, engagement.status'u ör. terminal bir duruma
   // güncelleyebilir (candidates boşalır) — ANCAK az önce set edilen formError/
@@ -104,7 +97,7 @@ export function TransitionActions({
   const handleActionClick = (toStatus: EngagementStatus) => {
     setFormError(null);
     setSuccessMessage(null);
-    if (isReasonRequired(toStatus) || toStatus === APPROVAL_REQUEST) {
+    if (engagement.viewer.reason_required.includes(toStatus) || toStatus === APPROVAL_REQUEST) {
       setPendingTarget(toStatus);
     } else {
       mutation.mutate({ toStatus });

@@ -22,6 +22,21 @@ export interface TalentProfile {
   [key: string]: unknown; // Allow unknown fields for extensibility
 }
 
+/** The caller's own membership in an organization (SPRINT A: role and unit added). */
+export interface OrganizationRef {
+  id: string;
+  name: string;
+  role: "ADMIN" | "MEMBER";
+  unit: string | null;
+}
+
+/** The caller's own membership in an institution (SPRINT A: role added). */
+export interface InstitutionRef {
+  id: string;
+  name: string;
+  role: "ADMIN" | "COORDINATOR" | "SUPERVISOR";
+}
+
 export interface MeResponse {
   user: {
     id: string;
@@ -31,8 +46,8 @@ export interface MeResponse {
     is_platform_admin?: boolean;
   };
   talent_profile?: TalentProfile | null;
-  organizations: unknown[];
-  institutions: unknown[];
+  organizations: OrganizationRef[];
+  institutions: InstitutionRef[];
 }
 
 export function isMeResponse(value: unknown): value is MeResponse {

@@ -7,7 +7,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import Engagement, Skill, Evaluation, EvaluationItem, SkillSignal
-from app.services.authorization import Principal, engagement_relation, get_scoped_or_404, scoped_engagements
+from app.services.authorization import (
+    EngagementRelation,
+    Principal,
+    engagement_relation,
+    get_scoped_or_404,
+    scoped_engagements,
+)
 from app.services.audit import log_audit_event
 
 
@@ -43,6 +49,23 @@ EVALUATION_RATING_TO_STRENGTH = {
     "EXCEEDS": "STRONG",
     # NOT_OBSERVED: no signal generated (key omitted)
 }
+
+
+def can_submit_org_evaluation(
+    rel: EngagementRelation, engagement: Engagement, already_submitted: bool
+) -> bool:
+    """
+    May this viewer submit the organization-side (ORG_TO_TALENT) evaluation?
+
+    Same rule create_evaluation() enforces: an organization member (never the
+    subject — rel is masked), only while the engagement is PENDING_EVALUATION,
+    and only once per evaluator (uq_evaluations_engagement_evaluator_direction).
+    """
+    return (
+        rel.is_org_member
+        and engagement.status == "PENDING_EVALUATION"
+        and not already_submitted
+    )
 
 
 def create_evaluation(
@@ -125,6 +148,12 @@ def create_evaluation(
         if direction != "ORG_TO_TALENT":
             raise TransitionForbiddenError(
                 "Organization members can only submit ORG_TO_TALENT evaluations"
+            )
+        # The rule viewer.can_evaluate advertises; a duplicate is caught by the
+        # UNIQUE constraint below, so already_submitted is not re-queried here.
+        if not can_submit_org_evaluation(rel, engagement, already_submitted=False):
+            raise IllegalTransitionError(
+                f"Engagement must be PENDING_EVALUATION for ORG_TO_TALENT, got {engagement.status}"
             )
     elif rel.is_coordinator:
         # Coordinators have no evaluation permission

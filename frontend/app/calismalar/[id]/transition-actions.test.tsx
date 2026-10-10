@@ -6,6 +6,7 @@ import { TransitionActions } from "@/app/calismalar/[id]/transition-actions";
 import { transitionEngagement } from "@/lib/api/engagements";
 import { ApiError } from "@/lib/api/errors";
 import type { EngagementDetail } from "@/lib/api/engagements";
+import { makeViewer } from "@/lib/api/engagements.fixtures";
 
 vi.mock("@/lib/api/engagements", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api/engagements")>();
@@ -42,6 +43,12 @@ const activeEngagement: EngagementDetail = {
   tasks: [],
   deliverables: [],
   attestations: [],
+  // Organization admin on an ACTIVE engagement (server-computed).
+  viewer: makeViewer({
+    relation: "ORG_ADMIN",
+    allowed_transitions: ["CANCELLED", "PENDING_EVALUATION"],
+    reason_required: ["CANCELLED"],
+  }),
 };
 
 /**
@@ -65,14 +72,15 @@ describe("TransitionActions", () => {
     expect(screen.getByText("Değerlendirmeye Gönder")).toBeTruthy();
   });
 
-  it("DRAFT + institution_id=null (doğrudan kuruluş engagement'ı) için ACTIVE gösterilir, PENDING_APPROVAL değil", () => {
-    // Canlı bulgu: bu durumda eskiden 'Onaya Gönder' gösteriliyordu ama backend
-    // institution_id_not_null ön koşulu yüzünden her zaman 422 PRECONDITION_FAILED
-    // dönüyordu (app/services/engagement.py:313-316) — kullanıcı hiçbir zaman
-    // çalışmasını aktifleştiremiyordu.
+  it("yalnız sunucunun izin verdiği geçişleri gösterir (durumdan tahmin etmez)", () => {
     renderWithQueryClient(
       <TransitionActions
-        engagement={{ ...activeEngagement, status: "DRAFT", institution_id: null }}
+        engagement={{
+          ...activeEngagement,
+          status: "DRAFT",
+          institution_id: null,
+          viewer: makeViewer({ relation: "SUBJECT", allowed_transitions: ["ACTIVE"] }),
+        }}
         onSuccess={vi.fn()}
       />
     );
@@ -81,21 +89,52 @@ describe("TransitionActions", () => {
     expect(screen.queryByText("Onaya Gönder")).toBeNull();
   });
 
-  it("DRAFT + institution_id dolu (kurum bağlantılı engagement) için PENDING_APPROVAL gösterilir", () => {
+  it("SPRINT A: öğrenci onay bekleyen çalışmasında Onayla/Reddet düğmesini görmez", () => {
     renderWithQueryClient(
       <TransitionActions
-        engagement={{ ...activeEngagement, status: "DRAFT", institution_id: "inst-1" }}
+        engagement={{
+          ...activeEngagement,
+          status: "PENDING_APPROVAL",
+          institution_id: "inst-1",
+          viewer: makeViewer({ relation: "SUBJECT" }),
+        }}
         onSuccess={vi.fn()}
       />
     );
 
-    expect(screen.getByText("Onaya Gönder")).toBeTruthy();
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByText("Onayla ve Aktifleştir")).toBeNull();
+    expect(screen.queryByText("Reddet")).toBeNull();
   });
 
-  it("terminal durumda (REJECTED) hiçbir aksiyon gösterilmez", () => {
+  it("SPRINT A: koordinatör PENDING_APPROVAL'da Onayla ve Reddet görür; Reddet gerekçe ister", async () => {
+    const user = userEvent.setup();
     renderWithQueryClient(
       <TransitionActions
-        engagement={{ ...activeEngagement, status: "REJECTED" }}
+        engagement={{
+          ...activeEngagement,
+          status: "PENDING_APPROVAL",
+          institution_id: "inst-1",
+          viewer: makeViewer({
+            relation: "COORDINATOR",
+            allowed_transitions: ["ACTIVE", "REJECTED"],
+            reason_required: ["REJECTED"],
+          }),
+        }}
+        onSuccess={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Onayla ve Aktifleştir")).toBeTruthy();
+    await user.click(screen.getByText("Reddet"));
+    expect(screen.getByLabelText("Gerekçe")).toBeTruthy();
+    expect(transitionEngagement).not.toHaveBeenCalled();
+  });
+
+  it("izin verilen geçiş yoksa (ör. terminal durum) hiçbir aksiyon gösterilmez", () => {
+    renderWithQueryClient(
+      <TransitionActions
+        engagement={{ ...activeEngagement, status: "REJECTED", viewer: makeViewer({ relation: "ORG_ADMIN" }) }}
         onSuccess={vi.fn()}
       />
     );
@@ -237,7 +276,12 @@ describe("TransitionActions", () => {
     // (candidates boş) — gerçek page.tsx'te bu, queryClient.invalidateQueries sonrası olur.
     rerender(
       <TransitionActions
-        engagement={{ ...activeEngagement, status: "PENDING_EVALUATION", version: 3 }}
+        engagement={{
+          ...activeEngagement,
+          status: "PENDING_EVALUATION",
+          version: 3,
+          viewer: makeViewer({ relation: "ORG_ADMIN" }),
+        }}
         onSuccess={onSuccess}
       />
     );
@@ -269,7 +313,13 @@ describe("TransitionActions", () => {
   });
 
   describe("onaya gönderirken alıcı seçimi", () => {
-    const draft: EngagementDetail = { ...activeEngagement, status: "DRAFT", institution_id: "inst-1", version: 1 };
+    const draft: EngagementDetail = {
+      ...activeEngagement,
+      status: "DRAFT",
+      institution_id: "inst-1",
+      version: 1,
+      viewer: makeViewer({ relation: "SUBJECT", allowed_transitions: ["PENDING_APPROVAL"] }),
+    };
 
     function sent() {
       vi.mocked(transitionEngagement).mockResolvedValueOnce({ ...draft, status: "PENDING_APPROVAL", version: 2 });

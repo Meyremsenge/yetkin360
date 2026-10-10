@@ -7,6 +7,8 @@ import { useParams } from "next/navigation";
 import { getEngagement } from "@/lib/api/engagements";
 import { ApiError } from "@/lib/api/errors";
 import type { EngagementDetail } from "@/lib/api/engagements";
+import { makeViewer } from "@/lib/api/engagements.fixtures";
+import messages from "@/messages/tr.json";
 
 vi.mock("next/navigation", () => ({
   useParams: vi.fn(),
@@ -47,7 +49,16 @@ const baseEngagement: EngagementDetail = {
   tasks: [{ id: "task-1", title: "API şeması", status: "DONE", verified: true }],
   deliverables: [],
   attestations: [],
+  // The student on their own ACTIVE engagement (server-computed).
+  viewer: makeViewer({ relation: "SUBJECT", can_add_task: true, can_add_deliverable: true }),
 };
+
+const orgAdminViewer = makeViewer({
+  relation: "ORG_ADMIN",
+  allowed_transitions: ["CANCELLED", "PENDING_EVALUATION"],
+  reason_required: ["CANCELLED"],
+  can_add_task: true,
+});
 
 /**
  * YET-96 (PLAN 2.11): Engagement detay ekranı + available_transitions[] butonları.
@@ -105,7 +116,7 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
   });
 
   it("başarılı yüklemede başlık, durum, görevler ve durum geçiş butonları gösterilir", async () => {
-    vi.mocked(getEngagement).mockResolvedValueOnce(baseEngagement);
+    vi.mocked(getEngagement).mockResolvedValueOnce({ ...baseEngagement, viewer: orgAdminViewer });
 
     const { container } = renderWithQueryClient(<CalismaDetayPage />);
 
@@ -115,7 +126,7 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
       expect(container.textContent).toContain("API şeması");
       expect(container.textContent).toContain("Tamamlandı");
       expect(screen.getByText("Henüz çıktı yüklenmemiş.")).toBeTruthy();
-      // ACTIVE durumundan aday geçişler: CANCELLED, PENDING_EVALUATION
+      // viewer.allowed_transitions: CANCELLED, PENDING_EVALUATION
       expect(screen.getByText("İptal Et")).toBeTruthy();
       expect(screen.getByText("Değerlendirmeye Gönder")).toBeTruthy();
     });
@@ -135,10 +146,11 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
     });
   });
 
-  it("PENDING_EVALUATION durumunda 'Değerlendirme Formu' linki gösterilir, ACTIVE'de gösterilmez", async () => {
+  it("viewer.can_evaluate ise 'Değerlendirme Formu' linki gösterilir", async () => {
     vi.mocked(getEngagement).mockResolvedValueOnce({
       ...baseEngagement,
       status: "PENDING_EVALUATION",
+      viewer: makeViewer({ relation: "ORG_MEMBER", can_evaluate: true }),
     });
 
     renderWithQueryClient(<CalismaDetayPage />);
@@ -149,8 +161,12 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
     });
   });
 
-  it("ACTIVE durumunda 'Değerlendirme Formu' linki gösterilmez", async () => {
-    vi.mocked(getEngagement).mockResolvedValueOnce(baseEngagement); // status: ACTIVE
+  it("SPRINT A: öğrenci PENDING_EVALUATION'da 'Değerlendirme Formu' linkini görmez", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce({
+      ...baseEngagement,
+      status: "PENDING_EVALUATION",
+      viewer: makeViewer({ relation: "SUBJECT" }),
+    });
 
     renderWithQueryClient(<CalismaDetayPage />);
 
@@ -172,8 +188,12 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
     expect(screen.queryByText("Tanıklık Ver")).toBeNull();
   });
 
-  it("EVALUATED durumunda tanıklık formu gösterilir, teslim ekleme formu gösterilmez", async () => {
-    vi.mocked(getEngagement).mockResolvedValueOnce({ ...baseEngagement, status: "EVALUATED" });
+  it("viewer.can_attest ise tanıklık formu gösterilir, teslim ekleme formu gösterilmez", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce({
+      ...baseEngagement,
+      status: "EVALUATED",
+      viewer: makeViewer({ relation: "COORDINATOR", can_attest: true }),
+    });
 
     renderWithQueryClient(<CalismaDetayPage />);
 
@@ -184,7 +204,11 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
   });
 
   it("terminal durumda (REJECTED) ne teslim ne tanıklık formu gösterilir", async () => {
-    vi.mocked(getEngagement).mockResolvedValueOnce({ ...baseEngagement, status: "REJECTED" });
+    vi.mocked(getEngagement).mockResolvedValueOnce({
+      ...baseEngagement,
+      status: "REJECTED",
+      viewer: makeViewer({ relation: "SUBJECT" }),
+    });
 
     renderWithQueryClient(<CalismaDetayPage />);
 
@@ -192,6 +216,28 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
       expect(screen.getByText("Yaz Kısa Projesi")).toBeTruthy();
     });
     expect(screen.queryByText("Yeni Çıktı Ekle")).toBeNull();
+    expect(screen.queryByText("Tanıklık Ver")).toBeNull();
+  });
+
+  it("AC-4: hiçbir izni olmayan izleyiciye (ör. kurum yöneticisi) eylem düğmesi/formu gösterilmez", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce({
+      ...baseEngagement,
+      tasks: [{ id: "task-2", title: "Öğrencinin görevi", status: "PLANNED", verified: false }],
+      viewer: makeViewer({ relation: "INSTITUTION_ADMIN" }),
+    });
+
+    renderWithQueryClient(<CalismaDetayPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Yaz Kısa Projesi")).toBeTruthy();
+    });
+    for (const label of Object.values(messages.calismalar.transitionAction)) {
+      expect(screen.queryByRole("button", { name: label })).toBeNull();
+    }
+    expect(screen.queryByRole("button", { name: /görevini onayla/ })).toBeNull();
+    expect(screen.queryByText("Yeni Görev Ekle")).toBeNull();
+    expect(screen.queryByText("Yeni Çıktı Ekle")).toBeNull();
+    expect(screen.queryByText("Değerlendirme Formu")).toBeNull();
     expect(screen.queryByText("Tanıklık Ver")).toBeNull();
   });
 

@@ -8,7 +8,7 @@ import { AppShell } from "@/components/app-shell";
 import { useSession } from "@/lib/session/use-session";
 import { ChainLegend, PageBody, PageHeader } from "@/components/page-layout";
 import { SealMark } from "@/components/brand/brand-mark";
-import { getEngagement } from "@/lib/api/engagements";
+import { getEngagement, type ViewerRelation } from "@/lib/api/engagements";
 import { ApiError } from "@/lib/api/errors";
 import { CHAIN_PROGRESS, STATUS_TONE, type StatusTone } from "@/lib/ui/engagement-chain";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,9 @@ import { CertificateChecksSection } from "./certificate-checks-section";
 import messages from "@/messages/tr.json";
 
 const c = messages.calismalar;
+
+// Mirrors verify_engagement_task: organization members (admins included) and coordinators.
+const TASK_VERIFIER_RELATIONS = new Set<ViewerRelation>(["ORG_ADMIN", "ORG_MEMBER", "COORDINATOR"]);
 
 const TONE_BADGE: Record<StatusTone, string> = {
   default: "border-border bg-muted text-foreground",
@@ -125,9 +128,10 @@ export default function CalismaDetayPage() {
   const tone = STATUS_TONE[engagement.status] ?? "default";
   const progress = CHAIN_PROGRESS[engagement.status] ?? { done: 0 };
   const isVerified = engagement.status === "VERIFIED" || engagement.status === "RESOLVED";
-  // UX only: decides which task controls to show. The server decides who may add or verify.
-  const viewerTalentId = sessionData?.talent_profile?.id;
-  const isSubject = Boolean(viewerTalentId) && viewerTalentId === engagement.talent_id;
+  // UX only, from the server's viewer block: which task controls to show.
+  // Task verification is open to the organization side and the coordinator.
+  const isSubject = engagement.viewer.relation === "SUBJECT";
+  const canVerifyTasks = TASK_VERIFIER_RELATIONS.has(engagement.viewer.relation);
 
   return (
     <AppShell>
@@ -191,7 +195,7 @@ export default function CalismaDetayPage() {
               {engagement.tasks.length === 0 ? (
                 <EmptyLine>{c.emptyTasksMessage}</EmptyLine>
               ) : (
-                <TaskList engagement={engagement} canVerify={!isSubject} onChange={refresh} />
+                <TaskList engagement={engagement} canVerify={canVerifyTasks} onChange={refresh} />
               )}
             </DetailSection>
 
@@ -282,7 +286,7 @@ export default function CalismaDetayPage() {
 
               <TransitionActions engagement={engagement} onSuccess={refresh} />
 
-              {engagement.status === "PENDING_EVALUATION" && (
+              {engagement.viewer.can_evaluate && (
                 <Link
                   href={`/calismalar/${engagement.id}/degerlendirme`}
                   className="mt-4 flex h-10 w-full items-center justify-center rounded-md bg-success px-4 text-sm font-medium text-background hover:bg-success/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2"

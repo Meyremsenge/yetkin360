@@ -11,6 +11,7 @@ from app.models import (
     Attestation,
     Deliverable,
     EngagementTask,
+    Evaluation,
     Engagement,
     InstitutionMember,
     Organization,
@@ -19,8 +20,16 @@ from app.models import (
     SkillSignal,
     User,
 )
-from app.services.authorization import Principal, engagement_relation, get_scoped_or_404, scoped_engagements
+from app.services.authorization import (
+    EngagementRelation,
+    Principal,
+    engagement_relation,
+    get_scoped_or_404,
+    scoped_engagements,
+)
+from app.services.attestation import attestation_role_allowed
 from app.services.audit import log_audit_event
+from app.services.evaluation import can_submit_org_evaluation
 from app.services.outbox import enqueue
 
 
@@ -114,6 +123,79 @@ class TransitionSpec(TypedDict):
 
     preconditions: list[str]
     can_transition: Callable[[], bool]
+
+
+def _transition_specs(
+    principal: Principal, engagement: Engagement, rel: EngagementRelation
+) -> dict[tuple[str, str], TransitionSpec]:
+    """
+    The engagement state machine's transition table, bound to one principal.
+
+    Single source for both transition_engagement() (which enforces it) and
+    viewer_capabilities() (which advertises it), so the buttons a viewer sees
+    can never drift from what the server accepts.
+    Each entry: (from_status, to_status) -> preconditions + authorization check.
+    """
+    return {
+        ("DRAFT", "PENDING_APPROVAL"): {
+            "preconditions": ["institution_id_not_null", "recipient_required"],
+            "can_transition": lambda: (
+                rel.is_subject or rel.is_org_member
+            ),
+        },
+        ("DRAFT", "ACTIVE"): {
+            "preconditions": ["date_validation"],
+            "can_transition": lambda: (
+                (rel.is_coordinator and engagement.institution_id is not None)
+                or (rel.is_subject and engagement.institution_id is None)
+            ),
+        },
+        ("PENDING_APPROVAL", "ACTIVE"): {
+            "preconditions": [],
+            "can_transition": lambda: (
+                rel.is_coordinator
+            ),
+        },
+        ("PENDING_APPROVAL", "REJECTED"): {
+            "preconditions": ["reason_not_empty"],
+            "can_transition": lambda: (
+                rel.is_coordinator
+            ),
+        },
+        ("ACTIVE", "CANCELLED"): {
+            "preconditions": ["reason_not_empty"],
+            "can_transition": lambda: (
+                rel.is_org_admin or rel.is_coordinator
+            ),
+        },
+        ("ACTIVE", "PENDING_EVALUATION"): {
+            "preconditions": ["has_deliverable"],
+            "can_transition": lambda: (
+                rel.is_org_member or rel.is_coordinator
+            ),
+        },
+        ("EVALUATED", "VERIFIED"): {
+            "preconditions": [],
+            "can_transition": lambda: (
+                engagement.institution_id is not None
+                and engagement.institution_id in principal.supervisor_institution_ids
+            ),
+        },
+    }
+
+
+def _task_creation_allowed(rel: EngagementRelation, status: str) -> bool:
+    """
+    Who may add a task in this status (create_engagement_task's role/status gate).
+
+    Organization members and coordinators add verified tasks to ACTIVE
+    engagements; the talent plans unverified tasks while DRAFT or ACTIVE.
+    """
+    if rel.is_org_member or rel.is_coordinator:
+        return status in VERIFIER_TASK_STATUSES
+    if rel.is_subject:
+        return status in TALENT_TASK_STATUSES
+    return False
 
 
 def create_engagement(
@@ -329,54 +411,7 @@ def transition_engagement(
     # AC-S1: relation is masked for the subject (self-dealing prevention)
     rel = engagement_relation(principal, engagement)
 
-    # Transition table (7 valid transitions)
-    # Each entry: from_status -> to_status -> (allowed_roles, preconditions, authorization check)
-    transition_table: dict[tuple[str, str], TransitionSpec] = {
-        ("DRAFT", "PENDING_APPROVAL"): {
-            "preconditions": ["institution_id_not_null", "recipient_required"],
-            "can_transition": lambda: (
-                rel.is_subject or rel.is_org_member
-            ),
-        },
-        ("DRAFT", "ACTIVE"): {
-            "preconditions": ["date_validation"],
-            "can_transition": lambda: (
-                (rel.is_coordinator and engagement.institution_id is not None)
-                or (rel.is_subject and engagement.institution_id is None)
-            ),
-        },
-        ("PENDING_APPROVAL", "ACTIVE"): {
-            "preconditions": [],
-            "can_transition": lambda: (
-                rel.is_coordinator
-            ),
-        },
-        ("PENDING_APPROVAL", "REJECTED"): {
-            "preconditions": ["reason_not_empty"],
-            "can_transition": lambda: (
-                rel.is_coordinator
-            ),
-        },
-        ("ACTIVE", "CANCELLED"): {
-            "preconditions": ["reason_not_empty"],
-            "can_transition": lambda: (
-                rel.is_org_admin or rel.is_coordinator
-            ),
-        },
-        ("ACTIVE", "PENDING_EVALUATION"): {
-            "preconditions": ["has_deliverable"],
-            "can_transition": lambda: (
-                rel.is_org_member or rel.is_coordinator
-            ),
-        },
-        ("EVALUATED", "VERIFIED"): {
-            "preconditions": [],
-            "can_transition": lambda: (
-                engagement.institution_id is not None
-                and engagement.institution_id in principal.supervisor_institution_ids
-            ),
-        },
-    }
+    transition_table = _transition_specs(principal, engagement, rel)
 
     # Check: is this transition defined? (AC-5)
     if (current_status, to_status) not in transition_table:
@@ -1152,3 +1187,125 @@ def get_engagement_detail(
     attestations = attestations_query.scalars().all()
 
     return engagement, organization_name, tasks, deliverables, attestations
+
+
+# Verification levels an organization needs for a seal to count as COMPETENCE
+# (attestation._check_competence_preconditions, criterion 4).
+VERIFIED_ORG_LEVELS = ("T2", "T3", "T4")
+# Never offered through /transitions: the seal is its own endpoint (viewer.can_attest).
+SEAL_TRANSITION = ("EVALUATED", "VERIFIED")
+
+
+def _viewer_relation_label(principal: Principal, engagement: Engagement, rel: EngagementRelation) -> str:
+    """The viewer's strongest relation, in the contract's priority order."""
+    if rel.is_subject:
+        return "SUBJECT"
+    if rel.is_org_admin:
+        return "ORG_ADMIN"
+    if rel.is_org_member:
+        return "ORG_MEMBER"
+    if rel.is_coordinator:
+        return "COORDINATOR"
+    if engagement.institution_id is not None and engagement.institution_id in principal.institution_admin_ids:
+        return "INSTITUTION_ADMIN"
+    return "OBSERVER"
+
+
+def viewer_capabilities(
+    session: Session,
+    principal: Principal,
+    engagement: Engagement,
+    email_verified: bool,
+) -> dict[str, Any]:
+    """
+    What this viewer may do on an engagement already proven in scope.
+
+    Mirrors the write endpoints exactly — `to in allowed_transitions` iff
+    POST /transitions succeeds (given a reason/recipient where the UI asks for
+    one), can_evaluate/can_attest iff the evaluation/attestation endpoints do —
+    so the detail page never renders a button the server would refuse. Every
+    write endpoint requires a verified e-mail, so an unverified viewer gets no
+    actions at all. Only the caller's own relation is described; nothing about
+    other users leaks.
+    """
+    rel = engagement_relation(principal, engagement)
+    capabilities: dict[str, Any] = {
+        "relation": _viewer_relation_label(principal, engagement, rel),
+        "allowed_transitions": [],
+        "reason_required": [],
+        "can_add_task": False,
+        "can_add_deliverable": False,
+        "can_evaluate": False,
+        "can_attest": False,
+        "attest_blocker": None,
+    }
+    if not email_verified or principal.user_id is None:
+        return capabilities
+
+    has_deliverable: bool | None = None
+    for (from_status, to_status), spec in _transition_specs(principal, engagement, rel).items():
+        if from_status != engagement.status or (from_status, to_status) == SEAL_TRANSITION:
+            continue
+        if not spec["can_transition"]():
+            continue
+        preconditions = spec["preconditions"]
+        # Cheap, server-known preconditions block the action; reason, recipient
+        # and dates are supplied by the user, so the UI asks for them instead.
+        if "institution_id_not_null" in preconditions and engagement.institution_id is None:
+            continue
+        if "has_deliverable" in preconditions:
+            if has_deliverable is None:
+                has_deliverable = bool(
+                    session.execute(
+                        select(func.count())
+                        .select_from(Deliverable)
+                        .where(Deliverable.engagement_id == engagement.id)
+                    ).scalar()
+                )
+            if not has_deliverable:
+                continue
+        capabilities["allowed_transitions"].append(to_status)
+        if "reason_not_empty" in preconditions:
+            capabilities["reason_required"].append(to_status)
+
+    capabilities["can_add_task"] = _task_creation_allowed(rel, engagement.status)
+    capabilities["can_add_deliverable"] = engagement.status == "ACTIVE" and rel.is_subject
+
+    if rel.is_org_member and engagement.status == "PENDING_EVALUATION":
+        already_evaluated = session.execute(
+            select(func.count())
+            .select_from(Evaluation)
+            .where(
+                Evaluation.engagement_id == engagement.id,
+                Evaluation.evaluator_user_id == principal.user_id,
+                Evaluation.direction == "ORG_TO_TALENT",
+            )
+        ).scalar()
+        capabilities["can_evaluate"] = can_submit_org_evaluation(
+            rel, engagement, already_submitted=bool(already_evaluated)
+        )
+
+    if engagement.status == "EVALUATED" and attestation_role_allowed(rel, engagement):
+        # uq_attestations_engagement_attestor_subject also counts revoked rows,
+        # so any earlier attestation by this user blocks a new one.
+        already_attested = session.execute(
+            select(func.count())
+            .select_from(Attestation)
+            .where(
+                Attestation.engagement_id == engagement.id,
+                Attestation.attestor_user_id == principal.user_id,
+            )
+        ).scalar()
+        capabilities["can_attest"] = not already_attested
+        if capabilities["can_attest"]:
+            # Informational only (the seal downgrades, it is not refused); shown
+            # solely to a viewer who may seal, so the level does not leak further.
+            level = session.execute(
+                select(Organization.verification_level).where(
+                    Organization.id == engagement.organization_id
+                )
+            ).scalar_one_or_none()
+            if level not in VERIFIED_ORG_LEVELS:
+                capabilities["attest_blocker"] = "ORG_NOT_VERIFIED"
+
+    return capabilities

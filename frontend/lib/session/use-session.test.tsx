@@ -185,7 +185,7 @@ describe("useSession", () => {
       const { fetchMe } = await import("@/lib/session/fetch-me");
       const validData = {
         user: { id: "user-1" },
-        organizations: [{ id: "org-1" }],
+        organizations: [{ id: "org-1", name: "Lale", role: "MEMBER" as const, unit: null }],
         institutions: [],
       };
       vi.mocked(fetchMe).mockResolvedValueOnce(validData);
