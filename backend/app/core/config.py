@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -9,6 +10,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # backend/, so a relative ".env" would resolve differently per command.
 # Real environment variables still win over the file (CI sets them directly).
 REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+def resolve_env_file() -> Path:
+    """Env file path: YETKIN360_ENV_FILE wins (git worktrees have no .env of their own)."""
+    override = os.environ.get("YETKIN360_ENV_FILE")
+    return Path(override) if override else REPO_ROOT / ".env"
+
 
 KNOWN_ENVIRONMENTS = ("development", "staging", "production")
 _LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
@@ -24,7 +32,7 @@ def _all_public_https(origins: list[str]) -> bool:
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=REPO_ROOT / ".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=resolve_env_file(), extra="ignore")
 
     environment: str = "development"
     debug: bool = True
