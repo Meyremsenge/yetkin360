@@ -415,6 +415,7 @@ function Show-Summary {
     Write-Host ''
     Write-Host '  Seed hesapları  (şifre: SeedTest123!)' -ForegroundColor DarkGray
     Write-Host '    Öğrenci          ogrenci1..20@seed.local'
+    Write-Host '    Keşfet dizini    dizin1..32@seed.local'
     Write-Host '    Kuruluş admini   org1..5-admin@seed.local'
     Write-Host '    Kurum admini     kurum1..5-admin@seed.local'
     Write-Host '    Koordinatör      kurum1..5-koordinator@seed.local'

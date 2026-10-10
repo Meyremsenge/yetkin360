@@ -140,7 +140,8 @@ function toRecord(item: EvidenceApiResponse): EvidenceRecord {
 }
 
 export interface RecordEvidenceInput {
-  deliverable_id: string;
+  /** Omitted for evidence outside an engagement (profile showcase files). */
+  deliverable_id?: string;
   object_key: string;
   kind: EvidenceKind;
   mime_type: string;

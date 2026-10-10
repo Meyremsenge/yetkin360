@@ -24,6 +24,7 @@ from app.services.authorization import (
     scoped_public_skill_signals,
     scoped_public_verified_experiences,
 )
+from app.services.portfolio import PublicCertificate, build_public_certificates
 from app.services.visibility_service import filter_public_experiences
 
 # Higher index = stronger evidence. Mirrors skill_signals.strength CHECK.
@@ -78,9 +79,13 @@ class PublicProfile:
     city: str | None
     institution_name: str | None
     institution_trust_level: str | None
+    # Self-declared text; the page labels it "Kendi beyanı", never as verified.
+    about: str | None
     verified_experiences: list[PublicExperience]
     skills: list[PublicSkill]
     attesting_organization_count: int
+    # Consented portfolio items only (show_on_profile); file and OCR fields never included.
+    certificates: list[PublicCertificate] = field(default_factory=list)
 
 
 @dataclass
@@ -197,7 +202,9 @@ def build_public_profile(session: Session, talent: TalentProfile) -> PublicProfi
         city=talent.city,
         institution_name=institution.name if institution else None,
         institution_trust_level=institution.verification_level if institution else None,
+        about=talent.about,
         verified_experiences=public_experiences,
         skills=skills,
         attesting_organization_count=len(attestor_orgs),
+        certificates=build_public_certificates(session, talent.id),
     )

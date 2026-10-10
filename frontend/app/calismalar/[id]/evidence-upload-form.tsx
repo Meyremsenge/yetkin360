@@ -201,7 +201,8 @@ export function EvidenceUploadForm({
                           <>
                             {check.provider && (
                               <p>
-                                {messages.calismalar.certificateCheckProviderLabel}: {check.provider}
+                                {messages.calismalar.certificateCheckProviderLabel}:{" "}
+                {(messages.certificateProviders as Record<string, string>)[check.provider] ?? check.provider}
                               </p>
                             )}
                             {check.credential_id && (
@@ -232,6 +233,25 @@ export function EvidenceUploadForm({
                                     {check.page_match
                                       ? messages.calismalar.certificateCheckPageMatchYes
                                       : messages.calismalar.certificateCheckPageMatchNo}
+                                    )
+                                  </span>
+                                )}
+                              </p>
+                            )}
+                            {check.extracted_course_name && (
+                              <p>
+                                {messages.calismalar.certificateCheckCourseLabel}: {check.extracted_course_name}
+                              </p>
+                            )}
+                            {check.page_course_name && (
+                              <p>
+                                {messages.calismalar.certificateCheckPageCourseLabel}: {check.page_course_name}{" "}
+                                {check.course_match !== null && (
+                                  <span className={check.course_match ? "text-success" : "text-destructive"}>
+                                    (
+                                    {check.course_match
+                                      ? messages.calismalar.certificateCheckCourseMatchYes
+                                      : messages.calismalar.certificateCheckCourseMatchNo}
                                     )
                                   </span>
                                 )}

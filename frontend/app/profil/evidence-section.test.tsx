@@ -8,6 +8,11 @@ import * as clientModule from "@/lib/api/client";
 vi.mock("@/lib/api/client", () => ({
   getMySignals: vi.fn(),
   getMyVerifiedExperiences: vi.fn(),
+  removeSkill: vi.fn(),
+  // Used by the "+ Yeni yetkinlik" dialog on the signals tab.
+  getMySkills: vi.fn(async () => ({ items: [] })),
+  listSkills: vi.fn(),
+  addSkill: vi.fn(),
 }));
 
 function renderWithQueryClient(ui: React.ReactElement) {
@@ -634,6 +639,121 @@ describe("EvidenceSection (/profil/evidence-section.tsx)", () => {
         expect(screen.getByText("TechCorp")).toBeTruthy();
         expect(screen.getByText("Backend Developer")).toBeTruthy();
       });
+    });
+  });
+
+  describe("Uzun döküm: özet satırı ve 'Tümünü göster'", () => {
+    function group(i: number, signals: Array<{ source_type: string; strength: string }>) {
+      return {
+        skill: { id: `s${i}`, name_tr: `Yetkinlik ${i}`, name_en: `Skill ${i}`, slug: `s${i}`, category: "x" },
+        signals: signals.map((sig, n) => ({
+          ...sig,
+          occurred_at: `2026-10-0${n + 1}T00:00:00Z`,
+          attested_by: null,
+          superseded: false,
+        })),
+      };
+    }
+
+    it("her yetkinlik kapalı bir <details> özetinde: kanıt sayısı ve en güçlü seviye", async () => {
+      vi.mocked(clientModule.getMySignals).mockResolvedValueOnce({
+        items: [
+          group(1, [
+            { source_type: "TASK", strength: "WEAK" },
+            { source_type: "EVALUATION", strength: "STRONG" },
+            { source_type: "DELIVERABLE", strength: "MODERATE" },
+          ]),
+        ],
+      });
+      vi.mocked(clientModule.getMyVerifiedExperiences).mockResolvedValueOnce({ items: [] });
+
+      const { container } = renderWithQueryClient(<EvidenceSection />);
+      await waitFor(() => expect(screen.getByText("Yetkinlik 1")).toBeTruthy());
+
+      const details = container.querySelector("details");
+      expect(details).toBeTruthy();
+      expect(details?.hasAttribute("open")).toBe(false);
+      expect(screen.getByText("3 kanıt")).toBeTruthy();
+      expect(screen.getByRole("img", { name: "En güçlü seviye: Güçlü" })).toBeTruthy();
+    });
+
+    it("6'dan fazla yetkinlik varsa fazlası 'Tümünü göster' ile açılır", async () => {
+      const items = Array.from({ length: 8 }, (_, i) => group(i + 1, [{ source_type: "TASK", strength: "WEAK" }]));
+      vi.mocked(clientModule.getMySignals).mockResolvedValueOnce({ items });
+      vi.mocked(clientModule.getMyVerifiedExperiences).mockResolvedValueOnce({ items: [] });
+
+      renderWithQueryClient(<EvidenceSection />);
+      await waitFor(() => expect(screen.getByText("Yetkinlik 6")).toBeTruthy());
+      expect(screen.queryByText("Yetkinlik 7")).toBeNull();
+
+      const toggle = screen.getByRole("button", { name: "Tüm yetkinlikleri göster (8)" });
+      await userEvent.click(toggle);
+      expect(screen.getByText("Yetkinlik 8")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Daha az göster" }).getAttribute("aria-expanded")).toBe("true");
+    });
+  });
+
+  describe("Yetkinlik sekmesi: tek liste, beyanı kaldırma (AC-8/AC-9)", () => {
+    const selfClaimOnly = {
+      skill: { id: "skill-9", name_tr: "Figma", name_en: "Figma", slug: "figma", category: "x" },
+      signals: [
+        { source_type: "SELF_CLAIM", strength: "WEAK", occurred_at: "2026-10-01T00:00:00Z", attested_by: null, superseded: false },
+      ],
+    };
+
+    it("part=signals: başlık 'Yetkinlikler' ve '+ Yeni yetkinlik' düğmesi kartın üstünde", async () => {
+      vi.mocked(clientModule.getMySignals).mockResolvedValueOnce({ items: [selfClaimOnly] });
+      vi.mocked(clientModule.getMyVerifiedExperiences).mockResolvedValueOnce({ items: [] });
+
+      renderWithQueryClient(<EvidenceSection part="signals" />);
+
+      expect(screen.getByRole("heading", { name: "Yetkinlikler", level: 2 })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Yeni yetkinlik" })).toHaveAttribute("aria-haspopup", "dialog");
+      await waitFor(() => expect(screen.getByText("Figma")).toBeTruthy());
+    });
+
+    it("AC-8: kendi beyanı satırındaki 'Beyanı kaldır' onay sormadan removeSkill çağırır", async () => {
+      vi.mocked(clientModule.getMySignals).mockResolvedValue({ items: [selfClaimOnly] });
+      vi.mocked(clientModule.getMyVerifiedExperiences).mockResolvedValue({ items: [] });
+      vi.mocked(clientModule.removeSkill).mockResolvedValueOnce(undefined);
+
+      renderWithQueryClient(<EvidenceSection part="signals" />);
+      const button = await screen.findByRole("button", { name: "Figma beyanını kaldır" });
+      await userEvent.click(button);
+
+      await waitFor(() => expect(clientModule.removeSkill).toHaveBeenCalledWith("skill-9"));
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+      // Signals are refetched after the removal.
+      await waitFor(() => expect(vi.mocked(clientModule.getMySignals).mock.calls.length).toBeGreaterThanOrEqual(2));
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("AC-9: removeSkill 404 dönerse sessizce tazelenir, hata gösterilmez", async () => {
+      vi.mocked(clientModule.getMySignals).mockResolvedValue({ items: [selfClaimOnly] });
+      vi.mocked(clientModule.getMyVerifiedExperiences).mockResolvedValue({ items: [] });
+      vi.mocked(clientModule.removeSkill).mockRejectedValueOnce({ status: 404, code: "NOT_FOUND" });
+
+      renderWithQueryClient(<EvidenceSection part="signals" />);
+      await userEvent.click(await screen.findByRole("button", { name: "Figma beyanını kaldır" }));
+
+      await waitFor(() => expect(vi.mocked(clientModule.getMySignals).mock.calls.length).toBeGreaterThanOrEqual(2));
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("kanıtlı (kendi beyanı olmayan) sinyalde 'Beyanı kaldır' yok", async () => {
+      vi.mocked(clientModule.getMySignals).mockResolvedValueOnce({
+        items: [
+          {
+            skill: { id: "s1", name_tr: "SQL", name_en: "SQL", slug: "sql", category: "x" },
+            signals: [{ source_type: "EVALUATION", strength: "STRONG", occurred_at: "2026-10-01T00:00:00Z", attested_by: null, superseded: false }],
+          },
+        ],
+      });
+      vi.mocked(clientModule.getMyVerifiedExperiences).mockResolvedValueOnce({ items: [] });
+
+      renderWithQueryClient(<EvidenceSection part="signals" />);
+      await waitFor(() => expect(screen.getByText("SQL")).toBeTruthy());
+      expect(screen.queryByRole("button", { name: /beyanını kaldır/ })).toBeNull();
     });
   });
 });

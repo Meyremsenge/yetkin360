@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, waitFor, cleanup, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import SkillsSection from "@/app/profil/skills-section";
@@ -19,16 +19,19 @@ function renderWithQueryClient(ui: React.ReactElement) {
   return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
 }
 
+// The claim form lives in a modal opened by the "+ Yeni yetkinlik" button.
+function openSkillDialog() {
+  fireEvent.click(screen.getByRole("button", { name: "Yeni yetkinlik" }));
+}
+
 /**
  * AC-4: Mount olduğunda `getMySkills()` çağrılır, dönen `items[]` listelenir.
  * AC-5: Arama (listSkills) sonrasında skill seçip "ekle"ye basılınca `addSkill` çağrılır, 201 dönersentries liste refetch edilir.
  * AC-6: Zaten sahip olunan skill'ler arama sonuçlarında filtrelenir (proaktif);
  *        `addSkill` 409 ALREADY_CLAIMED dönersentries "zaten eklediniz" mesajı (reaktif yedek).
  * AC-7: `addSkill` 404 SKILL_NOT_FOUND dönersentries taksonomi refetch + bilgi mesajı.
- * AC-8: "Kaldır" basılınca (onay istenmeden) `removeSkill` çağrılır, 204 dönersentries liste güncellendir.
- * AC-9: `removeSkill` 404 dönersentries sessiz refetch, hata GÖSTERİLMEZ.
  * AC-S1: Arama input'una yazılırken debounce (≥300ms), dangerouslySetInnerHTML yok.
- * AC-S2: public_slug/skill adları render edilirken dangerouslySetInnerHTML yok.
+ * Liste, kaldırma (AC-8/AC-9) ve beyan listesi: evidence-section.test.tsx (tek yetkinlik listesi).
  */
 
 describe("SkillsSection (/profil/skills-section.tsx)", () => {
@@ -54,44 +57,7 @@ describe("SkillsSection (/profil/skills-section.tsx)", () => {
       });
     });
 
-    it("AC-4: getMySkills() dönen items listelenir (skill adı + claimed_level)", async () => {
-      const mockGetMySkills = vi.spyOn(clientModule, "getMySkills");
-      mockGetMySkills.mockResolvedValueOnce({
-        items: [
-          {
-            skill: { id: "skill-1", name_tr: "React" },
-            claimed_level: "INTERMEDIATE",
-          },
-          {
-            skill: { id: "skill-2", name_tr: "TypeScript" },
-            claimed_level: "INTERMEDIATE",
-          },
-        ],
-      });
 
-      renderWithQueryClient(<SkillsSection />);
-
-      await waitFor(() => {
-        expect(screen.getByText("React")).toBeTruthy();
-        expect(screen.getByText("TypeScript")).toBeTruthy();
-        expect(screen.getAllByText(/INTERMEDIATE/)).toHaveLength(2);
-      });
-    });
-
-    it("AC-4: Boş liste 'henüz bir yetkinlik eklemediz' mesajı gösterir", async () => {
-      const mockGetMySkills = vi.spyOn(clientModule, "getMySkills");
-      mockGetMySkills.mockResolvedValueOnce({
-        items: [],
-      });
-
-      renderWithQueryClient(<SkillsSection />);
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(/henüz.*yetkinlik.*eklemediniz|hiçbir yetkinlik/i)
-        ).toBeTruthy();
-      });
-    });
   });
 
   describe("AC-5: Arama → skill seçim → ekle → 201 → liste refetch", () => {
@@ -118,6 +84,7 @@ describe("SkillsSection (/profil/skills-section.tsx)", () => {
       });
 
       // Arama input'unu bul ve yaz
+      openSkillDialog();
       const searchInput = screen.getByPlaceholderText(/ara|search/i) || screen.getByRole("textbox", { name: /ara/i });
       const user = userEvent.setup();
       await user.type(searchInput, "Python");
@@ -149,10 +116,6 @@ describe("SkillsSection (/profil/skills-section.tsx)", () => {
         expect(mockGetMySkills).toHaveBeenCalledTimes(2);
       });
 
-      // Yeni skill listede görünür
-      await waitFor(() => {
-        expect(screen.getByText("Python")).toBeTruthy();
-      });
     });
   });
 
@@ -183,6 +146,7 @@ describe("SkillsSection (/profil/skills-section.tsx)", () => {
       });
 
       // Arama yap
+      openSkillDialog();
       const searchInput = screen.getByPlaceholderText(/ara|search/i) || screen.getByRole("textbox", { name: /ara/i });
       const user = userEvent.setup();
       await user.type(searchInput, "Re");
@@ -194,8 +158,9 @@ describe("SkillsSection (/profil/skills-section.tsx)", () => {
       // "React" sonuçlarda GÖRÜNMEZ (zaten sahibi olduğu için)
       // Sadece "Vue" görülür
       await waitFor(() => {
-        expect(screen.getByText("React")).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Vue" })).toBeTruthy();
       });
+      expect(screen.queryByRole("button", { name: "React" })).toBeNull();
     });
 
     it("AC-6: 409 ALREADY_CLAIMED dönerse (senkronizasyon farkı) 'zaten eklediniz' mesajı gösterilir", async () => {
@@ -215,6 +180,7 @@ describe("SkillsSection (/profil/skills-section.tsx)", () => {
 
       renderWithQueryClient(<SkillsSection />);
 
+      openSkillDialog();
       const searchInput = screen.getByPlaceholderText(/ara|search/i) || screen.getByRole("textbox", { name: /ara/i });
       const user = userEvent.setup();
       await user.type(searchInput, "React");
@@ -258,6 +224,7 @@ describe("SkillsSection (/profil/skills-section.tsx)", () => {
 
       renderWithQueryClient(<SkillsSection />);
 
+      openSkillDialog();
       const searchInput = screen.getByPlaceholderText(/ara|search/i) || screen.getByRole("textbox", { name: /ara/i });
       const user = userEvent.setup();
       await user.type(searchInput, "Old");
@@ -290,123 +257,7 @@ describe("SkillsSection (/profil/skills-section.tsx)", () => {
     });
   });
 
-  describe("AC-8: 'Kaldır' basılınca (onay YOK) removeSkill çağrılır, 204 → liste güncellendir", () => {
-    it("AC-8: Skill yanında 'kaldır' butonu basılırsa removeSkill çağrılır", async () => {
-      const mockGetMySkills = vi.spyOn(clientModule, "getMySkills");
-      const mockRemoveSkill = vi.spyOn(clientModule, "removeSkill");
 
-      mockGetMySkills.mockResolvedValueOnce({
-        items: [
-          { skill: { id: "skill-1", name_tr: "React" }, claimed_level: "INTERMEDIATE" },
-        ],
-      });
-      mockRemoveSkill.mockResolvedValueOnce(undefined);
-      mockGetMySkills.mockResolvedValueOnce({ items: [] });
-
-      renderWithQueryClient(<SkillsSection />);
-
-      await waitFor(() => {
-        expect(screen.getByText("React")).toBeTruthy();
-        expect(screen.getByText(/INTERMEDIATE/)).toBeTruthy();
-      });
-
-      // "Kaldır" butonu bulunur (onay dialog YOK)
-      const removeButton = screen.getByRole("button", { name: /kaldır|sil|remove/i });
-      const user = userEvent.setup();
-      await user.click(removeButton);
-
-      // removeSkill direkt çağrılır (alert/confirm yok)
-      await waitFor(() => {
-        expect(mockRemoveSkill).toHaveBeenCalledWith("skill-1");
-      });
-
-      // 204 sonrası liste refetch edilir
-      await waitFor(() => {
-        expect(mockGetMySkills).toHaveBeenCalledTimes(2);
-      });
-
-      // Skill listeden kaybolur
-      await waitFor(() => {
-        expect(screen.queryByText("React")).toBeNull();
-      });
-    });
-
-    it("AC-8: Onay dialog gösterilmez", async () => {
-      const mockGetMySkills = vi.spyOn(clientModule, "getMySkills");
-      const mockRemoveSkill = vi.spyOn(clientModule, "removeSkill");
-
-      mockGetMySkills.mockResolvedValueOnce({
-        items: [{ skill: { id: "skill-1", name_tr: "Python" }, claimed_level: "BEGINNER" }],
-      });
-      mockRemoveSkill.mockResolvedValueOnce(undefined);
-      mockGetMySkills.mockResolvedValueOnce({ items: [] });
-
-      renderWithQueryClient(<SkillsSection />);
-
-      await waitFor(() => {
-        expect(screen.getByText("Python")).toBeTruthy();
-        expect(screen.getByText(/BEGINNER/)).toBeTruthy();
-      });
-
-      const removeButton = screen.getByRole("button", { name: /kaldır|sil/i });
-      const user = userEvent.setup();
-      await user.click(removeButton);
-
-      // Alert/confirm dialog YOKTUR
-      expect(screen.queryByRole("alertdialog")).toBeNull();
-      expect(screen.queryByText(/emin misiniz|onay/i)).toBeNull();
-
-      // removeSkill çağrılır (direkt)
-      await waitFor(() => {
-        expect(mockRemoveSkill).toHaveBeenCalled();
-      });
-    });
-  });
-
-  describe("AC-9: removeSkill 404 dönersentries sessiz refetch, hata GÖSTERİLMEZ", () => {
-    it("AC-9: removeSkill 404 dönersentries (zaten silinmiş) liste refetch edilir, hata YOK", async () => {
-      const mockGetMySkills = vi.spyOn(clientModule, "getMySkills");
-      const mockRemoveSkill = vi.spyOn(clientModule, "removeSkill");
-
-      mockGetMySkills.mockResolvedValueOnce({
-        items: [{ skill: { id: "skill-1", name_tr: "React" }, claimed_level: "INTERMEDIATE" }],
-      });
-
-      const error = new Error("Not found") as Error & Record<string, unknown>;
-      error.status = 404;
-      mockRemoveSkill.mockRejectedValueOnce(error);
-
-      // 404 sonrası sessiz refetch
-      mockGetMySkills.mockResolvedValueOnce({ items: [] });
-
-      renderWithQueryClient(<SkillsSection />);
-
-      await waitFor(() => {
-        expect(screen.getByText("React")).toBeTruthy();
-      });
-
-      const removeButton = screen.getByRole("button", { name: /kaldır|sil/i });
-      const user = userEvent.setup();
-      await user.click(removeButton);
-
-      await waitFor(() => {
-        expect(mockRemoveSkill).toHaveBeenCalled();
-      });
-
-      // Hata mesajı GÖRÜNMEZ
-      expect(screen.queryByText(/hata|bulunamadı|silebilmedi/i)).toBeNull();
-
-      // Ama liste sessiz refetch edilir (istenen durumda)
-      await waitFor(() => {
-        expect(mockGetMySkills).toHaveBeenCalledTimes(2);
-      });
-
-      // Skill zaten listeden kaybolur (refetch sonrası)
-      await waitFor(() => {
-        expect(screen.queryByText("React")).toBeNull();
-      });
-    });
-  });
 
   describe("AC-S1: Arama debounce (≥300ms) + dangerouslySetInnerHTML YOKTUR", () => {
     it("AC-S1: Arama input'una yazılırken listSkills her tuş vuruşunda çağrılmaz (debounce)", async () => {
@@ -422,6 +273,7 @@ describe("SkillsSection (/profil/skills-section.tsx)", () => {
         expect(mockGetMySkills).toHaveBeenCalled();
       });
 
+      openSkillDialog();
       const searchInput = screen.getByPlaceholderText(/ara|search/i) || screen.getByRole("textbox", { name: /ara/i });
       const user = userEvent.setup({ delay: null }); // No delay for timing control
 
@@ -454,6 +306,7 @@ describe("SkillsSection (/profil/skills-section.tsx)", () => {
 
       const { container } = renderWithQueryClient(<SkillsSection />);
 
+      openSkillDialog();
       const searchInput = screen.getByPlaceholderText(/ara|search/i) || screen.getByRole("textbox", { name: /ara/i });
       const user = userEvent.setup();
       await user.type(searchInput, "Re");
@@ -473,27 +326,4 @@ describe("SkillsSection (/profil/skills-section.tsx)", () => {
     });
   });
 
-  describe("AC-S2: public_slug XSS hijyeni — dangerouslySetInnerHTML YOKTUR", () => {
-    it("AC-S2: public_slug değeri dangerouslySetInnerHTML ile render EDİLMEZ", async () => {
-      const mockGetMySkills = vi.spyOn(clientModule, "getMySkills");
-
-      mockGetMySkills.mockResolvedValueOnce({
-        items: [
-          {
-            skill: { id: "skill-1", name_tr: "React" },
-            claimed_level: "INTERMEDIATE",
-          },
-        ],
-      });
-
-      const { container } = renderWithQueryClient(<SkillsSection />);
-
-      await waitFor(() => {
-        expect(screen.getByText("React")).toBeTruthy();
-      });
-
-      // XSS script tag'i oluşturulmaz
-      expect(container.querySelector("img[onerror]")).toBeNull();
-    });
-  });
 });

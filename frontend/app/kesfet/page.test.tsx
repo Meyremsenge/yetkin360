@@ -72,6 +72,8 @@ function renderPage() {
 
 describe("KesfetPage (/kesfet)", () => {
   beforeEach(() => {
+    // The page mirrors filters into the address bar; start every test clean.
+    window.history.replaceState(null, "", "/kesfet");
     vi.clearAllMocks();
     mockSession(null);
     vi.mocked(listDiscoverTalents).mockResolvedValue(page([alice, bora]));
@@ -96,7 +98,10 @@ describe("KesfetPage (/kesfet)", () => {
       const card = heading.closest("article") as HTMLElement;
 
       expect(within(card).getByText("Backend geliştirici")).toBeTruthy();
-      expect(within(card).getByText("Bilgi Üniversitesi · Bilgisayar Mühendisliği · İstanbul")).toBeTruthy();
+      // Department and city are filter buttons now, so the line spans several nodes.
+      expect(
+        within(card).getByText((_, el) => el?.tagName === "P" && el.textContent === "Bilgi Üniversitesi · Bilgisayar Mühendisliği · İstanbul")
+      ).toBeTruthy();
       const chips = within(within(card).getByRole("list", { name: t.sealedSkillsLabel })).getAllByRole("listitem");
       expect(chips.map((chip) => chip.textContent)).toEqual(["Python", "SQL"]);
       expect(within(card).getByText("2 doğrulanmış deneyim")).toBeTruthy();
@@ -214,6 +219,118 @@ describe("KesfetPage (/kesfet)", () => {
         expect.objectContaining({ cursor: "cursor-1" })
       );
       expect(screen.queryByRole("button", { name: t.loadMore })).toBeNull();
+    });
+
+    it("sonraki sayfa varken sayaç '+' ile yüklenen sayıyı gösterir", async () => {
+      vi.mocked(listDiscoverTalents).mockResolvedValue(page([alice, bora], "cursor-1"));
+      renderPage();
+      expect(await screen.findByText("2+ profil")).toBeTruthy();
+    });
+  });
+
+  describe("Tasarım davranışları", () => {
+    it("mühür damgası yalnız doğrulanmış deneyimi olan kartta görünür", async () => {
+      renderPage();
+      const aliceCard = (await screen.findByRole("heading", { name: "Alice Yılmaz" })).closest("article") as HTMLElement;
+      const boraCard = screen.getByRole("heading", { name: "Bora Kaya" }).closest("article") as HTMLElement;
+      expect(within(aliceCard).getByRole("img", { name: t.sealedStamp })).toBeTruthy();
+      expect(within(boraCard).queryByRole("img", { name: t.sealedStamp })).toBeNull();
+    });
+
+    it("altıdan fazla mühürlü yetkinliği '+N yetkinlik daha' olarak özetler", async () => {
+      const skills = ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8"];
+      vi.mocked(listDiscoverTalents).mockResolvedValue(page([{ ...alice, sealed_skills: skills }]));
+      renderPage();
+      const card = (await screen.findByRole("heading", { name: "Alice Yılmaz" })).closest("article") as HTMLElement;
+      expect(within(within(card).getByRole("list", { name: t.sealedSkillsLabel })).getAllByRole("listitem")).toHaveLength(6);
+      expect(within(card).getByText("+2 yetkinlik daha")).toBeTruthy();
+    });
+
+    it("tek karakterlik aramada en az 2 karakter uyarısı gösterir", async () => {
+      renderPage();
+      fireEvent.change(screen.getByRole("searchbox", { name: t.talentSearchLabel }), { target: { value: "a" } });
+      expect(screen.getByText(t.searchTooShort)).toBeTruthy();
+    });
+
+    it("sekmeler ok tuşlarıyla değişir ve odak yeni sekmeye geçer", async () => {
+      renderPage();
+      const talentsTab = screen.getByRole("tab", { name: t.tabTalents });
+      fireEvent.keyDown(talentsTab, { key: "ArrowRight" });
+      const orgTab = screen.getByRole("tab", { name: t.tabOrganizations });
+      expect(orgTab.getAttribute("aria-selected")).toBe("true");
+      expect(document.activeElement).toBe(orgTab);
+      expect(await screen.findByRole("heading", { name: "Acme A.Ş." })).toBeTruthy();
+    });
+
+    it("alan adı dönmeyen kuruluşta doğrulanmadığını söyler", async () => {
+      vi.mocked(listDiscoverOrganizations).mockResolvedValue(
+        page([{ ...acme, verification_level: "T1", domain: null }])
+      );
+      renderPage();
+      fireEvent.click(screen.getByRole("tab", { name: t.tabOrganizations }));
+      const card = (await screen.findByRole("heading", { name: "Acme A.Ş." })).closest("article") as HTMLElement;
+      expect(within(card).getByText(t.domainHidden)).toBeTruthy();
+      expect(within(card).getByText(messages.kurulusSec.verificationLevel.T1)).toBeTruthy();
+    });
+  });
+
+  describe("Karttan süzme ve paylaşılabilir adres", () => {
+    it("karttaki yetkinliğe tıklayınca o yetkinlik filtreye eklenir, tekrar tıklayınca kalkar", async () => {
+      vi.mocked(listSkills).mockResolvedValue({ items: [{ id: "skill-py", name_tr: "Python" }] });
+      renderPage();
+      const card = (await screen.findByRole("heading", { name: "Alice Yılmaz" })).closest("article") as HTMLElement;
+
+      fireEvent.click(within(card).getByRole("button", { name: t.filterBySkill.replace("{skill}", "Python") }));
+      await waitFor(() =>
+        expect(vi.mocked(listDiscoverTalents)).toHaveBeenLastCalledWith(
+          expect.objectContaining({ skillIds: ["skill-py"] })
+        )
+      );
+      expect(screen.getByRole("button", { name: "Python filtresini kaldır" })).toBeTruthy();
+      expect(window.location.search).toContain("yetkinlik=Python");
+
+      const active = await screen.findByRole("button", { name: t.unfilterBySkill.replace("{skill}", "Python") });
+      expect(active.getAttribute("aria-pressed")).toBe("true");
+      fireEvent.click(active);
+      await waitFor(() => expect(screen.queryByRole("button", { name: "Python filtresini kaldır" })).toBeNull());
+    });
+
+    it("karttaki şehre tıklayınca şehir filtresi uygulanır", async () => {
+      renderPage();
+      const card = (await screen.findByRole("heading", { name: "Alice Yılmaz" })).closest("article") as HTMLElement;
+      fireEvent.click(within(card).getByRole("button", { name: t.filterByCity.replace("{value}", "İstanbul") }));
+      await waitFor(() =>
+        expect(vi.mocked(listDiscoverTalents)).toHaveBeenLastCalledWith(expect.objectContaining({ city: "İstanbul" }))
+      );
+      expect((screen.getByLabelText(t.cityLabel) as HTMLInputElement).value).toBe("İstanbul");
+    });
+
+    it("adresteki filtreleri ilk istekte uygular", async () => {
+      vi.mocked(listSkills).mockResolvedValue({ items: [{ id: "skill-py", name_tr: "Python" }] });
+      window.history.replaceState(null, "", "/kesfet?ara=alice&sehir=Ankara&yetkinlik=Python");
+      renderPage();
+      await screen.findByRole("heading", { name: "Alice Yılmaz" });
+      expect(vi.mocked(listDiscoverTalents)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(listDiscoverTalents)).toHaveBeenCalledWith(
+        expect.objectContaining({ q: "alice", city: "Ankara", skillIds: ["skill-py"] })
+      );
+      expect((screen.getByRole("searchbox", { name: t.talentSearchLabel }) as HTMLInputElement).value).toBe("alice");
+    });
+
+    it("adresteki sekme=kuruluslar kuruluş sekmesini açar", async () => {
+      window.history.replaceState(null, "", "/kesfet?sekme=kuruluslar");
+      renderPage();
+      expect(await screen.findByRole("heading", { name: "Acme A.Ş." })).toBeTruthy();
+      expect(screen.getByRole("tab", { name: t.tabOrganizations }).getAttribute("aria-selected")).toBe("true");
+    });
+
+    it("aramayı paylaş adresi panoya kopyalar", async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+      renderPage();
+      fireEvent.click(screen.getByRole("button", { name: t.shareSearch }));
+      expect(await screen.findByText(t.shareCopied)).toBeTruthy();
+      expect(writeText).toHaveBeenCalledWith(window.location.href);
     });
   });
 

@@ -15,7 +15,7 @@
 2. Bileşen kataloğu (buton, form, kart, rozet, uyarı, dialog, tablo, zincir, mühür…)
 3. Hizalama ve yerleşim kuralları (butonlar nereye konur)
 4. Animasyon sistemi
-5. Uygulama kabuğu — **sol navbar**, mobil üst bar, uyarı şeritleri
+5. Uygulama kabuğu — **üst gezinme çubuğu**, mobil çekmece, uyarı şeritleri
 6. Sayfalar (1–21)
 7. Navigasyon haritası (hangi buton nereye gider — tek tablo)
 8. Açık noktalar (kodda eksik bağlantılar — tasarımcı bilsin)
@@ -310,8 +310,8 @@ Hareket yalnız **durum değişimini** anlatır; süs animasyonu yok. Kullanıc�
 | Input/Select | odak | kenar rengi + halka belirir | 150ms | ease-out |
 | Input | hata | kenar tuğlaya döner; mesaj 4px yukarıdan kayarak + opaklık | 150ms | ease-out |
 | Tıklanabilir kart / tablo satırı | hover | kenar/zemin rengi | 150ms | ease-out |
-| Navbar öğesi | hover | zemin rengi | 120ms | ease-out |
-| Navbar aktif çizgisi | sayfa değişimi | sol 2px çam çizgi yeni öğeye geçer (sönüp belirir) | 150ms | ease-out |
+| Üst bar öğesi | hover | zemin rengi | 120ms | ease-out |
+| Üst bar aktif çizgisi | sayfa değişimi | alttaki 2px çam çizgi yeni öğeye geçer (sönüp belirir) | 150ms | ease-out |
 | Sekme alt çizgisi | sekme değişimi | çizgi yeni sekmeye kayar (genişlik + konum) | 200ms | ease-in-out |
 | Sekme içeriği | sekme değişimi | opaklık 0→1 | 120ms | ease-out |
 | Dropdown | açılış | opaklık 0→1 + 4px kayma + ölçek 0.98→1 | 150ms | ease-out |
@@ -339,57 +339,36 @@ Hareket yalnız **durum değişimini** anlatır; süs animasyonu yok. Kullanıc�
 
 ---
 
-## 5. Uygulama kabuğu (AppShell) — sol navbar
+## 5. Uygulama kabuğu (AppShell) — üst gezinme çubuğu
 
 Giriş yapan kullanıcının gördüğü tüm sayfaları sarar (`/calismalar…`, `/profil`, `/kurulus…`, `/kurum…`, `/admin…`). Landing, auth ve public (`/v`, `/p`) sayfalarında **yok**.
 
-> Kodda bugün yatay üst bar var; tasarlanacak yapı aşağıdaki sol navbar'dır.
+> Ekim 2026: sol navbar (248px) üst bara taşındı — öğrencide 2-3 öğe vardı, sol bar boş duruyor ve içeriği daraltıyordu. Kod: `components/app-shell.tsx`.
 
 ### 5.1 Masaüstü (≥ 1024px)
 
 ```
-┌──────────────┬────────────────────────────────────────────┐
-│  NAVBAR      │  [Uyarı şeritleri — varsa]                  │
-│  248px       │                                            │
-│  kum zemin   │  İçerik alanı (kâğıt zemin)                 │
-│  sağda 1px   │  üst 32px, yan 40px boşluk                  │
-│  çizgi       │  max 1040 / 880 / 560px (sayfa türüne göre) │
-│  tam yükseklik, sabit (kaymaz)                            │
-└──────────────┴────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│ [mühür] Yetkin360   Çalışmalarım  Profil  │ [▣ Lale Yazılım A.Ş. ▾]   Profilimi gör ↗  (AY)▾ │
+├──────────────────────────────────────────────────────────────────────┤
+│  PageHeader beyaz şeridi (eyebrow + başlık + açıklama + ana aksiyon)   │
+├──────────────────────────────────────────────────────────────────────┤
+│  İçerik — 1200px ortalı (`PageBody`)                                   │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-**Navbar dikey yapısı (yukarıdan aşağı):**
-
-| # | Blok | Konum / ölçü | İçerik ve stil |
-|---|---|---|---|
-| 1 | **Logo alanı** | üst, 24px üst / 20px yan boşluk, yükseklik 64px | "Yetkin360" Serif 20px bold mürekkep (landing başlığıyla aynı). Altında 4px boşlukla Mono 11px ikincil slogan: "beyan → kanıt → tanıklık → doğrulanmış deneyim" (2 satıra kırılabilir). Logoya tıklama → `/calismalar`. |
-| 2 | Ayırıcı | 1px çizgi, 20px yan boşluk | — |
-| 3 | **Grup: Çalışma** | 24px üst boşluk | Grup etiketi 12px Sans 500 ikincil (sol 20px). Öğeler: **Çalışmalarım** → `/calismalar` (herkes) · **Profil** → `/profil` (öğrenci profili varsa) · **Herkese açık profilim** → `/p/{public_slug}` (slug varsa; sağında 14px `arrow-up-right`, yeni sekmede açılır) |
-| 4 | **Grup: Kuruluşlarım** | 24px üst boşluk | Kullanıcının üyesi olduğu **her kuruluş için** bir öğe: "{Kuruluş adı}" → `/kurulus/{id}/panel`. İkon `building-2`. Uzun ad tek satırda "…" ile kesilir, hover'da tam ad ipucu. Grup yalnız kuruluş varsa görünür. |
-| 5 | **Grup: Kurumlarım** | 24px üst boşluk | Her kurum için "{Kurum adı}" → `/kurum/{id}/panel`. İkon `landmark`. Yalnız kurum üyeliği varsa. |
-| 6 | **Grup: Yönetim** | 24px üst boşluk | Yalnız platform admini: **Kurum Doğrulama** → `/admin/dogrulama-kuyrugu` · **Yetkinlik Yönetimi** → `/admin/skiller` |
-| 7 | Boşluk | esner (navbarın kalanını doldurur) | — |
-| 8 | Ayırıcı | 1px çizgi | — |
-| 9 | **Kullanıcı kartı** | en alt, 12px boşluk, yükseklik 56px | Solda 32px avatar (baş harf), yanında ad (14px 500, tek satır) ve altında e-posta (12px ikincil, "…" ile kesilir; tam e-posta **gösterilmez**, ör. `meyr…@gmail.com`). Sağda 16px `chevrons-up-down`. Tüm kart buton; hover zemin kâğıt %60. Tıklanınca **yukarı doğru açılan dropdown**: "Profil" (`user-round`) → `/profil` · çizgi · **"Çıkış"** (`log-out`, tuğla metin) → çıkış → `/giris`. |
-
-**Menü öğesi stili:**
-
-| Durum | Zemin | Metin | İkon | Ek |
-|---|---|---|---|---|
-| Normal | şeffaf | ikincil `#625C55`, 14px 400 | ikincil 16px | yükseklik 36px, yatay iç boşluk 12px, dış boşluk 8px (navbar kenarından), köşe 6px, ikon–metin 10px |
-| Hover | kâğıt `#FAF8F5` | mürekkep | mürekkep | 120ms geçiş |
-| **Aktif (bulunulan sayfa)** | kart `#FEFEFD` + 1px çizgi kenar | mürekkep, **500** | **çam** | öğenin solunda (navbar iç kenarına yapışık) **2px × 20px çam dikey çizgi** |
-| Odak (klavye) | — | — | — | 2px çam dış çizgi |
-
-- Alt sayfalar üst öğeyi aktif yapar: `/calismalar/{id}` ve `/calismalar/{id}/degerlendirme` → "Çalışmalarım" aktif.
-- Öğeler arası dikey boşluk 2px.
+- **Bar:** 64px, kart zemin (beyaz), altta 1px çizgi, yapışkan (`sticky top-0`). İçi `PAGE_CONTAINER` ile içerikle aynı 1200px kolona hizalı. Bulanıklık/cam efekti yok.
+- **Sol:** `SealMark` + "Yetkin360" (Serif 20px bold) → `/calismalar`.
+- **Birincil menü:** Çalışmalarım (`briefcase`) · Profil (`user`) · Keşfet (`compass`; `/kesfet` sayfası yayına girene kadar `DISCOVER_ENABLED=false` ile gizli). Öğe 14px; aktifken mürekkep 500 + **altında 2px çam çizgi** (barın alt çizgisine oturur) + çam ikon, `aria-current="page"`. Hover'da metin mürekkep, altta silik çizgi. Alt sayfalar üst öğeyi aktif yapar (`/calismalar/{id}/degerlendirme` → Çalışmalarım).
+- **Bağlam seçici** (yalnız kuruluş/kurum üyeliği veya platform admini varsa; 1px dikey ayırıcıdan sonra): düğme "Panel seç: {varlık}" — bulunulan sayfa bir kuruluş/kuruma aitse onun adı ve ikonu (`building`/`landmark`), çam tonlu kenar; değilse "Paneller". Açılır liste (300px, en fazla ekranın %70'i yükseklik, kaydırılır) gruplu: **Kuruluşlarım** → `/kurulus/{id}/panel`, **Kurumlarım** → `/kurum/{id}/panel`, **Yönetim** → Kurum Doğrulama · Yetkinlik Yönetimi · Sahtekarlık İşaretleri. Grup etiketi Mono 11px büyük harf. Uzun ad "…" ile kesilir, `title` ipucunda tam ad. Dışarı tıklama veya Esc kapatır (Esc odağı düğmeye döndürür).
+- **Sağ:** "Profilimi gör ↗" çerçeveli küçük düğme (yalnız `public_slug` varsa, yeni sekmede; md altı gizli) · avatar (36px, baş harfler) + `chevron-down` → kullanıcı menüsü: avatar, ad (Serif), rol başlığı (ilk kuruluş/kurum adı → yoksa "Öğrenci" → yoksa "Platform yöneticisi"), maskeli e-posta (Mono, ör. `ayse…@ornek.edu.tr`; tam e-posta **asla**), çizgi, **Çıkış** (tuğla).
+- Açılır listeler DOM'da kalır, kapalıyken CSS ile gizlenir (testler ve ekran okuyucu için kararlı yapı).
 
 ### 5.2 Tablet ve mobil (< 1024px)
 
-- **Üst bar:** yükseklik 56px, kâğıt zemin, altta 1px çizgi, yapışkan (sayfa kayarken üstte kalır).
-  - Sol: 40px hayalet ikon buton `menu` (aria-label "Menüyü aç") → 12px boşluk → "Yetkin360" Serif 18px bold.
-  - Sağ: 32px avatar → tıklanınca aşağı açılan aynı kullanıcı dropdown'u.
-- **Çekmece:** soldan açılır, genişlik 280px (en fazla ekranın %85'i), kum zemin, içerik masaüstü navbarla aynı (logo alanının sağ üstünde `x` kapat butonu). Arka plan mürekkep %40; arka plana tıklama, Esc veya bir menü öğesine tıklama çekmeceyi kapatır. Odak çekmece içinde kilitli.
+Aynı bar, 56px yüksekliğe iner (masaüstü ile mobil tek `<header>`; alt sekme çubuğu yerine çekmece seçildi — kuruluş/kurum/admin rollerinde öğe sayısı değişken).
+- **Bar:** sol: 40px hayalet ikon buton `menu` (aria-label "Menüyü aç") → logo. Birincil menü ve bağlam seçici gizlenir. Sağ: avatar → aynı kullanıcı menüsü ("Profilimi gör" md altında yalnız çekmecede).
+- **Çekmece:** soldan açılır, genişlik 280px (en fazla ekranın %85'i), kart zemin. Gruplar: **Çalışma** (Çalışmalarım, Profil, [Keşfet], Herkese açık profilim ↗) · **Kuruluşlarım** · **Kurumlarım** · **Yönetim** — bağlam seçicideki öğelerin hepsi açık liste olarak. Aktif öğe çam zemin + solda 2px çam çizgi. Logonun sağında `x` kapat. Arka plan mürekkep %40; arka plana tıklama, Esc veya bir menü öğesine tıklama kapatır, odak menü düğmesine döner. Odak çekmece içinde kilitli.
 
 ### 5.3 İçerik alanının üstündeki uyarı şeritleri
 
@@ -935,10 +914,10 @@ Zincir kartının altında, tam genişlik kart; sol kenarında 3px aşı çizgis
 | `/sifre-unuttum` | Giriş sayfasına dön | `/giris` |
 | `/sifre-sifirla` | Giriş Yap (başarı) / Yeni bağlantı iste | `/giris` / `/sifre-unuttum` |
 | `/e-posta-dogrula` | Giriş Yap / Kayıt Ol | `/giris` / `/kayit` |
-| Navbar | Çalışmalarım / Profil / Herkese açık profilim | `/calismalar` / `/profil` / `/p/{slug}` (yeni sekme) |
-| Navbar | {Kuruluş} / {Kurum} | `/kurulus/{id}/panel` / `/kurum/{id}/panel` |
-| Navbar | Kurum Doğrulama / Yetkinlik Yönetimi | `/admin/dogrulama-kuyrugu` / `/admin/skiller` |
-| Navbar kullanıcı menüsü | Çıkış | `/giris` |
+| Üst bar | Çalışmalarım / Profil / Profilimi gör | `/calismalar` / `/profil` / `/p/{slug}` (yeni sekme) |
+| Üst bar bağlam seçici | {Kuruluş} / {Kurum} / Yönetim | `/kurulus/{id}/panel` / `/kurum/{id}/panel` |
+| Bağlam seçici (Yönetim) | Kurum Doğrulama / Yetkinlik Yönetimi | `/admin/dogrulama-kuyrugu` / `/admin/skiller` |
+| Üst bar kullanıcı menüsü | Çıkış | `/giris` |
 | `/calismalar` | Çalışma kartı | `/calismalar/{id}` |
 | `/calismalar/{id}` | ← Çalışmalara dön | `/calismalar` |
 | `/calismalar/{id}` | Değerlendirme Formu (PENDING_EVALUATION) | `/calismalar/{id}/degerlendirme` |
