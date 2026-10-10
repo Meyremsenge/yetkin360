@@ -331,6 +331,109 @@ def email_organization_member_invited_handler(payload: dict, outbox_id: int) -> 
     )
 
 
+def _resolve_talent_user_email(talent_id: str) -> str | None:
+    """Same own-session rule as _resolve_user_email — talent_id is TalentProfile.id,
+    joined to User.email (payloads never carry the address itself, PII guard)."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session as _Session
+
+    from app.core.config import settings
+    from app.models import TalentProfile, User
+
+    engine = create_engine(settings.database_url)
+    try:
+        with _Session(engine) as session:
+            email = session.execute(
+                select(User.email).join(TalentProfile, TalentProfile.user_id == User.id)
+                .where(TalentProfile.id == talent_id)
+            ).scalars().first()
+            return email
+    finally:
+        engine.dispose()
+
+
+def _resolve_institution_coordinator_emails(institution_id: str) -> list[str]:
+    """All COORDINATOR members of the institution — PLAN 3.51 scope is coordinators
+    only (not ADMIN), matching the service-layer comment where this topic is enqueued."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session as _Session
+
+    from app.core.config import settings
+    from app.models import InstitutionMember, User
+
+    engine = create_engine(settings.database_url)
+    try:
+        with _Session(engine) as session:
+            emails = session.execute(
+                select(User.email)
+                .join(InstitutionMember, InstitutionMember.user_id == User.id)
+                .where(InstitutionMember.institution_id == institution_id, InstitutionMember.role == "COORDINATOR")
+            ).scalars().all()
+            return list(emails)
+    finally:
+        engine.dispose()
+
+
+def attestation_created_handler(payload: dict, outbox_id: int) -> None:
+    """
+    Handler for attestation.created topic (PLAN 3.51 — was enqueued since
+    PLAN 2.8 but never registered in DEFAULT_HANDLERS, so these rows piled up
+    unprocessed forever). Notifies the talent that their engagement received
+    a witness attestation.
+
+    Args:
+      - payload: {"attestation_id", "engagement_id", "talent_id", "claim_type",
+        "downgrade_reasons"} — no address (PII guard), resolved from talent_id.
+      - outbox_id: row ID in outbox table
+    """
+    from app.core.config import settings
+    from app.core.email_messages import ATTESTATION_CREATED_BODY, ATTESTATION_CREATED_SUBJECT, CLAIM_TYPE_LABELS
+
+    engagement_url = f"{settings.frontend_origin}/calismalar/{payload['engagement_id']}"
+
+    if settings.email_backend == "console":
+        print(f"[EMAIL] Attestation created email (outbox_id={outbox_id}): {engagement_url}")
+        return
+
+    to_email = _resolve_talent_user_email(payload["talent_id"])
+    if to_email is None:
+        return
+
+    claim_type_label = CLAIM_TYPE_LABELS.get(payload["claim_type"], payload["claim_type"].lower())
+    _send_smtp_email(
+        to_email=to_email,
+        subject=ATTESTATION_CREATED_SUBJECT,
+        body=ATTESTATION_CREATED_BODY.format(claim_type_label=claim_type_label, engagement_url=engagement_url),
+    )
+
+
+def engagement_pending_approval_handler(payload: dict, outbox_id: int) -> None:
+    """
+    Handler for engagement.pending_approval topic (PLAN 3.51 — same
+    never-registered gap as attestation_created_handler above). Notifies every
+    COORDINATOR of the engagement's institution that an engagement awaits approval.
+
+    Args:
+      - payload: {"engagement_id", "talent_id", "organization_id", "institution_id"}
+      - outbox_id: row ID in outbox table
+    """
+    from app.core.config import settings
+    from app.core.email_messages import ENGAGEMENT_PENDING_APPROVAL_BODY, ENGAGEMENT_PENDING_APPROVAL_SUBJECT
+
+    engagement_url = f"{settings.frontend_origin}/calismalar/{payload['engagement_id']}"
+
+    if settings.email_backend == "console":
+        print(f"[EMAIL] Engagement pending-approval email (outbox_id={outbox_id}): {engagement_url}")
+        return
+
+    for to_email in _resolve_institution_coordinator_emails(payload["institution_id"]):
+        _send_smtp_email(
+            to_email=to_email,
+            subject=ENGAGEMENT_PENDING_APPROVAL_SUBJECT,
+            body=ENGAGEMENT_PENDING_APPROVAL_BODY.format(engagement_url=engagement_url),
+        )
+
+
 def evidence_scan_requested_handler(payload: dict, outbox_id: int) -> None:
     """
     Handler for evidence.scan_requested topic (YET-195/YET-184).
@@ -544,6 +647,8 @@ DEFAULT_HANDLERS = {
     "email.password_reset": email_password_reset_handler,
     "email.organization_member_invited": email_organization_member_invited_handler,
     "attestation.fraud_check_requested": attestation_fraud_check_handler,
+    "attestation.created": attestation_created_handler,
+    "engagement.pending_approval": engagement_pending_approval_handler,
 }
 
 
