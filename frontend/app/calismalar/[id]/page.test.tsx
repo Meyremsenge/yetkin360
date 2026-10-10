@@ -44,7 +44,7 @@ const baseEngagement: EngagementDetail = {
   version: 2,
   created_at: "2026-09-01T00:00:00Z",
   updated_at: "2026-09-18T14:30:00Z",
-  tasks: [{ id: "task-1", title: "API şeması", status: "DONE" }],
+  tasks: [{ id: "task-1", title: "API şeması", status: "DONE", verified: true }],
   deliverables: [],
   attestations: [],
 };

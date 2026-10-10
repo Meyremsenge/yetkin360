@@ -1239,6 +1239,97 @@ class TestEngagementList:
         # Assert: different items returned
         assert first_item_id != second_item_id
 
+    def test_org_member_list_names_the_student(
+        self,
+        client,
+        session,
+        user_org_member_charlie,
+        organization_b,
+        engagement_org_b_1,
+        talent_alice,
+    ):
+        """The organization side lists student engagements by student name."""
+        response = client.get(
+            "/engagements",
+            headers={"X-Debug-User-Id": str(user_org_member_charlie.id)},
+        )
+
+        assert response.status_code == 200
+        items = response.json()["items"]
+        assert len(items) == 1
+        item = items[0]
+        assert item["id"] == str(engagement_org_b_1.id)
+        assert item["talent_id"] == str(talent_alice.id)
+        assert item["talent_name"] == talent_alice.full_name
+        assert item["organization_id"] == str(organization_b.id)
+        assert item["institution_id"] is None
+
+    def test_coordinator_list_names_the_student(
+        self,
+        client,
+        session,
+        user_coordinator_david,
+        institution_a,
+        engagement_inst_a_1,
+        talent_alice,
+    ):
+        """The institution side lists student engagements by student name."""
+        response = client.get(
+            "/engagements",
+            headers={"X-Debug-User-Id": str(user_coordinator_david.id)},
+        )
+
+        assert response.status_code == 200
+        items = response.json()["items"]
+        assert len(items) == 1
+        item = items[0]
+        assert item["id"] == str(engagement_inst_a_1.id)
+        assert item["talent_name"] == talent_alice.full_name
+        assert item["institution_id"] == str(institution_a.id)
+
+    def test_talent_list_carries_own_name(
+        self,
+        client,
+        session,
+        user_talent_alice,
+        talent_alice,
+        engagement_alice_1,
+    ):
+        """The talent's own list carries the same fields (own id and name)."""
+        response = client.get(
+            "/engagements",
+            headers={"X-Debug-User-Id": str(user_talent_alice.id)},
+        )
+
+        assert response.status_code == 200
+        item = response.json()["items"][0]
+        assert item["talent_id"] == str(talent_alice.id)
+        assert item["talent_name"] == talent_alice.full_name
+
+    def test_student_names_do_not_leak_across_tenants(
+        self,
+        client,
+        session,
+        user_org_member_charlie,
+        organization_b,
+        engagement_org_b_1,
+        talent_alice,
+        user_talent_bob,
+        talent_bob,
+        engagement_bob_1,
+    ):
+        """A student of another organization is absent from the list — name included."""
+        response = client.get(
+            "/engagements",
+            headers={"X-Debug-User-Id": str(user_org_member_charlie.id)},
+        )
+
+        assert response.status_code == 200
+        assert engagement_bob_1.organization_id != organization_b.id
+        assert talent_bob.full_name not in response.text
+        assert str(talent_bob.id) not in response.text
+        assert [item["talent_name"] for item in response.json()["items"]] == [talent_alice.full_name]
+
 
 # ============================================================================
 # AC-4, AC-5, AC-6, AC-S1, AC-S2: GET /engagements/{id} detay

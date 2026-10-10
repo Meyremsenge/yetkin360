@@ -12,10 +12,12 @@ from app.models import (
     Deliverable,
     EngagementTask,
     Engagement,
+    InstitutionMember,
     Organization,
     TalentProfile,
     Skill,
     SkillSignal,
+    User,
 )
 from app.services.authorization import Principal, engagement_relation, get_scoped_or_404, scoped_engagements
 from app.services.audit import log_audit_event
@@ -82,6 +84,14 @@ class VersionConflictError(Exception):
     pass
 
 
+class TaskNotFoundError(Exception):
+    """Task not found in this engagement (→ 404)."""
+
+
+class TaskAlreadyVerifiedError(Exception):
+    """Task is already verified (→ 409)."""
+
+
 class InvalidSkillError(Exception):
     """Raised when skill_id does not exist in skills table or is not ACTIVE."""
 
@@ -90,6 +100,12 @@ class InvalidSkillError(Exception):
 
 # Strength constants for SkillSignal generation (YET-71)
 TASK_SIGNAL_STRENGTH = "WEAK"
+# The talent may plan tasks as soon as the engagement exists; they stay
+# unverified (no SkillSignal) until the organization side verifies them.
+TALENT_TASK_STATUSES = ("DRAFT", "ACTIVE")
+VERIFIER_TASK_STATUSES = ("ACTIVE",)
+# Verifying needs an engagement the organization has accepted and not closed off.
+TASK_VERIFICATION_BLOCKED_STATUSES = ("DRAFT", "PENDING_APPROVAL", "REJECTED", "CANCELLED")
 DELIVERABLE_SIGNAL_STRENGTH = "MODERATE"
 
 
@@ -244,6 +260,7 @@ def transition_engagement(
     reason: str | None = None,
     started_on: str | None = None,
     ended_on: str | None = None,
+    notify_emails: Sequence[str] | None = None,
 ) -> Engagement:
     """
     Transition engagement status with optimistic locking and authorization checks.
@@ -271,6 +288,11 @@ def transition_engagement(
         reason: Optional reason for REJECTED/CANCELLED transitions
         started_on: Optional start date (ISO format string) for engagement
         ended_on: Optional end date (ISO format string) for engagement
+        notify_emails: Required for DRAFT → PENDING_APPROVAL, ignored otherwise.
+            Addresses that belong to coordinators of the engagement's institution
+            receive the approval request instead of every coordinator. Other
+            addresses are ignored without an error, so the caller cannot probe
+            who is a member; if none matches, every coordinator is notified.
 
     Returns:
         Updated Engagement object
@@ -278,7 +300,7 @@ def transition_engagement(
     Raises:
         EngagementNotFoundError: Engagement not found or not accessible (404)
         IllegalTransitionError: to_status not valid from current status (422)
-        PreconditionFailedError: Preconditions not met (institution_id NULL, reason missing, date validation) (422)
+        PreconditionFailedError: Preconditions not met (institution_id NULL, reason or recipient missing, date validation) (422)
         TransitionForbiddenError: Principal not authorized for this transition (403 or 404)
         VersionConflictError: Version mismatch (optimistic locking) (409)
     """
@@ -311,7 +333,7 @@ def transition_engagement(
     # Each entry: from_status -> to_status -> (allowed_roles, preconditions, authorization check)
     transition_table: dict[tuple[str, str], TransitionSpec] = {
         ("DRAFT", "PENDING_APPROVAL"): {
-            "preconditions": ["institution_id_not_null"],
+            "preconditions": ["institution_id_not_null", "recipient_required"],
             "can_transition": lambda: (
                 rel.is_subject or rel.is_org_member
             ),
@@ -372,6 +394,10 @@ def transition_engagement(
         elif precondition == "reason_not_empty":
             if not reason or reason.strip() == "":
                 raise PreconditionFailedError("reason is required for this transition")
+        elif precondition == "recipient_required":
+            # The sender names who at the institution should receive the request.
+            if not any(email.strip() for email in notify_emails or []):
+                raise PreconditionFailedError("notify_emails is required for this transition")
         elif precondition == "has_deliverable":
             # Real database query to verify at least one Deliverable exists (AC-S4: client input ignored)
             count = session.execute(
@@ -475,16 +501,17 @@ def transition_engagement(
     # reason KONULMAMALI outbox payload'ına (PII riski)
     if to_status == "PENDING_APPROVAL":
         # Notify coordinators of the institution
-        enqueue(
-            session=session,
-            topic="engagement.pending_approval",
-            payload={
-                "engagement_id": str(engagement.id),
-                "talent_id": str(engagement.talent_id),
-                "organization_id": str(engagement.organization_id),
-                "institution_id": str(engagement.institution_id),
-            },
-        )
+        payload: dict[str, Any] = {
+            "engagement_id": str(engagement.id),
+            "talent_id": str(engagement.talent_id),
+            "organization_id": str(engagement.organization_id),
+            "institution_id": str(engagement.institution_id),
+        }
+        # User ids, never the addresses (PII guard); absent = every coordinator.
+        selected = _coordinator_ids_for_emails(session, engagement.institution_id, notify_emails)
+        if selected:
+            payload["notify_user_ids"] = selected
+        enqueue(session=session, topic="engagement.pending_approval", payload=payload)
 
     # PLAN 3.56: coordinator approval (T2) is the main defence against fake
     # internships — check the approval itself for conflict-of-interest/bulk patterns.
@@ -496,6 +523,35 @@ def transition_engagement(
         )
 
     return engagement
+
+
+def _coordinator_ids_for_emails(
+    session: Session,
+    institution_id: uuid.UUID | None,
+    emails: Sequence[str] | None,
+) -> list[str]:
+    """
+    Ids of the institution's COORDINATOR members whose e-mail is in `emails`.
+
+    Only coordinators can approve, and only this engagement's institution is
+    searched: an address of anyone else (another institution, a non-member)
+    matches nothing.
+    """
+    wanted = {email.strip().lower() for email in emails or [] if email.strip()}
+    if institution_id is None or not wanted:
+        return []
+
+    rows = session.execute(
+        select(User.id)
+        .join(InstitutionMember, InstitutionMember.user_id == User.id)
+        .where(
+            InstitutionMember.institution_id == institution_id,
+            InstitutionMember.role == "COORDINATOR",
+            func.lower(User.email).in_(wanted),
+        )
+        .order_by(User.id)
+    ).scalars().all()
+    return [str(user_id) for user_id in rows]
 
 
 def create_engagement_task(
@@ -513,6 +569,12 @@ def create_engagement_task(
     PLAN 2.4 (AC-1): POST /engagements/{id}/tasks.
     PLAN 2.9 (YET-71): Optional skill_id triggers SkillSignal generation (AC-1, AC-6, AC-7).
 
+    Who may create, and what it produces:
+      - organization member / coordinator: ACTIVE engagements only; the task is
+        verified on creation and a skill_id produces a SkillSignal (unchanged).
+      - the talent, on their own engagement: DRAFT or ACTIVE; the task is
+        unverified and produces no SkillSignal until verify_engagement_task().
+
     Args:
         session: Database session
         principal: Authorization context
@@ -527,8 +589,8 @@ def create_engagement_task(
 
     Raises:
         EngagementNotFoundError: Engagement not found or not accessible
-        PreconditionFailedError: Engagement not ACTIVE
-        TransitionForbiddenError: Principal not authorized (e.g., TALENT trying to create task)
+        PreconditionFailedError: Engagement status does not accept tasks from this principal
+        TransitionForbiddenError: Principal can see the engagement but may not create tasks
         InvalidSkillError: skill_id provided but does not exist or is not ACTIVE (AC-7)
     """
     # Parse UUID
@@ -544,19 +606,19 @@ def create_engagement_task(
     if engagement is None:
         raise EngagementNotFoundError(f"Engagement {engagement_id} not found")
 
-    # AC-5: Only ACTIVE engagements can receive tasks
-    if engagement.status != "ACTIVE":
-        raise PreconditionFailedError("Task can only be created on ACTIVE engagements")
-
-    # AC-S1: relation is masked for the subject (self-dealing prevention)
+    # AC-S1: relation is masked for the subject (self-dealing prevention), so a
+    # talent who is also a member of the organization is treated as the talent.
     rel = engagement_relation(principal, engagement)
+    is_verifier = rel.is_org_member or rel.is_coordinator
+    as_talent = rel.is_subject and not is_verifier
 
-    # Only org members and coordinators can create tasks
-    if not (rel.is_org_member or rel.is_coordinator):
-        if rel.is_subject:
-            raise TransitionForbiddenError("Talent cannot create tasks")
-        else:
-            raise TransitionForbiddenError("Not authorized to create tasks")
+    # AC-5: status gate (checked before the role, as before)
+    allowed_statuses = TALENT_TASK_STATUSES if as_talent else VERIFIER_TASK_STATUSES
+    if engagement.status not in allowed_statuses:
+        raise PreconditionFailedError("Task cannot be created in this engagement status")
+
+    if not (is_verifier or as_talent):
+        raise TransitionForbiddenError("Not authorized to create tasks")
 
     # AC-7: Validate skill_id BEFORE writing anything
     skill_id_uuid = None
@@ -582,6 +644,9 @@ def create_engagement_task(
         description=description,
         status="PLANNED",
         due_at=due_at,
+        created_by_user_id=principal.user_id,
+        verified_at=datetime.now(timezone.utc) if is_verifier else None,
+        verified_by_user_id=principal.user_id if is_verifier else None,
     )
     session.add(task)
     try:
@@ -591,20 +656,10 @@ def create_engagement_task(
             raise EngagementNotFoundError("Engagement not found")
         raise
 
-    # AC-1, AC-6: Generate SkillSignal if skill_id provided
-    if skill_id_uuid is not None:
-        signal = SkillSignal(
-            talent_id=engagement.talent_id,
-            skill_id=skill_id_uuid,
-            source_type="TASK",
-            source_id=task.id,
-            strength=TASK_SIGNAL_STRENGTH,
-            attested_by_org_id=None,
-            occurred_at=task.created_at,
-            superseded_by_id=None,
-        )
-        session.add(signal)
-        session.flush()
+    # AC-1, AC-6: a verified task with a skill produces a SkillSignal. A task
+    # the talent added is unverified, so its signal waits for verification.
+    if is_verifier:
+        _add_task_signal(session, engagement, task, occurred_at=task.created_at)
 
     # Log audit event
     log_audit_event(
@@ -618,7 +673,105 @@ def create_engagement_task(
         metadata={
             "engagement_id": str(engagement_uuid),
             "title": title,
+            "verified": is_verifier,
         },
+    )
+
+    return task
+
+
+def _add_task_signal(
+    session: Session, engagement: Engagement, task: EngagementTask, occurred_at: datetime
+) -> None:
+    if task.skill_id is None:
+        return
+    session.add(
+        SkillSignal(
+            talent_id=engagement.talent_id,
+            skill_id=task.skill_id,
+            source_type="TASK",
+            source_id=task.id,
+            strength=TASK_SIGNAL_STRENGTH,
+            attested_by_org_id=None,
+            occurred_at=occurred_at,
+            superseded_by_id=None,
+        )
+    )
+    session.flush()
+
+
+def verify_engagement_task(
+    session: Session,
+    principal: Principal,
+    engagement_id: str,
+    task_id: str,
+) -> EngagementTask:
+    """
+    Verify a task the talent added: POST /engagements/{id}/tasks/{task_id}/verify.
+
+    Only an organization member of the engagement or the institution's
+    coordinator may verify; the talent can never verify their own task
+    (engagement_relation masks org/coordinator flags for the subject). The
+    task's SkillSignal, if it has a skill, is written here.
+
+    Raises:
+        EngagementNotFoundError: Engagement not found or not accessible (→ 404)
+        TaskNotFoundError: No such task in this engagement (→ 404)
+        TransitionForbiddenError: Principal can see the engagement but may not verify (→ 403)
+        PreconditionFailedError: Engagement status does not allow verification (→ 422)
+        TaskAlreadyVerifiedError: Task is already verified (→ 409)
+    """
+    try:
+        engagement_uuid = uuid.UUID(engagement_id)
+    except ValueError:
+        raise EngagementNotFoundError(f"Invalid engagement_id format: {engagement_id}")
+
+    engagement = get_scoped_or_404(
+        scoped_engagements(session, principal).where(Engagement.id == engagement_uuid), session
+    )
+    if engagement is None:
+        raise EngagementNotFoundError(f"Engagement {engagement_id} not found")
+
+    try:
+        task_uuid = uuid.UUID(task_id)
+    except ValueError:
+        raise TaskNotFoundError(f"Invalid task_id format: {task_id}")
+
+    # Locked: two verifiers at once must not write the signal twice.
+    task = session.execute(
+        select(EngagementTask)
+        .where(EngagementTask.id == task_uuid, EngagementTask.engagement_id == engagement.id)
+        .with_for_update()
+    ).scalar_one_or_none()
+    if task is None:
+        raise TaskNotFoundError(f"Task {task_id} not found")
+
+    rel = engagement_relation(principal, engagement)
+    if not (rel.is_org_member or rel.is_coordinator):
+        raise TransitionForbiddenError("Not authorized to verify tasks")
+
+    if engagement.status in TASK_VERIFICATION_BLOCKED_STATUSES:
+        raise PreconditionFailedError("Task cannot be verified in this engagement status")
+
+    if task.verified_at is not None:
+        raise TaskAlreadyVerifiedError(f"Task {task_id} is already verified")
+
+    now = datetime.now(timezone.utc)
+    task.verified_at = now
+    task.verified_by_user_id = principal.user_id
+    session.flush()
+
+    _add_task_signal(session, engagement, task, occurred_at=now)
+
+    log_audit_event(
+        session=session,
+        actor_user_id=principal.user_id,
+        actor_ip=None,
+        action="TASK_VERIFIED",
+        subject_type="task",
+        subject_id=task.id,
+        result="SUCCESS",
+        metadata={"engagement_id": str(engagement.id)},
     )
 
     return task
@@ -874,12 +1027,12 @@ def list_engagements(
     principal: Principal,
     limit: int = 50,
     offset: int = 0,
-) -> list[tuple[Engagement, str]]:
+) -> list[tuple[Engagement, str, str]]:
     """
-    List engagements scoped to principal with organization name (AC-1, AC-2, AC-3, AC-8).
+    List engagements scoped to principal with organization and talent name (AC-1, AC-2, AC-3, AC-8).
 
     Returns engagements accessible to principal (by scoped_engagements), sorted by
-    updated_at descending, with organization name joined in single query (N+1-free).
+    updated_at descending, with organization and talent names batch-loaded (N+1-free).
 
     Args:
         session: Database session
@@ -888,7 +1041,7 @@ def list_engagements(
         offset: Pagination offset (default 0)
 
     Returns:
-        List of (Engagement, organization_name) tuples, sorted by updated_at DESC
+        List of (Engagement, organization_name, talent_name) tuples, sorted by updated_at DESC
 
     Implements: AC-1 (TALENT), AC-2 (ORG_MEMBER/ORG_ADMIN), AC-3 (COORDINATOR/INST_ADMIN),
                 AC-8 (limit/offset pagination)
@@ -901,8 +1054,8 @@ def list_engagements(
     stmt = scoped.order_by(Engagement.updated_at.desc()).limit(limit).offset(offset)
     engagements = session.execute(stmt).scalars().all()
 
-    # Fetch all Organization names in a single batch query (not N+1: exactly 2 SQL queries)
-    # Query 1: Engagements above, Query 2: Organizations below via WHERE id IN (...)
+    # Fetch all Organization names in a single batch query (not N+1: exactly 3 SQL queries)
+    # Query 1: Engagements above, Query 2: Organizations, Query 3: talent names via WHERE id IN (...)
     org_ids = set(e.organization_id for e in engagements)
     if org_ids:
         orgs = (
@@ -914,8 +1067,22 @@ def list_engagements(
     else:
         org_map = {}
 
-    # Return list of (Engagement, organization_name) tuples
-    return [(eng, org_map.get(eng.organization_id, "")) for eng in engagements]
+    # Only the name, and only for talents of engagements already inside the
+    # principal's scope: the organization/institution side lists students by name.
+    talent_ids = set(e.talent_id for e in engagements)
+    if talent_ids:
+        talent_rows = session.execute(
+            select(TalentProfile.id, TalentProfile.full_name).where(TalentProfile.id.in_(talent_ids))
+        ).all()
+        talent_map = {talent_id: full_name for talent_id, full_name in talent_rows}
+    else:
+        talent_map = {}
+
+    # Return list of (Engagement, organization_name, talent_name) tuples
+    return [
+        (eng, org_map.get(eng.organization_id, ""), talent_map.get(eng.talent_id, ""))
+        for eng in engagements
+    ]
 
 
 def get_engagement_detail(

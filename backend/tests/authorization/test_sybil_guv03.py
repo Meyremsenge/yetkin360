@@ -181,7 +181,7 @@ def sybil_chain(client, session):
         nonlocal version
         resp = client.post(
             f"/engagements/{eng_id}/transitions",
-            json={"to_status": to_status, "version": version},
+            json={"to_status": to_status, "version": version, "notify_emails": ["approver@example.com"]},
             headers=_h(actor),
         )
         assert resp.status_code == 200, resp.text
@@ -296,7 +296,7 @@ class TestForeignOrgNeedsItsOwnMember:
         ):
             r = client.post(
                 f"/engagements/{eng_id}/transitions",
-                json={"to_status": to_status, "version": version},
+                json={"to_status": to_status, "version": version, "notify_emails": ["approver@example.com"]},
                 headers=_h(actor),
             )
             assert r.status_code == 200

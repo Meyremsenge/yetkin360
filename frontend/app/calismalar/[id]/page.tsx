@@ -17,6 +17,7 @@ import { EvidenceUploadForm } from "./evidence-upload-form";
 import { DeliverableForm } from "./deliverable-form";
 import { AttestationForm } from "./attestation-form";
 import { TaskForm } from "./task-form";
+import { TaskList } from "./task-list";
 import { AttestationRevoke } from "./attestation-revoke";
 import { CertificateChecksSection } from "./certificate-checks-section";
 import messages from "@/messages/tr.json";
@@ -28,12 +29,6 @@ const TONE_BADGE: Record<StatusTone, string> = {
   warning: "border-warning/30 bg-warning/10 text-warning",
   success: "border-success/30 bg-success/10 text-success",
   error: "border-destructive/30 bg-destructive/10 text-destructive",
-};
-
-const TASK_BADGE: Record<string, string> = {
-  PLANNED: "bg-muted text-muted-foreground",
-  IN_PROGRESS: "bg-warning/10 text-warning",
-  DONE: "bg-success/10 text-success",
 };
 
 // Lucide-style line icons for the section headers.
@@ -93,7 +88,8 @@ export default function CalismaDetayPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
   const queryClient = useQueryClient();
-  const currentUserId = useSession().data?.user.id;
+  const sessionData = useSession().data;
+  const currentUserId = sessionData?.user.id;
   const ENGAGEMENT_QUERY_KEY = ["engagement", id] as const;
   const refresh = () => queryClient.invalidateQueries({ queryKey: ENGAGEMENT_QUERY_KEY });
 
@@ -129,6 +125,9 @@ export default function CalismaDetayPage() {
   const tone = STATUS_TONE[engagement.status] ?? "default";
   const progress = CHAIN_PROGRESS[engagement.status] ?? { done: 0 };
   const isVerified = engagement.status === "VERIFIED" || engagement.status === "RESOLVED";
+  // UX only: decides which task controls to show. The server decides who may add or verify.
+  const viewerTalentId = sessionData?.talent_profile?.id;
+  const isSubject = Boolean(viewerTalentId) && viewerTalentId === engagement.talent_id;
 
   return (
     <AppShell>
@@ -188,25 +187,11 @@ export default function CalismaDetayPage() {
         <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="space-y-6">
             <DetailSection icon="tasks" title={c.tasksTitle} hint={c.detail.tasksHint} count={engagement.tasks.length}>
-              <TaskForm engagement={engagement} onSuccess={refresh} />
+              <TaskForm engagement={engagement} onSuccess={refresh} isSubject={isSubject} />
               {engagement.tasks.length === 0 ? (
                 <EmptyLine>{c.emptyTasksMessage}</EmptyLine>
               ) : (
-                <ul className="divide-y divide-border rounded-lg border border-border">
-                  {engagement.tasks.map((task) => (
-                    <li key={task.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
-                      <span className="text-foreground">{task.title}</span>
-                      <span
-                        className={cn(
-                          "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium",
-                          TASK_BADGE[task.status] ?? TASK_BADGE.PLANNED
-                        )}
-                      >
-                        {(c.taskStatus as Record<string, string>)[task.status] ?? task.status}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                <TaskList engagement={engagement} canVerify={!isSubject} onChange={refresh} />
               )}
             </DetailSection>
 

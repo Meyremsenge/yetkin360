@@ -12,16 +12,23 @@ import { SkillPicker } from "@/components/skill-picker";
 import messages from "@/messages/tr.json";
 
 /**
- * YET-202/ENT-01: Engagement ACTIVE durumundayken yeni bir görev ekler.
- * TALENT çağıramaz — backend 403 döner, burada rol kontrolü yapılmaz
- * (bkz. deliverable-form.tsx'teki aynı felsefe: duruma göre göster, yetki sunucuda).
+ * YET-202/ENT-01: Çalışmaya yeni bir görev ekler.
+ * - Kuruluş üyesi / koordinatör: çalışma ACTIVE iken; görev doğrulanmış oluşur.
+ * - Öğrenci (`isSubject`): çalışma DRAFT veya ACTIVE iken; görev doğrulanmamış
+ *   oluşur ve kuruluş ya da kurum onaylayana kadar öyle kalır.
+ * Form yalnız duruma göre gösterilir; yetki kararı sunucudadır.
  */
+const SUBJECT_STATUSES = ["DRAFT", "ACTIVE"];
+const DEFAULT_STATUSES = ["ACTIVE"];
+
 export function TaskForm({
   engagement,
   onSuccess,
+  isSubject = false,
 }: {
   engagement: EngagementDetail;
   onSuccess: () => void;
+  isSubject?: boolean;
 }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -44,9 +51,11 @@ export function TaskForm({
       setDueAt("");
       setSkillId(null);
       setFormError(null);
-      setSuccessMessage(messages.calismalar.taskAddedMessage);
+      setSuccessMessage(
+        isSubject ? messages.calismalar.taskAddedUnverifiedMessage : messages.calismalar.taskAddedMessage
+      );
       onSuccess();
-      setTimeout(() => setSuccessMessage(null), 2000);
+      setTimeout(() => setSuccessMessage(null), isSubject ? 4000 : 2000);
     },
     onError: (error: unknown) => {
       if (error instanceof ApiError) {
@@ -71,7 +80,8 @@ export function TaskForm({
   // deliverable-form.tsx'teki desenle aynı: durum artık uygun değilse AMA henüz
   // okunmamış bir mesaj varsa erken dönme — aksi halde başarı mesajı bir render
   // sonra (status ACTIVE'den çıkınca) okunamadan kaybolur.
-  if (engagement.status !== "ACTIVE" && !formError && !successMessage) {
+  const allowedStatuses = isSubject ? SUBJECT_STATUSES : DEFAULT_STATUSES;
+  if (!allowedStatuses.includes(engagement.status) && !formError && !successMessage) {
     return null;
   }
 
@@ -85,6 +95,9 @@ export function TaskForm({
   return (
     <form onSubmit={handleSubmit} className="mb-4 rounded-lg border border-dashed border-border bg-background p-4">
       <h3 className="text-sm font-bold mb-3">{messages.calismalar.addTaskTitle}</h3>
+      {isSubject && (
+        <p className="mb-3 text-xs text-muted-foreground">{messages.calismalar.taskUnverifiedHint}</p>
+      )}
 
       <div className="mb-3">
         <Label htmlFor="task-title">{messages.calismalar.taskTitleLabel}</Label>

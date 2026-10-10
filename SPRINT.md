@@ -10,6 +10,30 @@
 
 ---
 
+## ⚠ Güncelleme — 10 Ekim gece (her oturum önce bunu okur)
+
+1. **`main` taban dala alındı** (`70867a0`). Ekip arkadaşının PR #59-#61 işleri artık tabanda. Paket dalın daha
+   eskiyse **bir kez** `git merge feat/kurum-kurulus-panelleri` yap. Bu dosyadaki **satır numaraları eskimiş olabilir**:
+   fonksiyonu `grep -n` ile bul, numaraya güvenme.
+2. **Migration head artık `53d336a5a854`** (eskiden `f2a6c8e0b913`). M0 buna bağlanır.
+3. **`.env` repo kökünde**, `backend/` altında değil. `config.py` yalnız kendi repo kökündeki `.env`'i okur
+   (`backend/app/core/config.py:11,27`). Worktree'de `.env` yok, izin kuralı kopyalamayı yasaklıyor (**aşma**).
+   Çözüm S0'a eklendi: `YETKIN360_ENV_FILE` ortam değişkeni. S0 birleştikten sonra worktree'de backend testi:
+   `YETKIN360_ENV_FILE=C:/Users/Meyrem/Desktop/P/yetkin360/.env TEST_DB_SUFFIX=<id> <venv-python> -m pytest ...`
+4. **Ekip arkadaşının yaptıkları (yeniden yazma, kullan):**
+   - #60: Kurum/kuruluş kullanıcısı `/calismalar`'da kendi **"Sizden işlem bekleyenler"** görünümünü görüyor
+     (`frontend/app/calismalar/review-view.tsx`, `list-parts.tsx`, `frontend/lib/ui/engagement-review.ts` →
+     `reviewAction`, `isInReviewerScope`). Liste yanıtında `talent_id`, `talent_name`, `organization_id`, `institution_id` zaten var.
+   - #61: `DRAFT → PENDING_APPROVAL` geçişi `notify_emails` (1-5 adres) ister; öğrenci koordinatör e-postasını yazar
+     (`frontend/lib/ui/notify-emails.ts`, `transition-actions.tsx` içindeki kutu).
+   - #59: Görev ekleme/doğrulama (`task-list.tsx`, `engagement_tasks` doğrulama alanları migration'ı).
+   Bu dosyalar **ekip arkadaşının**: okuyup içe aktar, değiştirmen gerekiyorsa paket sahibi B'dir ve değişikliği commit gövdesinde açıkla.
+5. **Uzaktaki `sprint/s0` dalı** yönetici oturumunun deneme dalıdır (`d75ef50`) — **yok say**. Asıl S0 oturumu
+   kendi dalını `sprint/s0-opus` adıyla push eder; birleştirmede o kullanılır.
+6. **Yönetim modu:** Paketler kullanıcının açtığı oturumlarda `/sprint <ID>` ile yürür. Yönetici oturumu kod yazmaz.
+
+---
+
 ## 0. Hikâye — neden bu sprint
 
 Provada çıkan ana eleştiri: kurum ve kuruluş ekranları öğrenci ekranının kopyası gibi duruyor;
@@ -35,6 +59,9 @@ kuruluşun platformda **neden hesap açacağı** görünmüyor. Kararımız:
 ---
 
 ## 1. Açık kararlar (kullanıcı cevaplayacak — plan ikisine de hazır)
+
+> **KARAR (10 Ekim gece, varsayılan — kullanıcı değiştirebilir):** K1 = **Seçenek A (çift imza)** → K paketi yapılır.
+> K2 = **H-0** (seçenek arayüzden kaldırılır); H yapılmaz. Yürütme: kullanıcının açtığı oturumlarda `/sprint <ID>`.
 
 ### K1 — Mührü kim veriyor?
 Bugün: çalışma bir kuruma (üniversiteye) bağlıysa **mührü koordinatör verir**, kuruluş yalnız
@@ -91,8 +118,9 @@ profil herkese kapalı kalıyor, hiçbir kuruluş ekranı bu ayarı okumuyor.
 ### 3.2 Worktree ortamı
 - **Backend Python:** ana klasörün venv'i kullanılır: `C:/Users/Meyrem/Desktop/P/yetkin360/backend/.venv/Scripts/python.exe`
   (komutlar worktree'nin `backend/` klasöründe çalışır: `<venv-python> -m pytest ...`).
-- **`.env`:** `cp <ana>/backend/.env <worktree>/backend/.env` — **kopyala, okuma, içeriğini yazdırma.**
-  Aynısı `frontend/.env.local` varsa onun için.
+- **`.env`:** Kopyalama (izin kuralı yasaklıyor, aşma). Backend komutlarına
+  `YETKIN360_ENV_FILE=C:/Users/Meyrem/Desktop/P/yetkin360/.env` öneki ekle (S0 birleştikten sonra çalışır).
+  Frontend `.env` istemez (`NEXT_PUBLIC_API_BASE_URL` varsayılanı `http://localhost:8000`).
 - **node_modules:** `cmd //c mklink //J frontend\\node_modules <ana>\\frontend\\node_modules` (junction).
   Junction'la `vitest`/`tsc` sorun çıkarırsa `npm ci`.
 - **Test DB:** her oturum **kendi test DB'sini** kullanır: `TEST_DB_SUFFIX=<id> <venv-python> -m pytest ...`
@@ -214,7 +242,12 @@ onay kutusu, E'nin satır içi onayı, J. Bir paket kesilirse C'nin yazdığı a
 
 **Hedef:** `TEST_DB_SUFFIX` ortam değişkeni verilirse test DB adı `yetkin360_<suffix>_test` olur.
 
-**Sahip dosyalar:** `backend/tests/_testdb.py`, `backend/tests/conftest.py`, `backend/tests/test_db_isolation.py`, `CONTRIBUTING.md` (bir satır).
+**Sahip dosyalar:** `backend/tests/_testdb.py`, `backend/tests/conftest.py`, `backend/tests/test_db_isolation.py`, `backend/app/core/config.py` (yalnız `env_file` satırı), `CONTRIBUTING.md` (bir satır).
+
+**Ek hedef (10 Ekim gece):** Worktree'lerde `.env` yok ve kopyalanamaz. `config.py:27`:
+`env_file=os.environ.get("YETKIN360_ENV_FILE") or (REPO_ROOT / ".env")`. Dosyanın içeriği okunmaz/yazdırılmaz;
+yalnız yol verilir. Birim testi: değişken verildiğinde `Settings.model_config["env_file"]` o yolu gösterir
+(gerçek `.env` açılmadan, `monkeypatch` + yeniden import ya da yardımcı fonksiyonla).
 
 **Adımlar:**
 1. `_testdb.py`'ye saf fonksiyon: `apply_test_db_suffix(url: str, suffix: str | None) -> str`.
@@ -255,8 +288,8 @@ Kurum üyelerine birim **eklenmez** (YAGNI; akademisyen akışı yol haritası).
 **Sahip dosyalar:** yeni `backend/alembic/versions/<rev>_org_member_unit_ve_vitrin.py`, `backend/app/models/identity.py` (yalnız iki alan + CHECK).
 
 **Adımlar:**
-1. `alembic heads` → tek head olmalı (şu an `f2a6c8e0b913`). Değilse DUR, bildir.
-2. Migration'ı **elle** yaz (autogenerate gürültü getirebilir; kullanırsan diff'i ayıkla). `down_revision = "f2a6c8e0b913"`.
+1. `alembic heads` → tek head olmalı (şu an `53d336a5a854`). Değilse DUR, bildir.
+2. Migration'ı **elle** yaz (autogenerate gürültü getirebilir; kullanırsan diff'i ayıkla). `down_revision = "53d336a5a854"`.
    `downgrade` iki kolonu ve CHECK'i kaldırır.
 3. `identity.py`: `OrganizationMember.unit: Mapped[str | None] = mapped_column(String(60))`, `__table_args__`'a CHECK;
    `Organization.showcase_public: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=false())`.
@@ -376,7 +409,10 @@ frontend `npm run typecheck && npm run lint && npx vitest run app/calismalar lib
 - `POST /engagements` gövdesine: `"supervisor_user_id": "uuid|null"` (opsiyonel).
 - `GET /engagements?assigned=me&organization_id=<uuid>` — iki filtre de opsiyonel; **kapsamı asla genişletmez**
   (`scoped_engagements` üzerine `WHERE` eklenir).
-- `EngagementSummaryResponse`'a ekle: `talent_id`, `talent_name`, `institution_name|null`, `supervisor_user_id|null`.
+- `EngagementSummaryResponse`'a ekle: `institution_name|null`, `supervisor_user_id|null`.
+  (`talent_id`, `talent_name` #60 ile **zaten var** — tekrar ekleme.)
+- **#61 ile ilişki:** #61 kurum tarafında onay bildirimini e-postayla koordinatöre yönlendiriyor (`notify_emails`).
+  D1 **kuruluş tarafı** için kişi atar (`supervisor_user_id`). İkisi ayrı; #61'in davranışını değiştirme.
 - `EngagementDetailResponse`'a ekle: `"supervisor": {"user_id","display_name","unit"} | null`.
   `display_name` = onaylayıcının `TalentProfile.full_name`'i (her kullanıcıda var). **E-posta yok.**
 
@@ -522,18 +558,21 @@ Onay talepleri kişiye gider; yönetici her şeyi görür. Tek seviye birim; ağ
    - Birim testleri `roles.test.ts`.
 2. `giris/form.tsx`: giriş sonrası `/me` alınır (zaten oturum sorgusu geçersizleniyor), `next` yoksa
    `homePathFor(me)`. Open-redirect temizliği (`sanitizeNext`) aynen kalır.
-3. `app-shell.tsx`: `isOrgSide` ise üst menü = [aktif panel(ler), Keşfet]; "Çalışmalarım" ve "Profil" üst
-   menüden çıkar, kullanıcı menüsüne **"Bireysel alanım"** altında taşınır (kişi hem çalışan hem öğrenci olabilir).
+3. `app-shell.tsx`: `isOrgSide` ise üst menü = [aktif panel(ler), İşlemler (`/calismalar`), Keşfet]; "Profil" üst
+   menüden çıkar, kullanıcı menüsüne **"Bireysel profilim"** olarak taşınır (kişi hem çalışan hem öğrenci olabilir).
    "Paneller" seçici aynı kalır. Alt başlıkta rol yazısı (A birleştiyse `role`'den: "Koordinatör", "Yönetici", "Üye · Yazılım").
-4. `calismalar/page.tsx`: `isOrgSide` kullanıcı `?bireysel=1` olmadan gelirse `router.replace(homePathFor(me))`.
-   "Yeni Çalışma" düğmesi yalnız `!isOrgSide || bireysel=1`.
+4. ~~`calismalar/page.tsx` yönlendirmesi~~ **İPTAL (10 Ekim gece):** #60 bu sayfada kurum/kuruluş için zaten
+   "Sizden işlem bekleyenler" görünümünü açıyor ve hem öğrenci hem üye olan kullanıcıya görünüm değiştirici veriyor.
+   Bu sayfaya yönlendirme ekleme. Yalnız: `isOrgSide` kullanıcının üst menüsünde bu bağlantının etiketi
+   "Çalışmalarım" yerine **"İşlemler"** olsun (aynı `/calismalar`); "Yeni Çalışma" düğmesinin #60'taki görünürlük
+   kuralını koru.
 5. Metinler `shell` ad alanına eklenir.
 
 **Kabul:**
 - AC-1 `kurum1-koordinator@seed.local` girişte kurum paneline, `org1-admin@seed.local` kuruluş paneline,
   `ogrenci1@seed.local` `/calismalar`'a, platform admini admin kuyruğuna gider.
 - AC-2 `next=/p/...` verilirse oraya gider (temizlenmiş).
-- AC-3 Kurum/kuruluş kullanıcısının üst menüsünde "Çalışmalarım" yok; kullanıcı menüsünden ulaşılabiliyor.
+- AC-3 Kurum/kuruluş kullanıcısının üst menüsünde bağlantı "İşlemler" adıyla görünür; #60 görünümü bozulmaz (`app/calismalar/page.test.tsx` geçer).
 - AC-S1 Rol kontrolü yalnız UX; hiçbir sayfa erişimi frontend'de "yetki" diye kapatılmaz.
 
 **Doğrulama:** `npm run typecheck && npm run lint && npx vitest run app/giris components lib/session app/calismalar`.
@@ -557,7 +596,9 @@ ve `InviteCard` ayrı dosyaya taşınabilir; `page.test.tsx` + yeni bileşen tes
 **Ana sütun:**
 1. **Özet kutuları:** "Değerlendirmenizi bekleyen" (bana atanan / tümü), "Devam eden", "Mühürlenen",
    "Birlikte çalışılan üniversite".
-2. **Onay kutusu** (`inbox.tsx`):
+2. **Onay kutusu** (`inbox.tsx`) — **#60'ın mantığını yeniden kullan:** hangi satırın kuruluştan aksiyon
+   beklediğini `frontend/lib/ui/engagement-review.ts` (`reviewAction`, `isInReviewerScope`) belirler; aynı kuralı
+   kopyalama, içe aktar. Panel kompakt liste gösterir, "Tümünü gör" → `/calismalar` (#60 görünümü).
    - Sekme: **Bana atananlar** (varsayılan, `listEngagements({assigned:'me', organizationId})`) | **Tümü** (`{organizationId, limit:200}`).
      Kullanıcıya atanmış hiç kayıt yoksa varsayılan "Tümü".
    - Gruplar: *Sizden aksiyon bekleyen* (`PENDING_EVALUATION`; kurumsuz `EVALUATED` + ADMIN) ·
@@ -652,6 +693,8 @@ olarak böl), `page.test.tsx`, `tr.json` → `kurumPanel` ad alanı.
 | COORDINATOR ("Koordinatör") | Her şey | Onayla/Reddet, hatırlatma, mühürle, rapor indir. Davet formu görünmez |
 
 **Adımlar:**
+0. **#60'ı yeniden kullan:** aksiyon belirleme `frontend/lib/ui/engagement-review.ts`'ten (`reviewAction`:
+   `approve` / `verify`). Panelde "Tümünü gör" → `/calismalar`.
 1. Başlıkta rol rozeti + tek satır rol açıklaması.
 2. **Onay bekleyen** bölümü: satır = kişi adı · kuruluş adı · başlık · başlangıç. Koordinatörde satır içi
    **Onayla** (`ACTIVE`, satırdaki `version`) ve **Reddet** (satır içi açılan gerekçe alanı, boş gönderilemez → `REJECTED`).
