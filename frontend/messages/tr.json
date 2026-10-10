@@ -23,18 +23,121 @@
     "personas": {
       "student": {
         "title": "Öğrenci",
-        "description": "Staj ve proje deneyimlerinizi kanıtla belgeleyin."
+        "description": "Staj ve proje deneyimlerinizi kanıtla belgeleyin.",
+        "points": [
+          "Staj ve projelerinizi tek yerde toplayın",
+          "Mentorunuzdan tanıklık isteyin",
+          "Başvurularda doğrulama bağlantısı paylaşın"
+        ]
       },
       "organization": {
         "title": "Kuruluş",
-        "description": "Ekibinizdeki yetkinlikleri kayıtlı kanıtlarla görün."
+        "description": "Ekibinizdeki yetkinlikleri kayıtlı kanıtlarla görün.",
+        "points": [
+          "Stajyer çalışmalarını açın ve izleyin",
+          "Tanıklığı birkaç dakikada verin",
+          "Yetkinlikleri kanıtıyla birlikte görün"
+        ]
       },
       "institution": {
         "title": "Kurum",
-        "description": "Öğrencilerinizin doğrulanmış deneyimlerini tek yerden izleyin."
+        "description": "Öğrencilerinizin doğrulanmış deneyimlerini tek yerden izleyin.",
+        "points": [
+          "Öğrencilerinizin doğrulanmış deneyimlerini izleyin",
+          "Kuruluş iş birliklerini tek ekranda görün",
+          "Rapor için tek ve güvenilir kaynak"
+        ]
       }
     },
-    "footerNote": "Yetkin360 açık kaynak bir projedir."
+    "footerNote": "Yetkin360 açık kaynak bir projedir.",
+    "nav": {
+      "how": "Nasıl işler",
+      "audience": "Kimler için"
+    },
+    "eyebrow": "Kanıta dayalı yetkinlik sicili",
+    "heroTitleLead": "Yetkinliğiniz iddia değil,",
+    "heroTitleAccent": "kanıt olsun.",
+    "heroPoints": [
+      "Kanıt dosyası ve bağlantı",
+      "Mentordan tanıklık",
+      "Herkesin doğrulayabileceği sertifika"
+    ],
+    "sceneHint": "Mührü dağıtmak için tıklayın",
+    "sceneCaption": "Dağınık beyanlar, kanıt ve tanıklıkla tek bir mühürde birleşir.",
+    "sceneBadge": "Örnek kayıt · doğrulandı",
+    "chainEyebrow": "Dört adım",
+    "chainLead": "Bir deneyim dört adımda doğrulanmış kayda dönüşür. Her adımı kimin attığı kayıtta açıkça görünür.",
+    "demo": {
+      "steps": {
+        "claim": {
+          "actor": "Öğrenci yazar",
+          "text": "Ne yaptığını ve hangi yetkinlikleri kullandığını kendi sözleriyle anlatır."
+        },
+        "evidence": {
+          "actor": "Öğrenci ekler",
+          "text": "Dosya, bağlantı ya da çıktı: iddiayı destekleyen somut iz."
+        },
+        "attestation": {
+          "actor": "Mentor onaylar",
+          "text": "Çalışmayı yakından gören kişi tanıklık eder ve değerlendirir."
+        },
+        "verified": {
+          "actor": "Sicile işlenir",
+          "text": "Kayıt mühürlenir; tek bağlantıyla herkes doğrulayabilir."
+        }
+      },
+      "sample": "Örnek kayıt",
+      "title": "Mobil uygulama stajı",
+      "org": "Örnek Yazılım A.Ş. · Temmuz – Eylül 2026",
+      "skills": [
+        "React Native",
+        "Kod incelemesi",
+        "Test yazımı"
+      ],
+      "claimText": "Ödeme ekranını baştan yazdım, test kapsamını artırdım.",
+      "status": {
+        "claim": "Yalnız beyan",
+        "evidence": "Kanıt eklendi",
+        "attestation": "Tanık onayladı",
+        "verified": "Doğrulandı"
+      },
+      "evidenceTitle": "Kanıtlar",
+      "evidenceItems": [
+        "odeme-ekrani-demo.pdf",
+        "github.com/ornek/mobil-staj"
+      ],
+      "attestationTitle": "Tanık görüşü",
+      "quote": "Ödeme akışını tek başına yeniden kurdu; kod incelemelerinde ekibe yön verdi.",
+      "quoteBy": "Mentor · Örnek Yazılım A.Ş.",
+      "registry": "Sicil no Y360-ÖRNEK-0412",
+      "verifiedOn": "30 Eylül 2026",
+      "sealLabel": "Doğrulandı mührü",
+      "pause": "Otomatik ilerlemeyi durdur",
+      "play": "Otomatik ilerlet",
+      "stepsLabel": "Zincir adımları",
+      "pendingEvidence": "Kanıt bekleniyor",
+      "pendingAttestation": "Tanık görüşü bekleniyor",
+      "pendingSeal": "Mühür bekleniyor"
+    },
+    "comparison": {
+      "claimLabel": "Sıradan özgeçmiş",
+      "verifiedLabel": "Yetkin360 kaydı",
+      "cvLine": "React Native biliyorum, takım çalışmasına yatkınım.",
+      "whoSays": "Kim söylüyor? Yalnızca siz.",
+      "recordSkill": "React Native",
+      "recordContext": "Mobil uygulama stajı · Örnek Yazılım A.Ş.",
+      "recordMeta": [
+        "2 kanıt",
+        "1 tanık",
+        "Doğrulama bağlantısı"
+      ]
+    },
+    "personasLead": "Aynı kayıt, üç farklı göz.",
+    "closing": {
+      "title": "Beyanınızı bugün kayda dönüştürün.",
+      "text": "Hesap açmak bir dakika sürer. İlk çalışmanızı ekleyin, kanıtınızı yükleyin, tanığınızı davet edin.",
+      "loginPrompt": "Zaten hesabınız var mı?"
+    }
   },
   "shell": {
     "loading": "Yükleniyor...",
@@ -55,7 +158,10 @@
     "closeMenu": "Menüyü kapat",
     "userMenu": "Kullanıcı menüsü",
     "newTab": "(yeni sekmede açılır)",
-    "signIn": "Giriş yap"
+    "signIn": "Giriş yap",
+    "roleStudent": "Öğrenci",
+    "roleAdmin": "Platform yöneticisi",
+    "signedInAs": "Oturum açık"
   },
   "emailVerificationBanner": {
     "message": "E-posta adresiniz doğrulanmadı. Doğrulanana kadar kayıt oluşturamaz veya değişiklik yapamazsınız.",
@@ -84,7 +190,8 @@
   },
   "authLayout": {
     "brandSentence": "Sicil kaydınız, kanıtlarınızla birlikte güvenle saklanır.",
-    "forgotPasswordLink": "Şifremi Unuttum"
+    "forgotPasswordLink": "Şifremi Unuttum",
+    "panelCaption": "Dağınık beyanlar, kanıt ve tanıklıkla tek bir mühürde birleşir."
   },
   "errorPage": {
     "title": "Bir şeyler ters gitti"
@@ -103,7 +210,9 @@
     "emailLabel": "E-posta",
     "passwordLabel": "Şifre",
     "invalidCredentials": "E-posta veya şifre hatalı.",
-    "accountLocked": "Hesabınız geçici olarak kilitlendi."
+    "accountLocked": "Hesabınız geçici olarak kilitlendi.",
+    "subtitle": "Sicil kaydınıza erişmek için e-posta ve şifrenizle giriş yapın.",
+    "backHome": "Ana sayfaya dön"
   },
   "kayit": {
     "title": "Kayıt Ol",
@@ -169,6 +278,10 @@
     "selfClaimLabel": "Kendi beyanı",
     "signalsSectionTitle": "Kanıt Sinyalleri",
     "verifiedExperiencesSectionTitle": "Doğrulanmış Deneyimler",
+    "experiencePublicLabel": "Herkese açık",
+    "experiencePublicHint": "Açıkken bu deneyim herkese açık profilinde ve doğrulama linkinde görünür.",
+    "experienceVisibilityError": "Görünürlük değiştirilemedi. Tekrar deneyin.",
+    "experienceVerificationLink": "Doğrulama kaydı",
     "emptyVerifiedExperiencesMessage": "Henüz doğrulanmış deneyim yok.",
     "unknownStartLabel": "Başlangıç bilinmiyor",
     "ongoingLabel": "Devam ediyor",
@@ -202,7 +315,31 @@
     "emptySignalsHint": "Çalışmalarınız tanıklıkla doğrulandıkça sinyaller burada görünür.",
     "evidenceBackedLabel": "Kanıtla desteklenen yetkinlik",
     "verifiedLabel": "Doğrulanmış deneyim",
-    "institutionDescription": "Bağlı olduğunuz kurum ve gönderdiğiniz bağlanma talepleri."
+    "institutionDescription": "Bağlı olduğunuz kurum ve gönderdiğiniz bağlanma talepleri.",
+    "engagementSourceLabel": "Çalışma kaydından",
+    "hero": {
+      "visibility": {
+        "PRIVATE": "Yalnızca siz görebilirsiniz",
+        "INSTITUTION": "Kurumunuz görebilir",
+        "ORGANIZATIONS": "Kuruluşlar görebilir",
+        "PUBLIC": "Herkese açık"
+      },
+      "studyYear": "{n}. sınıf",
+    "institutionVerified": "Doğrulanmış eğitim kurumu",
+      "publicLinkTitle": "Herkese açık profil bağlantınız",
+      "copy": "Kopyala",
+      "copied": "Kopyalandı",
+      "view": "Görüntüle",
+      "notPublicTitle": "Profiliniz herkese açık değil",
+      "notPublicHint": "Bağlantı paylaşmak için aşağıdan görünürlüğü “Herkese Açık” yapın ve bir profil linki belirleyin.",
+      "stats": {
+        "verified": "Doğrulanmış deneyim",
+        "backedSkills": "Kanıtlı yetkinlik",
+        "signals": "Kanıt sinyali"
+      }
+    },
+    "skillSearchLabel": "Eklemek istediğiniz yetkinlik",
+    "pageDescription": "Kimliğiniz, yetkinlikleriniz ve kanıtlarınız. Kanıtla desteklenen her şey mühürle işaretlenir."
   },
   "kurumBaglan": {
     "title": "Kuruma Bağlanma Talebi",
@@ -386,7 +523,44 @@
     "revokeAttestationSuccessMessage": "Tanıklık geri çekildi.",
     "revokeAttestationForbiddenError": "Sadece kendi verdiğiniz tanıklığı geri çekebilirsiniz.",
     "revokeAttestationAlreadyRevokedError": "Bu tanıklık zaten geri çekilmiş.",
-    "revokeAttestationReasonRequiredError": "Geri çekme gerekçesi zorunludur."
+    "revokeAttestationReasonRequiredError": "Geri çekme gerekçesi zorunludur.",
+    "summary": {
+      "total": "Toplam çalışma",
+      "ongoing": "Süren",
+      "verified": "Doğrulanmış deneyim"
+    },
+    "newCardTitle": "Yeni bir çalışma başlatın",
+    "newCardHint": "Kuruluşu seçin, deneyiminizi beyan edin; kanıt ve tanıklık zinciri buradan başlar.",
+    "updatedLabel": "Son güncelleme",
+    "pageDescription": "Staj ve projeleriniz burada. Her çalışma dört adımda doğrulanmış deneyime dönüşür.",
+    "nextStep": {
+      "DRAFT": "Onaya gönderin",
+      "PENDING_APPROVAL": "Kuruluş onayı bekleniyor",
+      "ACTIVE": "Görev ve kanıt ekleyin",
+      "PENDING_EVALUATION": "Kuruluş değerlendirmesi bekleniyor",
+      "EVALUATED": "Tanıklık bekleniyor",
+      "VERIFIED": "Tamamlandı, paylaşılabilir",
+      "RESOLVED": "Tamamlandı",
+      "REJECTED": "Kuruluş reddetti",
+      "CANCELLED": "Çalışma kapatıldı",
+      "DISPUTED": "İtiraz inceleniyor"
+    },
+    "taskStatus": {
+      "PLANNED": "Planlandı",
+      "IN_PROGRESS": "Sürüyor",
+      "DONE": "Tamamlandı"
+    },
+    "detail": {
+      "statusCardTitle": "Durum ve işlemler",
+      "nextStepLabel": "Sıradaki adım",
+      "tasksHint": "Bu çalışmada üstlendiğiniz işler.",
+      "deliverablesHint": "Teslim ettiğiniz çıktılar ve onları kanıtlayan dosyalar.",
+      "attestationsHint": "Kuruluşun bu çalışma için verdiği tanıklıklar.",
+      "verifiedTitle": "Bu çalışma doğrulandı",
+      "verifiedText": "Kanıt ve tanıklıkla mühürlendi; doğrulanmış deneyim olarak profilinize işlendi.",
+      "verifiedLink": "Profilde gör",
+      "submittedOn": "Teslim: {date}"
+    }
   },
   "calismaOlustur": {
     "title": "Yeni Çalışma Oluştur",
@@ -499,9 +673,58 @@
     "topBarLabel": "Herkese açık profil",
     "experienceCount": "{n} doğrulanmış deneyim",
     "timelineTitle": "Doğrulanmış deneyimler",
-    "emptyHint": "Deneyimler kuruluş tanıklığıyla doğrulandığında burada görünür.",
+    "emptyHint": "Profil sahibi doğrulanmış deneyimlerini herkese açtığında burada görünür.",
     "sealLabel": "Doğrulanmış deneyim",
-    "loadingLabel": "Profil yükleniyor"
+    "loadingLabel": "Profil yükleniyor",
+    "eyebrow": "Doğrulanmış yetkinlik sicili",
+    "trustNote": "Bu sayfadaki her deneyim, kuruluşun tanıklığı ve sunulan kanıtlarla doğrulanmıştır.",
+    "trustTitle": "Bu kayıtlar neden güvenilir?",
+    "studyYear": "{n}. sınıf",
+    "institutionVerified": "Doğrulanmış eğitim kurumu",
+    "copyLink": "Linki kopyala",
+    "copied": "Kopyalandı",
+    "copyFailed": "Kopyalanamadı — adresi tarayıcı çubuğundan kopyalayın.",
+    "cardTitle": "Sicil kartı",
+    "qrTitle": "Telefonla aç",
+    "qrHint": "Telefon kamerasıyla okutun; bu herkese açık sayfa açılır.",
+    "qrLabel": "{name} profiline giden QR kod",
+    "print": "PDF olarak kaydet",
+    "statExperiences": "doğrulanmış deneyim",
+    "statSkills": "kanıtlı yetkinlik",
+    "statOrganizations": "kuruluş tanıklığı",
+    "statsLabel": "Profil özeti",
+    "skillMapTitle": "Yetkinlik haritası",
+    "skillMapLead": "Her yetkinlik aşağıdaki doğrulanmış deneyimlerden en az birinde kanıtlandı.",
+    "attestedLegend": "Mühürlü — bir kuruluş bu yetkinliğe tanıklık etti",
+    "evidencedLegend": "Kanıtlı — görev veya çıktıda kullanıldı, ayrıca tanıklık yok",
+    "strength": {
+      "STRONG": "Güçlü kanıt",
+      "MODERATE": "Orta kanıt",
+      "WEAK": "Sınırlı kanıt"
+    },
+    "inExperiences": "{n} deneyimde",
+    "categories": {
+      "LANGUAGE": "Programlama dilleri",
+      "FRAMEWORK": "Çatılar ve kütüphaneler",
+      "TOOL": "Araçlar ve altyapı",
+      "DOMAIN": "Alan bilgisi",
+      "SOFT": "Ortak beceriler"
+    },
+    "timelineLead": "Her kart bir kuruluşun tanıklığıyla mühürlendi. Kaydın kendisini görmek için doğrulamayı açın.",
+    "attestedBy": "Tanıklık eden: {org}",
+    "attestedSkillsLabel": "Tanıklık edilen yetkinlik",
+    "evidencedSkillsLabel": "Görev ve çıktılarda kullanılan",
+    "viewVerification": "Doğrulamayı gör",
+    "durationMonths": "{n} ay",
+    "durationWeeks": "{n} hafta",
+    "unverifiedOrganization": "Kuruluş kimliği henüz doğrulanmadı",
+    "howTitle": "Bu kayıtlar nasıl doğrulandı?",
+    "howLead": "Yetkin360'ta bir deneyim dört adımı tamamlamadan bu sayfaya giremez. Kişinin kendi beyanı burada yer almaz.",
+    "profileUrlLabel": "Profil adresi",
+    "printNote": "Bu çıktı canlı bir kaydın anlık görüntüsüdür. Güncel durumu görmek için QR kodu okutun.",
+    "metaTitle": "{name} — Yetkin360 doğrulanmış profil",
+    "metaDescription": "{name} adlı öğrencinin kuruluş tanıklığıyla doğrulanmış deneyimleri ve kanıtlı yetkinlikleri.",
+    "metaFallbackTitle": "Yetkin360 doğrulanmış profil"
   },
   "publicVerification": {
     "notFound": "Kayıt bulunamadı",
@@ -713,5 +936,11 @@
       "FRAMEWORK": "Framework"
     },
     "parentLabel": "Kök seviye"
+  },
+  "loginDialog": {
+    "title": "Tekrar hoş geldiniz",
+    "subtitle": "Sicil kaydınıza erişmek için giriş yapın.",
+    "close": "Kapat",
+    "noAccount": "Hesabınız yok mu?"
   }
 }

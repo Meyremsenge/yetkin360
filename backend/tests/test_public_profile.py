@@ -381,7 +381,13 @@ class TestHappyPathPublicProfile:
         response_keys = set(data.keys())
 
         # Assert: only expected keys
-        expected_keys = {"display_name", "verified_experiences"}
+        # Public showcase allowlist (public profil vitrini): identity line + derived
+        # skill map were added deliberately; anything else is a leak.
+        expected_keys = {
+            "display_name", "headline", "department", "study_year", "city",
+            "institution_name", "institution_trust_level",
+            "verified_experiences", "skills", "attesting_organization_count",
+        }
         assert response_keys == expected_keys, (
             f"Unexpected keys in response. Expected {expected_keys}, got {response_keys}. "
             f"This is a PII/internal field leakage vulnerability."

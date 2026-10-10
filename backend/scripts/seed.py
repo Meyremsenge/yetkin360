@@ -29,6 +29,7 @@ from app.models import (
     InstitutionMember,
     Organization,
     Engagement,
+    VerifiedExperience,
 )
 from app.services.auth import register_user
 from app.services.institution import (
@@ -39,7 +40,7 @@ from app.services.institution import (
     DuplicateLinkRequestError,
     AlreadyMemberError,
 )
-from app.services.organization import create_organization
+from app.services.organization import create_organization, set_verification_level
 from app.services.engagement import (
     create_engagement,
     transition_engagement,
@@ -352,6 +353,40 @@ ENGAGEMENTS_DATA = [
     ("Sipariş Takip Otomasyonu", "INTERNSHIP", "python", "Sipariş takibini otomatikleştirmek", "Otomasyon betikleri ve kullanım kılavuzu", "Manuel iş yükünü önemli ölçüde azalttı."),
 ]
 
+# Organizations raised to T3 by the platform admin (ORG{i} legal_id), so attestations
+# can reach COMPETENCE. Mavi Liman (ORG2) stays T1 on purpose: the demo also shows
+# how an unverified organization's record is flagged.
+VERIFIED_ORG_LEGAL_IDS = ("ORG1", "ORG3", "ORG4")
+
+# Public profile showcase (/p/ayse-yilmaz): extra verified engagements for ogrenci1,
+# each with a different organization, kind, attested skill and task/deliverable skills.
+# (org legal_id, spec as in ENGAGEMENTS_DATA, task skill slug, deliverable skill slug,
+#  (ended N days ago, duration days))
+SHOWCASE_STUDENT_EMAIL = "ogrenci1@seed.local"
+SHOWCASE_ENGAGEMENTS = [
+    (
+        "ORG4",
+        ("Sorgu Performansı İyileştirme Projesi", "SHORT_PROJECT", "postgresql",
+         "Yavaş raporlama sorgularını analiz etmek", "İndeks önerileri ve ölçüm raporu",
+         "Sorgu sürelerini ölçülebilir biçimde düşürdü."),
+        "postgresql", "python", (120, 42),
+    ),
+    (
+        "ORG3",
+        ("Sayaç Verisi Toplama Servisi (Bitirme Projesi)", "CAPSTONE", "docker",
+         "Servisi konteynerleştirip sahaya dağıtmak", "Çalışan servis, kurulum belgesi ve sunum",
+         "Sahada sorunsuz çalışan bir servis teslim etti."),
+        "git", "docker", (220, 110),
+    ),
+    (
+        "ORG2",
+        ("Depo Ekibi Raporlama Aracı", "PART_TIME", "teamwork",
+         "Vardiya ekipleriyle ihtiyaçları toplamak", "Günlük rapor ekranı",
+         "Ekiple uyumlu çalıştı, ihtiyaçları açıkça aktardı."),
+        "communication", "react", (330, 21),
+    ),
+]
+
 
 def seed_skills(session: Session) -> None:
     """
@@ -651,7 +686,13 @@ def _create_verified_engagement(
     organization: Organization,
     institution: Institution,
     skill: Skill,
-    eng_idx: int
+    eng_idx: int,
+    *,
+    spec: tuple[str, str, str, str, str, str] | None = None,
+    org_admin_email: str | None = None,
+    task_skill: Skill | None = None,
+    deliverable_skill: Skill | None = None,
+    period: tuple[int, int] | None = None,
 ) -> Engagement:
     """
     Helper function: Create a single complete VERIFIED engagement.
@@ -659,11 +700,15 @@ def _create_verified_engagement(
     Executes the full state machine chain for one engagement:
     DRAFT → PENDING_APPROVAL → ACTIVE → PENDING_EVALUATION → EVALUATED → VERIFIED
 
+    By default everything comes from ENGAGEMENTS_DATA[eng_idx]; the showcase seed
+    passes its own spec (same tuple shape), org admin, task/deliverable skills and
+    period (ended N days ago, lasting M days).
+
     Returns the final engagement object.
     Raises Exception on failure (caught by caller).
     """
     _link_to_institution(session, talent, institution)
-    title, kind, _skill_slug, task_title, deliverable_title, comment = ENGAGEMENTS_DATA[eng_idx]
+    title, kind, _skill_slug, task_title, deliverable_title, comment = spec or ENGAGEMENTS_DATA[eng_idx]
 
     # Construct talent User for Principal
     talent_user = session.execute(
@@ -685,7 +730,7 @@ def _create_verified_engagement(
     )
 
     # Get org admin user
-    org_admin_email = f"org{(eng_idx % 5) + 1}-admin@seed.local"
+    org_admin_email = org_admin_email or f"org{(eng_idx % 5) + 1}-admin@seed.local"
     org_admin_user = session.execute(
         select(User).where(User.email == org_admin_email)
     ).scalars().first()
@@ -761,8 +806,9 @@ def _create_verified_engagement(
     )
 
     # Set engagement dates (required for COMPETENCE criterion 2)
-    engagement.ended_on = datetime.now(timezone.utc).date() - timedelta(days=7 * eng_idx)
-    engagement.started_on = engagement.ended_on - timedelta(days=60 + 4 * eng_idx)
+    ended_days_ago, duration_days = period or (7 * eng_idx, 60 + 4 * eng_idx)
+    engagement.ended_on = datetime.now(timezone.utc).date() - timedelta(days=ended_days_ago)
+    engagement.started_on = engagement.ended_on - timedelta(days=duration_days)
     session.flush()
 
     # Create task and deliverable (required for PENDING_EVALUATION transition)
@@ -773,7 +819,7 @@ def _create_verified_engagement(
         title=task_title,
         description=f"{title} kapsamında görev",
         due_at=datetime.now(timezone.utc) + timedelta(days=7),
-        skill_id=str(skill.id)
+        skill_id=str((task_skill or skill).id)
     )
 
     create_deliverable(
@@ -782,7 +828,7 @@ def _create_verified_engagement(
         engagement_id=str(engagement.id),
         title=deliverable_title,
         description=f"{title} teslim dosyası",
-        skill_id=str(skill.id)
+        skill_id=str((deliverable_skill or skill).id)
     )
 
     # T6: ACTIVE → PENDING_EVALUATION (principal = ORG_ADMIN, reason optional for this transition per table)
@@ -923,6 +969,104 @@ def seed_engagements(session: Session) -> None:
     print(f"Engagements seed complete: {inserted_count} inserted")
 
 
+def seed_verified_organizations(session: Session) -> None:
+    """
+    Raise VERIFIED_ORG_LEGAL_IDS to T3 through the admin decision service, idempotently
+    (same level again changes nothing). Runs before seed_engagements so their
+    attestations are not downgraded for an unverified attestor organization.
+    """
+    if settings.environment == "production":
+        raise RuntimeError("Seed script cannot run in production environment")
+
+    admin = session.execute(select(User).where(User.email == settings.seed_admin_email)).scalars().first()
+    raised = 0
+    for legal_id in VERIFIED_ORG_LEGAL_IDS:
+        org = session.execute(select(Organization).where(Organization.legal_id == legal_id)).scalars().first()
+        if org is None or org.verification_level == "T3":
+            continue
+        set_verification_level(session, org.id, "T3", admin.id if admin else None)
+        raised += 1
+    session.flush()
+    print(f"Organization verification seed: {raised} raised to T3")
+
+
+def seed_showcase_profile(session: Session) -> None:
+    """
+    Give the showcase student (ogrenci1, /p/ayse-yilmaz) extra verified engagements
+    through the real state machine, so the public profile has several organizations,
+    kinds, attested and evidenced skills. Idempotent per engagement title.
+    """
+    if settings.environment == "production":
+        raise RuntimeError("Seed script cannot run in production environment")
+
+    talent = session.execute(
+        select(TalentProfile).join(User, TalentProfile.user_id == User.id).where(User.email == SHOWCASE_STUDENT_EMAIL)
+    ).scalars().first()
+    if talent is None or talent.institution_id is None:
+        print("Warning: showcase student or their institution missing — run seed_engagements first")
+        return
+    institution = session.get(Institution, talent.institution_id)
+    assert institution is not None
+
+    existing_titles = set(
+        session.execute(select(Engagement.title).where(Engagement.talent_id == talent.id)).scalars().all()
+    )
+    inserted = 0
+    for legal_id, spec, task_slug, deliverable_slug, period in SHOWCASE_ENGAGEMENTS:
+        if spec[0] in existing_titles:
+            continue
+        org = session.execute(select(Organization).where(Organization.legal_id == legal_id)).scalars().first()
+        skills = {
+            sk.slug: sk
+            for sk in session.execute(
+                select(Skill).where(Skill.slug.in_({spec[2], task_slug, deliverable_slug}))
+            ).scalars()
+        }
+        if org is None or len(skills) < len({spec[2], task_slug, deliverable_slug}):
+            print(f"Warning: showcase engagement skipped (missing org/skill): {spec[0]}")
+            continue
+        _create_verified_engagement(
+            session=session,
+            talent=talent,
+            organization=org,
+            institution=institution,
+            skill=skills[spec[2]],
+            eng_idx=0,
+            spec=spec,
+            org_admin_email=f"{legal_id.lower()}-admin@seed.local",
+            task_skill=skills[task_slug],
+            deliverable_skill=skills[deliverable_slug],
+            period=period,
+        )
+        inserted += 1
+    print(f"Showcase profile seed: {inserted} engagements inserted")
+
+
+def seed_public_experiences(session: Session) -> int:
+    """
+    Make every seed student's verified experiences PUBLIC so /p/[slug] and /v/[token]
+    work in the demo (they are created PRIVATE). visibility is the only mutable
+    column of verified_experiences. Returns rows updated.
+    """
+    if settings.environment == "production":
+        raise RuntimeError("Seed script cannot run in production environment")
+
+    seed_talent_ids = (
+        select(TalentProfile.id)
+        .join(User, TalentProfile.user_id == User.id)
+        .where(User.email.like("ogrenci%@seed.local"))
+    )
+    result = session.execute(
+        update(VerifiedExperience)
+        .where(VerifiedExperience.talent_id.in_(seed_talent_ids))
+        .where(VerifiedExperience.visibility != "PUBLIC")
+        .values(visibility="PUBLIC")
+    )
+    count = result.rowcount  # type: ignore[attr-defined]
+    print(f"Public experiences seed: {count} made PUBLIC")
+    return count
+
+
 def seed_verify_users(session: Session) -> int:
     """
     YET-196: write endpoints require a verified e-mail, and seed users never
@@ -957,7 +1101,13 @@ if __name__ == "__main__":
 
         seed_institutions_and_organizations(session)
 
+        seed_verified_organizations(session)
+
         seed_engagements(session)
+
+        seed_showcase_profile(session)
+
+        seed_public_experiences(session)
 
         seed_verify_users(session)
 

@@ -13,6 +13,7 @@ import {
   type ScanStatus,
   type CertificateCheck,
 } from "@/lib/api/evidence";
+import { cn } from "@/lib/utils";
 import { ApiError } from "@/lib/api/errors";
 import { Label } from "@/components/ui/label";
 import messages from "@/messages/tr.json";
@@ -28,10 +29,10 @@ import messages from "@/messages/tr.json";
 const POLL_INTERVAL_MS = 3000;
 
 const SCAN_STATUS_CLASS: Record<ScanStatus, string> = {
-  PENDING: "bg-amber-100 text-amber-700",
-  CLEAN: "bg-green-100 text-green-700",
-  INFECTED: "bg-red-100 text-red-700",
-  FAILED: "bg-red-100 text-red-700",
+  PENDING: "bg-warning/10 text-warning",
+  CLEAN: "bg-success/10 text-success",
+  INFECTED: "bg-destructive/10 text-destructive",
+  FAILED: "bg-destructive/10 text-destructive",
 };
 
 type Step = "idle" | "requesting_url" | "uploading" | "recording";
@@ -157,16 +158,19 @@ export function EvidenceUploadForm({
   };
 
   return (
-    <div className="mt-2 pl-3 border-l-2 border-slate-200">
+    <div className="mt-3">
       {items.length > 0 && (
-        <ul className="space-y-1 mb-2">
+        <ul className="mb-3 space-y-2">
           {items.map((item) => {
             const check = checksByEvidenceId[item.id];
             return (
-              <li key={item.id} className="text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-600">
-                    {item.mime_type} · {(item.size_bytes / 1024).toFixed(0)} KB
+              <li key={item.id} className="rounded-md border border-border bg-card px-3 py-2 text-xs">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-2.5 text-foreground">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-md bg-sand font-mono text-[10px] font-medium uppercase text-foreground">
+                      {(item.mime_type.split("/")[1] ?? "").slice(0, 4)}
+                    </span>
+                    <span className="font-mono text-muted-foreground">{(item.size_bytes / 1024).toFixed(0)} KB</span>
                   </span>
                   <span
                     className={`px-2 py-0.5 rounded-full font-medium ${SCAN_STATUS_CLASS[item.scan_status]}`}
@@ -176,21 +180,21 @@ export function EvidenceUploadForm({
                 </div>
 
                 {item.kind === "CERTIFICATE" && item.scan_status === "CLEAN" && (
-                  <div className="mt-1 pl-2 border-l border-slate-200">
+                  <div className="mt-2 pl-2.5 border-l border-border">
                     {!check ? (
                       <button
                         type="button"
                         onClick={() => handleRequestCheck(item.id)}
                         disabled={requestingCheckFor === item.id}
-                        className="text-xs text-blue-700 hover:underline disabled:text-slate-400"
+                        className="text-xs text-success hover:underline disabled:text-muted-foreground"
                       >
                         {requestingCheckFor === item.id
                           ? messages.calismalar.certificateCheckRequestingButton
                           : messages.calismalar.certificateCheckRequestButton}
                       </button>
                     ) : (
-                      <div className="space-y-0.5 text-slate-600">
-                        <p className="font-medium text-slate-700">
+                      <div className="space-y-0.5 text-muted-foreground">
+                        <p className="font-medium text-foreground">
                           {messages.calismalar.certificateCheckStatus[check.status]}
                         </p>
                         {check.status === "DONE" && (
@@ -209,7 +213,7 @@ export function EvidenceUploadForm({
                               <p>
                                 {messages.calismalar.certificateCheckNameLabel}: {check.extracted_name}{" "}
                                 {check.name_match !== null && (
-                                  <span className={check.name_match ? "text-green-700" : "text-red-700"}>
+                                  <span className={check.name_match ? "text-success" : "text-destructive"}>
                                     (
                                     {check.name_match
                                       ? messages.calismalar.certificateCheckNameMatchYes
@@ -223,7 +227,7 @@ export function EvidenceUploadForm({
                               <p>
                                 {messages.calismalar.certificateCheckPageNameLabel}: {check.page_name}{" "}
                                 {check.page_match !== null && (
-                                  <span className={check.page_match ? "text-green-700" : "text-red-700"}>
+                                  <span className={check.page_match ? "text-success" : "text-destructive"}>
                                     (
                                     {check.page_match
                                       ? messages.calismalar.certificateCheckPageMatchYes
@@ -239,7 +243,7 @@ export function EvidenceUploadForm({
                                   href={check.verify_url}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="text-blue-700 hover:underline"
+                                  className="text-success hover:underline"
                                 >
                                   {messages.calismalar.certificateCheckVerifyLinkLabel}
                                 </a>
@@ -265,14 +269,26 @@ export function EvidenceUploadForm({
       )}
 
       {checkError && (
-        <div role="alert" aria-live="polite" className="mb-2 text-xs text-red-600">
+        <div role="alert" aria-live="polite" className="mb-2 text-xs text-destructive">
           {checkError}
         </div>
       )}
 
-      <Label htmlFor={`evidence-file-${deliverableId}`} className="text-xs">
-        {messages.calismalar.evidenceUploadLabel}
-      </Label>
+
+      <label
+        htmlFor={`evidence-file-${deliverableId}`}
+        className={cn(
+          "flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-muted-foreground/30 bg-card px-4 py-3 text-sm transition-colors hover:border-success hover:bg-success/[0.04] focus-within:border-success",
+          step !== "idle" && "pointer-events-none opacity-60"
+        )}
+      >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-success/10 text-success" aria-hidden="true">
+          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+          </svg>
+        </span>
+        <span className="text-foreground">{messages.calismalar.evidenceUploadLabel}</span>
+      </label>
       {/* `accept` UX kolaylığı için var: işletim sistemi dosya seçicisi uyumsuz dosyaları
           soluklaştırıp seçilemez yapar. Bu bir güvenlik sınırı DEĞİL — gerçek kontrol
           validateFile()'da MIME türüne bakıyor; `accept` bypass edilse (ör. sürükle-bırak,
@@ -283,7 +299,7 @@ export function EvidenceUploadForm({
         accept=".pdf,.jpg,.jpeg,.png,.docx"
         disabled={step !== "idle"}
         onChange={handleFileChange}
-        className="block text-xs"
+        className="sr-only"
       />
 
       <div className="mt-1 flex items-center gap-1.5">
@@ -300,7 +316,7 @@ export function EvidenceUploadForm({
         </Label>
       </div>
       {isCertificate && (
-        <p className="mt-0.5 text-xs text-slate-500">{messages.calismalar.certificateCheckConsentHint}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{messages.calismalar.certificateCheckConsentHint}</p>
       )}
 
       {step !== "idle" && (

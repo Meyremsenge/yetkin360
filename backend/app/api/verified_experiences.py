@@ -1,12 +1,20 @@
-"""Verified experience endpoints (GET /talents/me/verified-experiences)."""
+"""Verified experience endpoints (GET /talents/me/verified-experiences, PATCH .../{id}/visibility)."""
+
+import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_principal, get_session
+from app.api.deps import get_current_principal, get_session, get_verified_principal
+from app.core.deps import require_csrf
+from app.core.errors import ApiError
 from app.services.authorization import Principal
-from app.services.verified_experience import list_own_verified_experiences
+from app.services.verified_experience import (
+    change_own_verified_experience_visibility,
+    list_own_verified_experiences,
+)
 
 router = APIRouter(prefix="/talents/me/verified-experiences", tags=["verified-experiences"])
 
@@ -38,6 +46,12 @@ class VerifiedExperiencesListResponse(BaseModel):
     """Response schema for GET /talents/me/verified-experiences."""
 
     items: list[VerifiedExperienceResponse]
+
+
+class ChangeVisibilityRequest(BaseModel):
+    """Request schema for PATCH /talents/me/verified-experiences/{id}/visibility."""
+
+    visibility: Literal["PRIVATE", "INSTITUTION", "ORGANIZATIONS", "PUBLIC"]
 
 
 # ============================================================================
@@ -76,3 +90,26 @@ def get_verified_experiences(
     return VerifiedExperiencesListResponse(
         items=[VerifiedExperienceResponse(**item) for item in items]
     )
+
+
+@router.patch("/{experience_id}/visibility", response_model=VerifiedExperienceResponse)
+def patch_verified_experience_visibility(
+    experience_id: uuid.UUID,
+    payload: ChangeVisibilityRequest,
+    session: Session = Depends(get_session),
+    principal: Principal = Depends(get_verified_principal),
+    _csrf: None = Depends(require_csrf),
+) -> VerifiedExperienceResponse:
+    """
+    Change visibility of the caller's own verified experience (D6 change-visibility).
+
+    Owner only — ownership comes from the session principal, never from the URL.
+    Unknown id, another talent's record or a talent-less caller → identical 404.
+    """
+    item = change_own_verified_experience_visibility(
+        session, principal, experience_id, payload.visibility
+    )
+    if item is None:
+        raise ApiError(status_code=404, code="VERIFIED_EXPERIENCE_NOT_FOUND", message="Kayıt bulunamadı")
+    session.commit()
+    return VerifiedExperienceResponse(**item)

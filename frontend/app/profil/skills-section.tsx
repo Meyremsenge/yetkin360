@@ -179,7 +179,7 @@ export default function SkillsSection() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_180px_auto] sm:items-end">
           <div>
             <label htmlFor="skill-search" className={labelClass}>
-              {messages.profil.skillSearchPlaceholder}
+              {messages.profil.skillSearchLabel}
             </label>
             <input
               id="skill-search"

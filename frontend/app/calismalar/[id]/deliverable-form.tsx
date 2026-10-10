@@ -80,7 +80,7 @@ export function DeliverableForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="mb-4 bg-slate-50 p-4 rounded-md border border-slate-200">
+    <form onSubmit={handleSubmit} className="mb-4 rounded-lg border border-dashed border-border bg-background p-4">
       <h3 className="text-sm font-bold mb-3">{messages.calismalar.addDeliverableTitle}</h3>
 
       <div className="mb-3">

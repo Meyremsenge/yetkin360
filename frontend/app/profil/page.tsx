@@ -2,8 +2,10 @@
 
 import { useSession } from "@/lib/session/use-session";
 import { AppShell } from "@/components/app-shell";
+import { PageBody, PageHeader } from "@/components/page-layout";
 import { Alert } from "@/components/ui/alert";
 import ProfileForm from "./profile-form";
+import ProfileHero from "./profile-hero";
 import SkillsSection from "./skills-section";
 import EvidenceSection from "./evidence-section";
 import InstitutionLinkSection from "./institution-link-section";
@@ -20,24 +22,36 @@ export default function ProfilePage() {
 
   return (
     <AppShell>
-      <div className="max-w-[960px] px-4 py-8 md:px-6 lg:px-10">
-        <h1 className="font-serif text-3xl font-semibold text-foreground">{messages.profil.title}</h1>
+      <PageHeader
+        eyebrow={messages.shell.groupWork}
+        title={messages.profil.title}
+        description={messages.profil.pageDescription}
+      />
+      <PageBody>
 
         {/* AC-1: Render ProfileForm + SkillsSection if talent_profile is valid */}
         {hasValidProfile ? (
           <>
-            <ProfileForm initialData={talentProfile as Record<string, unknown>} />
-            <SkillsSection />
-            <EvidenceSection />
-            <InstitutionLinkSection />
+            <ProfileHero profile={talentProfile as Record<string, unknown>} />
+            {/* Two columns on wide screens: editable identity left, evidence right. */}
+            <div className="grid grid-cols-1 items-start gap-x-6 xl:grid-cols-2">
+              <div>
+                <ProfileForm initialData={talentProfile as Record<string, unknown>} />
+                <SkillsSection />
+              </div>
+              <div>
+                <EvidenceSection />
+                <InstitutionLinkSection />
+              </div>
+            </div>
           </>
         ) : (
           /* AC-12: Error state when talent_profile is null/undefined */
-          <Alert variant="error" className="mt-6">
+          <Alert variant="error">
             <div className="font-medium">{messages.profil.loadError}</div>
           </Alert>
         )}
-      </div>
+      </PageBody>
     </AppShell>
   );
 }

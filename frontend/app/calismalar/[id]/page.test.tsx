@@ -113,7 +113,7 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
       expect(screen.getByText("Yaz Kısa Projesi")).toBeTruthy();
       expect(screen.getByText("Aktif")).toBeTruthy();
       expect(container.textContent).toContain("API şeması");
-      expect(container.textContent).toContain("DONE");
+      expect(container.textContent).toContain("Tamamlandı");
       expect(screen.getByText("Henüz çıktı yüklenmemiş.")).toBeTruthy();
       // ACTIVE durumundan aday geçişler: CANCELLED, PENDING_EVALUATION
       expect(screen.getByText("İptal Et")).toBeTruthy();
@@ -205,7 +205,35 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
     });
   });
 
-  it("YET-202/ENT-01: attestations[] boşsa empty-state, doluysa Geri Çek butonuyla listelenir", async () => {
+  it("YET-202/ENT-01: attestations[] doluysa listelenir; tanığın kendisi Geri Çek butonunu görür", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce({
+      ...baseEngagement,
+      status: "VERIFIED",
+      attestations: [
+        {
+          id: "att-1",
+          claim_type: "COMPETENCE",
+          requested_claim_type: "COMPETENCE",
+          attestor_user_id: "user-1",
+          created_at: "2026-09-27T10:00:00Z",
+          revoked_at: null,
+          revoke_reason: null,
+        },
+      ],
+    });
+
+    renderWithQueryClient(<CalismaDetayPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Yetkinlik")).toBeTruthy(); // claimType.COMPETENCE etiketi
+      expect(screen.getByText("Geri Çek")).toBeTruthy();
+    });
+    expect(screen.queryByText("Henüz tanıklık yok.")).toBeNull();
+  });
+
+  // UX only: the server rejects non-attestors anyway; the form is hidden so a
+  // student never sees an action they cannot take.
+  it("tanık olmayan kullanıcı (ör. öğrenci) Geri Çek formunu görmez, tanıklık yine listelenir", async () => {
     vi.mocked(getEngagement).mockResolvedValueOnce({
       ...baseEngagement,
       status: "VERIFIED",
@@ -225,9 +253,34 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
     renderWithQueryClient(<CalismaDetayPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Yetkinlik")).toBeTruthy(); // claimType.COMPETENCE etiketi
-      expect(screen.getByText("Geri Çek")).toBeTruthy();
+      expect(screen.getByText("Yetkinlik")).toBeTruthy();
     });
-    expect(screen.queryByText("Henüz tanıklık yok.")).toBeNull();
+    expect(screen.queryByText("Geri Çek")).toBeNull();
+    expect(screen.queryByLabelText("Geri çekme gerekçesi")).toBeNull();
+  });
+
+  it("geri çekilmiş tanıklığın gerekçesi tanık olmayan kullanıcıya da görünür", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce({
+      ...baseEngagement,
+      status: "VERIFIED",
+      attestations: [
+        {
+          id: "att-1",
+          claim_type: "COMPETENCE",
+          requested_claim_type: "COMPETENCE",
+          attestor_user_id: "user-9",
+          created_at: "2026-09-27T10:00:00Z",
+          revoked_at: "2026-09-28T10:00:00Z",
+          revoke_reason: "Yanlış girilmiş",
+        },
+      ],
+    });
+
+    renderWithQueryClient(<CalismaDetayPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Geri çekildi: Yanlış girilmiş")).toBeTruthy();
+    });
+    expect(screen.queryByText("Geri Çek")).toBeNull();
   });
 });

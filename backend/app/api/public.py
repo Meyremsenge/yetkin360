@@ -1,6 +1,7 @@
 """Public profile endpoint — auth-free access to talent profiles."""
 
 import uuid
+from dataclasses import asdict
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends
@@ -10,8 +11,8 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_session
 from app.core.errors import ApiError
 from app.models import Engagement, Institution, Organization, Skill, TalentProfile
-from app.services.authorization import get_scoped_or_404, scoped_attestations_for_engagement, scoped_public_talent_profile, scoped_public_verified_experiences, scoped_public_verified_experience_by_token
-from app.services.visibility_service import filter_public_experiences
+from app.services.authorization import get_scoped_or_404, scoped_attestations_for_engagement, scoped_public_talent_profile, scoped_public_verified_experience_by_token
+from app.services.public_profile import build_public_profile
 
 router = APIRouter(tags=["public"], prefix="/public")
 
@@ -53,26 +54,70 @@ class PublicVerificationResponse(BaseModel):
         from_attributes = True
 
 
+class PublicExperienceSkillResponse(BaseModel):
+    """A skill attested within one public verified experience."""
+
+    name_tr: str
+    category: str
+    claim_type: str
+    attestor_organization: str | None
+
+
+class PublicEvidencedSkillResponse(BaseModel):
+    """A skill exercised in a task/deliverable of the experience, not separately attested."""
+
+    name_tr: str
+    category: str
+
+
 class PublicVerifiedExperienceResponse(BaseModel):
     """Response schema for VerifiedExperience in public profile."""
 
     id: uuid.UUID
     organization_name_snapshot: str
+    organization_trust_level: str
     role_snapshot: str
+    institution_name_snapshot: str | None
     started_on_snapshot: date | None
     ended_on_snapshot: date | None
     claim_type: str
     created_at: datetime
+    # Link to /v/{token}; the experience is already PUBLIC, the same token is shareable.
+    public_token: str | None
+    skills: list[PublicExperienceSkillResponse]
+    evidenced_skills: list[PublicEvidencedSkillResponse]
 
     class Config:
         from_attributes = True
 
 
+class PublicSkillResponse(BaseModel):
+    """Skill map entry, aggregated from PUBLIC experiences' signals only."""
+
+    name_tr: str
+    category: str
+    strength: str
+    # True when at least one organization attested it; otherwise task/deliverable evidence only.
+    attested: bool
+    experience_count: int
+
+
 class PublicTalentProfileResponse(BaseModel):
-    """Response schema for GET /public/talents/{slug}."""
+    """Response schema for GET /public/talents/{slug}. No e-mail, no internal ids."""
 
     display_name: str
+    headline: str | None
+    department: str | None
+    study_year: int | None
+    city: str | None
+    institution_name: str | None
+    institution_trust_level: str | None
     verified_experiences: list[PublicVerifiedExperienceResponse]
+    skills: list[PublicSkillResponse]
+    attesting_organization_count: int
+
+    class Config:
+        from_attributes = True
 
 
 # ============================================================================
@@ -94,8 +139,11 @@ def get_public_profile(
       - slug: public_slug value (string)
 
     Returns (200):
-      - {display_name, verified_experiences[]} (no internal talent_id: YET-230)
-      - verified_experiences filtered to visibility='PUBLIC' only
+      - {display_name, headline, department, study_year, city, institution_name,
+         institution_trust_level, verified_experiences[], skills[],
+         attesting_organization_count} (no internal talent_id: YET-230, no e-mail)
+      - verified_experiences filtered to visibility='PUBLIC' only; skills derived
+        from those experiences' attestations only
 
     Returns (404):
       - ApiError zarfı — {"code": "TALENT_NOT_FOUND", "message": "Kayıt bulunamadı", "request_id": "<uuid>"}
@@ -115,21 +163,8 @@ def get_public_profile(
         # AC-2/AC-3/AC-6: identical 404 for nonexistent, PRIVATE, INSTITUTION, ORGANIZATIONS, or NULL slug
         raise ApiError(status_code=404, code="TALENT_NOT_FOUND", message="Kayıt bulunamadı")
 
-    # Load verified experiences for this talent (via scoped query)
-    verified_experiences = list(session.execute(
-        scoped_public_verified_experiences(session, talent_profile.id)
-    ).scalars().all())
-
-    # AC-5 (AC-S3): filter to PUBLIC visibility only
-    public_experiences = filter_public_experiences(verified_experiences)
-
-    # Build response (AC-4/AC-S2: PII and internal ids excluded — only display_name, verified_experiences)
-    return PublicTalentProfileResponse(
-        display_name=talent_profile.full_name,
-        verified_experiences=[
-            PublicVerifiedExperienceResponse.from_orm(exp) for exp in public_experiences
-        ],
-    )
+    # PUBLIC experiences only (AC-5/AC-S3); PII and internal ids excluded (AC-4/AC-S2)
+    return PublicTalentProfileResponse.model_validate(asdict(build_public_profile(session, talent_profile)))
 
 
 # ============================================================================

@@ -1,65 +1,42 @@
 "use client";
 
 import Link from "next/link";
+import { useSyncExternalStore } from "react";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { getPublicProfile } from "@/lib/api/public";
+import { getPublicProfile, type PublicProfile } from "@/lib/api/public";
 import { ApiError, NetworkError } from "@/lib/api/errors";
 import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { VerifiedSeal } from "@/components/ui/verified-seal";
 import { PublicTopBar, publicFocusRing } from "@/components/public-top-bar";
+import { SealMark } from "@/components/brand/brand-mark";
+import { ChainLegend } from "@/components/page-layout";
+import { ExperienceCard } from "@/components/public-profile/experience-card";
+import { QrCode } from "@/components/public-profile/qr-code";
+import { ProfileCard } from "@/components/public-profile/profile-card";
+import { SkillMap } from "@/components/public-profile/skill-map";
 import messages from "@/messages/tr.json";
 
 const t = messages.publicProfile;
-const claimTypeLabels = messages.calismalar.claimType as Record<string, string>;
-
-function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString("tr-TR", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
-
-function formatPeriod(start: string | null, end: string | null): string | null {
-  if (!start && !end) return null;
-  return `${start ? formatDate(start) : "-"} – ${end ? formatDate(end) : "-"}`;
-}
-
-function initials(name: string): string {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toLocaleUpperCase("tr-TR"))
-    .join("");
-}
+const VERIFIED_LEVELS = new Set(["T2", "T3", "T4"]);
 
 const pulse = "animate-pulse rounded-md bg-muted motion-reduce:animate-none";
 
 function ProfileSkeleton() {
   return (
     <div role="status" aria-busy="true" aria-label={t.loadingLabel}>
-      <div className="flex flex-col gap-4 md:flex-row md:items-center">
-        <div className="h-16 w-16 animate-pulse rounded-full bg-muted motion-reduce:animate-none" />
-        <div className="space-y-2">
-          <div className={`h-8 w-56 ${pulse}`} />
-          <div className={`h-4 w-32 ${pulse}`} />
-        </div>
+      <div className="space-y-3">
+        <div className={`h-3 w-44 ${pulse}`} />
+        <div className={`h-10 w-72 ${pulse}`} />
+        <div className={`h-4 w-80 ${pulse}`} />
+        <div className={`h-4 w-56 ${pulse}`} />
       </div>
-      <div className="mt-8 border-t border-border pt-8">
-        <div className={`h-6 w-52 ${pulse}`} />
-        <div className="mt-6 space-y-8 border-l border-border pl-6">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="space-y-2">
-              <div className={`h-5 w-64 ${pulse}`} />
-              <div className={`h-4 w-40 ${pulse}`} />
-              <div className={`h-3 w-48 ${pulse}`} />
-            </div>
-          ))}
-        </div>
+      <div className={`mt-10 h-24 w-full ${pulse}`} />
+      <div className="mt-10 space-y-4">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className={`h-36 w-full ${pulse}`} />
+        ))}
       </div>
     </div>
   );
@@ -69,10 +46,7 @@ function NotFoundState() {
   const v = messages.publicVerification;
   return (
     <div className="rounded-lg border border-border bg-card p-6 md:p-12">
-      <div
-        aria-hidden="true"
-        className="mb-6 h-24 w-24 rounded-full border border-dashed border-muted-foreground"
-      />
+      <div aria-hidden="true" className="mb-6 h-24 w-24 rounded-full border border-dashed border-muted-foreground" />
       <h1 className="font-serif text-2xl font-medium">{t.notFound}</h1>
       <p className="mt-2 text-sm text-muted-foreground">{v.notFoundDescription}</p>
       <Link
@@ -81,6 +55,154 @@ function NotFoundState() {
       >
         {v.backHome}
       </Link>
+    </div>
+  );
+}
+
+function SectionHeading({ eyebrow, title, lead }: { eyebrow?: string; title: string; lead?: string }) {
+  return (
+    <div className="max-w-[640px]">
+      {eyebrow ? <p className="font-mono text-xs text-muted-foreground">{eyebrow}</p> : null}
+      <h2 className="mt-1 font-serif text-2xl font-semibold text-foreground">{title}</h2>
+      {lead ? <p className="mt-2 text-[15px] text-muted-foreground">{lead}</p> : null}
+    </div>
+  );
+}
+
+/** Usable share URL: the live origin in the browser, the path as a fallback. */
+const noopSubscribe = () => () => {};
+
+function useProfileUrl(slug: string): string {
+  const origin = useSyncExternalStore(noopSubscribe, () => window.location.origin, () => "");
+  return `${origin}/p/${encodeURIComponent(slug)}`;
+}
+
+function Hero({ profile }: { profile: PublicProfile }) {
+  const meta = [
+    profile.department,
+    profile.study_year ? t.studyYear.replace("{n}", String(profile.study_year)) : null,
+    profile.city,
+  ].filter(Boolean) as string[];
+  const institutionTrust = profile.institution_trust_level;
+
+  return (
+    <header className="y360-rise relative">
+      <div className="min-w-0">
+        <p className="inline-flex items-center gap-2 font-mono text-xs text-success">
+          <SealMark className="h-4 w-4" />
+          {t.eyebrow}
+        </p>
+        <h1 className="mt-3 font-serif text-[36px] font-semibold leading-[1.1] tracking-tight text-foreground md:text-[48px]">
+          {profile.display_name}
+        </h1>
+        {profile.headline ? (
+          <p className="mt-3 max-w-[560px] text-lg text-muted-foreground">{profile.headline}</p>
+        ) : null}
+        {meta.length > 0 ? (
+          <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] text-foreground">
+            {meta.map((item, i) => (
+              <span key={item} className="inline-flex items-center gap-2">
+                {i > 0 ? <span aria-hidden="true" className="text-muted-foreground">·</span> : null}
+                {item}
+              </span>
+            ))}
+          </p>
+        ) : null}
+        {profile.institution_name ? (
+          <p className="mt-2 flex flex-wrap items-center gap-2 text-[15px] text-foreground">
+            <span>{profile.institution_name}</span>
+            {institutionTrust && VERIFIED_LEVELS.has(institutionTrust) ? (
+              <Badge variant="success">{t.institutionVerified}</Badge>
+            ) : null}
+          </p>
+        ) : null}
+      </div>
+    </header>
+  );
+}
+
+function EmptyExperiences() {
+  return (
+    <div className="mt-6 flex items-start gap-4 rounded-lg border border-dashed border-border bg-card p-6">
+      <SealMark className="h-10 w-10 shrink-0 text-muted-foreground/40" />
+      <div>
+        <p className="text-base font-semibold first-letter:uppercase">{t.empty}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{t.emptyHint}</p>
+      </div>
+    </div>
+  );
+}
+
+function ProfileView({ profile, slug }: { profile: PublicProfile; slug: string }) {
+  const url = useProfileUrl(slug);
+  const experiences = profile.verified_experiences;
+  const skills = profile.skills ?? [];
+
+  return (
+    <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-x-14 print:block">
+      <div className="lg:col-start-1 lg:row-start-1">
+        <Hero profile={profile} />
+      </div>
+
+      <aside className="lg:col-start-2 lg:row-span-2 lg:row-start-1">
+        <div className="lg:sticky lg:top-8">
+          <ProfileCard profile={profile} url={url} />
+        </div>
+      </aside>
+
+      <div className="min-w-0 lg:col-start-1 lg:row-start-2">
+        {skills.length > 0 ? (
+          <section className="print:mt-8 print:break-inside-avoid" aria-labelledby="skill-map-title">
+            <div id="skill-map-title">
+              <SectionHeading title={t.skillMapTitle} lead={t.skillMapLead} />
+            </div>
+            <div className="mt-5">
+              <SkillMap skills={skills} />
+            </div>
+          </section>
+        ) : null}
+
+        <section className={skills.length > 0 ? "mt-14 print:mt-8" : ""} aria-labelledby="timeline-title">
+          <div id="timeline-title">
+            <SectionHeading title={t.timelineTitle} lead={experiences.length > 0 ? t.timelineLead : undefined} />
+          </div>
+          {experiences.length === 0 ? (
+            <EmptyExperiences />
+          ) : (
+            <ol className="mt-6 space-y-5">
+              {experiences.map((exp, index) => (
+                <ExperienceCard key={exp.id} experience={exp} index={index} />
+              ))}
+            </ol>
+          )}
+        </section>
+
+        <section className="mt-14 print:hidden" aria-labelledby="how-title">
+          <div id="how-title">
+            <SectionHeading title={t.howTitle} lead={t.howLead} />
+          </div>
+          <div className="mt-5">
+            <ChainLegend current={4} />
+          </div>
+        </section>
+
+        <footer className="mt-14 flex flex-col gap-4 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">{t.profileUrlLabel}</p>
+            <p className="mt-1 break-all font-mono text-[13px] text-foreground">{url}</p>
+          </div>
+          <Link
+            href="/"
+            className={`inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-border px-4 text-sm font-medium text-foreground transition-colors hover:border-success hover:text-success print:hidden ${publicFocusRing}`}
+          >
+            {messages.publicVerification.whatIs}
+          </Link>
+          <div className="hidden items-center gap-4 print:flex">
+            <QrCode value={url} label={t.qrLabel.replace("{name}", profile.display_name)} className="h-24 w-24" />
+            <p className="max-w-[260px] text-xs text-muted-foreground">{t.printNote}</p>
+          </div>
+        </footer>
+      </div>
     </div>
   );
 }
@@ -95,10 +217,12 @@ export default function PublicProfilePage() {
   });
 
   return (
-    <div className="min-h-screen bg-background">
-      <PublicTopBar label={t.topBarLabel} />
+    <div className="min-h-screen bg-background print:bg-white">
+      <div className="print:hidden">
+        <PublicTopBar label={t.topBarLabel} />
+      </div>
 
-      <main className="mx-auto max-w-[720px] px-4 pb-16 pt-6 md:pt-10">
+      <main className="mx-auto max-w-[1200px] px-4 pb-20 pt-8 md:px-8 md:pt-14 print:max-w-none print:px-0 print:pt-0">
         {isLoading ? (
           <ProfileSkeleton />
         ) : isError ? (
@@ -115,67 +239,7 @@ export default function PublicProfilePage() {
             </Alert>
           )
         ) : profile ? (
-          <>
-            <header className="flex flex-col gap-4 md:flex-row md:items-center">
-              <span
-                aria-hidden="true"
-                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-border bg-sand font-serif text-xl font-medium text-foreground"
-              >
-                {initials(profile.display_name)}
-              </span>
-              <div>
-                <h1 className="font-serif text-[32px] font-semibold leading-10">
-                  {profile.display_name}
-                </h1>
-                <p className="mt-1 text-sm tabular-nums text-muted-foreground">
-                  {t.experienceCount.replace("{n}", String(profile.verified_experiences.length))}
-                </p>
-              </div>
-            </header>
-
-            <section className="mt-8 border-t border-border pt-8">
-              <h2 className="font-serif text-2xl font-medium">{t.timelineTitle}</h2>
-
-              {profile.verified_experiences.length === 0 ? (
-                <div className="mt-6 rounded-lg border border-border bg-card p-6">
-                  <p className="text-base font-semibold first-letter:uppercase">{t.empty}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{t.emptyHint}</p>
-                </div>
-              ) : (
-                <ol className="mt-6 ml-[10px] space-y-8 border-l border-border">
-                  {profile.verified_experiences.map((exp) => {
-                    const period = formatPeriod(exp.started_on_snapshot, exp.ended_on_snapshot);
-                    const claimLabel = claimTypeLabels[exp.claim_type];
-                    return (
-                      <li key={exp.id} className="relative pl-6">
-                        <div className="absolute -left-[10.5px] top-1">
-                          <VerifiedSeal size="sm" label={t.sealLabel} />
-                        </div>
-                        <h3 className="font-serif text-xl font-medium">{exp.role_snapshot}</h3>
-                        <p className="mt-1 text-[15px]">{exp.organization_name_snapshot}</p>
-                        {(period || claimLabel) && (
-                          <p className="mt-1 text-[13px] tabular-nums text-muted-foreground">
-                            {period}
-                            {period && claimLabel ? " · " : null}
-                            {claimLabel}
-                          </p>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ol>
-              )}
-            </section>
-
-            <p className="mt-10 text-center">
-              <Link
-                href="/"
-                className={`text-[13px] text-muted-foreground hover:text-foreground hover:underline ${publicFocusRing}`}
-              >
-                {messages.publicVerification.whatIs}
-              </Link>
-            </p>
-          </>
+          <ProfileView profile={profile} slug={slug} />
         ) : null}
       </main>
     </div>

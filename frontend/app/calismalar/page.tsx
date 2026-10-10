@@ -4,11 +4,13 @@ import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
+import { PageBody, PageHeader } from "@/components/page-layout";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { listEngagements } from "@/lib/api/engagements";
 import { cn } from "@/lib/utils";
+import { CHAIN_PROGRESS, STATUS_TONE, type StatusTone } from "@/lib/ui/engagement-chain";
 import messages from "@/messages/tr.json";
 
 type FilterKey = keyof typeof messages.calismalar.filterTabs;
@@ -22,40 +24,15 @@ const FILTER_STATUSES: Record<Exclude<FilterKey, "all">, string[]> = {
   closed: ["REJECTED", "CANCELLED", "DISPUTED"],
 };
 
-type BadgeVariant = "default" | "success" | "error" | "warning";
+type BadgeVariant = StatusTone;
 
-const STATUS_BADGE_VARIANT: Record<string, BadgeVariant> = {
-  DRAFT: "default",
-  PENDING_APPROVAL: "warning",
-  ACTIVE: "default",
-  PENDING_EVALUATION: "warning",
-  EVALUATED: "default",
-  VERIFIED: "success",
-  RESOLVED: "success",
-  REJECTED: "error",
-  CANCELLED: "error",
-  DISPUTED: "error",
-};
+const STATUS_BADGE_VARIANT = STATUS_TONE;
 
 const DOT_CLASS: Record<BadgeVariant, string> = {
   default: "bg-foreground",
   success: "bg-success",
   error: "bg-destructive",
   warning: "bg-warning",
-};
-
-// Completed chain steps per status; `broken` marks the step where the chain stopped (1-based).
-const CHAIN_PROGRESS: Record<string, { done: number; broken?: number }> = {
-  DRAFT: { done: 0 },
-  PENDING_APPROVAL: { done: 0 },
-  ACTIVE: { done: 1 },
-  PENDING_EVALUATION: { done: 2 },
-  EVALUATED: { done: 2 },
-  VERIFIED: { done: 4 },
-  RESOLVED: { done: 4 },
-  REJECTED: { done: 0, broken: 1 },
-  CANCELLED: { done: 1, broken: 2 },
-  DISPUTED: { done: 3, broken: 4 },
 };
 
 function formatTemplate(template: string, values: Record<string, string | number>): string {
@@ -139,6 +116,70 @@ function SealMark() {
   );
 }
 
+type Tone = "ink" | "ochre" | "pine";
+
+const TONE_TILE: Record<Tone, string> = {
+  ink: "bg-muted text-foreground",
+  ochre: "bg-warning/10 text-warning",
+  pine: "bg-success/10 text-success",
+};
+
+const SUMMARY: {
+  key: keyof typeof messages.calismalar.summary;
+  filterKey: FilterKey;
+  tone: Tone;
+  icon: string;
+}[] = [
+  {
+    key: "total",
+    filterKey: "all",
+    tone: "ink",
+    icon: "M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16M4 6h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z",
+  },
+  { key: "ongoing", filterKey: "ongoing", tone: "ochre", icon: "M12 6v6l4 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z" },
+  { key: "verified", filterKey: "verified", tone: "pine", icon: "M22 11.1V12a10 10 0 1 1-5.9-9.1M22 4 12 14l-3-3" },
+];
+
+// "Next step" chip colour follows the status badge.
+const NEXT_TONE: Record<BadgeVariant, string> = {
+  default: "bg-muted text-foreground",
+  warning: "bg-warning/10 text-warning",
+  success: "bg-success/10 text-success",
+  error: "bg-destructive/10 text-destructive",
+};
+
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+      <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// One quiet line icon per engagement kind (lucide shapes, inline).
+function KindIcon({ kind }: { kind: string }) {
+  const paths: Record<string, string> = {
+    INTERNSHIP: "M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16M4 6h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z",
+    CAPSTONE: "M22 10 12 5 2 10l10 5 10-5zM6 12v5c3 2 9 2 12 0v-5",
+    SHORT_PROJECT: "M13 2 3 14h9l-1 8 10-12h-9l1-8z",
+    PART_TIME: "M12 6v6l4 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z",
+  };
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-[18px] w-[18px]"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={paths[kind] ?? paths.INTERNSHIP} />
+    </svg>
+  );
+}
+
 function SkeletonCards() {
   return (
     <div role="status" className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -202,39 +243,35 @@ export default function CalismalarPage() {
 
   return (
     <AppShell>
-      <div className="max-w-[1120px] px-4 py-8 md:px-6 lg:px-10">
-        <header className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="font-serif text-[32px] font-semibold leading-10 text-foreground">
-              {messages.calismalar.listTitle}
-            </h1>
-            {!isLoading && !isError ? (
-              <p className="mt-2 text-sm text-muted-foreground">
-                {formatTemplate(messages.calismalar.listCount, { count: items.length })}
-              </p>
-            ) : null}
-          </div>
+      <PageHeader
+        eyebrow={messages.shell.groupWork}
+        title={messages.calismalar.listTitle}
+        description={messages.calismalar.pageDescription}
+        actions={
           <Link
             href="/calismalar/kurulus-sec"
-            className="inline-flex h-10 shrink-0 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success"
+            className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md bg-success px-5 text-sm font-medium text-background shadow-[0_8px_20px_-12px_rgba(38,84,69,0.8)] transition-colors hover:bg-success/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2"
           >
+            <PlusIcon />
             {messages.calismalar.newEngagementButton}
           </Link>
-        </header>
+        }
+      />
 
+      <PageBody>
         {isLoading ? (
-          <div className="mt-8">
+          <div>
             <SkeletonCards />
           </div>
         ) : isError ? (
-          <Alert variant="error" className="mt-8 flex items-center justify-between gap-4">
+          <Alert variant="error" className="flex items-center justify-between gap-4">
             <span>{messages.calismalar.loadError}</span>
             <Button variant="secondary" size="sm" onClick={() => void refetch()}>
               {messages.calismalar.retry}
             </Button>
           </Alert>
         ) : items.length === 0 ? (
-          <section className="mt-8 rounded-lg border border-border bg-card p-6">
+          <section className="rounded-xl border border-border bg-card p-6">
             <BriefcaseIcon />
             <p className="mt-4 text-base font-semibold text-foreground">
               {messages.calismalar.emptyMessage}
@@ -245,10 +282,28 @@ export default function CalismalarPage() {
           </section>
         ) : (
           <>
+            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {SUMMARY.map(({ key, filterKey, tone, icon }) => (
+                <div key={key} className="flex items-center gap-4 rounded-xl border border-border bg-card px-5 py-4">
+                  <span className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-lg", TONE_TILE[tone])}>
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d={icon} />
+                    </svg>
+                  </span>
+                  <div>
+                    <dt className="text-xs text-muted-foreground">{messages.calismalar.summary[key]}</dt>
+                    <dd className="font-serif text-[28px] font-semibold leading-tight tabular-nums text-foreground">
+                      {countFor(filterKey)}
+                    </dd>
+                  </div>
+                </div>
+              ))}
+            </dl>
+
             <div
               role="tablist"
               aria-label={messages.calismalar.filterTabsLabel}
-              className="mt-8 flex overflow-x-auto border-b border-border"
+              className="mt-8 flex gap-1 overflow-x-auto overflow-y-hidden rounded-lg border border-border bg-muted/60 p-1 [scrollbar-width:none] sm:inline-flex [&::-webkit-scrollbar]:hidden"
             >
               {FILTER_KEYS.map((key) => {
                 const selected = filter === key;
@@ -260,14 +315,19 @@ export default function CalismalarPage() {
                     aria-selected={selected}
                     onClick={() => setFilter(key)}
                     className={cn(
-                      "-mb-px flex h-10 shrink-0 items-center gap-1.5 border-b-2 px-4 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success",
+                      "flex h-9 shrink-0 items-center gap-2 rounded-md px-3.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success",
                       selected
-                        ? "border-success text-foreground"
-                        : "border-transparent text-muted-foreground hover:text-foreground",
+                        ? "bg-card text-foreground shadow-[0_1px_3px_rgba(34,31,27,0.12)]"
+                        : "text-muted-foreground hover:text-foreground",
                     )}
                   >
                     {messages.calismalar.filterTabs[key]}
-                    <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                    <span
+                      className={cn(
+                        "min-w-[20px] rounded-full px-1.5 text-center font-mono text-[11px] tabular-nums",
+                        selected ? "bg-success/10 text-success" : "bg-background/70 text-muted-foreground"
+                      )}
+                    >
                       {countFor(key)}
                     </span>
                   </button>
@@ -287,9 +347,18 @@ export default function CalismalarPage() {
                       <li key={item.id}>
                         <Link
                           href={`/calismalar/${item.id}`}
-                          className="flex h-full flex-col gap-4 rounded-lg border border-border bg-card p-5 hover:border-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success"
+                          className={cn(
+                            "group relative flex h-full flex-col gap-4 overflow-hidden rounded-xl border bg-card p-5 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_-28px_rgba(34,31,27,0.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+                            isVerified ? "border-success/30 hover:border-success/60" : "border-border hover:border-muted-foreground/40"
+                          )}
                         >
-                          <div className="flex items-start justify-end">
+                          {isVerified ? (
+                            <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-success" />
+                          ) : null}
+                          <div className="flex items-start justify-between gap-3">
+                            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-sand text-foreground">
+                              <KindIcon kind={item.kind} />
+                            </span>
                             <Badge variant={variant} className="gap-1.5">
                               <span
                                 aria-hidden="true"
@@ -308,8 +377,19 @@ export default function CalismalarPage() {
                             <p className="mt-1 text-sm text-muted-foreground">
                               {messages.calismalar.kind[item.kind]} · {item.organization_name}
                             </p>
+                            <p
+                              className={cn(
+                                "mt-4 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] font-medium",
+                                NEXT_TONE[variant]
+                              )}
+                            >
+                              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                                <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                              {messages.calismalar.nextStep[item.status as keyof typeof messages.calismalar.nextStep]}
+                            </p>
                           </div>
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center justify-between gap-2 border-t border-border pt-4">
                             <MiniChain status={item.status} />
                             <time
                               dateTime={item.updated_at}
@@ -323,12 +403,30 @@ export default function CalismalarPage() {
                       </li>
                     );
                   })}
+                  {filter === "all" ? (
+                    <li>
+                      <Link
+                        href="/calismalar/kurulus-sec"
+                        className="group flex h-full min-h-[180px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-muted-foreground/30 p-5 text-center transition-colors hover:border-success hover:bg-success/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success"
+                      >
+                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-sand text-success transition-colors group-hover:bg-success group-hover:text-background">
+                          <PlusIcon />
+                        </span>
+                        <span className="font-serif text-lg font-semibold text-foreground">
+                          {messages.calismalar.newCardTitle}
+                        </span>
+                        <span className="max-w-[260px] text-sm text-muted-foreground">
+                          {messages.calismalar.newCardHint}
+                        </span>
+                      </Link>
+                    </li>
+                  ) : null}
                 </ul>
               )}
             </div>
           </>
         )}
-      </div>
+      </PageBody>
     </AppShell>
   );
 }

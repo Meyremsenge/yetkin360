@@ -106,7 +106,7 @@ export function AttestationForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="mb-6 border-t pt-6">
+    <form onSubmit={handleSubmit} className="mt-4 border-t border-border pt-4">
       <h3 className="text-sm font-bold mb-3">{messages.calismalar.attestationTitle}</h3>
 
       <div className="mb-3 max-w-xs">

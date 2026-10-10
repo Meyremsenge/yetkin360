@@ -416,3 +416,17 @@ export async function getMySignals(): Promise<{ items: unknown[] } | undefined> 
 export async function getMyVerifiedExperiences(): Promise<{ items: unknown[] } | undefined> {
   return apiFetch("/talents/me/verified-experiences/");
 }
+
+/**
+ * Change visibility of one of the current talent's verified experiences.
+ * Calls PATCH /talents/me/verified-experiences/{id}/visibility (owner only; others → 404).
+ */
+export async function setMyVerifiedExperienceVisibility(
+  id: string,
+  visibility: "PRIVATE" | "PUBLIC"
+): Promise<Record<string, unknown> | undefined> {
+  return apiFetch(`/talents/me/verified-experiences/${encodeURIComponent(id)}/visibility`, {
+    method: "PATCH",
+    body: { visibility },
+  });
+}

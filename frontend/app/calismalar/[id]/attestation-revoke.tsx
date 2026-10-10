@@ -82,17 +82,24 @@ export function AttestationRevoke({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="mt-2 flex flex-wrap items-end gap-2">
-      <div className="flex-1 min-w-[160px]">
-        <Label htmlFor={`revoke-reason-${attestation.id}`}>{messages.calismalar.revokeReasonLabel}</Label>
+    <form onSubmit={handleSubmit} className="mt-3 flex flex-wrap items-end gap-2 border-t border-border pt-3">
+      <div className="min-w-[160px] flex-1">
+        <Label htmlFor={`revoke-reason-${attestation.id}`} className="text-xs text-muted-foreground">
+          {messages.calismalar.revokeReasonLabel}
+        </Label>
         <Input
           id={`revoke-reason-${attestation.id}`}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           required
+          className="h-9"
         />
       </div>
-      <Button type="submit" disabled={mutation.isPending} className="bg-red-600 hover:bg-red-700">
+      <Button
+        type="submit"
+        disabled={mutation.isPending}
+        className="h-9 border border-destructive/30 bg-transparent text-destructive hover:bg-destructive/10"
+      >
         {mutation.isPending ? messages.calismalar.revokingAttestationButton : messages.calismalar.revokeAttestationButton}
       </Button>
 
