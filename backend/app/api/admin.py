@@ -3,19 +3,23 @@
 Tümü `ADMIN` yetkisi gerektirir (`users.is_platform_admin = true`, docs/API.md §2.10).
 Yetkisiz istekte 404 dönülür (CLAUDE.md: 403 kaynağın/ucun varlığını sızdırır) —
 app/api/organizations.py'deki ORG:ADMIN kontrolüyle aynı desen.
+
+Kontrol router seviyesindedir (`require_platform_admin`): bu dosyaya eklenen
+her uç onu kendiliğinden alır, uç içinde ayrıca çağırmak gerekmez.
 """
 
 import uuid
 from datetime import datetime
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_principal, get_session, get_verified_principal
-from app.core.deps import require_csrf
+from app.core.deps import get_current_user, require_csrf, require_email_verified
 from app.core.errors import ApiError
+from app.models import User
 from app.services.audit import log_audit_event
 from app.services.authorization import Principal
 from app.services.fraud_flag import NotPendingError as FraudFlagNotPendingError, list_fraud_queue, resolve_fraud_flag
@@ -39,15 +43,28 @@ from app.services.skill import (
 
 MAX_PAGE_SIZE = 200
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+def require_platform_admin(
+    request: Request,
+    user: User = Depends(get_current_user),
+    principal: Principal = Depends(get_current_principal),
+) -> None:
+    """
+    Router-level gate for every /admin/* route: non-admins get 404, not 403.
+
+    Order is unchanged from the per-handler checks it replaces: on a write, an
+    unverified e-mail is answered first (401 EMAIL_NOT_VERIFIED, AUTHORIZATION G6),
+    then the admin check.
+    """
+    if request.method not in ("GET", "HEAD", "OPTIONS"):
+        require_email_verified(user)
+    if not principal.is_platform_admin:
+        raise ApiError(404, "NOT_FOUND", "Kaynak bulunamadı.")
+
+
+router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_platform_admin)])
 
 VerificationLevel = Literal["T1", "T2", "T3", "T4"]
 SkillCategory = Literal["LANGUAGE", "FRAMEWORK", "TOOL", "DOMAIN", "SOFT"]
-
-
-def _require_admin(principal: Principal) -> None:
-    if not principal.is_platform_admin:
-        raise ApiError(404, "NOT_FOUND", "Kaynak bulunamadı.")
 
 
 # ============================================================================
@@ -165,7 +182,6 @@ def get_verification_queue(
     session: Session = Depends(get_session),
 ) -> VerificationQueueResponse:
     """docs/API.md §2.10: T2 + legal_id dolu kurumlar (T3 başvurusu sayılır)."""
-    _require_admin(principal)
     orgs = list_verification_queue(session, limit=limit, offset=offset)
     return VerificationQueueResponse(items=[VerificationQueueItem.model_validate(o) for o in orgs])
 
@@ -182,7 +198,6 @@ def update_verification_level(
     Seviyeyi ayarla (onay = yükseltme). Reddetmek için verification-reject ucu kullanılır.
     Her çağrı audit_events'e yazılır; serbest metin `note` yazılmaz, yalnız uzunluğu.
     """
-    _require_admin(principal)
 
     try:
         org = set_verification_level(
@@ -222,7 +237,6 @@ def reject_verification_endpoint(
     _csrf: None = Depends(require_csrf),
 ) -> OrganizationSummary:
     """Bekleyen T3 başvurusunu reddet: kurum kuyruktan çıkar, seviye ve verified_at değişmez (YET-198)."""
-    _require_admin(principal)
 
     try:
         org = reject_verification(session, organization_id=organization_id)
@@ -258,7 +272,6 @@ def list_skills_endpoint(
     session: Session = Depends(get_session),
 ) -> SkillsListResponse:
     """Admin taksonomi yönetimi için TÜM skill'leri (durumdan bağımsız) listeler."""
-    _require_admin(principal)
     skills = list_all_skills(session, limit=limit, offset=offset)
     return SkillsListResponse(items=[SkillResponse.model_validate(s) for s in skills])
 
@@ -270,7 +283,6 @@ def create_skill_endpoint(
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> SkillResponse:
-    _require_admin(principal)
     try:
         skill = create_skill(
             session,
@@ -306,7 +318,6 @@ def update_skill_endpoint(
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> SkillResponse:
-    _require_admin(principal)
     try:
         skill = update_skill(
             session,
@@ -345,7 +356,6 @@ def deprecate_skill_endpoint(
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> SkillResponse:
-    _require_admin(principal)
     skill = deprecate_skill(session, skill_id)
     if skill is None:
         raise ApiError(404, "NOT_FOUND", "Skill bulunamadı.")
@@ -371,7 +381,6 @@ def merge_skill_endpoint(
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> SkillResponse:
-    _require_admin(principal)
     try:
         skill = merge_skill(session, skill_id, payload.merged_into_id)
     except InvalidSkillReferenceError as exc:
@@ -406,7 +415,6 @@ def get_fraud_queue(
     session: Session = Depends(get_session),
 ) -> FraudQueueResponse:
     """PENDING fraud_flags — AI'nin ürettiği işaretler, henüz admin kararı yok."""
-    _require_admin(principal)
     flags = list_fraud_queue(session, limit=limit, offset=offset)
     return FraudQueueResponse(items=[FraudFlagItem.model_validate(f) for f in flags])
 
@@ -420,7 +428,6 @@ def resolve_fraud_flag_endpoint(
     _csrf: None = Depends(require_csrf),
 ) -> FraudFlagItem:
     """Admin kararı: CONFIRMED (gerçek sahtekarlık) veya DISMISSED (yanlış alarm)."""
-    _require_admin(principal)
 
     try:
         flag = resolve_fraud_flag(
