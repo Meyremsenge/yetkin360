@@ -107,6 +107,10 @@ function ExperienceVisibilityToggle({ experience }: { experience: VerifiedExperi
           {messages.profil.experienceVerificationLink} ↗
         </Link>
       ) : null}
+      {/* SPRINT H-0: "Kuruluşlar" is not offered any more and has no effect yet. */}
+      {experience.visibility === "ORGANIZATIONS" ? (
+        <p className="basis-full text-[13px] text-warning">{messages.profil.experienceOrganizationsSoon}</p>
+      ) : null}
       <p aria-live="polite" className="basis-full text-[13px] text-destructive empty:hidden">
         {failed ? messages.profil.experienceVisibilityError : ""}
       </p>

@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import EvidenceSection from "@/app/profil/evidence-section";
 import * as clientModule from "@/lib/api/client";
+import messages from "@/messages/tr.json";
 
 vi.mock("@/lib/api/client", () => ({
   getMySignals: vi.fn(),
@@ -639,6 +640,33 @@ describe("EvidenceSection (/profil/evidence-section.tsx)", () => {
         expect(screen.getByText("TechCorp")).toBeTruthy();
         expect(screen.getByText("Backend Developer")).toBeTruthy();
       });
+    });
+  });
+
+  describe("SPRINT H-0: 'Kuruluşlar' görünürlüğündeki kayıt", () => {
+    it("kayıt için 'yakında, şu an gizli' uyarısı gösterilir; herkese açık kayıtta gösterilmez", async () => {
+      vi.spyOn(clientModule, "getMySignals").mockResolvedValueOnce({ items: [] });
+      const experience = {
+        organization_name_snapshot: "TechCorp",
+        role_snapshot: "Backend Developer",
+        started_on_snapshot: "2024-06-01",
+        ended_on_snapshot: "2025-12-31",
+        institution_name_snapshot: null,
+        claim_type: "WORK_EXPERIENCE",
+        public_token: null,
+        created_at: "2026-01-10T08:00:00Z",
+      };
+      vi.spyOn(clientModule, "getMyVerifiedExperiences").mockResolvedValueOnce({
+        items: [
+          { ...experience, id: "exp-org", visibility: "ORGANIZATIONS" },
+          { ...experience, id: "exp-pub", visibility: "PUBLIC", role_snapshot: "Analist" },
+        ],
+      });
+
+      renderWithQueryClient(<EvidenceSection />);
+
+      await waitFor(() => expect(screen.getByText("Analist")).toBeTruthy());
+      expect(screen.getAllByText(messages.profil.experienceOrganizationsSoon)).toHaveLength(1);
     });
   });
 
