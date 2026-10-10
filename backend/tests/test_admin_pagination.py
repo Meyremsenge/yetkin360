@@ -119,7 +119,10 @@ def test_item_schemas_unchanged(client, session, admin):
     _seed_skills(session, 1)
     _seed_flags(session, 1)
     org = client.get("/admin/verification-queue", headers=_h(admin)).json()["items"][0]
-    assert set(org) == {"id", "name", "legal_id", "domain", "verification_level", "created_at"}
+    assert set(org) == {
+        "id", "name", "legal_id", "domain", "verification_level", "created_at", "upheld_complaint_count",
+    }
+    assert org["upheld_complaint_count"] == 0
     skill = client.get("/admin/skills", headers=_h(admin)).json()["items"][0]
     assert set(skill) == {
         "id", "slug", "name_tr", "name_en", "category", "parent_id", "status", "merged_into_id",

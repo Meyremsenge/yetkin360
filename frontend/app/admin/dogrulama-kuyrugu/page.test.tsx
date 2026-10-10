@@ -112,6 +112,20 @@ describe("DogrulamaKuyruguPage (/admin/dogrulama-kuyrugu)", () => {
     });
   });
 
+  it("AC-S13: haklı bulunan şikayeti olan kuruluşun adının yanında sayı rozeti gösterilir", async () => {
+    vi.mocked(adminApi.getVerificationQueue).mockResolvedValueOnce(
+      paged([{ ...mockOrganization, upheld_complaint_count: 3 }, { ...mockOrganizationWithNulls, upheld_complaint_count: 0 }])
+    );
+
+    renderWithQueryClient(<DogrulamaKuyruguPage />);
+
+    const table = await screen.findByRole("table");
+    const org1Row = within(table).getByText("Tech Startup Inc.").closest("tr")!;
+    expect(within(org1Row).getByText("3 doğrulama talebini yanıtsız bıraktı")).toBeTruthy();
+    const org2Row = within(table).getByText("Startup Inc.").closest("tr")!;
+    expect(within(org2Row).queryByText(/doğrulama talebini yanıtsız bıraktı/)).toBeNull();
+  });
+
   it("AC-1: nullable alanlar — legal_id null ise '-' gösterilir", async () => {
     vi.mocked(adminApi.getVerificationQueue).mockResolvedValueOnce(
       mockVerificationQueue

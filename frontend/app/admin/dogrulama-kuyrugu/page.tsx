@@ -13,6 +13,7 @@ import {
   formatTemplate,
 } from "@/components/panel-kit";
 import { Alert } from "@/components/ui/alert";
+import { UpheldComplaintBadge } from "@/components/upheld-complaint-badge";
 import * as adminApi from "@/lib/api/admin";
 import { ApiError, NetworkError } from "@/lib/api/errors";
 import { cn } from "@/lib/utils";
@@ -187,7 +188,12 @@ export default function DogrulamaKuyruguPage() {
                           const level = selectedLevels[org.id] || org.verification_level;
                           return (
                             <tr key={org.id} className="border-b border-border last:border-0 hover:bg-background">
-                              <td className="px-4 py-3.5 font-medium text-foreground">{org.name}</td>
+                              <td className="px-4 py-3.5 font-medium text-foreground">
+                                <span className="flex flex-wrap items-center gap-2">
+                                  <span>{org.name}</span>
+                                  <UpheldComplaintBadge count={org.upheld_complaint_count} />
+                                </span>
+                              </td>
                               <td className="px-4 py-3.5 whitespace-nowrap font-mono text-[13px] text-muted-foreground">
                                 {org.legal_id || "-"}
                               </td>

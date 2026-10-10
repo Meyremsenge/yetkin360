@@ -411,6 +411,32 @@ class TestStateMachine:
         detail = client.get(f"/organizations/{w.org.id}", headers=h(w.org_admin))
         assert detail.json()["upheld_complaint_count"] == 1
 
+    def test_upheld_organization_count_on_admin_verification_queue(self, client, session, w):
+        # The queue lists T2 organizations with a legal_id (a T3 application).
+        w.org.verification_level = "T2"
+        session.flush()
+
+        def queue_row():
+            r = client.get("/admin/verification-queue", headers=h(w.admin))
+            assert r.status_code == 200, r.text
+            return next(i for i in r.json()["items"] if i["id"] == str(w.org.id))
+
+        assert queue_row()["upheld_complaint_count"] == 0
+        engagement = add_engagement(session, w, w.talent_a, status="PENDING_EVALUATION", supervisor_user_id=w.org_admin.id)
+        created = open_complaint(client, w, engagement=engagement)
+        assert queue_row()["upheld_complaint_count"] == 0  # an open complaint does not count
+        transition(client, w, created["id"], "REQUEST_EXPLANATION", note="Açıklayın.")
+        client.post(f"/complaints/{created['id']}/explanation", headers=h(w.org_admin), json={"text": "Bakamadık."})
+        transition(client, w, created["id"], "REJECT_EXPLANATION")
+        transition(client, w, created["id"], "UPHOLD")
+
+        row = queue_row()
+        assert row["upheld_complaint_count"] == 1
+        # AC-S13: only the number leaves; no complaint text or identities.
+        assert set(row) == {
+            "id", "name", "legal_id", "domain", "verification_level", "created_at", "upheld_complaint_count",
+        }
+
     def test_invalid_transitions_return_409_and_change_nothing(self, client, session, w):
         created = open_complaint(client, w)
         r = transition(client, w, created["id"], "UPHOLD")

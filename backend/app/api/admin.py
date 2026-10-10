@@ -23,6 +23,7 @@ from app.core.errors import ApiError
 from app.models import User
 from app.services.audit import log_audit_event
 from app.services.authorization import Principal
+from app.services.complaint import upheld_complaint_counts
 from app.services.fraud_flag import NotPendingError as FraudFlagNotPendingError, list_fraud_queue, resolve_fraud_flag
 from app.services.fraud_signals import subject_labels
 from app.services.organization import (
@@ -81,6 +82,7 @@ class VerificationQueueItem(BaseModel):
     domain: Optional[str]
     verification_level: str
     created_at: datetime
+    upheld_complaint_count: int = 0  # admin-upheld complaints (sikayet-backend C7)
 
     class Config:
         from_attributes = True
@@ -198,8 +200,12 @@ def get_verification_queue(
 ) -> VerificationQueueResponse:
     """docs/API.md §2.10: T2 + legal_id dolu kurumlar (T3 başvurusu sayılır)."""
     orgs, has_more = list_verification_queue(session, limit=limit, offset=offset)
+    upheld = upheld_complaint_counts(session, "ORGANIZATION", [o.id for o in orgs])
     return VerificationQueueResponse(
-        items=[VerificationQueueItem.model_validate(o) for o in orgs],
+        items=[
+            VerificationQueueItem.model_validate(o).model_copy(update={"upheld_complaint_count": upheld.get(o.id, 0)})
+            for o in orgs
+        ],
         limit=limit,
         offset=offset,
         has_more=has_more,
