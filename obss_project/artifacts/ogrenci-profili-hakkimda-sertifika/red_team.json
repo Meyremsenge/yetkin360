@@ -1,0 +1,72 @@
+{
+  "task": "ogrenci-profili-hakkimda-sertifika",
+  "reviewed_at": "2026-10-10T17:30:00+03:00",
+  "summary": "Yetkilendirme, rozet türetme ve public allowlist sağlam; AC-S1..S12 testlerle karşılanmış. Bir orta düzey doğruluk hatası var: soft delete edilen kayıt evidence_id üzerindeki UNIQUE kısıtı tutmaya devam ediyor, aynı sertifika bir daha vitrine eklenemiyor.",
+  "findings": [
+    {
+      "severity": "medium",
+      "category": "correctness",
+      "file": "backend/app/services/portfolio.py",
+      "issue": "delete_own_portfolio_item soft delete yapıyor ama evidence_id'yi koruyor; uq_portfolio_items_evidence_id tüm satırlarda geçerli. Silinen sertifikayı yeniden eklemek her zaman 409 EVIDENCE_ALREADY_IN_PORTFOLIO döner. list_own_portfolio ise linked haritasını yalnız canlı kayıtlardan kurduğu için engagement_certificates[].portfolio_item_id=null gösterir — UI 'ekle' düğmesi sunar, istek 409 ile düşer (sessiz tutarsızlık).",
+      "better_approach": "Soft delete sırasında evidence_id'yi NULL yap (kaydın id'si audit_events'te kalır). Alternatif: kısmi UNIQUE index (WHERE deleted_at IS NULL) — yeni migration gerektirir.",
+      "reason": "atdd AC-3 'silme bağlı kanıt dosyasına dokunmaz' — kanıt yeniden kullanılabilir kalmalı; davranış sözleşmesindeki 409 yalnız 'kanıt zaten vitrinde' (canlı) durumu için tanımlı."
+    },
+    {
+      "severity": "low",
+      "category": "correctness",
+      "file": "backend/app/api/me.py",
+      "issue": "about için max_length=1000 kontrolü strip'ten önce çalışıyor; başında/sonunda boşluk olan 1000 karakterlik metin 422 alır, oysa kırpılmış hali sığar.",
+      "better_approach": "Kabul edilebilir; frontend sayacı kırpılmış uzunluğu değil ham uzunluğu saydığı sürece kullanıcı tutarlı bir sınır görür.",
+      "reason": "Kullanıcıya görünen sınır ile sunucu sınırı aynı ölçüyü kullanmalı; frontend ham uzunluğu saydığında tutarlı."
+    },
+    {
+      "severity": "low",
+      "category": "performance",
+      "file": "backend/app/services/portfolio.py",
+      "issue": "list_own_portfolio her kayıt ve her çalışma sertifikası için ayrı kanıt + kontrol sorgusu atıyor (N+1).",
+      "better_approach": "Şimdilik bırak: MAX_ITEMS_PER_TALENT=50 ile üst sınır ~150 küçük sorgu, yalnız sahibinin kendi sayfasında.",
+      "reason": "Tavan var; erken optimizasyon karmaşıklık ekler (ponytail)."
+    },
+    {
+      "severity": "low",
+      "category": "test-gap",
+      "file": "backend/tests/authorization/test_portfolio_items_authz.py",
+      "issue": "Silinen kaydın kanıtını yeniden ekleme senaryosu test edilmiyor (birinci bulguyu gizledi).",
+      "better_approach": "Sil → aynı evidence_id ile POST → 201 testi ekle.",
+      "reason": "Davranış sözleşmesinin 409 satırının sınırını sabitler."
+    }
+  ],
+  "strengths": [
+    "Rozet sunucuda türetiliyor; istemci gövdesindeki badge/provider/decision yok sayılıyor (AC-S4 test edildi).",
+    "scoped_public_portfolio_items kanıtı sahiplik + silinmemişlik koşuluyla join ediyor; rozet ödünç alınamıyor (AC-S5).",
+    "Public yanıtta hem profil hem sertifika düzeyinde birebir anahtar allowlist testi var.",
+    "https + DB CHECK + punycode host; verify_url sağlayıcı allowlist'i sunucuda.",
+    "Migration yalnız ekleme, upgrade/downgrade doğrulandı; evidence PRIVATE CHECK'ine dokunulmadı."
+  ],
+  "risks": [
+    "Onaylı kartın başlığı öğrenci beyanı (atdd'de kabul edilmiş kalıntı risk).",
+    "50 kayıt sınırı uygulama düzeyinde; eşzamanlı isteklerde aşılabilir (kabul edildi).",
+    "test_certificate_check_handler.py ortamda cv2 olmadığı için çalışmadı — bu değişiklikle ilgisiz ama paket tam yeşil sayılmamalı."
+  ],
+  "caveman_review": {
+    "complexity": "low",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": false,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve-with-changes"
+}
