@@ -19,7 +19,7 @@ from app.services.authorization import (
     scoped_public_verified_experience_by_token,
 )
 from app.services.organization_showcase import build_org_showcase
-from app.services.public_profile import build_public_profile
+from app.services.public_profile import build_public_profile, co_signature
 
 router = APIRouter(tags=["public"], prefix="/public")
 
@@ -27,6 +27,13 @@ router = APIRouter(tags=["public"], prefix="/public")
 # ============================================================================
 # Pydantic Response Schemas (Public API)
 # ============================================================================
+
+
+class PublicEvaluatorResponse(BaseModel):
+    """Who evaluated for the organization: "Ad S." and unit only. No full surname, no e-mail."""
+
+    display_name: str | None
+    unit: str | None
 
 
 class AttestedSkillResponse(BaseModel):
@@ -56,6 +63,9 @@ class PublicVerificationResponse(BaseModel):
     ended_on: date | None
     verified_at: datetime
     attested_skills: list[AttestedSkillResponse]
+    # K1-A: organization evaluated + institution sealed
+    co_signed: bool
+    evaluator: PublicEvaluatorResponse | None
 
     class Config:
         from_attributes = True
@@ -91,6 +101,8 @@ class PublicVerifiedExperienceResponse(BaseModel):
     created_at: datetime
     # Link to /v/{token}; the experience is already PUBLIC, the same token is shareable.
     public_token: str | None
+    co_signed: bool
+    evaluator: PublicEvaluatorResponse | None
     skills: list[PublicExperienceSkillResponse]
     evidenced_skills: list[PublicEvidencedSkillResponse]
 
@@ -286,7 +298,9 @@ def get_public_verification(
             )
         )
 
-    # Build response (AC-1/AC-5: 11 fields, no PII, no internal IDs)
+    signature = co_signature(session, engagement)
+
+    # Build response (AC-1/AC-5: no PII, no internal IDs)
     return PublicVerificationResponse(
         title=ve.role_snapshot,
         talent_name=talent_profile.full_name,
@@ -299,6 +313,12 @@ def get_public_verification(
         ended_on=ve.ended_on_snapshot,
         verified_at=ve.created_at,
         attested_skills=attested_skills,
+        co_signed=signature.co_signed,
+        evaluator=(
+            PublicEvaluatorResponse(display_name=signature.evaluator.display_name, unit=signature.evaluator.unit)
+            if signature.evaluator
+            else None
+        ),
     )
 
 

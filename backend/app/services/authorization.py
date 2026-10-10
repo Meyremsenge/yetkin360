@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import Attestation, CertificateCheck, Deliverable, Engagement, EngagementTask, Evidence, Institution, InstitutionLinkRequest, Organization, PortfolioItem, SkillClaim, SkillSignal, TalentProfile, User, VerifiedExperience
+from app.models import Attestation, CertificateCheck, Deliverable, Engagement, EngagementTask, Evaluation, Evidence, Institution, InstitutionLinkRequest, Organization, OrganizationMember, PortfolioItem, SkillClaim, SkillSignal, TalentProfile, User, VerifiedExperience
 
 
 @dataclass
@@ -657,6 +657,47 @@ def scoped_attestations_for_engagement(session: Session, engagement_id: uuid.UUI
         Attestation.engagement_id == engagement_id,
         Attestation.skill_id.isnot(None),
         Attestation.revoked_at.is_(None),  # GUV-05: exclude revoked attestations
+    )
+
+
+def scoped_public_engagement_evaluations(session: Session, engagement_id: uuid.UUID) -> Select:
+    """
+    Return a SQLAlchemy Select query for the ORG_TO_TALENT evaluations of an
+    engagement, for the "çift imza" badge and the evaluator line on public pages.
+
+    Only call this for an engagement whose VerifiedExperience was already
+    resolved as PUBLIC (scoped_public_verified_experience_by_token() /
+    scoped_public_verified_experiences()); it does not re-check visibility.
+
+    Only evaluations written by a member of the engagement's own organization.
+    Returns rows of (Evaluation, unit, evaluator_full_name):
+      - unit: OrganizationMember.unit (may be None)
+      - evaluator_full_name: the evaluator's own TalentProfile name, None when
+        the profile is missing or deleted. Never the e-mail.
+    Oldest evaluation first. private_note is on the row; callers must not expose it.
+    """
+    return (
+        select(Evaluation, OrganizationMember.unit, TalentProfile.full_name)
+        .join(Engagement, Engagement.id == Evaluation.engagement_id)
+        .join(
+            OrganizationMember,
+            and_(
+                OrganizationMember.organization_id == Engagement.organization_id,
+                OrganizationMember.user_id == Evaluation.evaluator_user_id,
+            ),
+        )
+        .outerjoin(
+            TalentProfile,
+            and_(
+                TalentProfile.user_id == Evaluation.evaluator_user_id,
+                TalentProfile.deleted_at.is_(None),
+            ),
+        )
+        .where(
+            Evaluation.engagement_id == engagement_id,
+            Evaluation.direction == "ORG_TO_TALENT",
+        )
+        .order_by(Evaluation.submitted_at, Evaluation.id)
     )
 
 
