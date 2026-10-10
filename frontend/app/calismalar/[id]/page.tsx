@@ -12,6 +12,7 @@ import { DeliverableForm } from "./deliverable-form";
 import { AttestationForm } from "./attestation-form";
 import { TaskForm } from "./task-form";
 import { AttestationRevoke } from "./attestation-revoke";
+import { CertificateChecksSection } from "./certificate-checks-section";
 import messages from "@/messages/tr.json";
 
 export default function CalismaDetayPage() {
@@ -130,6 +131,8 @@ export default function CalismaDetayPage() {
               )}
             </section>
 
+            <CertificateChecksSection engagementId={engagement.id} />
+
             <section className="mt-8">
               <h2 className="text-lg font-bold mb-3">{messages.calismalar.deliverablesTitle}</h2>
 
@@ -148,7 +151,7 @@ export default function CalismaDetayPage() {
                       className="bg-white p-3 rounded-md border border-slate-200 text-sm"
                     >
                       {deliverable.title}
-                      <EvidenceUploadForm deliverableId={deliverable.id} />
+                      <EvidenceUploadForm deliverableId={deliverable.id} engagementId={engagement.id} />
                     </li>
                   ))}
                 </ul>

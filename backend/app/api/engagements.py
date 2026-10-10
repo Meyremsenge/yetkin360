@@ -1,5 +1,6 @@
 """Engagement endpoints (POST /engagements)."""
 
+import uuid
 from datetime import datetime
 from typing import Literal
 
@@ -9,7 +10,10 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_principal, get_session, get_verified_principal
 from app.core.deps import require_csrf
-from app.services.authorization import Principal
+from app.models import Engagement
+from app.schemas.certificate_check import CertificateCheckListResponse, CertificateCheckResponse
+from app.services.authorization import Principal, get_scoped_or_404, scoped_engagements
+from app.services.certificate_check import list_certificate_checks_for_engagement
 from app.services.engagement import (
     InstitutionMismatchError,
     OrganizationNotFoundError,
@@ -525,6 +529,48 @@ def get_engagement_detail(
                 "request_id": None,
             },
         )
+
+
+@router.get("/{engagement_id}/certificate-checks", response_model=CertificateCheckListResponse)
+def list_engagement_certificate_checks(
+    engagement_id: str,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> CertificateCheckListResponse:
+    """
+    PLAN 3.55: bu engagement'a bağlı deliverable'lardaki CERTIFICATE türü
+    kanıtlar için AI çıkarım sonuçları — scoped_evidence()'ın dar istisnası
+    (bkz. app/services/certificate_check.py modül docstring'i). Engagement
+    scope dışıysa 404 (scoped_engagements, diğer tüm engagement uçlarıyla
+    aynı desen); scope içinde ama bu özel görünüme yetkisi olmayan bir
+    principal (örn. plain ORG_MEMBER) boş liste alır.
+    """
+    if principal.user_id is None:
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "UNAUTHORIZED", "message": "Kimlik doğrulama gerekli.", "request_id": None},
+        )
+    try:
+        engagement_uuid = uuid.UUID(engagement_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "NOT_FOUND", "message": "Engagement bulunamadı.", "request_id": None},
+        )
+
+    engagement = get_scoped_or_404(
+        scoped_engagements(session, principal).where(Engagement.id == engagement_uuid), session
+    )
+    if engagement is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "NOT_FOUND", "message": "Engagement bulunamadı.", "request_id": None},
+        )
+
+    checks = list_certificate_checks_for_engagement(session, principal, engagement_uuid)
+    return CertificateCheckListResponse(
+        items=[CertificateCheckResponse.model_validate(c) for c in checks]
+    )
 
 
 # ============================================================================
