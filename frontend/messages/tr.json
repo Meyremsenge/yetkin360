@@ -1777,6 +1777,7 @@
     },
     "reportAction": "Şikayet et",
     "reportHint": "Onayınız uzun süredir yanıtsız mı? Bekleme süresi dolduysa platform yöneticisine şikayet edebilirsiniz.",
+    "reportHintEvaluation": "Değerlendirmeniz uzun süredir yanıtsız mı? Bekleme süresi dolduysa kuruluşu platform yöneticisine şikayet edebilirsiniz.",
     "newComplaint": "Yeni şikayet",
     "form": {
       "title": "Şikayet et",

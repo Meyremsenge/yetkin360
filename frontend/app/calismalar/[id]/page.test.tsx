@@ -396,6 +396,16 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
       expect(screen.getByText(messages.complaints.reportHint)).toBeTruthy();
     });
 
+    it("öğrenci (SUBJECT) yanıtsız değerlendirmede kuruluşa şikayet bağlantısını görür", async () => {
+      vi.mocked(getEngagement).mockResolvedValueOnce({ ...baseEngagement, status: "PENDING_EVALUATION" });
+
+      renderWithQueryClient(<CalismaDetayPage />);
+
+      const link = await screen.findByRole("link", { name: messages.complaints.reportAction });
+      expect(link.getAttribute("href")).toBe("/sikayetlerim/yeni?subject_type=ENGAGEMENT&subject_id=eng-1");
+      expect(screen.getByText(messages.complaints.reportHintEvaluation)).toBeTruthy();
+    });
+
     it.each(["PENDING_APPROVAL", "PENDING_EVALUATION"] as const)(
       "öğrenci olmayan izleyici (ORG_ADMIN) %s durumunda bağlantıyı görmez",
       async (status) => {
