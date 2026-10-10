@@ -142,7 +142,341 @@ class TestHandlerRegistration:
         )
 
 
+class TestNamesMatch:
+    """Transcription noise (dropped Turkish letters, I/l/1, rn/m, word order)
+    must not flip a real match to False; a different person must stay False."""
+
+    @pytest.mark.parametrize(
+        ("extracted", "profile"),
+        [
+            ("Ahmet Yılmaz", "Ahmet Yılmaz"),
+            ("AYSE KILIC", "Ayşe Kılıç"),  # certificate printed without Turkish letters
+            ("Ayse KiIic", "Ayşe Kılıç"),  # capital I read where l is printed
+            ("AIi Su", "Ali Su"),  # short name, one confusable glyph
+            ("A1i Su", "Ali Su"),  # digit read for a letter
+            ("Ahrnet Yilrnaz", "Ahmet Yılmaz"),  # m read as rn
+            ("YILMAZ Ahmet", "Ahmet Yılmaz"),  # surname-first layout
+            ("Işıl Kır", "ISIL KIR"),
+            ("Jean-Luc O'Brien", "Jean Luc OBrien"),
+        ],
+    )
+    def test_transcription_noise_still_matches(self, extracted, profile):
+        assert outbox_worker._names_match(extracted, profile) is True
+
+    @pytest.mark.parametrize(
+        ("extracted", "profile"),
+        [
+            ("Mehmet Demir", "Ahmet Yılmaz"),
+            ("Ahmet Kaya", "Ahmet Yılmaz"),
+            ("Ayşe Yılmaz", "Ahmet Yılmaz"),
+            ("", "Ahmet Yılmaz"),
+            ("...", "Ahmet Yılmaz"),
+        ],
+    )
+    def test_different_person_does_not_match(self, extracted, profile):
+        assert outbox_worker._names_match(extracted, profile) is False
+
+    def test_dotless_i_is_folded_not_dropped(self):
+        assert outbox_worker._normalize_name("  Ayşe   KILIÇ ") == "ayse kilic"
+        assert outbox_worker._normalize_name("Işıl Kır") == "isil kir"
+
+
+class TestExtractionConsensus:
+    """A credential id is only trusted when independent readings of different
+    renderings agree — a misread character must never become the verify link."""
+
+    GOOD = "UC-a677fedf-70be-4a21-a039-ad09955d4e18"
+    BAD = "UC-a677fedf-70be-4a21-a039-ad0995544e18"  # the misread seen live: d -> 4
+
+    @staticmethod
+    def _install_readings(monkeypatch, credential_ids):
+        calls = []
+
+        def fake_extract(view, api_key, model):
+            calls.append(view)
+            credential_id = credential_ids[len(calls) - 1]
+            if credential_id == "MALFORMED":
+                return None
+            return {
+                "provider": "UDEMY",
+                "credential_id": credential_id,
+                "extracted_name": "Ahmet Yılmaz",
+                "course_name": "Kurs",
+                "verify_url": f"ude.my/{credential_id}" if credential_id else None,
+            }
+
+        monkeypatch.setattr(outbox_worker, "_extract_certificate_fields", fake_extract)
+        return calls
+
+    def test_two_agreeing_readings_are_accepted_without_a_third_call(self, monkeypatch):
+        calls = self._install_readings(monkeypatch, [self.GOOD, self.GOOD, self.BAD])
+
+        fields = outbox_worker._extract_with_consensus([b"v1", b"v2", b"v3"], "key", "model")
+
+        assert fields["credential_id"] == self.GOOD
+        assert calls == [b"v1", b"v2"]
+
+    @pytest.mark.parametrize("order", [("BAD", "GOOD", "GOOD"), ("GOOD", "BAD", "GOOD")])
+    def test_disagreement_is_settled_by_majority_of_three(self, monkeypatch, order):
+        self._install_readings(monkeypatch, [getattr(self, name) for name in order])
+
+        fields = outbox_worker._extract_with_consensus([b"v1", b"v2", b"v3"], "key", "model")
+
+        assert fields["credential_id"] == self.GOOD
+        assert fields["verify_url"] == f"ude.my/{self.GOOD}"
+        assert fields["extracted_name"] == "Ahmet Yılmaz"
+
+    def test_no_majority_leaves_the_id_unknown_instead_of_guessing(self, monkeypatch):
+        self._install_readings(monkeypatch, [self.GOOD, self.BAD, "UC-something-else-entirely"])
+
+        fields = outbox_worker._extract_with_consensus([b"v1", b"v2", b"v3"], "key", "model")
+
+        assert fields["credential_id"] is None
+        assert fields["verify_url"] is None
+        assert fields["extracted_name"] == "Ahmet Yılmaz"  # fuzzy-compared fields are kept
+
+    def test_two_views_that_disagree_leave_the_id_unknown(self, monkeypatch):
+        self._install_readings(monkeypatch, [self.GOOD, self.BAD])
+
+        assert outbox_worker._extract_with_consensus([b"v1", b"v2"], "key", "model")["credential_id"] is None
+
+    def test_malformed_second_reading_falls_through_to_the_third(self, monkeypatch):
+        calls = self._install_readings(monkeypatch, [self.GOOD, "MALFORMED", self.GOOD])
+
+        fields = outbox_worker._extract_with_consensus([b"v1", b"v2", b"v3"], "key", "model")
+
+        assert fields["credential_id"] == self.GOOD
+        assert len(calls) == 3
+
+    def test_malformed_first_reading_fails_like_before(self, monkeypatch):
+        calls = self._install_readings(monkeypatch, ["MALFORMED", self.GOOD])
+
+        assert outbox_worker._extract_with_consensus([b"v1", b"v2"], "key", "model") is None
+        assert len(calls) == 1
+
+    def test_single_view_is_one_call(self, monkeypatch):
+        calls = self._install_readings(monkeypatch, [self.GOOD])
+
+        assert outbox_worker._extract_with_consensus([b"v1"], "key", "model")["credential_id"] == self.GOOD
+        assert len(calls) == 1
+
+
+class TestCertificateViews:
+    @staticmethod
+    def _long_edges(views):
+        return [max(cv2.imdecode(np.frombuffer(v, dtype=np.uint8), cv2.IMREAD_COLOR).shape[:2]) for v in views]
+
+    def test_small_image_yields_a_single_view(self):
+        assert len(outbox_worker._certificate_views(_blank_png(), "image/png")) == 1
+
+    def test_large_image_yields_distinct_resolutions_smallest_first(self):
+        ok, buf = cv2.imencode(".jpg", np.full((2400, 3600, 3), 200, dtype=np.uint8))
+        assert ok
+
+        views = outbox_worker._certificate_views(bytes(buf), "image/jpeg")
+
+        assert self._long_edges(views) == [1568, 2200, 3000]
+        assert all(v.startswith(b"\x89PNG") for v in views)  # always real PNG bytes
+
+    def test_undecodable_image_yields_no_views(self):
+        assert outbox_worker._certificate_views(b"not an image", "image/png") == []
+
+    def test_pdf_first_page_is_rendered_at_several_resolutions(self):
+        import fitz
+
+        doc = fitz.open()
+        doc.new_page(width=842, height=595)
+        pdf_bytes = doc.tobytes()
+        doc.close()
+
+        views = outbox_worker._certificate_views(pdf_bytes, "application/pdf")
+
+        edges = self._long_edges(views)
+        assert len(edges) == 3 and edges == sorted(edges)
+        assert all(v.startswith(b"\x89PNG") for v in views)
+
+
 class TestCertificateCheckHandler:
+    def test_coursera_page_fields_html_entities_are_unescaped(self, monkeypatch):
+        class _Page:
+            status_code = 200
+            text = (
+                '<meta data-rh="true" property="og:title" '
+                'content="Completion Certificate for Data &amp; AI: Foundations"/>'
+                "<p>Completed by <strong>Sean O&#x27;Brien</strong></p>"
+            )
+
+        monkeypatch.setattr("httpx.get", lambda *a, **k: _Page())
+
+        assert outbox_worker._fetch_official_page(
+            "https://www.coursera.org/account/accomplishments/verify/ABC"
+        ) == ("Sean O'Brien", "Data & AI: Foundations")
+
+    @pytest.mark.parametrize(
+        ("certificate_course", "expected_match"),
+        [
+            ("Introduction to Front-End Development", True),
+            ("lntroduction to Front-End Developrnent", True),  # transcription noise
+            ("Advanced Machine Learning", False),
+        ],
+    )
+    def test_coursera_course_name_is_compared_with_official_page(
+        self, session, talent_cc, handler_env, monkeypatch, certificate_course, expected_match
+    ):
+        ev = _evidence(session, talent_cc)
+        check = _pending_check(session, ev)
+        handler_env(_blank_png())
+        _install_fake_openrouter(
+            monkeypatch,
+            body=_chat_response(
+                '{"provider": "COURSERA", "credential_id": "ABC123", "extracted_name": "Ahmet Yılmaz", '
+                f'"course_name": "{certificate_course}", "verify_url": "https://coursera.org/verify/ABC123"}}'
+            ),
+        )
+
+        class _Page:
+            status_code = 200
+            text = (
+                '<meta data-rh="true" property="og:title" '
+                'content="Completion Certificate for Introduction to Front-End Development"/>'
+                "<h3><span>Completed by <strong>Ahmet Yılmaz</strong></span></h3>"
+            )
+
+        monkeypatch.setattr("httpx.get", lambda *a, **k: _Page())
+
+        outbox_worker.certificate_check_requested_handler({"certificate_check_id": str(check.id)}, 1)
+
+        session.refresh(check)
+        assert check.extracted_course_name == certificate_course
+        assert check.page_course_name == "Introduction to Front-End Development"
+        assert check.course_match is expected_match
+        assert check.page_match is True
+        assert check.decision == "PENDING"  # AI never decides
+
+    @staticmethod
+    def _btk_page(name: str, course: str) -> str:
+        """Same shape as the live validate page: certificate HTML as a JSON string."""
+        import json
+
+        certificate_html = (
+            '<html><div class="icerik"><h1>KATILIM SERTİFİKASI</h1> '
+            f'<h3>{name}</h3> <p class="course-name"><strong>"{course}"</strong> '
+            "<br>çevrim içi eğitimini tamamlayarak</p></div></html>"
+        )
+        next_data = {"props": {"pageProps": {"certificateId": "rKjhGX9nYp", "certificate": certificate_html}}}
+        return (
+            '<html><body><div id="__next"></div><script id="__NEXT_DATA__" type="application/json">'
+            + json.dumps(next_data)
+            + "</script></body></html>"
+        )
+
+    def test_btk_page_is_fetched_and_name_and_course_compared(self, session, talent_cc, handler_env, monkeypatch):
+        ev = _evidence(session, talent_cc)
+        check = _pending_check(session, ev)
+        handler_env(_blank_png())
+        _install_fake_openrouter(
+            monkeypatch,
+            body=_chat_response(
+                '{"provider": "BTK", "credential_id": "rKjhGX9nYp", "extracted_name": "AHMET YILMAZ", '
+                '"course_name": "Veri Bilimi için Python ve Tensorflow", "verify_url": null}'
+            ),
+        )
+        page = self._btk_page("AHMET YILMAZ", "Veri Bilimi için Python ve Tensorflow")
+        page_calls = []
+
+        class _Page:
+            status_code = 200
+            text = page
+
+        def fake_get(url, **kwargs):
+            page_calls.append(url)
+            return _Page()
+
+        monkeypatch.setattr("httpx.get", fake_get)
+
+        outbox_worker.certificate_check_requested_handler({"certificate_check_id": str(check.id)}, 1)
+
+        # No QR in the blank image -> link is built from the certificate number.
+        assert page_calls == ["https://www.btkakademi.gov.tr/portal/certificate/validate?certificateId=rKjhGX9nYp"]
+        session.refresh(check)
+        assert check.status == "DONE"
+        assert check.provider == "BTK"
+        assert check.verify_url == page_calls[0]
+        assert check.name_match is True  # profile: "Ahmet Yılmaz"
+        assert check.page_name == "AHMET YILMAZ"
+        assert check.page_match is True
+        assert check.page_course_name == "Veri Bilimi için Python ve Tensorflow"
+        assert check.course_match is True
+        assert check.decision == "PENDING"  # AI never decides
+
+    def test_btk_page_with_different_person_and_course_is_flagged_false(
+        self, session, talent_cc, handler_env, monkeypatch
+    ):
+        ev = _evidence(session, talent_cc)
+        check = _pending_check(session, ev)
+        handler_env(_blank_png())
+        _install_fake_openrouter(
+            monkeypatch,
+            body=_chat_response(
+                '{"provider": "BTK", "credential_id": "rKjhGX9nYp", "extracted_name": "Ahmet Yılmaz", '
+                '"course_name": "Veri Bilimi için Python ve Tensorflow", "verify_url": null}'
+            ),
+        )
+        page = self._btk_page("MEHMET DEMİR", "Siber Güvenliğe Giriş")
+
+        class _Page:
+            status_code = 200
+            text = page
+
+        monkeypatch.setattr("httpx.get", lambda *a, **k: _Page())
+
+        outbox_worker.certificate_check_requested_handler({"certificate_check_id": str(check.id)}, 1)
+
+        session.refresh(check)
+        assert check.page_match is False
+        assert check.course_match is False
+
+    @pytest.mark.parametrize(
+        "page_html",
+        [
+            "<html><body>no data</body></html>",
+            '<script id="__NEXT_DATA__" type="application/json">{not json</script>',
+            '<script id="__NEXT_DATA__" type="application/json">{"props": {"pageProps": {"certificate": null}}}</script>',
+        ],
+    )
+    def test_btk_page_without_certificate_is_unknown_not_mismatch(self, page_html):
+        assert outbox_worker._parse_btk_certificate_page(page_html) == (None, None)
+
+    @pytest.mark.parametrize("credential_id", [None, 42, "", "abc", "rKjh GX9nYp", "rKjhGX9nYp&x=1", "../etc/passwd"])
+    def test_btk_verify_url_rejects_ids_without_btk_shape(self, credential_id):
+        assert outbox_worker._btk_verify_url(credential_id) is None
+
+    def test_udemy_course_name_is_stored_but_never_auto_compared(self, session, talent_cc, handler_env, monkeypatch):
+        """Udemy's page can't be fetched — the course name is kept for the
+        coordinator's manual check; course_match stays unknown, not False."""
+        ev = _evidence(session, talent_cc)
+        check = _pending_check(session, ev)
+        handler_env(_blank_png())
+        _install_fake_openrouter(
+            monkeypatch,
+            body=_chat_response(
+                '{"provider": "UDEMY", "credential_id": "UC-a677fedf-70be-4a21-a039-ad09955d4e18", '
+                '"extracted_name": "Ahmet Yılmaz", "course_name": "Photoshop ile Mimari illüstrasyon ve kolaj", '
+                '"verify_url": null}'
+            ),
+        )
+        monkeypatch.setattr(
+            "httpx.get", lambda *a, **k: (_ for _ in ()).throw(AssertionError("should not fetch"))
+        )
+
+        outbox_worker.certificate_check_requested_handler({"certificate_check_id": str(check.id)}, 1)
+
+        session.refresh(check)
+        assert check.status == "DONE"
+        assert check.extracted_course_name == "Photoshop ile Mimari illüstrasyon ve kolaj"
+        assert check.page_course_name is None
+        assert check.course_match is None
+
     def test_missing_api_key_is_noop(self, session, talent_cc, handler_env, monkeypatch):
         monkeypatch.setattr(settings, "openrouter_api_key", "")
         ev = _evidence(session, talent_cc)
@@ -214,6 +548,7 @@ class TestCertificateCheckHandler:
         session.refresh(check)
         assert check.page_name == "Ahmet Yılmaz"
         assert check.page_match is True
+        assert check.course_match is None  # model output had no course_name -> unknown
 
     def test_coursera_page_name_mismatch_is_flagged_false(self, session, talent_cc, handler_env, monkeypatch):
         ev = _evidence(session, talent_cc)
@@ -330,6 +665,56 @@ class TestCertificateCheckHandler:
         assert check.qr_raw_data == "https://coursera.org/verify/ABC123"
         assert check.verify_url == "https://coursera.org/verify/ABC123"
         assert check.name_match is None  # extracted_name null -> unknown, not False
+
+    def test_udemy_verify_url_is_built_from_credential_id_not_model_text(
+        self, session, talent_cc, handler_env, monkeypatch
+    ):
+        ev = _evidence(session, talent_cc)
+        check = _pending_check(session, ev)
+        handler_env(_blank_png())
+        credential_id = "UC-a677fedf-70be-4a21-a039-ad09955d4e18"
+        _install_fake_openrouter(
+            monkeypatch,
+            body=_chat_response(
+                f'{{"provider": "UDEMY", "credential_id": "{credential_id}", '
+                '"extracted_name": "Ahmet Yılmaz", "verify_url": "ude.rny/UC-a677fedf-70be-4a2l-a039"}'
+            ),
+        )
+
+        outbox_worker.certificate_check_requested_handler({"certificate_check_id": str(check.id)}, 1)
+
+        session.refresh(check)
+        assert check.status == "DONE"
+        assert check.verify_url == f"https://ude.my/{credential_id}"
+        assert check.page_name is None  # ude.my allowlist'te değil — otomatik çekilmedi
+
+    @pytest.mark.parametrize(
+        "credential_id",
+        [None, 12345, "", "UC-123", "ABC123", "UC-abc/../../evil", "UC-12345678?x=1", "https://evil.example/UC-12345678"],
+    )
+    def test_udemy_verify_url_rejects_ids_without_udemy_shape(self, credential_id):
+        assert outbox_worker._udemy_verify_url(credential_id) is None
+
+    def test_udemy_verify_url_accepts_short_legacy_id(self):
+        assert outbox_worker._udemy_verify_url(" UC-4X6T2Q1Z ") == "https://ude.my/UC-4X6T2Q1Z"
+
+    def test_coursera_credential_id_never_produces_udemy_link(self, session, talent_cc, handler_env, monkeypatch):
+        ev = _evidence(session, talent_cc)
+        check = _pending_check(session, ev)
+        handler_env(_blank_png())
+        monkeypatch.setattr(outbox_worker, "_fetch_official_page", lambda url: (None, None))
+        _install_fake_openrouter(
+            monkeypatch,
+            body=_chat_response(
+                '{"provider": "COURSERA", "credential_id": "UC-ABCDEFGH", '
+                '"extracted_name": null, "verify_url": "https://coursera.org/verify/UC-ABCDEFGH"}'
+            ),
+        )
+
+        outbox_worker.certificate_check_requested_handler({"certificate_check_id": str(check.id)}, 1)
+
+        session.refresh(check)
+        assert check.verify_url == "https://coursera.org/verify/UC-ABCDEFGH"
 
     def test_malformed_model_output_marks_failed_not_error(self, session, talent_cc, handler_env, monkeypatch):
         ev = _evidence(session, talent_cc)

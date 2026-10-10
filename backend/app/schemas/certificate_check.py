@@ -25,6 +25,9 @@ class CertificateCheckResponse(BaseModel):
     name_match: bool | None
     page_name: str | None
     page_match: bool | None
+    extracted_course_name: str | None
+    page_course_name: str | None
+    course_match: bool | None
     decision: str  # PENDING | CONFIRMED | REJECTED
     decided_by_user_id: uuid.UUID | None
     decided_at: datetime | None
