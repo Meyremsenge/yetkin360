@@ -87,7 +87,7 @@ def attestation_signals(session: Session, attestation_id: uuid.UUID) -> list[Ris
         signals.append(RiskSignal("ATTESTATION", attestation.id, signal, confidence, reason))
 
     if attestation.attestor_user_id == talent_user_id:
-        add("SELF_ATTESTATION", "HIGH", "Tanıklığı veren hesap ile tanıklık edilen öğrenci aynı kullanıcı.")
+        add("SELF_ATTESTATION", "HIGH", "Tanıklığı veren hesap ile tanıklık edilen kişi aynı kullanıcı.")
     else:
         emails: dict[uuid.UUID, str] = {
             user_id: email
@@ -101,7 +101,7 @@ def attestation_signals(session: Session, attestation_id: uuid.UUID) -> list[Ris
             add(
                 "SHARED_EMAIL_DOMAIN",
                 "MEDIUM",
-                "Tanık ile öğrencinin e-posta adresleri aynı alan adından; tanık kuruluştan bağımsız olmayabilir.",
+                "Tanık ile kişinin e-posta adresleri aynı alan adından; tanık kuruluştan bağımsız olmayabilir.",
             )
 
     statement = (attestation.statement or "").strip()
@@ -123,7 +123,7 @@ def attestation_signals(session: Session, attestation_id: uuid.UUID) -> list[Ris
             add(
                 "DUPLICATE_STATEMENT",
                 "MEDIUM",
-                f"Aynı tanıklık metni bu tanık/kuruluş tarafından {duplicates} farklı öğrenci için daha kullanılmış.",
+                f"Aynı tanıklık metni bu tanık/kuruluş tarafından {duplicates} farklı kişi için daha kullanılmış.",
             )
 
     elapsed = attestation.created_at - engagement_created_at
@@ -189,7 +189,7 @@ def organization_signals(session: Session, organization_id: uuid.UUID) -> list[R
         add(
             "SINGLE_TALENT_ONLY",
             "LOW",
-            f"Kuruluşun tanıklık verilen {total_engagements} çalışmasının tamamı tek bir öğrenciye ait.",
+            f"Kuruluşun tanıklık verilen {total_engagements} çalışmasının tamamı tek bir kişiye ait.",
         )
 
     return signals

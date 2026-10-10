@@ -32,10 +32,10 @@
       },
       "student": {
         "title": "Bireysel",
-        "description": "Staj, proje ve işlerinizi kanıtla belgeleyin.",
+        "description": "Öğrenci, mezun ya da çalışan olarak staj, proje ve işlerinizi kanıtla belgeleyin.",
         "points": [
-          "Staj ve projelerinizi tek yerde toplayın",
-          "Mentorunuzdan ve üniversitenizden tanıklık isteyin",
+          "Staj, proje ve iş deneyimlerinizi tek yerde toplayın",
+          "Mentorunuzdan, yöneticinizden ya da üniversitenizden tanıklık isteyin",
           "Başvurularda doğrulama bağlantısı paylaşın"
         ]
       },
@@ -151,7 +151,7 @@
     "adminAuditLink": "Denetim Kayıtları",
     "adminFraudHistoryLink": "İşaret Geçmişi",
     "engagementsLink": "Çalışmalarım",
-    "studentEngagementsLink": "Öğrenci çalışmaları",
+    "studentEngagementsLink": "Kişi çalışmaları",
     "profileLink": "Profil",
     "operationsLink": "İşlemler",
     "individualProfileLink": "Bireysel profilim",
@@ -229,14 +229,14 @@
     "title": "Yönetici Girişi",
     "subtitle": "Bu giriş yalnızca platform yöneticileri içindir.",
     "brandSentence": "Kurum doğrulama, yetkinlik kataloğu ve sahtecilik incelemesi buradan yönetilir.",
-    "userLoginLink": "Öğrenci ve kuruluş girişi",
+    "userLoginLink": "Bireysel ve kuruluş girişi",
     "linkFromLogin": "Yönetici girişi"
   },
   "kayit": {
     "title": "Kayıt Ol",
     "accountKindLabel": "Hesap Türü",
     "accountKindTalent": "Bireysel",
-    "accountKindTalentHint": "Staj, proje ve iş deneyimlerinizi kanıtlayın",
+    "accountKindTalentHint": "Staj, proje ve iş deneyimlerinizi kanıtlayın — öğrenci, mezun ya da çalışan",
     "accountKindOrganization": "Kuruluş",
     "accountKindOrganizationHint": "Başvuranları doğrulayın, stajyerlerinize mühür verin",
     "accountKindInstitution": "Kurum",
@@ -291,7 +291,8 @@
     "title": "Profil",
     "headline": "Başlık",
     "department": "Bölüm",
-    "studyYear": "Öğrenim Yılı",
+    "studyYear": "Sınıf (öğrenciyseniz)",
+    "studyYearOptional": "İsteğe bağlı; öğrenci değilseniz boş bırakın.",
     "city": "Şehir",
     "visibility": "Görünürlük",
     "visibilityDiscoverHint": "\"Herkese Açık\" profiller, profil linkiniz varsa Keşfet'te oturum açmış tüm kullanıcılara listelenir.",
@@ -397,7 +398,7 @@
     "aboutTitle": "Hakkımda",
     "aboutDescription": "Kendini birkaç cümleyle anlat. Bu metin kendi beyanındır; doğrulanmış kayıtlarınla karışmaz.",
     "aboutLabel": "Hakkımda metni",
-    "aboutPlaceholder": "Örnek: Bilgisayar mühendisliği 3. sınıf öğrencisiyim; veri görselleştirme ve erişilebilir arayüzlerle ilgileniyorum.",
+    "aboutPlaceholder": "Örnek: Yazılım geliştiriciyim; veri görselleştirme ve erişilebilir arayüzlerle ilgileniyorum.",
     "aboutCounter": "{n} / {max}",
     "aboutKvkkNote": "Sağlık, din, siyasi görüş gibi özel nitelikli kişisel bilgileri yazma.",
     "aboutPublicNote": "Profilin herkese açıksa bu metin profilinde \"Kendi beyanı\" etiketiyle görünür.",
@@ -491,7 +492,7 @@
       "E-posta adresiniz",
       "Başka kurumlarla veya kurumsuz yürüttüğünüz çalışmalar"
     ],
-    "privateNote": "Profil görünürlüğünüz \"Özel\" ise kurumun öğrenci listesinde yer almazsınız.",
+    "privateNote": "Profil görünürlüğünüz \"Özel\" ise kurumun öğrenci ve mezun listesinde yer almazsınız.",
     "cancelButton": "Vazgeç",
     "stepsTitle": "Bağlandıktan sonra",
     "steps": [
@@ -718,11 +719,11 @@
     "updatedLabel": "Son güncelleme",
     "pageDescription": "Staj ve projeleriniz burada. Her çalışma dört adımda doğrulanmış deneyime dönüşür.",
     "review": {
-      "title": "Öğrenci çalışmaları",
-      "description": "Sizden işlem bekleyen ve onay verdiğiniz öğrenci çalışmaları. Öğrencinin henüz göndermediği taslaklar burada görünmez.",
+      "title": "Kişi çalışmaları",
+      "description": "Sizden işlem bekleyen ve onay verdiğiniz çalışmalar. Kişinin henüz göndermediği taslaklar burada görünmez.",
       "viewSwitchLabel": "Çalışma görünümü",
       "viewOwn": "Kendi çalışmalarım",
-      "viewReview": "Öğrenci çalışmaları",
+      "viewReview": "Kişi çalışmaları",
       "summary": {
         "awaiting": "İşlem bekleyen",
         "approved": "Onayladıklarınız",
@@ -731,7 +732,7 @@
       "awaitingTitle": "Sizden işlem bekleyenler",
       "awaitingHint": "En uzun süredir bekleyen en üstte.",
       "awaitingEmptyTitle": "Şu an sizden beklenen bir işlem yok.",
-      "awaitingEmptyHint": "Bir öğrenci onay istediğinde ya da değerlendirme sırası size geldiğinde burada görünür.",
+      "awaitingEmptyHint": "Bir kişi onay istediğinde ya da değerlendirme sırası size geldiğinde burada görünür.",
       "action": {
         "approve": "Başlatma onayınızı bekliyor",
         "evaluate": "Değerlendirmenizi bekliyor",
@@ -746,7 +747,7 @@
       "approvedTitle": "Onayladıklarınız",
       "approvedHint": "Onay verdiğiniz çalışmalar ve zincirde geldikleri adım.",
       "approvedEmptyTitle": "Henüz onay verdiğiniz bir çalışma yok.",
-      "approvedEmptyHint": "Bir öğrencinin çalışmasını onayladığınızda, ilerleyişiyle birlikte burada listelenir.",
+      "approvedEmptyHint": "Bir kişinin çalışmasını onayladığınızda, ilerleyişiyle birlikte burada listelenir.",
       "filterTabsLabel": "Onaylanan çalışmalar filtresi",
       "filterTabs": {
         "all": "Tümü",
@@ -754,14 +755,14 @@
         "verified": "Doğrulanmış",
         "closed": "Kapanmış"
       },
-      "searchLabel": "Öğrenci ya da çalışma ara",
-      "searchPlaceholder": "Öğrenci adı ya da çalışma başlığı",
+      "searchLabel": "Kişi ya da çalışma ara",
+      "searchPlaceholder": "Kişi adı ya da çalışma başlığı",
       "searchEmpty": "Aramanızla eşleşen çalışma yok.",
-      "emptyTitle": "Henüz size bağlı bir öğrenci çalışması yok.",
-      "emptyHint": "Bir öğrenci kuruluşunuzu ya da kurumunuzu seçerek çalışma başlattığında burada görünür.",
-      "unnamedStudent": "Adsız öğrenci",
+      "emptyTitle": "Henüz size bağlı bir kişi çalışması yok.",
+      "emptyHint": "Bir kişi kuruluşunuzu ya da kurumunuzu seçerek çalışma başlattığında burada görünür.",
+      "unnamedStudent": "Adsız kişi",
       "stage": {
-        "ACTIVE": "Öğrenci görev ve kanıt ekliyor",
+        "ACTIVE": "Kişi görev ve kanıt ekliyor",
         "PENDING_EVALUATION": "Kuruluş değerlendirmesi bekleniyor",
         "EVALUATED": "Kurum doğrulaması bekleniyor",
         "VERIFIED": "Doğrulanmış deneyim oluştu",
@@ -796,7 +797,7 @@
       "verifiedTitle": "Bu çalışma doğrulandı",
       "verifiedText": "Kanıt ve tanıklıkla mühürlendi; doğrulanmış deneyim olarak profilinize işlendi.",
       "verifiedLink": "Profilde gör",
-      "verifiedTextOther": "Kanıt ve tanıklıkla mühürlendi; öğrencinin doğrulanmış deneyimi olarak kaydedildi.",
+      "verifiedTextOther": "Kanıt ve tanıklıkla mühürlendi; kişinin doğrulanmış deneyimi olarak kaydedildi.",
       "submittedOn": "Teslim: {date}"
     }
   },
@@ -836,7 +837,7 @@
     "skillHint": "Yalnızca tanıklıkla mühürlenmiş yetkinlikler eşleşir.",
     "skillLimitReached": "En fazla 5 yetkinlik seçilebilir",
     "skillOptionsLabel": "Yetkinlik önerileri",
-    "departmentLabel": "Bölüm",
+    "departmentLabel": "Bölüm / alan",
     "departmentPlaceholder": "Örn. Bilgisayar Mühendisliği",
     "cityLabel": "Şehir",
     "cityPlaceholder": "Örn. İstanbul",
@@ -849,10 +850,10 @@
     "viewProfileOf": "{name} profilini gör",
     "startEngagement": "Çalışma başlat",
     "startEngagementWith": "{name} ile çalışma başlat",
-    "talentsLoading": "Öğrenciler yükleniyor",
-    "talentsError": "Öğrenciler yüklenemedi.",
+    "talentsLoading": "Kişiler yükleniyor",
+    "talentsError": "Kişiler yüklenemedi.",
     "talentsEmptyTitle": "Henüz keşfedilebilir kişi yok",
-    "talentsEmptyBody": "Öğrenciler profillerini \"Herkese Açık\" yaptığında burada listelenir.",
+    "talentsEmptyBody": "Kişiler profillerini \"Herkese Açık\" yaptığında burada listelenir.",
     "talentsEmptyFilteredTitle": "Filtrelerinize uyan kişi bulunamadı",
     "talentsEmptyFilteredBody": "Bir filtreyi kaldırmayı veya daha genel bir arama yapmayı deneyin.",
     "organizationsLoading": "Kuruluşlar yükleniyor",
@@ -870,7 +871,7 @@
     "searchShortcut": "Aramaya git: /",
     "searchTooShort": "Aramak için en az 2 karakter yazın.",
     "principlePublicTitle": "Yalnız herkese açık profiller",
-    "principlePublicBody": "Öğrenci profilini açmadıkça burada listelenmez.",
+    "principlePublicBody": "Kişi profilini açmadıkça burada listelenmez.",
     "principleSealTitle": "Mühür = kuruluş tanıklığı",
     "principleSealBody": "Beyan edilmiş ama doğrulanmamış yetkinlik görünmez.",
     "principleOrderTitle": "Puan yok, sıra sabit",
@@ -895,9 +896,9 @@
     "principlesLabel": "Dizinin kuralları",
     "filterBySkill": "{skill} yetkinliğine göre süz",
     "unfilterBySkill": "{skill} süzgecini kaldır",
-    "filterByDepartment": "Bölüme göre süz: {value}",
+    "filterByDepartment": "Bölüm / alana göre süz: {value}",
     "filterByCity": "Şehre göre süz: {value}",
-    "cardFilterHint": "İpucu: kartlardaki yetkinlik, bölüm ya da şehre tıklayarak süzebilirsiniz.",
+    "cardFilterHint": "İpucu: kartlardaki yetkinlik, bölüm/alan ya da şehre tıklayarak süzebilirsiniz.",
     "shareSearch": "Aramayı paylaş",
     "shareCopied": "Bağlantı kopyalandı",
     "shareFailed": "Bağlantı kopyalanamadı"
@@ -934,7 +935,7 @@
     "addItemButton": "Kriter Ekle",
     "removeItemButton": "Kaldır",
     "privateNoteLabel": "Kurum içi not (opsiyonel)",
-    "privateNoteHint": "Bu not sadece kurumunuz içinde görünür, öğrenciye asla gösterilmez.",
+    "privateNoteHint": "Bu not sadece kurumunuz içinde görünür, kişiye asla gösterilmez.",
     "submitButton": "Değerlendirmeyi Gönder",
     "submittingButton": "Gönderiliyor...",
     "successMessage": "Değerlendirme gönderildi.",
@@ -1260,8 +1261,8 @@
         "hint": "DNS'e bir TXT kaydı ekleyin; tanıklıklarınız daha güvenilir görünür."
       },
       {
-        "title": "Öğrenci bağlantısını paylaşın",
-        "hint": "Öğrencilerin başlattığı çalışmalar panelinize düşer; değerlendirip tanıklık edersiniz."
+        "title": "Başlatma bağlantısını paylaşın",
+        "hint": "Kişilerin başlattığı çalışmalar panelinize düşer; değerlendirip tanıklık edersiniz."
       }
     ]
   },
@@ -1300,10 +1301,10 @@
       "T4": "Kuruluş + üniversite ortak onayı"
     },
     "txtRecordLabel": "TXT kaydı değeri",
-    "pageDescription": "Öğrencilerle yürüttüğünüz çalışmaları izleyin, değerlendirin ve tanıklık edin.",
-    "startLinkButton": "Öğrenci bağlantısını kopyala",
+    "pageDescription": "Kişilerle yürüttüğünüz çalışmaları izleyin, değerlendirin ve tanıklık edin.",
+    "startLinkButton": "Başlatma bağlantısını kopyala",
     "startLinkTitle": "Çalışma başlatma bağlantısı",
-    "startLinkHint": "Öğrenciler bu bağlantıyla kuruluşunuzda yeni bir çalışma başlatır.",
+    "startLinkHint": "Kişiler bu bağlantıyla kuruluşunuzda yeni bir çalışma başlatır.",
     "summary": {
       "total": "Toplam çalışma",
       "awaiting": "Değerlendirmenizi bekleyen",
@@ -1312,13 +1313,13 @@
     "engagementsTitle": "Çalışmalar",
     "engagementsHint": "Sizden aksiyon bekleyenler en üstte.",
     "engagementsEmptyTitle": "Henüz bu kuruluşla yürütülen bir çalışma yok.",
-    "engagementsEmptyHint": "Çalışma başlatma bağlantısını öğrencilerle paylaşın; başlattıkları çalışmalar burada listelenir.",
+    "engagementsEmptyHint": "Çalışma başlatma bağlantısını kişilerle paylaşın; başlattıkları çalışmalar burada listelenir.",
     "engagementsError": "Çalışmalar yüklenemedi.",
     "evaluateAction": "Değerlendir",
     "orgNextStep": {
-      "DRAFT": "Öğrenci taslağı hazırlıyor",
+      "DRAFT": "Kişi taslağı hazırlıyor",
       "PENDING_APPROVAL": "Üniversite onayı bekleniyor",
-      "ACTIVE": "Öğrenci görev ve kanıt ekliyor",
+      "ACTIVE": "Kişi görev ve kanıt ekliyor",
       "PENDING_EVALUATION": "Değerlendirme formunu doldurun",
       "EVALUATED": "Tanıklık bekleniyor",
       "VERIFIED": "Doğrulandı, sicile işlendi",
@@ -1361,19 +1362,19 @@
       "actionError": "İşlem yapılamadı. Lütfen tekrar deneyin.",
       "groupEmpty": "Bu grupta kayıt yok.",
       "mineEmptyTitle": "Size atanmış çalışma yok.",
-      "mineEmptyHint": "Öğrenciler sizi onaylayıcı seçtiğinde çalışmaları burada görünür. Kuruluşun tüm çalışmaları için \"Tümü\" sekmesine bakın.",
+      "mineEmptyHint": "Kişiler sizi onaylayıcı seçtiğinde çalışmaları burada görünür. Kuruluşun tüm çalışmaları için \"Tümü\" sekmesine bakın.",
       "emptyTitle": "Henüz bu kuruluşla yürütülen bir çalışma yok.",
-      "emptyHint": "Öğrenci bağlantısını paylaşın; öğrencilerin başlattığı çalışmalar burada listelenir.",
+      "emptyHint": "Başlatma bağlantısını paylaşın; kişilerin başlattığı çalışmalar burada listelenir.",
       "shownOf": "{shown} / {total} kayıt gösteriliyor"
     },
     "partners": {
       "title": "İş birlikleri",
-      "hint": "Hangi üniversitelerin öğrencileriyle çalıştığınız.",
+      "hint": "Hangi üniversitelerin kişilerle çalıştığınız.",
       "individual": "Bireysel başvurular",
       "people": "{count} kişi",
       "sealed": "{count} mühürlü",
       "emptyTitle": "Henüz bir üniversiteyle ortak çalışma yok.",
-      "emptyHint": "Üniversitesini bağlamış öğrenciler çalışma başlattığında burada üniversite bazında toplanır."
+      "emptyHint": "Üniversitesini bağlamış kişiler çalışma başlattığında burada üniversite bazında toplanır."
     },
     "candidate": {
       "title": "Aday doğrula",
@@ -1395,7 +1396,7 @@
     },
     "team": {
       "title": "Ekip ve birimler",
-      "hint": "Öğrenciler onaylayıcıyı bu listeden ad ve birimiyle seçer.",
+      "hint": "Kişiler onaylayıcıyı bu listeden ad ve birimiyle seçer.",
       "noUnit": "Birimi belirtilmemiş",
       "openCount": "{count} açık atama",
       "you": "siz",
