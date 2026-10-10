@@ -417,6 +417,22 @@ Tüm geçişler, ön koşullar ve yetkili aktörler → [STATE_MACHINE.md](STATE
 | `POST` | `/evidence/upload-url` | `TALENT` | `filename`, `mime_type`, `size_bytes` | `200` — `upload_url`, `storage_key`, `expires_at` | `400 UNSUPPORTED_TYPE`, `413` |
 | `POST` | `/evidence` | `TALENT` | `storage_key` veya `external_uri`, `kind`, `provenance`, `title`, `skill_ids[]?`, `deliverable_id?` | `201` — evidence (`scan_status: PENDING`) | `400`, `404` |
 | `GET` | `/evidence/{id}/download-url` | erişim hakkı olan | — | `200` — `download_url`, `expires_at` | `404`, `409 SCAN_PENDING`, `409 SCAN_INFECTED` |
+| `POST` | `/evidence/{id}/request-certificate-check` | sahibi (TALENT) | — | `201` — `CertificateCheck` (`status: PENDING`) | `404`, `422 NOT_CERTIFICATE_KIND`, `409 EVIDENCE_NOT_CLEAN`, `409 ALREADY_REQUESTED` |
+| `GET` | `/engagements/{id}/certificate-checks` | ilgili talent veya koordinatör/supervisor | — | `200` — `items[]` | `404` |
+| `POST` | `/certificate-checks/{id}/resolve` | engagement'ın koordinatörü/supervisor'u | `decision` (`CONFIRMED`/`REJECTED`) | `200` | `404`, `409 NOT_PENDING` |
+
+**PLAN 3.55 — sertifika kontrolü (Udemy/Coursera, faz 2):** öğrencinin açık
+rızasıyla (upload anında otomatik DEĞİL — KVKK, final-analiz §11.2) tetiklenir.
+AI (`evidence.certificate_check_requested` outbox handler'ı, OpenRouter görsel
+modeli) sertifikadaki ismi/kimlik numarasını/QR'ı (QR: OpenCV, deterministik)
+çıkarır — hiçbir zaman "doğrulandı" kararı vermez (final-analiz §11.4.2/§39).
+İsim eşleşmesi (`name_match`) kod tarafında düz string karşılaştırmasıyla
+hesaplanır. **Kasıtlı yetkilendirme istisnası:** `scoped_evidence()`'ın
+"sadece sahibi görür" kuralına (final-analiz §21.2) dar bir istisna —
+`CertificateCheck` özeti (ham dosya DEĞİL) ilgili engagement'ın
+koordinatörüne/supervisor'una da açılır, çünkü özelliğin denetim değeri
+ancak böyle anlamlıdır. Nihai `CONFIRMED`/`REJECTED` kararını yalnız
+koordinatör/supervisor verir.
 
 **Üç adımlı yükleme akışı:**
 
