@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_principal, get_session, get_verified_principal
 from app.core.deps import require_csrf
+from app.core.errors import ApiError
 from app.models import Engagement
 from app.schemas.certificate_check import CertificateCheckListResponse, CertificateCheckResponse
 from app.services.authorization import Principal, get_scoped_or_404, scoped_engagements
@@ -26,10 +27,13 @@ from app.services.engagement import (
     TransitionForbiddenError,
     VersionConflictError,
     InvalidSkillError as EngInvalidSkillError,
+    TaskAlreadyVerifiedError,
+    TaskNotFoundError,
     create_engagement,
     transition_engagement,
     create_engagement_task,
     create_deliverable,
+    verify_engagement_task,
 )
 from app.services.evaluation import (
     EngagementNotFoundError as EvalEngagementNotFoundError,
@@ -92,6 +96,11 @@ class PostEngagementResponse(BaseModel):
         from_attributes = True
 
 
+# Format check only (same rule as schemas/auth.py): rejects obvious garbage.
+_EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+MAX_NOTIFY_EMAILS = 5
+
+
 class TransitionEngagementRequest(BaseModel):
     """Request schema for POST /engagements/{id}/transition."""
 
@@ -107,6 +116,14 @@ class TransitionEngagementRequest(BaseModel):
     )
     ended_on: str | None = Field(
         None, description="Optional end date (ISO format) for engagement"
+    )
+    # Required for DRAFT → PENDING_APPROVAL (422 PRECONDITION_FAILED without it):
+    # the approval request goes to these coordinators of the engagement's
+    # institution instead of all of them.
+    notify_emails: list[Annotated[str, Field(pattern=_EMAIL_PATTERN, max_length=320)]] | None = Field(
+        None,
+        max_length=MAX_NOTIFY_EMAILS,
+        description="Coordinator e-mails of the engagement's institution to notify",
     )
 
     class Config:
@@ -140,6 +157,9 @@ class PostTaskResponse(BaseModel):
     completed_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+    # False for a task the talent added, until the organization side verifies it.
+    verified: bool
+    verified_at: datetime | None = None
 
     class Config:
         from_attributes = True
@@ -186,6 +206,7 @@ class TaskSummaryResponse(BaseModel):
     id: str
     title: str
     status: str
+    verified: bool
 
     class Config:
         from_attributes = True
@@ -234,6 +255,10 @@ class EngagementSummaryResponse(BaseModel):
     organization_name: str
     version: int
     updated_at: datetime
+    # The student the engagement belongs to; the organization/institution side
+    # lists engagements by student.
+    talent_id: str
+    talent_name: str
 
     class Config:
         from_attributes = True
@@ -373,7 +398,8 @@ def get_engagements(
     AC-1, AC-2, AC-3, AC-8: List engagements scoped to principal.
 
     Returns:
-        200 + {items: [{id, title, kind, status, organization_name, version, updated_at}]}
+        200 + {items: [{id, title, kind, status, organization_id, institution_id,
+        organization_name, version, updated_at, talent_id, talent_name}]}
 
     Errors:
         - 401 UNAUTHORIZED: Unauthenticated
@@ -422,8 +448,10 @@ def get_engagements(
             organization_name=org_name,
             version=eng.version,
             updated_at=eng.updated_at,
+            talent_id=str(eng.talent_id),
+            talent_name=talent_name,
         )
-        for eng, org_name in engagement_tuples
+        for eng, org_name, talent_name in engagement_tuples
     ]
 
     return EngagementListResponse(items=items)
@@ -499,6 +527,7 @@ def get_engagement_detail(
                     id=str(task.id),
                     title=task.title,
                     status=task.status,
+                    verified=task.verified_at is not None,
                 )
                 for task in tasks
             ],
@@ -638,6 +667,7 @@ def post_engagement_transitions(
             reason=payload.reason,
             started_on=payload.started_on,
             ended_on=payload.ended_on,
+            notify_emails=payload.notify_emails,
         )
     except EngagementNotFoundError:
         raise HTTPException(
@@ -741,16 +771,22 @@ def post_engagement_tasks(
     PLAN 2.4: Create a task within an engagement (AC-1).
 
     Returns:
-        201 + {id, engagement_id, title, description, status="PLANNED", due_at, completed_at, created_at, updated_at}
+        201 + {id, engagement_id, title, description, status="PLANNED", due_at, completed_at, created_at,
+               updated_at, verified, verified_at}
+
+    Who may create:
+        - organization member / coordinator: ACTIVE engagement; task is verified on creation
+        - the talent, own engagement: DRAFT or ACTIVE; task is unverified (verified=false) and
+          produces no SkillSignal until POST .../tasks/{task_id}/verify
 
     Errors:
         - 404 NOT_FOUND: Engagement not found or not accessible
-        - 403 FORBIDDEN: Principal authorized but not allowed to create tasks (e.g., TALENT)
-        - 422 PRECONDITION_FAILED: Engagement not ACTIVE
+        - 403 FORBIDDEN: Principal can see the engagement but may not create tasks
+        - 422 PRECONDITION_FAILED: Engagement status does not accept tasks from this principal
         - 401: Unauthenticated
 
     Security:
-        - AC-S1: TALENT cannot create tasks (403 FORBIDDEN)
+        - AC-S1: a talent-created task never produces a SkillSignal by itself
         - AC-S5: Scope check before validation (404 before 422)
     """
     if principal.user_id is None:
@@ -824,6 +860,63 @@ def post_engagement_tasks(
         completed_at=task.completed_at,
         created_at=task.created_at,
         updated_at=task.updated_at,
+        verified=task.verified_at is not None,
+        verified_at=task.verified_at,
+    )
+
+
+@router.post("/{engagement_id}/tasks/{task_id}/verify", response_model=PostTaskResponse)
+def post_engagement_task_verify(
+    engagement_id: str,
+    task_id: str,
+    principal: Principal = Depends(get_verified_principal),
+    session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
+) -> PostTaskResponse:
+    """
+    Verify a task the talent added. Only an organization member of the
+    engagement or the institution's coordinator may call this; the talent
+    cannot verify their own task.
+
+    Returns:
+        200 + the task with verified=true. The task's SkillSignal (if it has a skill) is written here.
+
+    Errors:
+        - 404 NOT_FOUND: Engagement or task not found / not accessible
+        - 403 FORBIDDEN: Principal can see the engagement but may not verify (e.g. the talent)
+        - 409 TASK_ALREADY_VERIFIED: Task is already verified
+        - 422 PRECONDITION_FAILED: Engagement status does not allow verification
+    """
+    try:
+        task = verify_engagement_task(
+            session=session, principal=principal, engagement_id=engagement_id, task_id=task_id
+        )
+    except EngagementNotFoundError:
+        raise ApiError(404, "NOT_FOUND", "Engagement bulunamadı.")
+    except TaskNotFoundError:
+        raise ApiError(404, "NOT_FOUND", "Görev bulunamadı.")
+    except TransitionForbiddenError:
+        raise ApiError(403, "FORBIDDEN", "Bu işlemi yapma yetkiniz yok.")
+    except PreconditionFailedError:
+        raise ApiError(422, "PRECONDITION_FAILED", "Bu çalışma durumunda görev doğrulanamaz.")
+    except TaskAlreadyVerifiedError:
+        raise ApiError(409, "TASK_ALREADY_VERIFIED", "Görev zaten doğrulanmış.")
+
+    session.commit()
+
+    return PostTaskResponse(
+        id=str(task.id),
+        engagement_id=str(task.engagement_id),
+        skill_id=str(task.skill_id) if task.skill_id else None,
+        title=task.title,
+        description=task.description,
+        status=task.status,
+        due_at=task.due_at,
+        completed_at=task.completed_at,
+        created_at=task.created_at,
+        updated_at=task.updated_at,
+        verified=True,
+        verified_at=task.verified_at,
     )
 
 

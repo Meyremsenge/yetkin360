@@ -380,14 +380,25 @@ Yetkisiz çağıran her zaman `404` alır ve kota harcamaz.
 |---|---|---|---|---|---|
 | `POST` | `/engagements` | `ORG:MEMBER` veya `TALENT` | `talent_id`, `organization_id`, `institution_id?`, `kind`, `title`, `started_on?`, `ended_on?`, `confidential?` | `201` — engagement (`status: DRAFT`) | `404`, `400` |
 | `GET` | `/engagements/{id}` | taraflardan biri | — | `200` — engagement + `available_transitions[]` | `404` |
-| `GET` | `/engagements` | `AUTH` | `status?`, `role?`, `limit?`, `cursor?` | `200` — **yalnız erişilebilir olanlar** | — |
-| `POST` | `/engagements/{id}/transitions` | duruma göre | `to_status`, `version`, `reason?` | `200` — güncel engagement | `403`, `404`, `409`, `422 ILLEGAL_TRANSITION`, `422 PRECONDITION_FAILED` |
-| `POST` | `/engagements/{id}/tasks` | `ORG:SUPERVISOR` veya `TALENT` | `title`, `status?` | `201` | `404`, `403` |
+| `GET` | `/engagements` | `AUTH` | `status?`, `role?`, `limit?`, `cursor?` | `200` — **yalnız erişilebilir olanlar**; her satır `organization_id`, `institution_id`, `talent_id`, `talent_name` taşır (kuruluş/kurum tarafı listeyi öğrenciye göre gösterir) | — |
+| `POST` | `/engagements/{id}/transitions` | duruma göre | `to_status`, `version`, `reason?`, `notify_emails?` | `200` — güncel engagement | `403`, `404`, `409`, `422 ILLEGAL_TRANSITION`, `422 PRECONDITION_FAILED` |
+| `POST` | `/engagements/{id}/tasks` | Kuruluş üyesi / koordinatör (yalnız `ACTIVE`) veya `TALENT` (kendi çalışması; `DRAFT`, `ACTIVE`) | `title`, `description?`, `due_at?`, `skill_id?` | `201` — görev (`verified`, `verified_at`) | `404`, `403`, `422 PRECONDITION_FAILED` |
+| `POST` | `/engagements/{id}/tasks/{task_id}/verify` | Kuruluş üyesi / koordinatör — **öğrenci kendi görevini doğrulayamaz** | — | `200` — görev (`verified: true`) | `404`, `403`, `409 TASK_ALREADY_VERIFIED`, `422 PRECONDITION_FAILED` |
 | `POST` | `/engagements/{id}/deliverables` | `TALENT` | `title`, `description?`, `task_id?`, `evidence_ids[]` | `201` | `404`, `403`, `422 EVIDENCE_REQUIRED` |
 
 **`GET /engagements` listesinde `org_id` parametresi yoktur** (§1.2).
 Kapsam oturumdan çıkarılır; `role` parametresi yalnız **kendi** erişilebilir
 kayıtlarını filtreler (`talent` / `organization` / `institution`).
+
+#### Görev doğrulama
+
+Görevi kimin eklediği, doğrulanmış sayılıp sayılmayacağını belirler:
+
+- **Kuruluş üyesi ya da koordinatör eklerse** görev doğrulanmış oluşur; `skill_id` varsa `TASK` kaynaklı yetkinlik sinyali hemen yazılır.
+- **Öğrenci kendi çalışmasına eklerse** görev **doğrulanmamış** oluşur (`verified: false`) ve sinyal üretmez. Sinyal, `…/tasks/{task_id}/verify` çağrıldığında yazılır.
+- Doğrulamayı yalnız çalışmanın kuruluş üyesi ya da kurum koordinatörü yapabilir. Öğrenci, aynı zamanda o kuruluşun üyesi ya da koordinatör olsa bile kendi görevini doğrulayamaz (`403`).
+- Doğrulama `DRAFT`, `PENDING_APPROVAL`, `REJECTED` ve `CANCELLED` durumlarında yapılamaz (`422`).
+- `GET /engagements/{id}` yanıtındaki her görev `verified` alanını taşır.
 
 #### Tek geçiş ucu: `POST /engagements/{id}/transitions`
 
@@ -408,6 +419,20 @@ kayıtlarını filtreler (`talent` / `organization` / `institution`).
 | `403 FORBIDDEN` | Geçiş tanımlı, ön koşul tamam, ama **bu aktör yetkili değil** |
 
 Bu üç hatanın ayrı olması kasıtlıdır: istemci kullanıcıya doğru mesajı gösterebilir.
+
+**Onay isteğinin alıcısı (`notify_emails`).** `DRAFT → PENDING_APPROVAL`
+geçişinde **zorunludur** (yoksa ya da boşsa `422 PRECONDITION_FAILED`), diğer
+geçişlerde yok sayılır; en az 1, en fazla 5 e-posta adresi.
+
+- Adreslerden o kurumun `COORDINATOR` üyesine ait olanlar bildirimi **tek başına** alır.
+- Başka kurumun koordinatörü, kurum yöneticisi, kuruluş üyesi ya da bilinmeyen bir
+  adres **hata vermeden yok sayılır**; hiçbiri eşleşmezse bildirim yine tüm
+  koordinatörlere gider. Yanıt her durumda aynıdır — istemci bir adresin kurumda
+  kayıtlı olup olmadığını öğrenemez.
+- Onay yetkisi değişmez: kurumun her koordinatörü çalışmayı onaylayabilir. Alan
+  yalnız bildirimin kime gideceğini belirler.
+- Biçimi bozuk adres ya da 5'ten fazla adres → `422 VALIDATION_ERROR`.
+- Outbox'a adres değil kullanıcı kimliği yazılır (PII).
 
 `GET /engagements/{id}` cevabındaki `available_transitions[]`, **bu kullanıcının
 şu anda yapabileceği** geçişleri listeler — frontend butonları bundan üretir,
@@ -640,7 +665,7 @@ aksi halde `null`). Yalnız `status = 'ACTIVE'` ve silinmemiş kuruluşlar.
 
 ## 3. Uç özeti
 
-Toplam **40 uç**. Hackathon fazlarına dağılımı → [PLAN.md](../PLAN.md).
+Toplam **41 uç**. Hackathon fazlarına dağılımı → [PLAN.md](../PLAN.md).
 
 | Grup | Uç sayısı | Faz |
 |---|---|---|
@@ -649,7 +674,7 @@ Toplam **40 uç**. Hackathon fazlarına dağılımı → [PLAN.md](../PLAN.md).
 | `/skills` | 1 | 1 |
 | `/organizations` | 4 | 1 |
 | `/institutions` | 3 | 3 |
-| `/engagements` | 6 | 2 |
+| `/engagements` | 7 | 2 |
 | `/evidence` | 3 | 2 |
 | Değerlendirme / tanıklık / itiraz | 4 | 2 |
 | `/public` | 2 | 3 |

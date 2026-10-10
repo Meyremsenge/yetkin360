@@ -183,7 +183,13 @@ engagement_tasks
   status text NOT NULL DEFAULT 'PLANNED'
       CHECK (status IN ('PLANNED','IN_PROGRESS','DONE'))
   completed_at timestamptz
+  skill_id uuid REFERENCES skills(id)
+  created_by_user_id uuid REFERENCES users(id)   -- NULL: bu sütundan önceki kayıtlar
+  verified_at timestamptz                         -- NULL: doğrulanmamış (öğrencinin eklediği görev)
+  verified_by_user_id uuid REFERENCES users(id)
+      CHECK (verified_by_user_id IS NULL OR verified_at IS NOT NULL)
   -- INDEX: (engagement_id)
+  -- Yalnız doğrulanmış görev TASK kaynaklı skill_signal üretir.
 
 deliverables
   id uuid PK

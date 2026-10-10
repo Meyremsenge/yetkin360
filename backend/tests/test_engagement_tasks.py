@@ -21,10 +21,14 @@ Coverage Target: Task creation (happy path + tenant isolation + role elevation +
 Status: Tests are RED (expected) — implementation not yet available.
 """
 
+import uuid
+
 import pytest
+from sqlalchemy import select
 from uuid import uuid4
 
 from app.models import (
+    SkillSignal,
     User,
     TalentProfile,
     Organization,
@@ -555,48 +559,116 @@ class TestTaskPreconditionNotActive:
 
 
 # ============================================================================
-# AC-S1 (threat-model): Role Elevation — TALENT Cannot Create Task (403)
+# AC-S1 (threat-model): a talent may add tasks, but they are unverified
 # ============================================================================
 
 
-class TestTaskRoleElevation:
+class TestTalentCreatesUnverifiedTask:
     """
-    AC-S1: TALENT (Alice) tries to create task on her own ACTIVE engagement.
-    Task creation is COORDINATOR/ORG_MEMBER/ORG_ADMIN only.
-    Since the resource (engagement) is visible to Alice (her own), error is 403 FORBIDDEN (not 404).
+    The talent may add tasks to their own engagement (DRAFT or ACTIVE). Such a
+    task is unverified and must not produce a SkillSignal by itself — that would
+    let a talent award skills to their own profile (self-dealing, AC-S1).
+    Replaces the former "TALENT cannot create task → 403" rule.
     """
 
-    def test_task_creation_talent_forbidden_403(
-        self, client, session, user_talent_alice_task, talent_alice_task, engagement_active_alice_task
+    @pytest.mark.parametrize("fixture_name", ["engagement_active_alice_task", "engagement_draft_alice_task"])
+    def test_talent_creates_unverified_task_201(
+        self, request, client, session, user_talent_alice_task, talent_alice_task, fixture_name
     ):
-        """
-        AC-S1: Alice (TALENT) tries to create task on her own ACTIVE engagement → 403 FORBIDDEN.
-        Alice can see her own engagement (it's not 404), but lacks permission to create tasks.
-
-        Acceptance Criteria:
-        - Status code: 403 Forbidden (not 404, not 422)
-        - Error code: FORBIDDEN (exact match)
-        - Error message indicates lack of permission
-        - Engagement state unchanged
-        """
-        payload = {
-            "title": "Task I'm trying to create",
-            "description": "But I'm just a talent",
-            "due_at": None,
-        }
-
+        engagement = request.getfixturevalue(fixture_name)
         response = client.post(
-            f"/engagements/{engagement_active_alice_task.id}/tasks",
-            json=payload,
+            f"/engagements/{engagement.id}/tasks",
+            json={"title": "Kendi eklediğim görev"},
             headers={"X-Debug-User-Id": str(user_talent_alice_task.id)},
         )
+        assert response.status_code == 201, response.text
+        body = response.json()
+        assert body["verified"] is False
+        assert body["verified_at"] is None
 
-        assert response.status_code == 403, f"Expected 403, got {response.status_code}: {response.text}"
+        task = session.get(EngagementTask, uuid.UUID(body["id"]))
+        assert task.created_by_user_id == user_talent_alice_task.id
+        assert task.verified_at is None and task.verified_by_user_id is None
 
-        data = response.json()
-        error_obj = data.get("detail") if "detail" in data else data
+    def test_talent_task_with_skill_produces_no_signal(
+        self,
+        client,
+        session,
+        user_talent_alice_task,
+        talent_alice_task,
+        engagement_active_alice_task,
+        skill_python_task,
+    ):
+        response = client.post(
+            f"/engagements/{engagement_active_alice_task.id}/tasks",
+            json={"title": "Python ile rapor", "skill_id": str(skill_python_task.id)},
+            headers={"X-Debug-User-Id": str(user_talent_alice_task.id)},
+        )
+        assert response.status_code == 201, response.text
+        assert response.json()["verified"] is False
 
-        assert error_obj.get("code") == "FORBIDDEN", f"Expected FORBIDDEN, got {error_obj.get('code')}"
+        signals = session.execute(
+            select(SkillSignal).where(SkillSignal.talent_id == talent_alice_task.id)
+        ).scalars().all()
+        assert signals == []
+
+    def test_talent_cannot_add_task_once_pending_approval(
+        self, client, session, user_talent_alice_task, talent_alice_task, engagement_pending_approval_alice_task
+    ):
+        response = client.post(
+            f"/engagements/{engagement_pending_approval_alice_task.id}/tasks",
+            json={"title": "Geç kalan görev"},
+            headers={"X-Debug-User-Id": str(user_talent_alice_task.id)},
+        )
+        assert response.status_code == 422
+        assert response.json()["code"] == "PRECONDITION_FAILED"
+
+    def test_talent_cannot_add_task_to_another_talents_engagement(
+        self, client, session, user_talent_alice_task, talent_alice_task, engagement_active_bob_task
+    ):
+        response = client.post(
+            f"/engagements/{engagement_active_bob_task.id}/tasks",
+            json={"title": "Başkasının çalışmasına görev"},
+            headers={"X-Debug-User-Id": str(user_talent_alice_task.id)},
+        )
+        assert response.status_code == 404
+
+    def test_org_member_task_is_verified_on_creation(
+        self, client, session, user_org_member_charlie_task, org_member_charlie_task, engagement_active_alice_task
+    ):
+        response = client.post(
+            f"/engagements/{engagement_active_alice_task.id}/tasks",
+            json={"title": "Kuruluşun verdiği görev"},
+            headers={"X-Debug-User-Id": str(user_org_member_charlie_task.id)},
+        )
+        assert response.status_code == 201, response.text
+        body = response.json()
+        assert body["verified"] is True and body["verified_at"] is not None
+
+    def test_detail_lists_verified_flag_per_task(
+        self,
+        client,
+        session,
+        user_talent_alice_task,
+        talent_alice_task,
+        user_org_member_charlie_task,
+        org_member_charlie_task,
+        engagement_active_alice_task,
+    ):
+        url = f"/engagements/{engagement_active_alice_task.id}/tasks"
+        client.post(url, json={"title": "Öğrenci görevi"}, headers={"X-Debug-User-Id": str(user_talent_alice_task.id)})
+        client.post(
+            url, json={"title": "Kuruluş görevi"}, headers={"X-Debug-User-Id": str(user_org_member_charlie_task.id)}
+        )
+        detail = client.get(
+            f"/engagements/{engagement_active_alice_task.id}",
+            headers={"X-Debug-User-Id": str(user_talent_alice_task.id)},
+        )
+        assert detail.status_code == 200
+        assert {task["title"]: task["verified"] for task in detail.json()["tasks"]} == {
+            "Öğrenci görevi": False,
+            "Kuruluş görevi": True,
+        }
 
 
 # ============================================================================
