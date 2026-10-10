@@ -6,6 +6,7 @@ import { TaskList } from "./task-list";
 import { verifyTask } from "@/lib/api/tasks";
 import { ApiError } from "@/lib/api/errors";
 import type { EngagementDetail } from "@/lib/api/engagements";
+import { makeViewer } from "@/lib/api/engagements.fixtures";
 import messages from "@/messages/tr.json";
 
 vi.mock("@/lib/api/tasks", () => ({
@@ -33,6 +34,8 @@ const engagement: EngagementDetail = {
   ],
   deliverables: [],
   attestations: [],
+  supervisor: null,
+  viewer: makeViewer(),
 };
 
 function renderList(props: { canVerify: boolean; onChange?: () => void }) {

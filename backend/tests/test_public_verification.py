@@ -697,6 +697,9 @@ class TestAC5S4NoPIIFields:
                 "ended_on",
                 "verified_at",
                 "attested_skills",
+                # SPRINT K: double-signature badge + evaluator ("Ad S." and unit only)
+                "co_signed",
+                "evaluator",
             }
             response_keys = set(data.keys())
 

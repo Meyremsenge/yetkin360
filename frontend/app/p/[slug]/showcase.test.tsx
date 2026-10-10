@@ -42,6 +42,8 @@ const richProfile: PublicProfile = {
       claim_type: "COMPETENCE",
       created_at: "2026-10-01T10:00:00Z",
       public_token: "tok-abc",
+      co_signed: true,
+      evaluator: { display_name: "Mehmet K.", unit: "Yazılım" },
       skills: [{ name_tr: "FastAPI", category: "FRAMEWORK", claim_type: "COMPETENCE", attestor_organization: "Lale Yazılım A.Ş." }],
       evidenced_skills: [{ name_tr: "Python", category: "LANGUAGE" }],
     },
@@ -110,6 +112,16 @@ describe("PublicProfilePage — vitrin", () => {
     expect(screen.getByText("Kuruluş kimliği henüz doğrulanmadı")).toBeTruthy();
     expect(screen.getByText("Tanıklık eden: Lale Yazılım A.Ş.")).toBeTruthy();
     expect(screen.getByText("3 hafta")).toBeTruthy();
+  });
+
+  it("SPRINT K: yalnız çift imzalı deneyim kartında rozet var", async () => {
+    vi.mocked(getPublicProfile).mockResolvedValueOnce(richProfile);
+    renderPage();
+
+    await screen.findByText("Backend Geliştirme Stajı");
+    expect(screen.getAllByText("Çift imzalı")).toHaveLength(1);
+    const card = screen.getByText("Backend Geliştirme Stajı").closest("article") as HTMLElement;
+    expect(within(card).getByText("Çift imzalı")).toBeTruthy();
   });
 
   it("sicil kartında QR kod her zaman görünür ve profil adresini taşır", async () => {

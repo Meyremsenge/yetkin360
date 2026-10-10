@@ -6,6 +6,7 @@ import { TaskForm } from "./task-form";
 import { createTask } from "@/lib/api/tasks";
 import { ApiError } from "@/lib/api/errors";
 import type { EngagementDetail } from "@/lib/api/engagements";
+import { makeViewer } from "@/lib/api/engagements.fixtures";
 import messages from "@/messages/tr.json";
 
 vi.mock("@/lib/api/tasks", () => ({
@@ -49,6 +50,8 @@ const activeEngagement: EngagementDetail = {
   tasks: [],
   deliverables: [],
   attestations: [],
+  supervisor: null,
+  viewer: makeViewer({ relation: "ORG_ADMIN", can_add_task: true }),
 };
 
 describe("TaskForm", () => {
@@ -67,9 +70,12 @@ describe("TaskForm", () => {
     expect(screen.getByText("Görev Ekle")).toBeTruthy();
   });
 
-  it("terminal durumda (REJECTED) hiçbir şey render edilmez", () => {
+  it("viewer.can_add_task false ise (ör. REJECTED) hiçbir şey render edilmez", () => {
     renderWithQueryClient(
-      <TaskForm engagement={{ ...activeEngagement, status: "REJECTED" }} onSuccess={vi.fn()} />
+      <TaskForm
+        engagement={{ ...activeEngagement, status: "REJECTED", viewer: makeViewer({ relation: "ORG_ADMIN" }) }}
+        onSuccess={vi.fn()}
+      />
     );
 
     expect(screen.queryByLabelText("Başlık")).toBeNull();
@@ -197,12 +203,21 @@ describe("TaskForm", () => {
 
     await waitFor(() => expect(screen.getByText("Görev eklendi.")).toBeTruthy());
 
-    rerender(<TaskForm engagement={{ ...activeEngagement, status: "PENDING_EVALUATION" }} onSuccess={onSuccess} />);
+    rerender(
+      <TaskForm
+        engagement={{ ...activeEngagement, status: "PENDING_EVALUATION", viewer: makeViewer({ relation: "ORG_ADMIN" }) }}
+        onSuccess={onSuccess}
+      />
+    );
     expect(screen.getByText("Görev eklendi.")).toBeTruthy();
   });
 
   describe("öğrenci (isSubject)", () => {
-    const draftEngagement: EngagementDetail = { ...activeEngagement, status: "DRAFT" };
+    const draftEngagement: EngagementDetail = {
+      ...activeEngagement,
+      status: "DRAFT",
+      viewer: makeViewer({ relation: "SUBJECT", can_add_task: true }),
+    };
 
     it("taslak çalışmada formu ve doğrulanmamış uyarısını gösterir", () => {
       renderWithQueryClient(<TaskForm engagement={draftEngagement} onSuccess={vi.fn()} isSubject />);
@@ -211,7 +226,12 @@ describe("TaskForm", () => {
     });
 
     it("öğrenci değilse taslak çalışmada form gösterilmez", () => {
-      renderWithQueryClient(<TaskForm engagement={draftEngagement} onSuccess={vi.fn()} />);
+      renderWithQueryClient(
+        <TaskForm
+          engagement={{ ...draftEngagement, viewer: makeViewer({ relation: "ORG_ADMIN" }) }}
+          onSuccess={vi.fn()}
+        />
+      );
       expect(screen.queryByLabelText("Başlık")).toBeNull();
     });
 
@@ -222,7 +242,11 @@ describe("TaskForm", () => {
 
     it("onay bekleyen çalışmada öğrenciye de form gösterilmez", () => {
       renderWithQueryClient(
-        <TaskForm engagement={{ ...activeEngagement, status: "PENDING_APPROVAL" }} onSuccess={vi.fn()} isSubject />
+        <TaskForm
+          engagement={{ ...activeEngagement, status: "PENDING_APPROVAL", viewer: makeViewer({ relation: "SUBJECT" }) }}
+          onSuccess={vi.fn()}
+          isSubject
+        />
       );
       expect(screen.queryByLabelText("Başlık")).toBeNull();
     });

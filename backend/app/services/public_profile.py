@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app.models import Engagement, Institution, Organization, Skill, TalentProfile
 from app.services.authorization import (
     scoped_attestations_for_engagement,
+    scoped_public_engagement_evaluations,
     scoped_public_skill_signals,
     scoped_public_verified_experiences,
 )
@@ -46,6 +47,57 @@ class PublicEvidencedSkill:
 
 
 @dataclass
+class PublicEvaluator:
+    # "Ad S." — first name(s) + surname initial; None when the evaluator has no live profile.
+    display_name: str | None
+    unit: str | None
+
+
+@dataclass
+class CoSignature:
+    co_signed: bool
+    evaluator: PublicEvaluator | None
+
+
+_TR_UPPER = {"i": "İ", "ı": "I"}
+
+
+def short_display_name(full_name: str | None) -> str | None:
+    """'Mehmet Ali Kaya' → 'Mehmet Ali K.'; never the full surname."""
+    parts = (full_name or "").split()
+    if not parts:
+        return None
+    if len(parts) == 1:
+        return parts[0]
+    initial = parts[-1][0]
+    initial = _TR_UPPER.get(initial, initial.upper())
+    return f"{' '.join(parts[:-1])} {initial}."
+
+
+def co_signature(session: Session, engagement: Engagement | None) -> CoSignature:
+    """
+    "Çift imza" for a PUBLIC experience (K1-A): the organization evaluated the
+    talent (ORG_TO_TALENT by one of its members) AND the institution sealed it.
+
+    Sealing an institution-linked engagement is reserved to that institution's
+    coordinators (attestation_role_allowed), and a PUBLIC experience is only
+    visible while it has an active attestation (GUV-05). So for a visible
+    experience "institution sealed" is exactly "engagement.institution_id is set".
+    Callers must pass the engagement of an already PUBLIC experience.
+    """
+    if engagement is None:
+        return CoSignature(co_signed=False, evaluator=None)
+    row = session.execute(scoped_public_engagement_evaluations(session, engagement.id)).first()
+    if row is None:
+        return CoSignature(co_signed=False, evaluator=None)
+    _evaluation, unit, full_name = row
+    return CoSignature(
+        co_signed=engagement.institution_id is not None,
+        evaluator=PublicEvaluator(display_name=short_display_name(full_name), unit=unit),
+    )
+
+
+@dataclass
 class PublicExperience:
     id: uuid.UUID
     organization_name_snapshot: str
@@ -57,6 +109,8 @@ class PublicExperience:
     claim_type: str
     created_at: datetime
     public_token: str | None
+    co_signed: bool = False
+    evaluator: PublicEvaluator | None = None
     skills: list[PublicAttestedSkill] = field(default_factory=list)
     evidenced_skills: list[PublicEvidencedSkill] = field(default_factory=list)
 
@@ -152,6 +206,9 @@ def build_public_profile(session: Session, talent: TalentProfile) -> PublicProfi
             created_at=ve.created_at,
             public_token=ve.public_token,
         )
+        signature = co_signature(session, engagement)
+        item.co_signed = signature.co_signed
+        item.evaluator = signature.evaluator
         attested_here: set[uuid.UUID] = set()
         for att in session.execute(scoped_attestations_for_engagement(session, ve.engagement_id)).scalars().all():
             skill = skill_of(att.skill_id)

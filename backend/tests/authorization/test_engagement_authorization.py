@@ -940,6 +940,11 @@ class TestEngagementList:
         assert item["kind"] == engagement_alice_1.kind
         assert item["status"] == engagement_alice_1.status
         assert item["version"] == engagement_alice_1.version
+        # Panels group the list per organization/institution by id, not by name.
+        assert item["organization_id"] == str(engagement_alice_1.organization_id)
+        assert item["institution_id"] == (
+            str(engagement_alice_1.institution_id) if engagement_alice_1.institution_id else None
+        )
 
     def test_talent_sees_only_own_engagements_ac1_isolation(
         self,

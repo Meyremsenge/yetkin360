@@ -16,10 +16,9 @@ import messages from "@/messages/tr.json";
  * - Kuruluş üyesi / koordinatör: çalışma ACTIVE iken; görev doğrulanmış oluşur.
  * - Öğrenci (`isSubject`): çalışma DRAFT veya ACTIVE iken; görev doğrulanmamış
  *   oluşur ve kuruluş ya da kurum onaylayana kadar öyle kalır.
- * Form yalnız duruma göre gösterilir; yetki kararı sunucudadır.
+ * Form yalnız sunucunun `viewer.can_add_task` dediği kullanıcıya görünür (SPRINT A);
+ * `isSubject` yalnız "doğrulanmamış görev" ipucunu seçer.
  */
-const SUBJECT_STATUSES = ["DRAFT", "ACTIVE"];
-const DEFAULT_STATUSES = ["ACTIVE"];
 
 export function TaskForm({
   engagement,
@@ -77,11 +76,10 @@ export function TaskForm({
     },
   });
 
-  // deliverable-form.tsx'teki desenle aynı: durum artık uygun değilse AMA henüz
-  // okunmamış bir mesaj varsa erken dönme — aksi halde başarı mesajı bir render
-  // sonra (status ACTIVE'den çıkınca) okunamadan kaybolur.
-  const allowedStatuses = isSubject ? SUBJECT_STATUSES : DEFAULT_STATUSES;
-  if (!allowedStatuses.includes(engagement.status) && !formError && !successMessage) {
+  // deliverable-form.tsx'teki desenle aynı: izin artık yoksa AMA henüz okunmamış
+  // bir mesaj varsa erken dönme — aksi halde başarı mesajı bir render sonra
+  // (yeniden yüklenen viewer izni kaldırınca) okunamadan kaybolur.
+  if (!engagement.viewer.can_add_task && !formError && !successMessage) {
     return null;
   }
 

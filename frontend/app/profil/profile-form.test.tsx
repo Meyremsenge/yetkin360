@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import ProfileForm from "@/app/profil/profile-form";
 import * as clientModule from "@/lib/api/client";
+import messages from "@/messages/tr.json";
 
 vi.mock("@/lib/api/client", () => ({
   updateTalentProfile: vi.fn(),
@@ -284,6 +285,31 @@ describe("ProfileForm (/profil/profile-form.tsx)", () => {
           "s"
         );
       });
+    });
+  });
+
+  describe("SPRINT H-0: 'Kuruluşlar' görünürlüğü listeden kaldırıldı", () => {
+    const base = { headline: "H", department: "D", study_year: 1, city: "C", public_slug: "s" };
+
+    it("yeni seçimde 'Kuruluşlar' seçeneği sunulmaz", () => {
+      renderWithQueryClient(<ProfileForm initialData={{ ...base, visibility: "PRIVATE" }} />);
+      const select = screen.getByLabelText(messages.profil.visibility) as HTMLSelectElement;
+      const values = Array.from(select.options).map((option) => option.value);
+      expect(values).not.toContain("ORGANIZATIONS");
+      expect(screen.queryByText(messages.profil.visibilityOrganizationsSoon)).toBeNull();
+    });
+
+    it("değeri zaten 'Kuruluşlar' olan profil seçeneği korur ve gizli olduğu uyarısını görür", () => {
+      renderWithQueryClient(<ProfileForm initialData={{ ...base, visibility: "ORGANIZATIONS" }} />);
+      const select = screen.getByLabelText(messages.profil.visibility) as HTMLSelectElement;
+      expect(select.value).toBe("ORGANIZATIONS");
+      expect(screen.getByText(messages.profil.visibilityOrganizationsSoon)).toBeTruthy();
+    });
+
+    it("başka bir seçeneğe geçince uyarı kalkar", async () => {
+      renderWithQueryClient(<ProfileForm initialData={{ ...base, visibility: "ORGANIZATIONS" }} />);
+      await userEvent.setup().selectOptions(screen.getByLabelText(messages.profil.visibility), "PUBLIC");
+      expect(screen.queryByText(messages.profil.visibilityOrganizationsSoon)).toBeNull();
     });
   });
 

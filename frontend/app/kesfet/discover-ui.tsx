@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import messages from "@/messages/tr.json";
 
 const t = messages.kesfet;
+const showcase = messages.orgShowcase;
 
 export const FOCUS_RING =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2 focus-visible:ring-offset-card";
@@ -339,15 +340,10 @@ function TrustGauge({ level }: { level: string }) {
 
 /**
  * An organization as a short record: name, verified domain (T2+ only, the API
- * nulls it otherwise), and its trust level as a gauge plus words.
+ * nulls it otherwise), and its trust level as a gauge plus words. The whole
+ * card opens the organization's public showcase (/o/{id}).
  */
-export function OrganizationCard({
-  organization,
-  canStartEngagement,
-}: {
-  organization: DiscoverOrganization;
-  canStartEngagement: boolean;
-}) {
+export function OrganizationCard({ organization }: { organization: DiscoverOrganization }) {
   const levels = messages.kurulusSec.verificationLevel as Record<string, string>;
   const levelLabel = levels[organization.verification_level] ?? organization.verification_level;
 
@@ -387,21 +383,19 @@ export function OrganizationCard({
         </div>
       </div>
 
-      {canStartEngagement && (
-        <div className="flex items-center justify-end border-t border-border bg-background/70 px-5 py-3">
-          <Link
-            href={`/calismalar/olustur?organization_id=${encodeURIComponent(organization.id)}`}
-            aria-label={t.startEngagementWith.replace("{name}", organization.name)}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-success after:absolute after:inset-0 after:content-['']",
-              FOCUS_RING
-            )}
-          >
-            {t.startEngagement}
-            <Icon name="arrow" className="h-3.5 w-3.5 transition-transform duration-150 motion-safe:group-hover:translate-x-0.5" />
-          </Link>
-        </div>
-      )}
+      <div className="flex items-center justify-end border-t border-border bg-background/70 px-5 py-3">
+        <Link
+          href={`/o/${encodeURIComponent(organization.id)}`}
+          aria-label={showcase.viewShowcaseOf.replace("{name}", organization.name)}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-success after:absolute after:inset-0 after:content-['']",
+            FOCUS_RING
+          )}
+        >
+          {showcase.viewShowcase}
+          <Icon name="arrow" className="h-3.5 w-3.5 transition-transform duration-150 motion-safe:group-hover:translate-x-0.5" />
+        </Link>
+      </div>
     </article>
   );
 }

@@ -6,6 +6,7 @@ import { DeliverableForm } from "./deliverable-form";
 import { createDeliverable } from "@/lib/api/deliverables";
 import { ApiError } from "@/lib/api/errors";
 import type { EngagementDetail } from "@/lib/api/engagements";
+import { makeViewer } from "@/lib/api/engagements.fixtures";
 
 vi.mock("@/lib/api/deliverables", () => ({
   createDeliverable: vi.fn(),
@@ -48,6 +49,8 @@ const activeEngagement: EngagementDetail = {
   tasks: [],
   deliverables: [],
   attestations: [],
+  supervisor: null,
+  viewer: makeViewer({ relation: "SUBJECT", can_add_deliverable: true }),
 };
 
 describe("DeliverableForm", () => {
@@ -66,9 +69,12 @@ describe("DeliverableForm", () => {
     expect(screen.getByText("Çıktı Ekle")).toBeTruthy();
   });
 
-  it("terminal durumda (REJECTED) hiçbir şey render edilmez", () => {
+  it("viewer.can_add_deliverable false ise (ör. REJECTED) hiçbir şey render edilmez", () => {
     renderWithQueryClient(
-      <DeliverableForm engagement={{ ...activeEngagement, status: "REJECTED" }} onSuccess={vi.fn()} />
+      <DeliverableForm
+        engagement={{ ...activeEngagement, status: "REJECTED", viewer: makeViewer({ relation: "SUBJECT" }) }}
+        onSuccess={vi.fn()}
+      />
     );
 
     expect(screen.queryByLabelText("Başlık")).toBeNull();
@@ -181,7 +187,12 @@ describe("DeliverableForm", () => {
     await waitFor(() => expect(screen.getByText("Çıktı eklendi.")).toBeTruthy());
 
     // Parent refetch sonrası durum artık PENDING_EVALUATION olsun — mesaj hâlâ görünür olmalı.
-    rerender(<DeliverableForm engagement={{ ...activeEngagement, status: "PENDING_EVALUATION" }} onSuccess={onSuccess} />);
+    rerender(
+      <DeliverableForm
+        engagement={{ ...activeEngagement, status: "PENDING_EVALUATION", viewer: makeViewer({ relation: "SUBJECT" }) }}
+        onSuccess={onSuccess}
+      />
+    );
     expect(screen.getByText("Çıktı eklendi.")).toBeTruthy();
   });
 });

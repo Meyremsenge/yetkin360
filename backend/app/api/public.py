@@ -11,8 +11,15 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_session
 from app.core.errors import ApiError
 from app.models import Engagement, Institution, Organization, Skill, TalentProfile
-from app.services.authorization import get_scoped_or_404, scoped_attestations_for_engagement, scoped_public_talent_profile, scoped_public_verified_experience_by_token
-from app.services.public_profile import build_public_profile
+from app.services.authorization import (
+    get_scoped_or_404,
+    scoped_attestations_for_engagement,
+    scoped_public_organization,
+    scoped_public_talent_profile,
+    scoped_public_verified_experience_by_token,
+)
+from app.services.organization_showcase import build_org_showcase
+from app.services.public_profile import build_public_profile, co_signature
 
 router = APIRouter(tags=["public"], prefix="/public")
 
@@ -20,6 +27,13 @@ router = APIRouter(tags=["public"], prefix="/public")
 # ============================================================================
 # Pydantic Response Schemas (Public API)
 # ============================================================================
+
+
+class PublicEvaluatorResponse(BaseModel):
+    """Who evaluated for the organization: "Ad S." and unit only. No full surname, no e-mail."""
+
+    display_name: str | None
+    unit: str | None
 
 
 class AttestedSkillResponse(BaseModel):
@@ -49,6 +63,9 @@ class PublicVerificationResponse(BaseModel):
     ended_on: date | None
     verified_at: datetime
     attested_skills: list[AttestedSkillResponse]
+    # K1-A: organization evaluated + institution sealed
+    co_signed: bool
+    evaluator: PublicEvaluatorResponse | None
 
     class Config:
         from_attributes = True
@@ -84,6 +101,8 @@ class PublicVerifiedExperienceResponse(BaseModel):
     created_at: datetime
     # Link to /v/{token}; the experience is already PUBLIC, the same token is shareable.
     public_token: str | None
+    co_signed: bool
+    evaluator: PublicEvaluatorResponse | None
     skills: list[PublicExperienceSkillResponse]
     evidenced_skills: list[PublicEvidencedSkillResponse]
 
@@ -279,7 +298,9 @@ def get_public_verification(
             )
         )
 
-    # Build response (AC-1/AC-5: 11 fields, no PII, no internal IDs)
+    signature = co_signature(session, engagement)
+
+    # Build response (AC-1/AC-5: no PII, no internal IDs)
     return PublicVerificationResponse(
         title=ve.role_snapshot,
         talent_name=talent_profile.full_name,
@@ -292,4 +313,70 @@ def get_public_verification(
         ended_on=ve.ended_on_snapshot,
         verified_at=ve.created_at,
         attested_skills=attested_skills,
+        co_signed=signature.co_signed,
+        evaluator=(
+            PublicEvaluatorResponse(display_name=signature.evaluator.display_name, unit=signature.evaluator.unit)
+            if signature.evaluator
+            else None
+        ),
     )
+
+
+# ============================================================================
+# GET /public/organizations/{organization_id} — organization showcase (SPRINT G)
+# ============================================================================
+
+
+class ShowcaseStatsResponse(BaseModel):
+    verified_public_count: int
+    institution_count: int
+
+
+class ShowcaseExperienceResponse(BaseModel):
+    """One double-consented record. No talent/engagement id, no e-mail."""
+
+    role_snapshot: str
+    started_on: date | None
+    ended_on: date | None
+    talent_display_name: str
+    # Links to /p/{slug}; the profile is PUBLIC (part of the double consent).
+    talent_public_slug: str
+    institution_name: str | None
+    # Links to /v/{token}; the record is PUBLIC.
+    public_token: str | None
+    skills: list[str]
+
+
+class OrganizationShowcaseResponse(BaseModel):
+    """Response schema for GET /public/organizations/{organization_id}."""
+
+    id: uuid.UUID
+    name: str
+    verification_level: str
+    # Exposed only when verified (T2+); otherwise attacker-chosen free text (GUV-03).
+    domain: str | None
+    showcase_enabled: bool
+    stats: ShowcaseStatsResponse
+    experiences: list[ShowcaseExperienceResponse]
+
+
+@router.get("/organizations/{organization_id}")
+def get_organization_showcase(
+    organization_id: uuid.UUID,
+    session: Session = Depends(get_session),
+) -> OrganizationShowcaseResponse:
+    """
+    Public organization showcase (auth-free).
+
+    Returns (200): organization card + double-consented verified records
+      (record PUBLIC and talent profile PUBLIC). Showcase switched off →
+      showcase_enabled=false, zero stats, no experiences.
+
+    Returns (404): ORGANIZATION_NOT_FOUND — identical for unknown, deleted
+      and non-ACTIVE organizations.
+    """
+    organization = get_scoped_or_404(scoped_public_organization(session, organization_id), session)
+    if organization is None:
+        raise ApiError(status_code=404, code="ORGANIZATION_NOT_FOUND", message="Kayıt bulunamadı")
+
+    return OrganizationShowcaseResponse.model_validate(asdict(build_org_showcase(session, organization)))

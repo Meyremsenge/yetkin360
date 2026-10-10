@@ -124,18 +124,36 @@ def test_no_member_mutation_route_reachable(client, session, tenant, method):
         f"/{kind}/{tenant_id}/members/{founder.id}",
     ):
         r = client.request(method.upper(), path, json={"role": low_role}, headers=_h(founder))
-        assert r.status_code in (404, 405), (method, path, r.status_code)
+        # 422: SPRINT D2 unit-only PATCH rejects a body without "unit" (see the allow-list below)
+        assert r.status_code in (404, 405, 422), (method, path, r.status_code)
     assert set(_roles(session, model, fk, tenant_id).values()) == {"ADMIN"}
+
+
+# SPRINT D2: the only allowed member PATCH sets the unit label. It stays allowed only
+# while its body schema is exactly {"unit"} — adding role (or anything else) trips the guard.
+_UNIT_ONLY_ROUTES = {("patch", "/organizations/{organization_id}/members/{user_id}"): {"unit"}}
+
+
+def _body_fields(spec, operation):
+    schema = operation.get("requestBody", {}).get("content", {}).get("application/json", {}).get("schema", {})
+    if "$ref" in schema:
+        schema = spec["components"]["schemas"][schema["$ref"].rsplit("/", 1)[-1]]
+    return set(schema.get("properties", {}))
 
 
 def test_structural_guard_no_member_role_change_or_remove_route():
     """Fails when someone adds a member remove/role-change route without last-admin protection."""
     mutating = {"put", "patch", "delete"}
     offenders = []
-    for path, ops in app.openapi()["paths"].items():
+    spec = app.openapi()
+    for path, ops in spec["paths"].items():
         if not path.startswith(("/organizations/", "/institutions/")) or "member" not in path:
             continue
-        offenders += [f"{op.upper()} {path}" for op in ops if op in mutating]
+        offenders += [
+            f"{op.upper()} {path}"
+            for op in ops
+            if op in mutating and _UNIT_ONLY_ROUTES.get((op, path)) != _body_fields(spec, ops[op])
+        ]
         # any extra POST under .../members/... (e.g. /members/{id}/role, /demote) is a mutation too
         if "post" in ops and path.rstrip("/").split("/members")[-1] not in ("", "/"):
             offenders.append(f"POST {path}")

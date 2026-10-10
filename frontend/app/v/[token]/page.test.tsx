@@ -5,6 +5,7 @@ import PublicVerificationPage from "@/app/v/[token]/page";
 import { useParams } from "next/navigation";
 import { getPublicVerification } from "@/lib/api/public";
 import { ApiError, NetworkError } from "@/lib/api/errors";
+import messages from "@/messages/tr.json";
 
 vi.mock("next/navigation", () => ({
   useParams: vi.fn(),
@@ -70,6 +71,44 @@ describe("PublicVerificationPage (/v/[token])", () => {
       expect(screen.getByText("Doğrulanmış alan adı: acme.example")).toBeTruthy();
       expect(screen.getByText("Doğrulama seviyesi: T1")).toBeTruthy();
     });
+  });
+
+  // SPRINT K: çift imza rozeti + değerlendiren
+  it("SPRINT K: çift imzalı kayıtta rozet ve değerlendiren satırı görünür", async () => {
+    vi.mocked(getPublicVerification).mockResolvedValueOnce({
+      ...mockPublicVerification,
+      co_signed: true,
+      evaluator: { display_name: "Mehmet K.", unit: "Yazılım" },
+    });
+
+    renderWithQueryClient(<PublicVerificationPage />);
+
+    expect(await screen.findByText(messages.publicVerification.coSignedBadge)).toBeTruthy();
+    expect(screen.getByText(messages.publicVerification.coSignedDetail)).toBeTruthy();
+    expect(screen.getByText(messages.publicVerification.evaluatorLabel)).toBeTruthy();
+    expect(screen.getByText("Mehmet K. · Acme A.Ş., Yazılım")).toBeTruthy();
+  });
+
+  it("SPRINT K: tek imzalı kayıtta rozet yok; adı bilinmeyen değerlendirende yalnız kuruluş ve birim", async () => {
+    vi.mocked(getPublicVerification).mockResolvedValueOnce({
+      ...mockPublicVerification,
+      co_signed: false,
+      evaluator: { display_name: null, unit: "Yazılım" },
+    });
+
+    renderWithQueryClient(<PublicVerificationPage />);
+
+    expect(await screen.findByText("Acme A.Ş., Yazılım")).toBeTruthy();
+    expect(screen.queryByText(messages.publicVerification.coSignedBadge)).toBeNull();
+  });
+
+  it("SPRINT K: değerlendirme yoksa değerlendiren satırı çıkmaz", async () => {
+    vi.mocked(getPublicVerification).mockResolvedValueOnce({ ...mockPublicVerification, co_signed: false, evaluator: null });
+
+    renderWithQueryClient(<PublicVerificationPage />);
+
+    await screen.findByText("Yazılım Stajyeri");
+    expect(screen.queryByText(messages.publicVerification.evaluatorLabel)).toBeNull();
   });
 
   // YET-243: T1 (doğrulanmamış) kurum belirgin uyarıyla gösterilir, T2+ için uyarı yok

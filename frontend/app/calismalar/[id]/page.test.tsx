@@ -8,6 +8,7 @@ import { useParams } from "next/navigation";
 import { getEngagement } from "@/lib/api/engagements";
 import { ApiError } from "@/lib/api/errors";
 import type { EngagementDetail } from "@/lib/api/engagements";
+import { makeViewer } from "@/lib/api/engagements.fixtures";
 
 vi.mock("next/navigation", () => ({
   useParams: vi.fn(),
@@ -48,7 +49,17 @@ const baseEngagement: EngagementDetail = {
   tasks: [{ id: "task-1", title: "API şeması", status: "DONE", verified: true }],
   deliverables: [],
   attestations: [],
+  // The student on their own ACTIVE engagement (server-computed).
+  supervisor: null,
+  viewer: makeViewer({ relation: "SUBJECT", can_add_task: true, can_add_deliverable: true }),
 };
+
+const orgAdminViewer = makeViewer({
+  relation: "ORG_ADMIN",
+  allowed_transitions: ["CANCELLED", "PENDING_EVALUATION"],
+  reason_required: ["CANCELLED"],
+  can_add_task: true,
+});
 
 /**
  * YET-96 (PLAN 2.11): Engagement detay ekranı + available_transitions[] butonları.
@@ -106,7 +117,7 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
   });
 
   it("başarılı yüklemede başlık, durum, görevler ve durum geçiş butonları gösterilir", async () => {
-    vi.mocked(getEngagement).mockResolvedValueOnce(baseEngagement);
+    vi.mocked(getEngagement).mockResolvedValueOnce({ ...baseEngagement, viewer: orgAdminViewer });
 
     const { container } = renderWithQueryClient(<CalismaDetayPage />);
 
@@ -116,10 +127,62 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
       expect(container.textContent).toContain("API şeması");
       expect(container.textContent).toContain("Tamamlandı");
       expect(screen.getByText("Henüz çıktı yüklenmemiş.")).toBeTruthy();
-      // ACTIVE durumundan aday geçişler: CANCELLED, PENDING_EVALUATION
+      // viewer.allowed_transitions: CANCELLED, PENDING_EVALUATION
       expect(screen.getByText("İptal Et")).toBeTruthy();
       expect(screen.getByText("Değerlendirmeye Gönder")).toBeTruthy();
     });
+  });
+
+  it("SPRINT R: mühürlü kayıtta koordinatör 'Profilde gör' ve kanıt ekleme formunu görmez", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce({
+      ...baseEngagement,
+      status: "VERIFIED",
+      deliverables: [{ id: "d-1", title: "API raporu", submitted_at: "2026-10-01T00:00:00Z" }],
+      viewer: makeViewer({ relation: "COORDINATOR" }),
+    });
+
+    renderWithQueryClient(<CalismaDetayPage />);
+
+    await waitFor(() => expect(screen.getByText(messages.calismalar.detail.verifiedTextOther)).toBeTruthy());
+    expect(screen.queryByText(messages.calismalar.detail.verifiedLink)).toBeNull();
+    expect(screen.queryByText(messages.calismalar.evidenceUploadLabel)).toBeNull();
+  });
+
+  it("SPRINT R: öğrenci mühürlü kaydında 'Profilde gör' ve kanıt ekleme formunu görür", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce({
+      ...baseEngagement,
+      status: "VERIFIED",
+      deliverables: [{ id: "d-1", title: "API raporu", submitted_at: "2026-10-01T00:00:00Z" }],
+      viewer: makeViewer({ relation: "SUBJECT" }),
+    });
+
+    renderWithQueryClient(<CalismaDetayPage />);
+
+    await waitFor(() => expect(screen.getByText(messages.calismalar.detail.verifiedLink)).toBeTruthy());
+    expect(screen.getByText(messages.calismalar.detail.verifiedText)).toBeTruthy();
+    expect(screen.getByText(messages.calismalar.evidenceUploadLabel)).toBeTruthy();
+  });
+
+  it("SPRINT D1: onaylayıcı varsa başlıkta 'Onaylayıcı: Ad · Birim' gösterilir", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce({
+      ...baseEngagement,
+      supervisor: { user_id: "user-mehmet", display_name: "Mehmet Kaya", unit: "Yazılım" },
+    });
+
+    const { container } = renderWithQueryClient(<CalismaDetayPage />);
+
+    await waitFor(() => {
+      expect(container.textContent).toContain("Onaylayıcı: Mehmet Kaya · Yazılım");
+    });
+  });
+
+  it("SPRINT D1: onaylayıcı yoksa satır gösterilmez", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce(baseEngagement);
+
+    const { container } = renderWithQueryClient(<CalismaDetayPage />);
+
+    await waitFor(() => expect(screen.getByText("Yaz Kısa Projesi")).toBeTruthy());
+    expect(container.textContent).not.toContain("Onaylayıcı:");
   });
 
   it("reddedilmiş/iptal gerekçesi (reason) varsa gösterilir", async () => {
@@ -136,10 +199,11 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
     });
   });
 
-  it("PENDING_EVALUATION durumunda 'Değerlendirme Formu' linki gösterilir, ACTIVE'de gösterilmez", async () => {
+  it("viewer.can_evaluate ise 'Değerlendirme Formu' linki gösterilir", async () => {
     vi.mocked(getEngagement).mockResolvedValueOnce({
       ...baseEngagement,
       status: "PENDING_EVALUATION",
+      viewer: makeViewer({ relation: "ORG_MEMBER", can_evaluate: true }),
     });
 
     renderWithQueryClient(<CalismaDetayPage />);
@@ -150,8 +214,12 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
     });
   });
 
-  it("ACTIVE durumunda 'Değerlendirme Formu' linki gösterilmez", async () => {
-    vi.mocked(getEngagement).mockResolvedValueOnce(baseEngagement); // status: ACTIVE
+  it("SPRINT A: öğrenci PENDING_EVALUATION'da 'Değerlendirme Formu' linkini görmez", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce({
+      ...baseEngagement,
+      status: "PENDING_EVALUATION",
+      viewer: makeViewer({ relation: "SUBJECT" }),
+    });
 
     renderWithQueryClient(<CalismaDetayPage />);
 
@@ -173,8 +241,12 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
     expect(screen.queryByText("Tanıklık Ver")).toBeNull();
   });
 
-  it("EVALUATED durumunda tanıklık formu gösterilir, teslim ekleme formu gösterilmez", async () => {
-    vi.mocked(getEngagement).mockResolvedValueOnce({ ...baseEngagement, status: "EVALUATED" });
+  it("viewer.can_attest ise tanıklık formu gösterilir, teslim ekleme formu gösterilmez", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce({
+      ...baseEngagement,
+      status: "EVALUATED",
+      viewer: makeViewer({ relation: "COORDINATOR", can_attest: true }),
+    });
 
     renderWithQueryClient(<CalismaDetayPage />);
 
@@ -185,7 +257,11 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
   });
 
   it("terminal durumda (REJECTED) ne teslim ne tanıklık formu gösterilir", async () => {
-    vi.mocked(getEngagement).mockResolvedValueOnce({ ...baseEngagement, status: "REJECTED" });
+    vi.mocked(getEngagement).mockResolvedValueOnce({
+      ...baseEngagement,
+      status: "REJECTED",
+      viewer: makeViewer({ relation: "SUBJECT" }),
+    });
 
     renderWithQueryClient(<CalismaDetayPage />);
 
@@ -193,6 +269,28 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
       expect(screen.getByText("Yaz Kısa Projesi")).toBeTruthy();
     });
     expect(screen.queryByText("Yeni Çıktı Ekle")).toBeNull();
+    expect(screen.queryByText("Tanıklık Ver")).toBeNull();
+  });
+
+  it("AC-4: hiçbir izni olmayan izleyiciye (ör. kurum yöneticisi) eylem düğmesi/formu gösterilmez", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce({
+      ...baseEngagement,
+      tasks: [{ id: "task-2", title: "Öğrencinin görevi", status: "PLANNED", verified: false }],
+      viewer: makeViewer({ relation: "INSTITUTION_ADMIN" }),
+    });
+
+    renderWithQueryClient(<CalismaDetayPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Yaz Kısa Projesi")).toBeTruthy();
+    });
+    for (const label of Object.values(messages.calismalar.transitionAction)) {
+      expect(screen.queryByRole("button", { name: label })).toBeNull();
+    }
+    expect(screen.queryByRole("button", { name: /görevini onayla/ })).toBeNull();
+    expect(screen.queryByText("Yeni Görev Ekle")).toBeNull();
+    expect(screen.queryByText("Yeni Çıktı Ekle")).toBeNull();
+    expect(screen.queryByText("Değerlendirme Formu")).toBeNull();
     expect(screen.queryByText("Tanıklık Ver")).toBeNull();
   });
 
@@ -285,42 +383,52 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
     expect(screen.queryByText("Geri Çek")).toBeNull();
   });
 
-  describe("şikayet bağlantısı kimliği (talent profil id)", () => {
-    function sessionAs(userId: string, talentProfileId: string | null) {
-      vi.mocked(useSession).mockReturnValue({
-        data: {
-          user: { id: userId, email: "user@test.com" },
-          organizations: [],
-          institutions: [],
-          talent_profile: talentProfileId ? { id: talentProfileId } : null,
-        },
-        error: null,
-        isPending: false,
-        isError: false,
-        refetch: vi.fn(),
-      } as unknown as ReturnType<typeof useSession>);
-    }
+  describe("şikayet bağlantısı (sunucunun hesapladığı viewer.relation)", () => {
+    const reportLink = () => screen.queryByRole("link", { name: messages.complaints.reportAction });
 
-    it("talent profil id'si engagement.talent_id ile eşleşirse yanıtsız onay için şikayet bağlantısı görünür", async () => {
-      sessionAs("user-1", "talent-1");
+    it("öğrenci (SUBJECT) yanıtsız onayda kuruma şikayet bağlantısını görür", async () => {
       vi.mocked(getEngagement).mockResolvedValueOnce({ ...baseEngagement, status: "PENDING_APPROVAL" });
 
       renderWithQueryClient(<CalismaDetayPage />);
 
       const link = await screen.findByRole("link", { name: messages.complaints.reportAction });
       expect(link.getAttribute("href")).toContain("subject_id=eng-1");
+      expect(screen.getByText(messages.complaints.reportHint)).toBeTruthy();
     });
 
-    it("yalnız user.id engagement.talent_id ile aynıysa (talent profili farklı) bağlantı görünmez", async () => {
-      sessionAs("talent-1", "talent-2");
-      vi.mocked(getEngagement).mockResolvedValueOnce({ ...baseEngagement, status: "PENDING_APPROVAL" });
+    it("öğrenci (SUBJECT) yanıtsız değerlendirmede kuruluşa şikayet bağlantısını görür", async () => {
+      vi.mocked(getEngagement).mockResolvedValueOnce({ ...baseEngagement, status: "PENDING_EVALUATION" });
+
+      renderWithQueryClient(<CalismaDetayPage />);
+
+      const link = await screen.findByRole("link", { name: messages.complaints.reportAction });
+      expect(link.getAttribute("href")).toBe("/sikayetlerim/yeni?subject_type=ENGAGEMENT&subject_id=eng-1");
+      expect(screen.getByText(messages.complaints.reportHintEvaluation)).toBeTruthy();
+    });
+
+    it.each(["PENDING_APPROVAL", "PENDING_EVALUATION"] as const)(
+      "öğrenci olmayan izleyici (ORG_ADMIN) %s durumunda bağlantıyı görmez",
+      async (status) => {
+        vi.mocked(getEngagement).mockResolvedValueOnce({ ...baseEngagement, status, viewer: orgAdminViewer });
+
+        renderWithQueryClient(<CalismaDetayPage />);
+
+        await waitFor(() => {
+          expect(screen.getByText("Yaz Kısa Projesi")).toBeTruthy();
+        });
+        expect(reportLink()).toBeNull();
+      }
+    );
+
+    it("bekleyen olmayan durumda (ACTIVE) öğrenci bağlantıyı görmez", async () => {
+      vi.mocked(getEngagement).mockResolvedValueOnce(baseEngagement);
 
       renderWithQueryClient(<CalismaDetayPage />);
 
       await waitFor(() => {
         expect(screen.getByText("Yaz Kısa Projesi")).toBeTruthy();
       });
-      expect(screen.queryByRole("link", { name: messages.complaints.reportAction })).toBeNull();
+      expect(reportLink()).toBeNull();
     });
   });
 });

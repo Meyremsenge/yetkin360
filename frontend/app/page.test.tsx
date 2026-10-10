@@ -29,9 +29,9 @@ describe("Home (Landing) Page", () => {
       expect(screen.getByText("Doğrulanmış Deneyim")).toBeTruthy();
     });
 
-    it("AC-1: 3 persona kartı ('Öğrenci', 'Kuruluş', 'Kurum') DOM'da bulunmalı", () => {
+    it("AC-1: 3 persona kartı ('Bireysel', 'Kuruluş', 'Kurum') DOM'da bulunmalı", () => {
       render(<Home />);
-      expect(screen.getByText("Öğrenci")).toBeTruthy();
+      expect(screen.getByText("Bireysel")).toBeTruthy();
       expect(screen.getByText("Kuruluş")).toBeTruthy();
       expect(screen.getByText("Kurum")).toBeTruthy();
     });
@@ -46,7 +46,7 @@ describe("Home (Landing) Page", () => {
       const header = container.querySelector("header");
       const h1 = container.querySelector("h1");
       const chainStart = screen.getByText("Beyan");
-      const persona = screen.getByText("Öğrenci");
+      const persona = screen.getByText("Bireysel");
       const footer = container.querySelector("footer");
 
       expect(header).not.toBeNull();

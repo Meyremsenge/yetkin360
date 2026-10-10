@@ -19,6 +19,8 @@ export interface Organization {
   verification_level: string; // "T1" | "T2" | "T3" | "T4"
   verified_at?: string | null;
   created_at: string;
+  /** C7 damga: upheld complaints; only the verification queue returns it. */
+  upheld_complaint_count?: number | null;
 }
 
 /** Pagination envelope shared by the three admin list endpoints. */

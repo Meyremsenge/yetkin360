@@ -8,10 +8,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_principal, get_session, get_verified_principal
+from app.api.deps import get_current_principal, get_current_user, get_session, get_verified_principal
 from app.core.deps import require_csrf
 from app.core.errors import ApiError
-from app.models import Engagement
+from app.models import Engagement, User
 from app.schemas.certificate_check import CertificateCheckListResponse, CertificateCheckResponse
 from app.services.authorization import Principal, get_scoped_or_404, scoped_engagements
 from app.services.certificate_check import list_certificate_checks_for_engagement
@@ -33,7 +33,9 @@ from app.services.engagement import (
     transition_engagement,
     create_engagement_task,
     create_deliverable,
+    engagement_supervisor_summary,
     verify_engagement_task,
+    viewer_capabilities,
 )
 from app.services.evaluation import (
     EngagementNotFoundError as EvalEngagementNotFoundError,
@@ -69,6 +71,9 @@ class PostEngagementRequest(BaseModel):
     title: str = Field(..., min_length=1, description="Engagement title")
     institution_id: str | None = Field(None, description="Optional UUID of institution")
     confidential: bool = Field(False, description="Whether engagement is confidential")
+    supervisor_user_id: str | None = Field(
+        None, description="Optional approver: an active member of the organization (SPRINT D1)"
+    )
 
     class Config:
         from_attributes = True
@@ -259,6 +264,9 @@ class EngagementSummaryResponse(BaseModel):
     # lists engagements by student.
     talent_id: str
     talent_name: str
+    # SPRINT D1
+    institution_name: str | None = None
+    supervisor_user_id: str | None = None
 
     class Config:
         from_attributes = True
@@ -271,6 +279,31 @@ class EngagementListResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class EngagementViewerResponse(BaseModel):
+    """
+    SPRINT A: what the caller may do on this engagement (mirrors the write endpoints).
+
+    Describes only the caller; computed only after the engagement is proven in scope.
+    """
+
+    relation: Literal["SUBJECT", "ORG_ADMIN", "ORG_MEMBER", "COORDINATOR", "INSTITUTION_ADMIN", "OBSERVER"]
+    allowed_transitions: list[str]
+    reason_required: list[str]
+    can_add_task: bool
+    can_add_deliverable: bool
+    can_evaluate: bool
+    can_attest: bool
+    attest_blocker: Literal["ORG_NOT_VERIFIED"] | None
+
+
+class EngagementSupervisorResponse(BaseModel):
+    """SPRINT D1: the engagement's approver — name and unit only, never the e-mail."""
+
+    user_id: str
+    display_name: str
+    unit: str | None
 
 
 class EngagementDetailResponse(BaseModel):
@@ -296,6 +329,9 @@ class EngagementDetailResponse(BaseModel):
     tasks: list[TaskSummaryResponse]
     deliverables: list[DeliverableSummaryResponse]
     attestations: list[AttestationSummaryResponse]
+
+    viewer: EngagementViewerResponse
+    supervisor: EngagementSupervisorResponse | None = None
 
     class Config:
         from_attributes = True
@@ -352,6 +388,7 @@ def post_engagements(
             title=payload.title,
             institution_id=payload.institution_id,
             confidential=payload.confidential,
+            supervisor_user_id=payload.supervisor_user_id,
         )
     except (TalentNotFoundError, OrganizationNotFoundError, InstitutionMismatchError):
         # GUV-08: All "not found" cases return 404 with NOT_FOUND code (oracle closed)
@@ -391,6 +428,8 @@ def post_engagements(
 def get_engagements(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    assigned: Literal["me"] | None = Query(None),
+    organization_id: uuid.UUID | None = Query(None),
     principal: Principal = Depends(get_current_principal),
     session: Session = Depends(get_session),
 ) -> EngagementListResponse:
@@ -415,6 +454,8 @@ def get_engagements(
         - AC-2: Tenant isolation via scoped_engagements()
         - AC-7: Empty scope returns 200 {"items": []}, not 404
         - AC-8: Pagination with limit/offset (offset/limit from query params)
+        - SPRINT D1: assigned=me / organization_id only narrow the scoped list;
+          an organization outside scope gives 200 {"items": []}, never 404
     """
     if principal.user_id is None:
         raise HTTPException(
@@ -434,6 +475,8 @@ def get_engagements(
         principal=principal,
         limit=limit,
         offset=offset,
+        assigned_to_me=assigned == "me",
+        organization_id=organization_id,
     )
 
     # Build response items
@@ -450,8 +493,10 @@ def get_engagements(
             updated_at=eng.updated_at,
             talent_id=str(eng.talent_id),
             talent_name=talent_name,
+            institution_name=institution_name,
+            supervisor_user_id=str(eng.supervisor_user_id) if eng.supervisor_user_id else None,
         )
-        for eng, org_name, talent_name in engagement_tuples
+        for eng, org_name, talent_name, institution_name in engagement_tuples
     ]
 
     return EngagementListResponse(items=items)
@@ -466,6 +511,7 @@ def get_engagements(
 def get_engagement_detail(
     engagement_id: str,
     principal: Principal = Depends(get_current_principal),
+    user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> EngagementDetailResponse:
     """
@@ -507,6 +553,11 @@ def get_engagement_detail(
             principal=principal,
             engagement_id=engagement_id,
         )
+        # Engagement is in scope at this point; viewer describes only the caller.
+        viewer = viewer_capabilities(
+            session, principal, engagement, email_verified=user.email_verified_at is not None
+        )
+        supervisor = engagement_supervisor_summary(session, engagement)
 
         # Build response
         return EngagementDetailResponse(
@@ -551,6 +602,16 @@ def get_engagement_detail(
                 )
                 for att in attestations
             ],
+            viewer=EngagementViewerResponse(**viewer),
+            supervisor=(
+                EngagementSupervisorResponse(
+                    user_id=str(supervisor["user_id"]),
+                    display_name=supervisor["display_name"],
+                    unit=supervisor["unit"],
+                )
+                if supervisor
+                else None
+            ),
         )
 
     except EngagementNotFoundError:

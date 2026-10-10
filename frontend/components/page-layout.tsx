@@ -56,7 +56,8 @@ export function PageHeader({
               <div className="mt-2 text-[15px] leading-6 text-muted-foreground">{description}</div>
             ) : null}
           </div>
-          {actions ? <div className="flex shrink-0 flex-wrap items-center gap-3">{actions}</div> : null}
+          {/* Phone width: may shrink so several actions wrap instead of running off-screen. */}
+          {actions ? <div className="flex max-w-full flex-wrap items-center gap-3 sm:shrink-0">{actions}</div> : null}
         </div>
         {children ? <div className="mt-6">{children}</div> : null}
       </div>

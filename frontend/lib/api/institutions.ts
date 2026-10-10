@@ -41,6 +41,11 @@ export interface PendingItem {
   title: string;
   started_on?: string | null;
   ended_on?: string | null;
+  talent_full_name: string;
+  organization_name: string;
+  kind: string;
+  /** Optimistic-lock version; sent back with an inline approve/reject transition. */
+  version: number;
 }
 
 export interface DashboardMemberItem {
@@ -55,10 +60,15 @@ export interface DashboardResponse {
   summary: {
     pending_approval: number;
     pending_evaluation: number;
+    pending_attestation?: number;
   };
   pending_approval: PendingItem[];
   pending_evaluation: PendingItem[];
+  /** Engagements in EVALUATED: waiting for the attestation. */
+  pending_attestation?: PendingItem[];
   members: DashboardMemberItem[];
+  /** C7 damga: haklı bulunan şikayet sayısı; yok/null/0 ise rozet gösterilmez. */
+  upheld_complaint_count?: number | null;
 }
 
 /**
@@ -156,4 +166,54 @@ export async function createReminders(
     method: "POST",
     body: { engagement_ids: engagementIds, template },
   });
+}
+
+export interface InstitutionStudentItem {
+  talent_profile_id: string;
+  full_name: string;
+  department: string | null;
+  study_year: number | null;
+  /** Only set when the student's profile is PUBLIC. */
+  public_slug: string | null;
+  verified_count: number;
+  in_progress_count: number;
+  total_count: number;
+}
+
+/**
+ * Students linked to the institution (approved link, profile not PRIVATE) with their
+ * engagement counts for this institution. Coordinator/Admin only; others get 404.
+ */
+export async function listInstitutionStudents(
+  institutionId: string
+): Promise<{ items: InstitutionStudentItem[] } | undefined> {
+  return apiFetch<{ items: InstitutionStudentItem[] }>(`/institutions/${institutionId}/students`);
+}
+
+export interface InstitutionPartnerItem {
+  organization_id: string;
+  organization_name: string;
+  verification_level: string;
+  student_count: number;
+  engagement_count: number;
+  verified_count: number;
+}
+
+/**
+ * Organizations the institution's students work with. Any institution member may call;
+ * others get 404.
+ */
+export async function listInstitutionPartners(
+  institutionId: string
+): Promise<{ items: InstitutionPartnerItem[] } | undefined> {
+  return apiFetch<{ items: InstitutionPartnerItem[] }>(`/institutions/${institutionId}/partners`);
+}
+
+/**
+ * Download URL of the CSV report (UTF-8 BOM, ';' delimiter). Plain link: the browser sends
+ * the auth cookie; the server answers 404 for non-members.
+ */
+export function reportCsvUrl(institutionId: string): string {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+  return `${base}/institutions/${encodeURIComponent(institutionId)}/report.csv`;
 }

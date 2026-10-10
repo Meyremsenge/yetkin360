@@ -24,8 +24,9 @@ function downgradeReasonLabel(reason: string): string {
  * YET-202/ENT-01: Engagement EVALUATED durumundayken tanıklık (attestation) verir —
  * STATE_MACHINE.md T8 (EVALUATED → VERIFIED), zincirin kilit taşı.
  *
- * Sadece COORDINATOR (institution_id varsa) / ORG_ADMIN (yoksa) çağırabilir — backend
- * 403/404 döner, burada rol kontrolü yapılmaz (transition-actions.tsx'teki felsefeyle aynı).
+ * Sadece COORDINATOR (institution_id varsa) / ORG_ADMIN (yoksa) mühürleyebilir; form
+ * yalnız sunucunun `viewer.can_attest` dediği kullanıcıya görünür (SPRINT A).
+ * `viewer.attest_blocker` yalnız bilgidir: mühür yine verilir, kayıt katılıma düşer.
  *
  * downgrade_reasons dolu bir 201 yanıtı HATA DEĞİLDİR (COMPETENCE istenip PARTICIPATION
  * kaydedilmiş olabilir) — başarı mesajı olarak gösterilir.
@@ -94,7 +95,7 @@ export function AttestationForm({
 
   // transition-actions.tsx'teki desenle aynı: mesaj gösterilmeden status değişip
   // bileşen kaybolmasın.
-  if (engagement.status !== "EVALUATED" && !formError && !successMessage) {
+  if (!engagement.viewer.can_attest && !formError && !successMessage) {
     return null;
   }
 
@@ -106,8 +107,14 @@ export function AttestationForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="mt-4 border-t border-border pt-4">
+    // id: panels link "Mühürle" straight here (/calismalar/{id}#taniklik, ASCII anchor).
+    <form id="taniklik" onSubmit={handleSubmit} className="mt-4 scroll-mt-6 border-t border-border pt-4">
       <h3 className="text-sm font-bold mb-3">{messages.calismalar.attestationTitle}</h3>
+      {engagement.viewer.attest_blocker && (
+        <p className="mb-3 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+          {messages.calismalar.attestBlocker[engagement.viewer.attest_blocker]}
+        </p>
+      )}
 
       <div className="mb-3 max-w-xs">
         <Label htmlFor="attestation-claim-type">{messages.calismalar.attestationClaimTypeLabel}</Label>

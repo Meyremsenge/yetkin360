@@ -9,6 +9,8 @@ import {
   inviteMember,
   createReminders,
   createInstitution,
+  listInstitutionPartners,
+  reportCsvUrl,
 } from "./institutions";
 import * as client from "./client";
 import { ApiError, NetworkError } from "./errors";
@@ -565,5 +567,49 @@ describe("lib/api/institutions", () => {
 
       await expect(createInstitution("x")).rejects.toBeInstanceOf(NetworkError);
     });
+  });
+});
+
+describe("listInstitutionPartners", () => {
+  beforeEach(() => {
+    mockApiFetch.mockReset();
+  });
+
+  it("GETs /institutions/{id}/partners and returns items", async () => {
+    const payload = {
+      items: [
+        {
+          organization_id: "org-1",
+          organization_name: "Şişli Yazılım",
+          verification_level: "T1",
+          student_count: 2,
+          engagement_count: 3,
+          verified_count: 1,
+        },
+      ],
+    };
+    mockApiFetch.mockResolvedValueOnce(payload);
+
+    const result = await listInstitutionPartners("inst-1");
+
+    expect(mockApiFetch).toHaveBeenCalledWith("/institutions/inst-1/partners");
+    expect(result).toEqual(payload);
+  });
+
+  it("propagates 404 for non-members", async () => {
+    mockApiFetch.mockRejectedValueOnce(
+      new ApiError({ status: 404, code: "NOT_FOUND", message: "Kurum bulunamadı.", requestId: null })
+    );
+    await expect(listInstitutionPartners("inst-x")).rejects.toThrow(ApiError);
+  });
+});
+
+describe("reportCsvUrl", () => {
+  it("points at the report.csv endpoint of the institution", () => {
+    expect(reportCsvUrl("inst-1")).toMatch(/\/institutions\/inst-1\/report\.csv$/);
+  });
+
+  it("encodes the id", () => {
+    expect(reportCsvUrl("a/b")).toContain("/institutions/a%2Fb/report.csv");
   });
 });

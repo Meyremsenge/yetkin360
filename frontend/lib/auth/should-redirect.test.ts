@@ -129,6 +129,15 @@ describe("shouldRedirect", () => {
       expect(shouldRedirect("/p/some-slug", ["access_token"])).toBeNull();
     });
 
+    it("SPRINT G: allows `/o/{id}` (organization showcase) without cookies", () => {
+      expect(shouldRedirect("/o/0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b", [])).toBeNull();
+      expect(shouldRedirect("/o", [])).toBeNull();
+    });
+
+    it("SPRINT G: `/o/` prefix does not make other `/o…` paths public", () => {
+      expect(shouldRedirect("/ozel", [])).toBe(buildLoginUrl("/ozel"));
+    });
+
     it("AC-6: `/v/{token}` remains public even when cookie is present", () => {
       // Public routes should not be redirected regardless of cookies
       expect(shouldRedirect("/v/some-token-abc123", ["csrf_token"])).toBeNull();

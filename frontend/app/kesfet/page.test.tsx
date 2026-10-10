@@ -348,17 +348,21 @@ describe("KesfetPage (/kesfet)", () => {
       expect(within(card).getByText(messages.kurulusSec.verificationLevel.T2)).toBeTruthy();
     });
 
-    it("öğrenci profili olmayan kullanıcıya çalışma başlat linki göstermez", async () => {
+    it("kart kuruluş vitrinine gider, çalışma başlat linki yoktur", async () => {
       const card = await openOrganizations();
-      expect(within(card).queryByRole("link")).toBeNull();
+      const links = within(card).getAllByRole("link");
+      expect(links).toHaveLength(1);
+      expect(links[0].getAttribute("href")).toBe("/o/org-1");
+      expect(links[0].getAttribute("aria-label")).toBe(
+        messages.orgShowcase.viewShowcaseOf.replace("{name}", "Acme A.Ş.")
+      );
     });
 
-    it("öğrenciye çalışma başlat linki mevcut oluşturma akışına gider", async () => {
+    it("öğrenciye de çalışma başlat linki göstermez (profilde ve Çalışmalarım'da var)", async () => {
       mockSession({ id: "talent-1" });
       const card = await openOrganizations();
-      expect(
-        within(card).getByRole("link", { name: "Acme A.Ş. ile çalışma başlat" }).getAttribute("href")
-      ).toBe("/calismalar/olustur?organization_id=org-1");
+      expect(within(card).queryByRole("link", { name: /çalışma başlat/i })).toBeNull();
+      expect(within(card).getByRole("link").getAttribute("href")).toBe("/o/org-1");
     });
 
     it("kuruluş yoksa boş durum gösterir", async () => {

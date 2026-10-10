@@ -5,7 +5,9 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useMutation } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
-import { Button } from "@/components/ui/button";
+import { PageBody, PageHeader } from "@/components/page-layout";
+import { FormLayout, PanelIcon, StepsCard, actionClass } from "@/components/panel-kit";
+import { Alert } from "@/components/ui/alert";
 import { requestInstitutionLink } from "@/lib/api/institutions";
 import { ApiError, NetworkError } from "@/lib/api/errors";
 import messages from "@/messages/tr.json";
@@ -45,42 +47,95 @@ export default function KurumBaglanPage() {
     },
   });
 
+  const t = messages.kurumBaglan;
+  const backLink = (
+    <Link href="/profil" className="font-medium underline underline-offset-4">
+      {t.successBackLink}
+    </Link>
+  );
+
   return (
     <AppShell>
-      <div className="p-6 max-w-md mx-auto">
-        <h1 className="text-2xl font-bold mb-6">{messages.kurumBaglan.title}</h1>
-
-        {submitted ? (
-          <div
-            role="status"
-            aria-live="polite"
-            className="rounded-md bg-green-50 border border-green-200 p-4 text-sm text-green-700"
-          >
-            <div className="mb-3">{messages.kurumBaglan.successMessage}</div>
-            <Link href="/profil" className="underline font-medium">
-              {messages.kurumBaglan.successBackLink}
-            </Link>
-          </div>
-        ) : (
-          <>
-            <p className="text-slate-700 mb-6">{messages.kurumBaglan.confirmMessage}</p>
-
-            {errorMessage && (
+      <PageHeader eyebrow={t.eyebrow} title={t.title} description={t.pageDescription} />
+      <PageBody>
+        <FormLayout
+          form={
+            submitted ? (
               <div
-                role="alert"
+                role="status"
                 aria-live="polite"
-                className="mb-4 rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-600"
+                className="flex items-start gap-3 rounded-lg border border-success/30 bg-success/10 p-4 text-sm text-success"
               >
-                {errorMessage}
+                <PanelIcon name="check" className="mt-0.5 h-5 w-5 shrink-0" />
+                <div>
+                  <p className="mb-2 font-medium">{t.successMessage}</p>
+                  {backLink}
+                </div>
               </div>
-            )}
+            ) : (
+              <>
+                <p className="text-[15px] leading-6 text-foreground">{t.confirmMessage}</p>
 
-            <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-              {mutation.isPending ? messages.kurumBaglan.submittingButton : messages.kurumBaglan.submitButton}
-            </Button>
-          </>
-        )}
-      </div>
+                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-lg border border-border bg-background p-4">
+                    <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                      <PanelIcon name="landmark" className="h-4 w-4 text-success" />
+                      {t.sharesTitle}
+                    </p>
+                    <ul className="mt-2 space-y-1.5 text-[13px] text-muted-foreground">
+                      {t.sharesItems.map((item) => (
+                        <li key={item} className="flex gap-2">
+                          <span aria-hidden="true" className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-success" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="rounded-lg border border-border bg-background p-4">
+                    <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                      <PanelIcon name="lock" className="h-4 w-4 text-muted-foreground" />
+                      {t.notSharedTitle}
+                    </p>
+                    <ul className="mt-2 space-y-1.5 text-[13px] text-muted-foreground">
+                      {t.notSharedItems.map((item) => (
+                        <li key={item} className="flex gap-2">
+                          <span aria-hidden="true" className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+                <p className="mt-3 text-[13px] text-muted-foreground">{t.privateNote}</p>
+
+                {errorMessage ? (
+                  <Alert variant="error" className="mt-5 text-sm">
+                    {errorMessage}
+                  </Alert>
+                ) : null}
+
+                <div className="mt-6 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => mutation.mutate()}
+                    disabled={mutation.isPending}
+                    className={actionClass.primary}
+                  >
+                    {mutation.isPending ? t.submittingButton : t.submitButton}
+                  </button>
+                  <Link
+                    href="/profil"
+                    className="inline-flex h-10 items-center rounded-md px-4 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success"
+                  >
+                    {t.cancelButton}
+                  </Link>
+                </div>
+              </>
+            )
+          }
+          aside={<StepsCard title={t.stepsTitle} steps={t.steps} />}
+        />
+      </PageBody>
     </AppShell>
   );
 }

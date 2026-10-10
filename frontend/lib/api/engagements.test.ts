@@ -1,13 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
-  availableTransitions,
-  isReasonRequired,
   listEngagements,
   getEngagement,
   transitionEngagement,
   createEngagement,
 } from "./engagements";
 import type { EngagementDetail, EngagementStatus, EngagementSummary } from "./engagements";
+import { makeViewer } from "./engagements.fixtures";
 import * as client from "./client";
 import { ApiError } from "./errors";
 
@@ -26,63 +25,23 @@ describe("lib/api/engagements", () => {
     vi.clearAllMocks();
   });
 
-  describe("availableTransitions", () => {
-    it("DRAFT için sadece PENDING_APPROVAL adaydır (institution_id belirtilmezse/varsa)", () => {
-      expect(availableTransitions("DRAFT")).toEqual(["PENDING_APPROVAL"]);
-      expect(availableTransitions("DRAFT", "inst-1")).toEqual(["PENDING_APPROVAL"]);
-    });
-
-    it("DRAFT + institution_id=null (doğrudan kuruluş engagement'ı) için tek aday ACTIVE'dir", () => {
-      // app/services/engagement.py:313-324 — PENDING_APPROVAL'ın institution_id_not_null
-      // ön koşulu bu durumda her zaman reddeder (422); öğrenci bunun yerine
-      // doğrudan ACTIVE'e geçebilir (rel.is_subject and institution_id is None).
-      expect(availableTransitions("DRAFT", null)).toEqual(["ACTIVE"]);
-    });
-
-    it("PENDING_APPROVAL için ACTIVE ve REJECTED adaydır", () => {
-      expect(availableTransitions("PENDING_APPROVAL")).toEqual(["ACTIVE", "REJECTED"]);
-    });
-
-    it("ACTIVE için CANCELLED ve PENDING_EVALUATION adaydır", () => {
-      expect(availableTransitions("ACTIVE")).toEqual(["CANCELLED", "PENDING_EVALUATION"]);
-    });
-
-    it("REJECTED/CANCELLED/PENDING_EVALUATION terminaldir (aday yok)", () => {
-      expect(availableTransitions("REJECTED")).toEqual([]);
-      expect(availableTransitions("CANCELLED")).toEqual([]);
-      expect(availableTransitions("PENDING_EVALUATION")).toEqual([]);
-    });
-
-    it("EVALUATED/VERIFIED/DISPUTED/RESOLVED için genel /transitions ucundan aday yok (YET-194/IS-04)", () => {
-      // EVALUATED: sistem tarafından otomatik tetiklenir (değerlendirme gönderimi).
-      // VERIFIED: ayrı bir uçtan yapılır (POST .../attestations), /transitions değil.
-      // DISPUTED/RESOLVED: docs/STATE_MACHINE.md §7 — backend'de hiç gerçeklenmemiş.
-      // Üçü de bu yüzden burada [] döner; UI'da yanlış bir geçiş düğmesi oluşmasın.
-      expect(availableTransitions("EVALUATED")).toEqual([]);
-      expect(availableTransitions("VERIFIED")).toEqual([]);
-      expect(availableTransitions("DISPUTED")).toEqual([]);
-      expect(availableTransitions("RESOLVED")).toEqual([]);
-    });
-  });
-
-  describe("isReasonRequired", () => {
-    it("REJECTED ve CANCELLED için gerekçe zorunludur", () => {
-      expect(isReasonRequired("REJECTED")).toBe(true);
-      expect(isReasonRequired("CANCELLED")).toBe(true);
-    });
-
-    it("ACTIVE/PENDING_APPROVAL/PENDING_EVALUATION için gerekçe zorunlu değildir", () => {
-      expect(isReasonRequired("ACTIVE")).toBe(false);
-      expect(isReasonRequired("PENDING_APPROVAL")).toBe(false);
-      expect(isReasonRequired("PENDING_EVALUATION")).toBe(false);
-    });
-  });
-
   /**
    * AC-1: listEngagements → apiFetch("/engagements") çağrısı yapılır
    * Dönen değer AYNEN response'u yansıtır.
    */
   describe("listEngagements (apiFetch mock)", () => {
+    it("SPRINT D1: assigned/organizationId/limit sorgu parametresine çevrilir", async () => {
+      mockApiFetch.mockResolvedValueOnce({ items: [] });
+      await listEngagements({ assigned: "me", organizationId: "org-9", limit: 20 });
+      expect(mockApiFetch).toHaveBeenCalledWith("/engagements?assigned=me&organization_id=org-9&limit=20");
+    });
+
+    it("SPRINT D1: React Query bağlamıyla çağrılınca bağlam yok sayılır", async () => {
+      mockApiFetch.mockResolvedValueOnce({ items: [] });
+      await listEngagements({ queryKey: ["engagements"], signal: new AbortController().signal });
+      expect(mockApiFetch).toHaveBeenCalledWith("/engagements");
+    });
+
     it("AC-1: apiFetch('/engagements') çağrılır ve {items: [...]} döner", async () => {
       const mockResponse: { items: EngagementSummary[] } = {
         items: [
@@ -178,6 +137,8 @@ describe("lib/api/engagements", () => {
   describe("getEngagement (apiFetch mock)", () => {
     it("AC-4: apiFetch('/engagements/{id}') çağrılır, tasks/deliverables dahil döner", async () => {
       const mockDetail: EngagementDetail = {
+        viewer: makeViewer(),
+        supervisor: null,
         id: "eng-1",
         title: "Frontend Staj",
         kind: "INTERNSHIP",
@@ -226,6 +187,8 @@ describe("lib/api/engagements", () => {
 
     it("AC-4: Detay response'u tüm alanları içerir", async () => {
       const mockDetail: EngagementDetail = {
+        viewer: makeViewer(),
+        supervisor: null,
         id: "eng-2",
         title: "Backend Projesi",
         kind: "CAPSTONE",
@@ -329,6 +292,8 @@ describe("lib/api/engagements", () => {
   describe("transitionEngagement (apiFetch mock)", () => {
     it("AC-8: apiFetch('/engagements/{id}/transitions') POST çağrısı yapılır, updated detail döner", async () => {
       const updatedDetail: EngagementDetail = {
+        viewer: makeViewer(),
+        supervisor: null,
         id: "eng-1",
         title: "Frontend Staj",
         kind: "INTERNSHIP",
@@ -369,6 +334,8 @@ describe("lib/api/engagements", () => {
 
     it("AC-8: reason alanı ile geçiş (CANCELLED) başarılı olur", async () => {
       const cancelledDetail: EngagementDetail = {
+        viewer: makeViewer(),
+        supervisor: null,
         id: "eng-2",
         title: "Backend Projesi",
         kind: "CAPSTONE",

@@ -12,6 +12,8 @@ import {
   rejectLinkRequest,
   inviteMember,
   createReminders,
+  listInstitutionStudents,
+  listInstitutionPartners,
 } from "@/lib/api/institutions";
 import { ApiError, NetworkError, SessionExpiredError } from "@/lib/api/errors";
 
@@ -31,6 +33,8 @@ vi.mock("@/lib/api/institutions", async (importOriginal) => {
     rejectLinkRequest: vi.fn(),
     inviteMember: vi.fn(),
     createReminders: vi.fn(),
+    listInstitutionStudents: vi.fn(),
+    listInstitutionPartners: vi.fn(),
   };
 });
 
@@ -68,6 +72,10 @@ const validDashboardData = {
       id: "eng-1",
       talent_id: "talent-1",
       organization_id: "org-1",
+      talent_full_name: "Öğrenci 1",
+      organization_name: "Kuruluş 1",
+      kind: "INTERNSHIP",
+      version: 1,
       title: "Yazılım Geliştirme Stajı",
       started_on: "2026-09-01",
     },
@@ -75,6 +83,10 @@ const validDashboardData = {
       id: "eng-2",
       talent_id: "talent-2",
       organization_id: "org-2",
+      talent_full_name: "Öğrenci 2",
+      organization_name: "Kuruluş 2",
+      kind: "INTERNSHIP",
+      version: 1,
       title: "Veri Analiz Projesi",
       started_on: "2026-09-05",
     },
@@ -82,6 +94,10 @@ const validDashboardData = {
       id: "eng-3",
       talent_id: "talent-3",
       organization_id: "org-1",
+      talent_full_name: "Öğrenci 3",
+      organization_name: "Kuruluş 1",
+      kind: "INTERNSHIP",
+      version: 1,
       title: "Sistem Admin Stajı",
       started_on: "2026-09-10",
     },
@@ -91,6 +107,10 @@ const validDashboardData = {
       id: "eng-4",
       talent_id: "talent-4",
       organization_id: "org-3",
+      talent_full_name: "Öğrenci 4",
+      organization_name: "Kuruluş 3",
+      kind: "INTERNSHIP",
+      version: 1,
       title: "Ürün Tasarım Projesi",
       ended_on: "2026-08-15",
     },
@@ -98,6 +118,10 @@ const validDashboardData = {
       id: "eng-5",
       talent_id: "talent-5",
       organization_id: "org-1",
+      talent_full_name: "Öğrenci 5",
+      organization_name: "Kuruluş 1",
+      kind: "INTERNSHIP",
+      version: 1,
       title: "Finans Analizi",
       ended_on: "2026-08-20",
     },
@@ -105,6 +129,10 @@ const validDashboardData = {
       id: "eng-6",
       talent_id: "talent-6",
       organization_id: "org-2",
+      talent_full_name: "Öğrenci 6",
+      organization_name: "Kuruluş 2",
+      kind: "INTERNSHIP",
+      version: 1,
       title: "Pazarlama Araştırması",
       ended_on: "2026-08-25",
     },
@@ -112,6 +140,10 @@ const validDashboardData = {
       id: "eng-7",
       talent_id: "talent-7",
       organization_id: "org-4",
+      talent_full_name: "Öğrenci 7",
+      organization_name: "Kuruluş 4",
+      kind: "INTERNSHIP",
+      version: 1,
       title: "İnsan Kaynakları",
       ended_on: "2026-08-28",
     },
@@ -119,6 +151,10 @@ const validDashboardData = {
       id: "eng-8",
       talent_id: "talent-8",
       organization_id: "org-1",
+      talent_full_name: "Öğrenci 8",
+      organization_name: "Kuruluş 1",
+      kind: "INTERNSHIP",
+      version: 1,
       title: "Muhasebe Stajı",
       ended_on: "2026-09-01",
     },
@@ -126,6 +162,10 @@ const validDashboardData = {
       id: "eng-9",
       talent_id: "talent-9",
       organization_id: "org-3",
+      talent_full_name: "Öğrenci 9",
+      organization_name: "Kuruluş 3",
+      kind: "INTERNSHIP",
+      version: 1,
       title: "İş Analiz",
       ended_on: "2026-09-05",
     },
@@ -133,6 +173,10 @@ const validDashboardData = {
       id: "eng-10",
       talent_id: "talent-10",
       organization_id: "org-2",
+      talent_full_name: "Öğrenci 10",
+      organization_name: "Kuruluş 2",
+      kind: "INTERNSHIP",
+      version: 1,
       title: "Yazılım Test",
       ended_on: "2026-09-08",
     },
@@ -154,6 +198,8 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
     vi.mocked(useSession).mockReturnValue(mockSession as unknown as ReturnType<typeof useSession>);
     // YET-197/IS-10: default to an empty pending-link-requests list unless a test overrides it.
     vi.mocked(listPendingLinkRequests).mockResolvedValue({ items: [] });
+    vi.mocked(listInstitutionStudents).mockResolvedValue({ items: [] });
+    vi.mocked(listInstitutionPartners).mockResolvedValue({ items: [] });
   });
 
   afterEach(() => {
@@ -172,8 +218,9 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
     renderWithQueryClient(<KurumPanelPage />);
 
     await waitFor(() => {
-      // Sayaç 1: Onay bekleyen (3)
-      expect(screen.getByText("3")).toBeTruthy();
+      // Sayaç 1: Onay bekleyen (3) — the section header repeats the count, so read the tile
+      const approvalTile = document.querySelector('a[href="#onay-bekleyen"]') as HTMLElement;
+      expect(within(approvalTile).getByText("3")).toBeTruthy();
       // Sayaç 2: Değerlendirme bekleyen (7)
       expect(screen.getByText("7")).toBeTruthy();
 
@@ -186,6 +233,23 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
       expect(screen.getByText("Ürün Tasarım Projesi")).toBeTruthy();
       expect(screen.getByText("Finans Analizi")).toBeTruthy();
     });
+  });
+
+  it("AC-S13: haklı bulunan şikayet varsa başlıkta sayı rozeti gösterilir", async () => {
+    vi.mocked(getCoordinatorDashboard).mockResolvedValueOnce({ ...validDashboardData, upheld_complaint_count: 2 });
+
+    renderWithQueryClient(<KurumPanelPage />);
+
+    expect(await screen.findByText("2 doğrulama talebini yanıtsız bıraktı")).toBeTruthy();
+  });
+
+  it("AC-S13: haklı bulunan şikayet yoksa rozet gösterilmez", async () => {
+    vi.mocked(getCoordinatorDashboard).mockResolvedValueOnce({ ...validDashboardData, upheld_complaint_count: 0 });
+
+    renderWithQueryClient(<KurumPanelPage />);
+
+    await screen.findByText("Yazılım Geliştirme Stajı");
+    expect(screen.queryByText(/doğrulama talebini yanıtsız bıraktı/)).toBeNull();
   });
 
   /**
@@ -345,6 +409,10 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
           id: "eng-20",
           talent_id: "talent-20",
           organization_id: "org-20",
+          talent_full_name: "Öğrenci 20",
+          organization_name: "Kuruluş 20",
+          kind: "INTERNSHIP",
+          version: 1,
           title: "Farklı Kurum Stajı",
           started_on: "2026-09-15",
         },
@@ -386,6 +454,10 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
           id: "eng-xss",
           talent_id: "t-xss",
           organization_id: "o-xss",
+          talent_full_name: "<img src=x onerror=alert(1)>",
+          organization_name: "Kuruluş xss",
+          kind: "INTERNSHIP",
+          version: 1,
           title: "<script>alert('xss')</script> Stajı",
           started_on: "2026-09-01",
         },
@@ -475,8 +547,8 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
 
       await waitFor(() => {
         expect(screen.getByText("Ayşe Yılmaz")).toBeTruthy();
-        expect(screen.getByText("Onayla")).toBeTruthy();
-        expect(screen.getByText("Reddet")).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Onayla" })).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Reddet" })).toBeTruthy();
       });
     });
 
@@ -503,8 +575,8 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
 
       renderWithQueryClient(<KurumPanelPage />);
 
-      await waitFor(() => expect(screen.getByText("Onayla")).toBeTruthy());
-      await user.click(screen.getByText("Onayla"));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Onayla" })).toBeTruthy());
+      await user.click(screen.getByRole("button", { name: "Onayla" }));
 
       await waitFor(() => {
         expect(approveLinkRequest).toHaveBeenCalledWith("inst-1", "req-1");
@@ -524,8 +596,8 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
 
       renderWithQueryClient(<KurumPanelPage />);
 
-      await waitFor(() => expect(screen.getByText("Reddet")).toBeTruthy());
-      await user.click(screen.getByText("Reddet"));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Reddet" })).toBeTruthy());
+      await user.click(screen.getByRole("button", { name: "Reddet" }));
 
       await waitFor(() => {
         expect(rejectLinkRequest).toHaveBeenCalledWith("inst-1", "req-1");
@@ -545,8 +617,8 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
 
       renderWithQueryClient(<KurumPanelPage />);
 
-      await waitFor(() => expect(screen.getByText("Onayla")).toBeTruthy());
-      await user.click(screen.getByText("Onayla"));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Onayla" })).toBeTruthy());
+      await user.click(screen.getByRole("button", { name: "Onayla" }));
 
       await waitFor(() => {
         expect(screen.getByText("İşlem sırasında bir hata oluştu.")).toBeTruthy();
@@ -709,6 +781,56 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
       await waitFor(() => {
         expect(screen.getByText("Hatırlatma gönderilemedi.")).toBeTruthy();
       });
+    });
+  });
+
+  describe("Öğrenciler", () => {
+    const student = {
+      talent_profile_id: "tp-1",
+      full_name: "Deniz Kaya",
+      department: "Bilgisayar Mühendisliği",
+      study_year: 3,
+      public_slug: "deniz-kaya",
+      verified_count: 2,
+      in_progress_count: 1,
+      total_count: 3,
+    };
+
+    it("bağlı öğrenciler doğrulanmış/süren sayılarıyla listelenir; PUBLIC profil linki yeni sekmede açılır", async () => {
+      vi.mocked(getCoordinatorDashboard).mockResolvedValue(validDashboardData);
+      vi.mocked(listInstitutionStudents).mockResolvedValue({
+        items: [student, { ...student, talent_profile_id: "tp-2", full_name: "Ece Ak", public_slug: null, verified_count: 0, in_progress_count: 0, total_count: 0 }],
+      });
+
+      renderWithQueryClient(<KurumPanelPage />);
+
+      const row = (await screen.findByText("Deniz Kaya")).closest("li") as HTMLElement;
+      expect(within(row).getByText("2 doğrulanmış")).toBeTruthy();
+      expect(within(row).getByText("1 süren")).toBeTruthy();
+      expect(within(row).getByText("Bilgisayar Mühendisliği · 3. sınıf")).toBeTruthy();
+      const link = within(row).getByRole("link", { name: /Profili gör/ });
+      expect(link.getAttribute("href")).toBe("/p/deniz-kaya");
+      expect(link.getAttribute("target")).toBe("_blank");
+
+      const quiet = screen.getByText("Ece Ak").closest("li") as HTMLElement;
+      expect(within(quiet).getByText("Henüz çalışma yok")).toBeTruthy();
+      expect(within(quiet).queryByRole("link")).toBeNull();
+    });
+
+    it("bağlı öğrenci yoksa ne yapılacağını söyleyen boş durum gösterilir", async () => {
+      vi.mocked(getCoordinatorDashboard).mockResolvedValue(validDashboardData);
+
+      renderWithQueryClient(<KurumPanelPage />);
+
+      expect(await screen.findByText("Henüz bağlı öğrenci yok.")).toBeTruthy();
+    });
+
+    it("başlıkta oturumdaki kurum adı gösterilir", async () => {
+      vi.mocked(getCoordinatorDashboard).mockResolvedValue(validDashboardData);
+
+      renderWithQueryClient(<KurumPanelPage />);
+
+      expect(await screen.findByRole("heading", { level: 1, name: "Test Üniversitesi" })).toBeTruthy();
     });
   });
 });

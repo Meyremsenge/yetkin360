@@ -3,16 +3,23 @@
 import Link from "next/link";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { useSession } from "@/lib/session/use-session";
 import { createEngagement, type EngagementKind } from "@/lib/api/engagements";
+import { listApprovers, type Approver } from "@/lib/api/organizations";
 import { ApiError } from "@/lib/api/errors";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import messages from "@/messages/tr.json";
 
 const KIND_OPTIONS: EngagementKind[] = ["INTERNSHIP", "CAPSTONE", "SHORT_PROJECT", "PART_TIME"];
+
+// "Ad Soyad · Birim"; an approver without a profile name still gets a readable label.
+function approverLabel(approver: Approver): string {
+  const name = approver.display_name.trim() || messages.calismaOlustur.supervisorUnnamed;
+  return approver.unit ? `${name} · ${approver.unit}` : name;
+}
 
 const pulse = "animate-pulse rounded-md bg-muted motion-reduce:animate-none";
 const labelClass = "mb-1 block text-xs font-medium text-muted-foreground";
@@ -54,6 +61,11 @@ function InfoState({ message }: { message: string }) {
  * institution_id'siyle eşleştirmek ZORUNDA (INSTITUTION_MISMATCH, 400) —
  * elle girilebilir bir alan olsa bu hatayı anlamsız yere tetikler.
  *
+ * SPRINT D1: kuruluşun onaylayıcı listesi (GET /organizations/{id}/approvers) varsa
+ * "Kime gönderilsin?" seçimi gösterilir; varsayılan genel (kuruluş yöneticisi = null).
+ * Liste boşsa ya da alınamazsa alan hiç gösterilmez. Kullanıcının kendisi listeden
+ * çıkarılır (sunucu da kendini onaylayıcı seçmeyi 404 ile reddeder).
+ *
  * Suspense sarmalı: useSearchParams() App Router'da CSR-bailout için bir
  * Suspense sınırı gerektirir, yoksa `next build` prerender'da hata verir
  * (bkz. e-posta-dogrula/page.tsx'teki aynı desen).
@@ -66,10 +78,20 @@ function CalismaOlusturContent() {
 
   const [kind, setKind] = useState<EngagementKind>("INTERNSHIP");
   const [title, setTitle] = useState("");
+  const [supervisorUserId, setSupervisorUserId] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
 
   const talentId = session.data?.talent_profile?.id;
   const institutionId = session.data?.talent_profile?.institution_id;
+  const currentUserId = session.data?.user.id;
+
+  const approversQuery = useQuery({
+    queryKey: ["organization-approvers", organizationId],
+    queryFn: () => listApprovers(organizationId as string),
+    enabled: Boolean(organizationId && talentId),
+    retry: false,
+  });
+  const approvers = (approversQuery.data ?? []).filter((approver) => approver.user_id !== currentUserId);
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -82,6 +104,7 @@ function CalismaOlusturContent() {
         kind,
         title: title.trim(),
         institution_id: institutionId ?? undefined,
+        supervisor_user_id: supervisorUserId || undefined,
       });
     },
     onSuccess: (engagement) => {
@@ -90,6 +113,13 @@ function CalismaOlusturContent() {
     onError: (error: unknown) => {
       if (error instanceof ApiError && error.code === "ORGANIZATION_NOT_FOUND") {
         setFormError(messages.calismaOlustur.invalidLinkError);
+        return;
+      }
+      // The server answers an approver who is no longer available with the same
+      // generic 404; with an approver chosen, that is the likely cause.
+      if (error instanceof ApiError && error.status === 404 && supervisorUserId) {
+        setFormError(messages.calismaOlustur.supervisorUnavailableError);
+        void approversQuery.refetch();
         return;
       }
       setFormError(messages.errors.generic);
@@ -174,6 +204,31 @@ function CalismaOlusturContent() {
             className={fieldClass}
           />
         </div>
+
+        {approvers.length > 0 && (
+          <div>
+            <label htmlFor="engagement-supervisor" className={labelClass}>
+              {messages.calismaOlustur.supervisorLabel}
+            </label>
+            <select
+              id="engagement-supervisor"
+              value={supervisorUserId}
+              onChange={(e) => setSupervisorUserId(e.target.value)}
+              aria-describedby="engagement-supervisor-hint"
+              className={fieldClass}
+            >
+              <option value="">{messages.calismaOlustur.supervisorDefault}</option>
+              {approvers.map((approver) => (
+                <option key={approver.user_id} value={approver.user_id}>
+                  {approverLabel(approver)}
+                </option>
+              ))}
+            </select>
+            <p id="engagement-supervisor-hint" className="mt-1 text-xs text-muted-foreground">
+              {messages.calismaOlustur.supervisorHint}
+            </p>
+          </div>
+        )}
 
         {formError && (
           <Alert variant="error" aria-live="polite" className="p-3 text-sm">

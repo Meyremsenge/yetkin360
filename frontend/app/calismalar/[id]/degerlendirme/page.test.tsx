@@ -6,6 +6,7 @@ import { useSession } from "@/lib/session/use-session";
 import { useParams } from "next/navigation";
 import { getEngagement } from "@/lib/api/engagements";
 import type { EngagementDetail } from "@/lib/api/engagements";
+import { makeViewer } from "@/lib/api/engagements.fixtures";
 
 vi.mock("next/navigation", () => ({
   useParams: vi.fn(),
@@ -46,6 +47,8 @@ const pendingEvaluationEngagement: EngagementDetail = {
   tasks: [],
   deliverables: [],
   attestations: [],
+  supervisor: null,
+  viewer: makeViewer(),
 };
 
 describe("DegerlendirmePage (/calismalar/[id]/degerlendirme)", () => {

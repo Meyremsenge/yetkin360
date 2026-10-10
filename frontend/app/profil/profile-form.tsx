@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { updateTalentProfile } from "@/lib/api/client";
@@ -15,6 +15,11 @@ interface ProfileFormProps {
   initialData: Record<string, unknown>;
 }
 
+// SPRINT H-0: "Kuruluşlar" visibility has no effect yet, so it is no longer offered.
+// The backend still accepts it; a profile already set to it keeps the option (so a
+// save does not silently change it) and is told it is effectively private for now.
+const ORGANIZATIONS_VISIBILITY = "ORGANIZATIONS";
+
 export default function ProfileForm({ initialData }: ProfileFormProps) {
   const queryClient = useQueryClient();
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -23,6 +28,7 @@ export default function ProfileForm({ initialData }: ProfileFormProps) {
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors, isSubmitting },
     setError,
   } = useForm<TalentProfileFormData>({
@@ -37,6 +43,9 @@ export default function ProfileForm({ initialData }: ProfileFormProps) {
       public_slug: (initialData.public_slug as string | null | undefined) ?? undefined,
     },
   });
+
+  const hadOrganizationsVisibility = initialData.visibility === ORGANIZATIONS_VISIBILITY;
+  const showsOrganizationsNotice = useWatch({ control, name: "visibility" }) === ORGANIZATIONS_VISIBILITY;
 
   const onSubmit = async (data: TalentProfileFormData) => {
     try {
@@ -164,18 +173,25 @@ export default function ProfileForm({ initialData }: ProfileFormProps) {
             <select
               {...register("visibility")}
               id="visibility"
-              aria-describedby="visibility-hint"
+              aria-describedby={showsOrganizationsNotice ? "visibility-hint visibility-soon" : "visibility-hint"}
               className={fieldClass}
             >
               <option value="">Seçiniz</option>
               <option value="PRIVATE">Özel (Sadece Ben)</option>
               <option value="INSTITUTION">Kurum (Kurumum)</option>
-              <option value="ORGANIZATIONS">Kuruluşlar</option>
+              {hadOrganizationsVisibility && (
+                <option value={ORGANIZATIONS_VISIBILITY}>{messages.profil.visibilityOrganizationsOption}</option>
+              )}
               <option value="PUBLIC">Herkese Açık</option>
             </select>
             <p id="visibility-hint" className="mt-1 text-xs text-muted-foreground">
               {messages.profil.visibilityDiscoverHint}
             </p>
+            {showsOrganizationsNotice && (
+              <p id="visibility-soon" role="status" className="mt-1 text-xs text-warning">
+                {messages.profil.visibilityOrganizationsSoon}
+              </p>
+            )}
             <FieldError message={errors.visibility?.message} />
           </div>
 

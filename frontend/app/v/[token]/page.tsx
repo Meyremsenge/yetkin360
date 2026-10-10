@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { ChainProgress } from "@/components/ui/chain-progress";
 import { VerifiedSeal } from "@/components/ui/verified-seal";
 import { PublicTopBar, publicFocusRing as focusRing } from "@/components/public-top-bar";
+import { SealMark } from "@/components/brand/brand-mark";
+import { formatEvaluator } from "@/components/public-profile/format";
 import messages from "@/messages/tr.json";
 
 const t = messages.publicVerification;
@@ -171,6 +173,15 @@ export default function PublicVerificationPage() {
                 </p>
               </div>
 
+              {verification.co_signed ? (
+                <p className="mt-5 inline-flex flex-wrap items-center gap-2 rounded-md border border-success/30 bg-success/[0.06] px-3 py-2 text-sm text-foreground">
+                  <SealMark className="h-4 w-4 shrink-0" />
+                  <span className="font-medium text-success">{t.coSignedBadge}</span>
+                  <span aria-hidden="true" className="hidden text-muted-foreground sm:inline">·</span>
+                  <span>{t.coSignedDetail}</span>
+                </p>
+              ) : null}
+
               <dl className="mt-8 grid grid-cols-1 gap-6 border-t border-border pt-8 md:grid-cols-2">
                 <div>
                   <dt className="text-xs font-medium text-muted-foreground">{t.organizationLabel}</dt>
@@ -204,6 +215,14 @@ export default function PublicVerificationPage() {
                     </dd>
                   </div>
                 )}
+                {verification.evaluator ? (
+                  <div>
+                    <dt className="text-xs font-medium text-muted-foreground">{t.evaluatorLabel}</dt>
+                    <dd className="mt-1 text-base">
+                      {formatEvaluator(verification.organization_name, verification.evaluator)}
+                    </dd>
+                  </div>
+                ) : null}
                 <div>
                   <dt className="text-xs font-medium text-muted-foreground">{t.verifiedAtLabel}</dt>
                   <dd className="mt-1 text-base tabular-nums">{formatDate(verification.verified_at)}</dd>

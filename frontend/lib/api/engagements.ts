@@ -1,14 +1,10 @@
 /**
  * PLAN 2.11/2.12: Engagement (Çalışma) listesi/detay/durum geçişi API katmanı.
  *
- * GET /engagements (liste) ve GET /engagements/{id} (detay) artık gerçek backend uçları.
- * Mock store kaldırıldı — bkz. obss_project/artifacts/calismalar-gercek-backend-baglama/atdd.md.
- *
- * BACKEND GAP (kalan): GET /me principal.kind/role döndürmüyor (backend/app/api/me.py)
- * → availableTransitions() rol bazlı değil, SADECE durum bazlı hesaplanıyor.
- * Gerçek yetkilendirme sunucuda POST /transitions çağrısında uygulanır (403/422/409 arayüzde ele alınır).
- *
- * availableTransitions() ve isReasonRequired() kalır: backend rol bilgisi /me'ye eklenene kadar gerekli.
+ * SPRINT A: Hangi düğmenin gösterileceğine sunucu karar verir — GET /engagements/{id}
+ * yanıtındaki `viewer` bloğu, yazma uçlarının kabul edeceğini birebir söyler
+ * (backend tests/authorization/test_engagement_viewer_capabilities.py). Durum bazlı
+ * tahmin kaldırıldı; yetki kararı yine her çağrıda sunucuda verilir.
  */
 
 import { apiFetch } from "./client";
@@ -41,6 +37,10 @@ export interface EngagementSummary {
   /** Çalışmanın sahibi öğrenci; kuruluş/kurum listesi öğrenciye göre gösterilir. */
   talent_id: string;
   talent_name: string;
+  /** SPRINT D1 (sunucu her zaman gönderir; eski yanıtlarla uyum için isteğe bağlı). */
+  institution_name?: string | null;
+  /** SPRINT D1: kuruluşta onaya atanan kişi (yoksa genel: kuruluş yöneticisi). */
+  supervisor_user_id?: string | null;
 }
 
 export interface EngagementTask {
@@ -67,8 +67,40 @@ export interface EngagementAttestation {
   revoke_reason: string | null;
 }
 
+export type ViewerRelation =
+  | "SUBJECT"
+  | "ORG_ADMIN"
+  | "ORG_MEMBER"
+  | "COORDINATOR"
+  | "INSTITUTION_ADMIN"
+  | "OBSERVER";
+
+/** SPRINT A: what the signed-in viewer may do on this engagement (server-computed). */
+export interface EngagementViewer {
+  relation: ViewerRelation;
+  /** Targets POST /transitions will accept; EVALUATED→VERIFIED is never here (see can_attest). */
+  allowed_transitions: EngagementStatus[];
+  /** Subset of allowed_transitions that needs a reason. */
+  reason_required: EngagementStatus[];
+  can_add_task: boolean;
+  can_add_deliverable: boolean;
+  /** Organization-side (ORG_TO_TALENT) evaluation form. */
+  can_evaluate: boolean;
+  can_attest: boolean;
+  /** Informational: the seal is still allowed but will be recorded as participation. */
+  attest_blocker: "ORG_NOT_VERIFIED" | null;
+}
+
+/** SPRINT D1: the engagement's approver — name and unit only, never the e-mail. */
+export interface EngagementSupervisor {
+  user_id: string;
+  display_name: string;
+  unit: string | null;
+}
+
 // The detail response identifies the student by id only.
-export interface EngagementDetail extends Omit<EngagementSummary, "talent_name"> {
+export interface EngagementDetail
+  extends Omit<EngagementSummary, "talent_name" | "institution_name" | "supervisor_user_id"> {
   talent_id: string;
   organization_id: string;
   institution_id: string | null;
@@ -77,6 +109,8 @@ export interface EngagementDetail extends Omit<EngagementSummary, "talent_name">
   tasks: EngagementTask[];
   deliverables: EngagementDeliverable[];
   attestations: EngagementAttestation[];
+  viewer: EngagementViewer;
+  supervisor: EngagementSupervisor | null;
 }
 
 export interface TransitionPayload {
@@ -88,66 +122,29 @@ export interface TransitionPayload {
 }
 
 // ============================================================================
-// Durum makinesi — backend/app/services/engagement.py:257-292 ile birebir eşleşir.
-// Rol bilgisi /me'den gelmediği için SADECE durum bazlı aday geçişler hesaplanıyor;
-// gerçek yetki sunucuda uygulanır (bkz. dosya başındaki BACKEND GAP notu).
-// ============================================================================
-// PENDING_EVALUATION sonrası (EVALUATED/VERIFIED/DISPUTED/RESOLVED) bilinçli
-// olarak hepsi boş dizi: docs/STATE_MACHINE.md §4 T7-T10.
-//  - T7 (→EVALUATED): sistem tarafından otomatik tetiklenir (değerlendirme
-//    gönderimi, bkz. lib/api/evaluation.ts) — bu genel /transitions ucundan
-//    GEÇMEZ, dolayısıyla burada aday olarak sunulamaz.
-//  - T8 (EVALUATED→VERIFIED): ayrı bir uçtan yapılır (POST .../attestations,
-//    bkz. backend/app/api/engagements.py T8 yorumu) — bu da /transitions
-//    değil, dolayısıyla burada aday değil.
-//  - T9/T10 (DISPUTED/RESOLVED): STATE_MACHINE.md §7'de "vakit kalırsa" —
-//    backend'de hiç gerçeklenmemiş (ne /transitions'ta ne ayrı bir uçta).
-const NEXT_STATUSES: Record<EngagementStatus, EngagementStatus[]> = {
-  // DRAFT'ın gerçek hedefi institution_id'ye bağlı — bkz. availableTransitions().
-  // Burası yalnız institution_id'li (kurum bağlantılı) durum için varsayılan.
-  DRAFT: ["PENDING_APPROVAL"],
-  PENDING_APPROVAL: ["ACTIVE", "REJECTED"],
-  ACTIVE: ["CANCELLED", "PENDING_EVALUATION"],
-  REJECTED: [],
-  CANCELLED: [],
-  PENDING_EVALUATION: [],
-  EVALUATED: [],
-  VERIFIED: [],
-  DISPUTED: [],
-  RESOLVED: [],
-};
-
-const REASON_REQUIRED = new Set<EngagementStatus>(["REJECTED", "CANCELLED"]);
-
-/**
- * DRAFT için gerçek hedef institution_id'ye bağlı (app/services/engagement.py:313-324):
- * kurum bağlantılı engagement PENDING_APPROVAL'a gider (koordinatör onaylar),
- * doğrudan kuruluş engagement'ı (institution_id=NULL) kendi kendine ACTIVE'e
- * geçer — PENDING_APPROVAL'ın "institution_id_not_null" ön koşulu bunu
- * reddeder (422 PRECONDITION_FAILED). institutionId belirtilmezse (çağıran
- * henüz bilmiyorsa) varsayılan DRAFT davranışı korunur.
- */
-export function availableTransitions(
-  status: EngagementStatus,
-  institutionId?: string | null
-): EngagementStatus[] {
-  if (status === "DRAFT" && institutionId === null) {
-    return ["ACTIVE"];
-  }
-  return NEXT_STATUSES[status] ?? [];
-}
-
-export function isReasonRequired(toStatus: EngagementStatus): boolean {
-  return REASON_REQUIRED.has(toStatus);
-}
-
-
-// ============================================================================
 // Public API
 // ============================================================================
 
-export async function listEngagements(): Promise<{ items: EngagementSummary[] }> {
-  const response = await apiFetch<{ items: EngagementSummary[] }>("/engagements");
+export interface ListEngagementsOptions {
+  /** "me": only engagements I was assigned to approve (SPRINT D1). */
+  assigned?: "me";
+  /** Only this organization's engagements; never widens what I may see. */
+  organizationId?: string;
+  limit?: number;
+}
+
+// Also handed to React Query directly as a queryFn, which passes its own context
+// object: only the known option keys are read, so that context is ignored.
+export async function listEngagements(
+  options: ListEngagementsOptions | object = {}
+): Promise<{ items: EngagementSummary[] }> {
+  const { assigned, organizationId, limit } = options as ListEngagementsOptions;
+  const params = new URLSearchParams();
+  if (assigned === "me") params.set("assigned", assigned);
+  if (typeof organizationId === "string" && organizationId) params.set("organization_id", organizationId);
+  if (typeof limit === "number") params.set("limit", String(limit));
+  const query = params.toString();
+  const response = await apiFetch<{ items: EngagementSummary[] }>(`/engagements${query ? `?${query}` : ""}`);
   return response ?? { items: [] };
 }
 
@@ -157,6 +154,8 @@ export interface CreateEngagementInput {
   kind: EngagementKind;
   title: string;
   institution_id?: string;
+  /** SPRINT D1: optional approver from GET /organizations/{id}/approvers. */
+  supervisor_user_id?: string;
 }
 
 /**

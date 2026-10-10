@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime, timezone, date
 from typing import Any, Callable, Sequence, TypedDict
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -11,16 +11,27 @@ from app.models import (
     Attestation,
     Deliverable,
     EngagementTask,
+    Evaluation,
     Engagement,
+    Institution,
     InstitutionMember,
     Organization,
+    OrganizationMember,
     TalentProfile,
     Skill,
     SkillSignal,
     User,
 )
-from app.services.authorization import Principal, engagement_relation, get_scoped_or_404, scoped_engagements
+from app.services.authorization import (
+    EngagementRelation,
+    Principal,
+    engagement_relation,
+    get_scoped_or_404,
+    scoped_engagements,
+)
+from app.services.attestation import attestation_role_allowed
 from app.services.audit import log_audit_event
+from app.services.evaluation import can_submit_org_evaluation
 from app.services.outbox import enqueue
 
 
@@ -116,6 +127,79 @@ class TransitionSpec(TypedDict):
     can_transition: Callable[[], bool]
 
 
+def _transition_specs(
+    principal: Principal, engagement: Engagement, rel: EngagementRelation
+) -> dict[tuple[str, str], TransitionSpec]:
+    """
+    The engagement state machine's transition table, bound to one principal.
+
+    Single source for both transition_engagement() (which enforces it) and
+    viewer_capabilities() (which advertises it), so the buttons a viewer sees
+    can never drift from what the server accepts.
+    Each entry: (from_status, to_status) -> preconditions + authorization check.
+    """
+    return {
+        ("DRAFT", "PENDING_APPROVAL"): {
+            "preconditions": ["institution_id_not_null", "recipient_required"],
+            "can_transition": lambda: (
+                rel.is_subject or rel.is_org_member
+            ),
+        },
+        ("DRAFT", "ACTIVE"): {
+            "preconditions": ["date_validation"],
+            "can_transition": lambda: (
+                (rel.is_coordinator and engagement.institution_id is not None)
+                or (rel.is_subject and engagement.institution_id is None)
+            ),
+        },
+        ("PENDING_APPROVAL", "ACTIVE"): {
+            "preconditions": [],
+            "can_transition": lambda: (
+                rel.is_coordinator
+            ),
+        },
+        ("PENDING_APPROVAL", "REJECTED"): {
+            "preconditions": ["reason_not_empty"],
+            "can_transition": lambda: (
+                rel.is_coordinator
+            ),
+        },
+        ("ACTIVE", "CANCELLED"): {
+            "preconditions": ["reason_not_empty"],
+            "can_transition": lambda: (
+                rel.is_org_admin or rel.is_coordinator
+            ),
+        },
+        ("ACTIVE", "PENDING_EVALUATION"): {
+            "preconditions": ["has_deliverable"],
+            "can_transition": lambda: (
+                rel.is_org_member or rel.is_coordinator
+            ),
+        },
+        ("EVALUATED", "VERIFIED"): {
+            "preconditions": [],
+            "can_transition": lambda: (
+                engagement.institution_id is not None
+                and engagement.institution_id in principal.supervisor_institution_ids
+            ),
+        },
+    }
+
+
+def _task_creation_allowed(rel: EngagementRelation, status: str) -> bool:
+    """
+    Who may add a task in this status (create_engagement_task's role/status gate).
+
+    Organization members and coordinators add verified tasks to ACTIVE
+    engagements; the talent plans unverified tasks while DRAFT or ACTIVE.
+    """
+    if rel.is_org_member or rel.is_coordinator:
+        return status in VERIFIER_TASK_STATUSES
+    if rel.is_subject:
+        return status in TALENT_TASK_STATUSES
+    return False
+
+
 def create_engagement(
     session: Session,
     principal: Principal,
@@ -125,6 +209,7 @@ def create_engagement(
     title: str,
     institution_id: str | None = None,
     confidential: bool = False,
+    supervisor_user_id: str | None = None,
 ) -> Engagement:
     """
     Create a new engagement record for a talent.
@@ -145,6 +230,9 @@ def create_engagement(
         title: Engagement title
         institution_id: Optional UUID of institution (string format)
         confidential: Whether engagement is confidential
+        supervisor_user_id: Optional approver (SPRINT D1): an ACTIVE member of the
+            organization whose user is ACTIVE, never the talent themselves.
+            Anything else raises OrganizationNotFoundError (generic 404, GUV-08).
 
     Returns:
         Created Engagement object
@@ -169,6 +257,11 @@ def create_engagement(
         inst_uuid = uuid.UUID(institution_id) if institution_id else None
     except ValueError:
         raise InstitutionMismatchError(f"Invalid institution_id format: {institution_id}")
+
+    try:
+        supervisor_uuid = uuid.UUID(supervisor_user_id) if supervisor_user_id else None
+    except ValueError:
+        raise OrganizationNotFoundError("Invalid supervisor_user_id format")
 
     # Default-deny: check authorization via membership lists, not kind
     # own_talent: principal can create for their own talent_id
@@ -212,6 +305,25 @@ def create_engagement(
             # Generic error message that doesn't reveal whether institution exists
             raise InstitutionMismatchError("institution_id does not match talent's institution")
 
+    # SPRINT D1: the approver must be an active member of THIS organization and never
+    # the talent (self-dealing). Same generic error for every failure: no member oracle.
+    if supervisor_uuid is not None:
+        if supervisor_uuid == talent.user_id:
+            raise OrganizationNotFoundError("Supervisor not available")
+        supervisor_membership = session.execute(
+            select(OrganizationMember.id)
+            .join(User, User.id == OrganizationMember.user_id)
+            .where(
+                OrganizationMember.organization_id == org_uuid,
+                OrganizationMember.user_id == supervisor_uuid,
+                OrganizationMember.status == "ACTIVE",
+                User.status == "ACTIVE",
+                User.deleted_at.is_(None),
+            )
+        ).first()
+        if supervisor_membership is None:
+            raise OrganizationNotFoundError("Supervisor not available")
+
     # Create new engagement (AC-1)
     engagement = Engagement(
         talent_id=talent_uuid,
@@ -222,6 +334,7 @@ def create_engagement(
         status="DRAFT",
         version=1,
         confidential=confidential,
+        supervisor_user_id=supervisor_uuid,
     )
     session.add(engagement)
     try:
@@ -245,6 +358,8 @@ def create_engagement(
             "kind": kind,
             "talent_id": str(talent_uuid),
             "organization_id": str(org_uuid),
+            # Never the approver's id or name (PII): only whether one was chosen.
+            "has_supervisor": supervisor_uuid is not None,
         },
     )
 
@@ -329,54 +444,7 @@ def transition_engagement(
     # AC-S1: relation is masked for the subject (self-dealing prevention)
     rel = engagement_relation(principal, engagement)
 
-    # Transition table (7 valid transitions)
-    # Each entry: from_status -> to_status -> (allowed_roles, preconditions, authorization check)
-    transition_table: dict[tuple[str, str], TransitionSpec] = {
-        ("DRAFT", "PENDING_APPROVAL"): {
-            "preconditions": ["institution_id_not_null", "recipient_required"],
-            "can_transition": lambda: (
-                rel.is_subject or rel.is_org_member
-            ),
-        },
-        ("DRAFT", "ACTIVE"): {
-            "preconditions": ["date_validation"],
-            "can_transition": lambda: (
-                (rel.is_coordinator and engagement.institution_id is not None)
-                or (rel.is_subject and engagement.institution_id is None)
-            ),
-        },
-        ("PENDING_APPROVAL", "ACTIVE"): {
-            "preconditions": [],
-            "can_transition": lambda: (
-                rel.is_coordinator
-            ),
-        },
-        ("PENDING_APPROVAL", "REJECTED"): {
-            "preconditions": ["reason_not_empty"],
-            "can_transition": lambda: (
-                rel.is_coordinator
-            ),
-        },
-        ("ACTIVE", "CANCELLED"): {
-            "preconditions": ["reason_not_empty"],
-            "can_transition": lambda: (
-                rel.is_org_admin or rel.is_coordinator
-            ),
-        },
-        ("ACTIVE", "PENDING_EVALUATION"): {
-            "preconditions": ["has_deliverable"],
-            "can_transition": lambda: (
-                rel.is_org_member or rel.is_coordinator
-            ),
-        },
-        ("EVALUATED", "VERIFIED"): {
-            "preconditions": [],
-            "can_transition": lambda: (
-                engagement.institution_id is not None
-                and engagement.institution_id in principal.supervisor_institution_ids
-            ),
-        },
-    }
+    transition_table = _transition_specs(principal, engagement, rel)
 
     # Check: is this transition defined? (AC-5)
     if (current_status, to_status) not in transition_table:
@@ -946,33 +1014,40 @@ def get_coordinator_dashboard(
     if institution is None:
         raise ValueError("Institution not found")
 
-    # Query PENDING_APPROVAL engagements for this institution
-    pending_approval = (
-        session.execute(
-            scoped_engagements(session, principal)
-            .where(
-                Engagement.institution_id == inst_uuid,
-                Engagement.status == "PENDING_APPROVAL",
-            )
-            .order_by(Engagement.created_at.desc())
-        )
-        .scalars()
-        .all()
-    )
+    # One scoped query per status; names come from joins on the same rows (no N+1).
+    from app.models import Organization, TalentProfile
 
-    # Query PENDING_EVALUATION engagements for this institution
-    pending_evaluation = (
-        session.execute(
+    def _rows_with_names(status: str) -> Sequence[Any]:
+        return session.execute(
             scoped_engagements(session, principal)
+            .join(TalentProfile, TalentProfile.id == Engagement.talent_id)
+            .join(Organization, Organization.id == Engagement.organization_id)
             .where(
                 Engagement.institution_id == inst_uuid,
-                Engagement.status == "PENDING_EVALUATION",
+                Engagement.status == status,
             )
+            .with_only_columns(Engagement, TalentProfile.full_name, Organization.name)
             .order_by(Engagement.created_at.desc())
-        )
-        .scalars()
-        .all()
-    )
+        ).all()
+
+    pending_approval = _rows_with_names("PENDING_APPROVAL")
+    pending_evaluation = _rows_with_names("PENDING_EVALUATION")
+    pending_attestation = _rows_with_names("EVALUATED")
+
+    def _item(row) -> dict:
+        eng, talent_name, org_name = row
+        return {
+            "id": str(eng.id),
+            "talent_id": str(eng.talent_id),
+            "talent_full_name": talent_name,
+            "organization_id": str(eng.organization_id),
+            "organization_name": org_name,
+            "kind": eng.kind,
+            "version": eng.version,
+            "title": eng.title,
+            "started_on": eng.started_on.isoformat() if eng.started_on else None,
+            "ended_on": eng.ended_on.isoformat() if eng.ended_on else None,
+        }
 
     # Query institution members (PLAN 3.5 — üye listesi)
     # AC-S1: Critical security filter — institution_id must be in WHERE clause
@@ -989,27 +1064,11 @@ def get_coordinator_dashboard(
         "summary": {
             "pending_approval": len(pending_approval),
             "pending_evaluation": len(pending_evaluation),
+            "pending_attestation": len(pending_attestation),
         },
-        "pending_approval": [
-            {
-                "id": str(eng.id),
-                "talent_id": str(eng.talent_id),
-                "organization_id": str(eng.organization_id),
-                "title": eng.title,
-                "started_on": eng.started_on.isoformat() if eng.started_on else None,
-            }
-            for eng in pending_approval
-        ],
-        "pending_evaluation": [
-            {
-                "id": str(eng.id),
-                "talent_id": str(eng.talent_id),
-                "organization_id": str(eng.organization_id),
-                "title": eng.title,
-                "ended_on": eng.ended_on.isoformat() if eng.ended_on else None,
-            }
-            for eng in pending_evaluation
-        ],
+        "pending_approval": [_item(row) for row in pending_approval],
+        "pending_evaluation": [_item(row) for row in pending_evaluation],
+        "pending_attestation": [_item(row) for row in pending_attestation],
         "members": [
             {
                 "user_id": str(member.user_id),
@@ -1027,7 +1086,9 @@ def list_engagements(
     principal: Principal,
     limit: int = 50,
     offset: int = 0,
-) -> list[tuple[Engagement, str, str]]:
+    assigned_to_me: bool = False,
+    organization_id: uuid.UUID | None = None,
+) -> list[tuple[Engagement, str, str, str | None]]:
     """
     List engagements scoped to principal with organization and talent name (AC-1, AC-2, AC-3, AC-8).
 
@@ -1039,9 +1100,15 @@ def list_engagements(
         principal: Authorization context
         limit: Number of results per page (default 50)
         offset: Pagination offset (default 0)
+        assigned_to_me: Only engagements whose approver is the principal (SPRINT D1)
+        organization_id: Only engagements of this organization (SPRINT D1)
+
+    Both filters only narrow scoped_engagements(); an organization outside the
+    principal's scope simply yields an empty list (never 404, never wider).
 
     Returns:
-        List of (Engagement, organization_name, talent_name) tuples, sorted by updated_at DESC
+        List of (Engagement, organization_name, talent_name, institution_name) tuples,
+        sorted by updated_at DESC
 
     Implements: AC-1 (TALENT), AC-2 (ORG_MEMBER/ORG_ADMIN), AC-3 (COORDINATOR/INST_ADMIN),
                 AC-8 (limit/offset pagination)
@@ -1049,6 +1116,10 @@ def list_engagements(
     # Build scoped query and extend with Organization JOIN, order by, and pagination
     # scoped_engagements() returns a Select[Engagement] filtered by principal's scope
     scoped = scoped_engagements(session, principal)
+    if assigned_to_me:
+        scoped = scoped.where(Engagement.supervisor_user_id == principal.user_id)
+    if organization_id is not None:
+        scoped = scoped.where(Engagement.organization_id == organization_id)
 
     # Fetch Engagement objects scoped to principal
     stmt = scoped.order_by(Engagement.updated_at.desc()).limit(limit).offset(offset)
@@ -1078,9 +1149,22 @@ def list_engagements(
     else:
         talent_map = {}
 
-    # Return list of (Engagement, organization_name, talent_name) tuples
+    institution_ids = set(e.institution_id for e in engagements if e.institution_id is not None)
+    if institution_ids:
+        institution_rows = session.execute(
+            select(Institution.id, Institution.name).where(Institution.id.in_(institution_ids))
+        ).all()
+        institution_map = {inst_id: name for inst_id, name in institution_rows}
+    else:
+        institution_map = {}
+
     return [
-        (eng, org_map.get(eng.organization_id, ""), talent_map.get(eng.talent_id, ""))
+        (
+            eng,
+            org_map.get(eng.organization_id, ""),
+            talent_map.get(eng.talent_id, ""),
+            institution_map.get(eng.institution_id) if eng.institution_id is not None else None,
+        )
         for eng in engagements
     ]
 
@@ -1152,3 +1236,159 @@ def get_engagement_detail(
     attestations = attestations_query.scalars().all()
 
     return engagement, organization_name, tasks, deliverables, attestations
+
+
+def engagement_supervisor_summary(session: Session, engagement: Engagement) -> dict[str, Any] | None:
+    """
+    SPRINT D1: the approver of an engagement already proven in scope.
+
+    Name and unit only (never the e-mail). The name is the approver's own
+    TalentProfile.full_name; the unit is their label in this engagement's
+    organization (None if they have since left it).
+    """
+    if engagement.supervisor_user_id is None:
+        return None
+    row = session.execute(
+        select(
+            func.coalesce(TalentProfile.full_name, "").label("display_name"),
+            OrganizationMember.unit,
+        )
+        .select_from(User)
+        .outerjoin(
+            TalentProfile,
+            and_(TalentProfile.user_id == User.id, TalentProfile.deleted_at.is_(None)),
+        )
+        .outerjoin(
+            OrganizationMember,
+            and_(
+                OrganizationMember.user_id == User.id,
+                OrganizationMember.organization_id == engagement.organization_id,
+            ),
+        )
+        .where(User.id == engagement.supervisor_user_id)
+    ).first()
+    if row is None:
+        return None
+    return {"user_id": engagement.supervisor_user_id, "display_name": row.display_name, "unit": row.unit}
+
+
+# Verification levels an organization needs for a seal to count as COMPETENCE
+# (attestation._check_competence_preconditions, criterion 4).
+VERIFIED_ORG_LEVELS = ("T2", "T3", "T4")
+# Never offered through /transitions: the seal is its own endpoint (viewer.can_attest).
+SEAL_TRANSITION = ("EVALUATED", "VERIFIED")
+
+
+def _viewer_relation_label(principal: Principal, engagement: Engagement, rel: EngagementRelation) -> str:
+    """The viewer's strongest relation, in the contract's priority order."""
+    if rel.is_subject:
+        return "SUBJECT"
+    if rel.is_org_admin:
+        return "ORG_ADMIN"
+    if rel.is_org_member:
+        return "ORG_MEMBER"
+    if rel.is_coordinator:
+        return "COORDINATOR"
+    if engagement.institution_id is not None and engagement.institution_id in principal.institution_admin_ids:
+        return "INSTITUTION_ADMIN"
+    return "OBSERVER"
+
+
+def viewer_capabilities(
+    session: Session,
+    principal: Principal,
+    engagement: Engagement,
+    email_verified: bool,
+) -> dict[str, Any]:
+    """
+    What this viewer may do on an engagement already proven in scope.
+
+    Mirrors the write endpoints exactly — `to in allowed_transitions` iff
+    POST /transitions succeeds (given a reason/recipient where the UI asks for
+    one), can_evaluate/can_attest iff the evaluation/attestation endpoints do —
+    so the detail page never renders a button the server would refuse. Every
+    write endpoint requires a verified e-mail, so an unverified viewer gets no
+    actions at all. Only the caller's own relation is described; nothing about
+    other users leaks.
+    """
+    rel = engagement_relation(principal, engagement)
+    capabilities: dict[str, Any] = {
+        "relation": _viewer_relation_label(principal, engagement, rel),
+        "allowed_transitions": [],
+        "reason_required": [],
+        "can_add_task": False,
+        "can_add_deliverable": False,
+        "can_evaluate": False,
+        "can_attest": False,
+        "attest_blocker": None,
+    }
+    if not email_verified or principal.user_id is None:
+        return capabilities
+
+    has_deliverable: bool | None = None
+    for (from_status, to_status), spec in _transition_specs(principal, engagement, rel).items():
+        if from_status != engagement.status or (from_status, to_status) == SEAL_TRANSITION:
+            continue
+        if not spec["can_transition"]():
+            continue
+        preconditions = spec["preconditions"]
+        # Cheap, server-known preconditions block the action; reason, recipient
+        # and dates are supplied by the user, so the UI asks for them instead.
+        if "institution_id_not_null" in preconditions and engagement.institution_id is None:
+            continue
+        if "has_deliverable" in preconditions:
+            if has_deliverable is None:
+                has_deliverable = bool(
+                    session.execute(
+                        select(func.count())
+                        .select_from(Deliverable)
+                        .where(Deliverable.engagement_id == engagement.id)
+                    ).scalar()
+                )
+            if not has_deliverable:
+                continue
+        capabilities["allowed_transitions"].append(to_status)
+        if "reason_not_empty" in preconditions:
+            capabilities["reason_required"].append(to_status)
+
+    capabilities["can_add_task"] = _task_creation_allowed(rel, engagement.status)
+    capabilities["can_add_deliverable"] = engagement.status == "ACTIVE" and rel.is_subject
+
+    if rel.is_org_member and engagement.status == "PENDING_EVALUATION":
+        already_evaluated = session.execute(
+            select(func.count())
+            .select_from(Evaluation)
+            .where(
+                Evaluation.engagement_id == engagement.id,
+                Evaluation.evaluator_user_id == principal.user_id,
+                Evaluation.direction == "ORG_TO_TALENT",
+            )
+        ).scalar()
+        capabilities["can_evaluate"] = can_submit_org_evaluation(
+            rel, engagement, already_submitted=bool(already_evaluated)
+        )
+
+    if engagement.status == "EVALUATED" and attestation_role_allowed(rel, engagement):
+        # uq_attestations_engagement_attestor_subject also counts revoked rows,
+        # so any earlier attestation by this user blocks a new one.
+        already_attested = session.execute(
+            select(func.count())
+            .select_from(Attestation)
+            .where(
+                Attestation.engagement_id == engagement.id,
+                Attestation.attestor_user_id == principal.user_id,
+            )
+        ).scalar()
+        capabilities["can_attest"] = not already_attested
+        if capabilities["can_attest"]:
+            # Informational only (the seal downgrades, it is not refused); shown
+            # solely to a viewer who may seal, so the level does not leak further.
+            level = session.execute(
+                select(Organization.verification_level).where(
+                    Organization.id == engagement.organization_id
+                )
+            ).scalar_one_or_none()
+            if level not in VERIFIED_ORG_LEVELS:
+                capabilities["attest_blocker"] = "ORG_NOT_VERIFIED"
+
+    return capabilities

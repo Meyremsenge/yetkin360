@@ -21,7 +21,7 @@ async function chooseOrganization(user: ReturnType<typeof userEvent.setup>) {
 }
 
 async function fillAccount(user: ReturnType<typeof userEvent.setup>, email: string) {
-  await user.type(screen.getByLabelText(/kuruluş\/kurum adı/i), "Örnek A.Ş.");
+  await user.type(screen.getByLabelText(/^kuruluş adı$/i), "Örnek A.Ş.");
   await user.type(screen.getByLabelText(/e-posta/i), email);
   await user.type(screen.getByLabelText(/^şifre$/i), "SecurePass123!");
   await user.type(screen.getByLabelText(/şifre tekrar/i), "SecurePass123!");
@@ -172,7 +172,7 @@ describe("RegisterForm — kuruluş kaydı", () => {
       const user = userEvent.setup();
       render(<RegisterForm />);
       await chooseOrganization(user);
-      await user.type(screen.getByLabelText(/kuruluş\/kurum adı/i), "Örnek A.Ş.");
+      await user.type(screen.getByLabelText(/^kuruluş adı$/i), "Örnek A.Ş.");
       await user.type(screen.getByLabelText(messages.kayit.mersisLabel), MERSIS);
       await user.upload(screen.getByLabelText(messages.kayit.documentLabel), pdf());
 
@@ -190,7 +190,7 @@ describe("RegisterForm — kuruluş kaydı", () => {
       const user = userEvent.setup();
       render(<RegisterForm />);
       await chooseOrganization(user);
-      await user.type(screen.getByLabelText(/kuruluş\/kurum adı/i), "Örnek A.Ş.");
+      await user.type(screen.getByLabelText(/^kuruluş adı$/i), "Örnek A.Ş.");
       await user.upload(screen.getByLabelText(messages.kayit.documentLabel), pdf());
 
       await user.click(screen.getByRole("button", { name: messages.kayit.documentCheckButton }));

@@ -29,6 +29,7 @@ from app.models import (
     Institution,
     InstitutionMember,
     Organization,
+    OrganizationMember,
     Engagement,
     VerifiedExperience,
     CertificateCheck,
@@ -46,7 +47,13 @@ from app.services.institution import (
     DuplicateLinkRequestError,
     AlreadyMemberError,
 )
-from app.services.organization import create_organization, set_verification_level
+from app.services.organization import (
+    AlreadyMemberError as OrgAlreadyMemberError,
+    create_organization,
+    invite_org_member,
+    set_showcase_public,
+    set_verification_level,
+)
 from app.services.engagement import (
     create_engagement,
     transition_engagement,
@@ -364,6 +371,10 @@ ENGAGEMENTS_DATA = [
 # how an unverified organization's record is flagged.
 VERIFIED_ORG_LEGAL_IDS = ("ORG1", "ORG3", "ORG4")
 
+# Institutions shown as verified (T3) in the demo: seed domain -> level. Galata is the
+# demo story's university.
+VERIFIED_INSTITUTION_DOMAINS = ("inst1.seed.local",)
+
 # Public profile showcase (/p/ayse-yilmaz): extra verified engagements for ogrenci1,
 # each with a different organization, kind, attested skill and task/deliverable skills.
 # (org legal_id, spec as in ENGAGEMENTS_DATA, task skill slug, deliverable skill slug,
@@ -425,6 +436,44 @@ PIPELINE_ENGAGEMENTS = [
 
 # A task the student adds on their own; it stays unverified until the organization confirms it.
 PIPELINE_STUDENT_TASK = "Haftalık ilerleme notlarını derlemek"
+
+
+# SPRINT J: organization teams with units, so a student's request goes to a
+# person (D1/D2) and the panel shows who handles what. The org admins already
+# exist and only get a unit (full name None). (org legal_id, e-mail, full name, role, unit)
+ORG_TEAM = [
+    ("ORG1", "org1-admin@seed.local", None, "ADMIN", "Yönetim"),
+    ("ORG1", "org1-yazilim@seed.local", "Mehmet Karaca", "MEMBER", "Yazılım"),
+    ("ORG1", "org1-tasarim@seed.local", "Zeynep Arı", "MEMBER", "Tasarım"),
+    ("ORG3", "org3-ik@seed.local", "Elif Çınar", "MEMBER", "İnsan Kaynakları"),
+]
+SHOWCASE_ORG_LEGAL_IDS = ("ORG1", "ORG4")
+
+# SPRINT J demo story (SPRINT.md §0): Ayşe (ogrenci1, Galata) with Lale Yazılım,
+# approver Mehmet Karaca (Yazılım). One finished with both signatures (Mehmet
+# evaluates, the Galata coordinator seals), one waiting for Mehmet's evaluation
+# (live demo), one waiting for the coordinator's approval (live demo).
+# (spec as in ENGAGEMENTS_DATA, stage, last activity N days ago)
+DEMO_STORY_ORG_LEGAL_ID = "ORG1"
+DEMO_STORY_APPROVER_EMAIL = "org1-yazilim@seed.local"
+DEMO_STORY_ENGAGEMENTS = [
+    (
+        ("Mobil Bankacılık API Stajı", "INTERNSHIP", "fastapi",
+         "Hesap hareketleri uç noktalarını yazmak", "API servisi ve test raporu",
+         "Uç noktaları güvenli, testli ve iyi belgelenmiş teslim etti."),
+        "VERIFIED", 20,
+    ),
+    (
+        ("Sipariş Takip Paneli Projesi", "SHORT_PROJECT", "react",
+         "Sipariş durum ekranlarını geliştirmek", "Çalışan panel ve kullanım notları", ""),
+        "PENDING_EVALUATION", 2,
+    ),
+    (
+        ("Bildirim Servisi Bitirme Projesi", "CAPSTONE", "python",
+         "Bildirim kuyruğunu tasarlamak", "Servis ve sunum", ""),
+        "PENDING_APPROVAL", 1,
+    ),
+]
 
 
 # Keşfet directory (PLAN R.1): extra public students so the directory has a
@@ -756,6 +805,14 @@ def seed_institutions_and_organizations(session: Session) -> None:
             inst_inserted += 1
 
         _ensure_institution_coordinator(session, i, inst_domain)
+
+        if inst_domain in VERIFIED_INSTITUTION_DOMAINS:
+            inst = session.execute(
+                select(Institution).where(Institution.domain == inst_domain)
+            ).scalars().first()
+            if inst is not None and inst.verification_level != "T3":
+                inst.verification_level = "T3"
+                session.flush()
 
     # Seed 5 organizations
     for i in range(1, 6):
@@ -1601,6 +1658,166 @@ def seed_verify_users(session: Session) -> int:
     return count
 
 
+def seed_org_team(session: Session) -> int:
+    """
+    SPRINT J: ORG_TEAM members with their units, and the public showcase of
+    SHOWCASE_ORG_LEGAL_IDS. Idempotent; an existing membership keeps its role and
+    only gets the unit. Returns memberships created.
+    """
+    if settings.environment == "production":
+        raise RuntimeError("Seed script cannot run in production environment")
+
+    created = 0
+    for legal_id, email, full_name, role, unit in ORG_TEAM:
+        org = session.execute(select(Organization).where(Organization.legal_id == legal_id)).scalars().first()
+        assert org is not None, f"Organization {legal_id} must exist before its team"
+
+        if full_name is not None and session.execute(select(User).where(User.email == email)).scalars().first() is None:
+            register_user(session=session, email=email, password="SeedTest123!", full_name=full_name)
+
+        try:
+            invite_org_member(organization_id=org.id, email=email, role=role, session=session, unit=unit)
+            created += 1
+        except OrgAlreadyMemberError:
+            member = session.execute(
+                select(OrganizationMember)
+                .join(User, User.id == OrganizationMember.user_id)
+                .where(OrganizationMember.organization_id == org.id, User.email == email)
+            ).scalar_one()
+            member.unit = unit
+    session.flush()
+
+    for legal_id in SHOWCASE_ORG_LEGAL_IDS:
+        org = session.execute(select(Organization).where(Organization.legal_id == legal_id)).scalars().first()
+        if org is not None:
+            set_showcase_public(org, True, session)
+
+    print(f"Organization team seed: {created} memberships created")
+    return created
+
+
+def seed_demo_story(session: Session) -> int:
+    """
+    SPRINT J: DEMO_STORY_ENGAGEMENTS for the showcase student through the real
+    state machine, with Mehmet Karaca as the chosen approver. Needs seed_org_team
+    (the approver must be an active member) and seed_verified_organizations
+    (COMPETENCE needs a T3 organization). Idempotent per title. Returns rows inserted.
+    """
+    if settings.environment == "production":
+        raise RuntimeError("Seed script cannot run in production environment")
+
+    talent = session.execute(
+        select(TalentProfile).join(User, TalentProfile.user_id == User.id).where(User.email == SHOWCASE_STUDENT_EMAIL)
+    ).scalars().first()
+    org = session.execute(
+        select(Organization).where(Organization.legal_id == DEMO_STORY_ORG_LEGAL_ID)
+    ).scalars().first()
+    approver = session.execute(select(User).where(User.email == DEMO_STORY_APPROVER_EMAIL)).scalars().first()
+    if talent is None or talent.institution_id is None or org is None or approver is None:
+        print("Warning: demo story skipped — run seed_engagements and seed_org_team first")
+        return 0
+    institution = session.get(Institution, talent.institution_id)
+    assert institution is not None
+    coordinator = session.execute(
+        select(User)
+        .join(InstitutionMember, InstitutionMember.user_id == User.id)
+        .where(InstitutionMember.institution_id == institution.id, InstitutionMember.role == "COORDINATOR")
+    ).scalars().first()
+    assert coordinator is not None, "The showcase student's institution needs a coordinator"
+
+    talent_principal = _seed_principal(talent.user_id, "TALENT", talent_id=talent.id)
+    approver_principal = _seed_principal(approver.id, "ORG_MEMBER", org_ids=[org.id])
+    coordinator_principal = _seed_principal(coordinator.id, "COORDINATOR", institution_ids=[institution.id])
+
+    existing_titles = set(
+        session.execute(select(Engagement.title).where(Engagement.talent_id == talent.id)).scalars().all()
+    )
+    skills = {
+        sk.slug: sk
+        for sk in session.execute(
+            select(Skill).where(Skill.slug.in_({row[0][2] for row in DEMO_STORY_ENGAGEMENTS}))
+        ).scalars()
+    }
+
+    now = datetime.now(timezone.utc)
+    inserted = 0
+    for spec, stage, days_ago in DEMO_STORY_ENGAGEMENTS:
+        title, kind, skill_slug, task_title, deliverable_title, comment = spec
+        if title in existing_titles:
+            continue
+        skill = skills.get(skill_slug)
+        if skill is None:
+            print(f"Warning: demo story engagement skipped (missing skill): {title}")
+            continue
+
+        engagement = create_engagement(
+            session=session,
+            principal=talent_principal,
+            talent_id=str(talent.id),
+            organization_id=str(org.id),
+            kind=kind,
+            title=title,
+            institution_id=str(institution.id),
+            confidential=False,
+            supervisor_user_id=str(approver.id),
+        )
+        engagement_id = str(engagement.id)
+        _move(session, talent_principal, engagement_id, "PENDING_APPROVAL", notify_emails=[coordinator.email])
+
+        if stage != "PENDING_APPROVAL":
+            _move(session, coordinator_principal, engagement_id, "ACTIVE")
+            # COMPETENCE needs a finished period of reasonable length.
+            engagement.ended_on = now.date() - timedelta(days=days_ago)
+            engagement.started_on = engagement.ended_on - timedelta(days=75)
+            create_engagement_task(
+                session=session,
+                principal=approver_principal,
+                engagement_id=engagement_id,
+                title=task_title,
+                description=f"{title} kapsamında görev",
+                due_at=now + timedelta(days=14),
+                skill_id=str(skill.id),
+            )
+            create_deliverable(
+                session=session,
+                principal=talent_principal,
+                engagement_id=engagement_id,
+                title=deliverable_title,
+                description=f"{title} teslim dosyası",
+                skill_id=str(skill.id),
+            )
+            _move(session, approver_principal, engagement_id, "PENDING_EVALUATION")
+
+        if stage == "VERIFIED":
+            create_evaluation(
+                session=session,
+                principal=approver_principal,
+                engagement_id=engagement_id,
+                direction="ORG_TO_TALENT",
+                items=[{"criterion": "Teknik yetkinlik", "skill_id": str(skill.id), "rating": "MEETS", "comment": comment}],
+                private_note="Demo değerlendirmesi",
+            )
+            session.refresh(engagement)
+            create_attestation(
+                session=session,
+                principal=coordinator_principal,
+                engagement_id=engagement_id,
+                requested_claim_type="COMPETENCE",
+                version=engagement.version,
+                skill_id=str(skill.id),
+            )
+
+        session.flush()
+        session.refresh(engagement)
+        assert engagement.status == stage, f"{title}: expected {stage}, got {engagement.status}"
+        engagement.updated_at = now - timedelta(days=days_ago)
+        session.flush()
+        inserted += 1
+
+    print(f"Demo story seed: {inserted} engagements inserted")
+    return inserted
+
+
 if __name__ == "__main__":
     session = _SessionLocal()
     try:
@@ -1621,6 +1838,10 @@ if __name__ == "__main__":
         seed_showcase_profile(session)
 
         seed_pipeline_engagements(session)
+
+        seed_org_team(session)
+
+        seed_demo_story(session)
 
         seed_showcase_portfolio(session)
 

@@ -6,6 +6,8 @@ import { AttestationForm } from "./attestation-form";
 import { createAttestation } from "@/lib/api/attestations";
 import { ApiError } from "@/lib/api/errors";
 import type { EngagementDetail } from "@/lib/api/engagements";
+import { makeViewer } from "@/lib/api/engagements.fixtures";
+import messages from "@/messages/tr.json";
 
 vi.mock("@/lib/api/attestations", () => ({
   createAttestation: vi.fn(),
@@ -41,6 +43,8 @@ const evaluatedEngagement: EngagementDetail = {
   tasks: [],
   deliverables: [],
   attestations: [],
+  supervisor: null,
+  viewer: makeViewer({ relation: "COORDINATOR", can_attest: true }),
 };
 
 describe("AttestationForm", () => {
@@ -59,9 +63,43 @@ describe("AttestationForm", () => {
     expect(screen.getByText("Tanıklığı Gönder")).toBeTruthy();
   });
 
-  it("ACTIVE durumunda hiçbir şey render edilmez", () => {
+  it("SPRINT A: EVALUATED olsa da mühür yetkisi olmayan (ör. kuruluş üyesi) formu görmez", () => {
     renderWithQueryClient(
-      <AttestationForm engagement={{ ...evaluatedEngagement, status: "ACTIVE" }} onSuccess={vi.fn()} />
+      <AttestationForm
+        engagement={{ ...evaluatedEngagement, viewer: makeViewer({ relation: "ORG_MEMBER" }) }}
+        onSuccess={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByText("Tanıklığı Gönder")).toBeNull();
+  });
+
+  it("SPRINT A: attest_blocker varsa açıklama gösterilir, form yine gönderilebilir", () => {
+    renderWithQueryClient(
+      <AttestationForm
+        engagement={{
+          ...evaluatedEngagement,
+          viewer: makeViewer({ relation: "COORDINATOR", can_attest: true, attest_blocker: "ORG_NOT_VERIFIED" }),
+        }}
+        onSuccess={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText(messages.calismalar.attestBlocker.ORG_NOT_VERIFIED)).toBeTruthy();
+    expect(screen.getByText("Tanıklığı Gönder")).toBeTruthy();
+  });
+
+  it("panellerin 'Mühürle' bağlantısı için form #taniklik çapasını taşır", () => {
+    renderWithQueryClient(<AttestationForm engagement={evaluatedEngagement} onSuccess={vi.fn()} />);
+    expect(document.getElementById("taniklik")?.tagName).toBe("FORM");
+  });
+
+  it("viewer.can_attest false ise (ör. ACTIVE) hiçbir şey render edilmez", () => {
+    renderWithQueryClient(
+      <AttestationForm
+        engagement={{ ...evaluatedEngagement, status: "ACTIVE", viewer: makeViewer({ relation: "COORDINATOR" }) }}
+        onSuccess={vi.fn()}
+      />
     );
 
     expect(screen.queryByLabelText("Tanıklık Türü")).toBeNull();
