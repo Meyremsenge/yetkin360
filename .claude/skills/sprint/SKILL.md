@@ -2,7 +2,7 @@
 name: sprint
 description: SPRINT.md'deki kuruluş odaklı son sprint paketlerini paralel oturumlarda yürütür. "/sprint durum" hangi paketin boşta olduğunu gösterir, "/sprint <ID>" paketi kendi worktree'sinde başlatıp bitirir (uygula, doğrula, commit+push kendi dalına), "/sprint birlestir <ID>" bitmiş paketi taban dala alır. Kullanıcı /sprint yazdığında çalışır.
 disable-model-invocation: true
-argument-hint: "durum | <ID: S0 M0 A D1 H H-0 C B D2 F I E G K J R> | birlestir <ID>"
+argument-hint: "hat <1|2|3> | durum | <ID: S0 M0 A D1 H H-0 C B D2 F I E G K J R> | birlestir <ID>"
 ---
 
 # Sprint — paralel paket yürütücü
@@ -148,6 +148,45 @@ Ana klasörde (`<ana>`), taban dalda çalışır. Paket kodu yazmaz; yalnız bir
 8. Bu paketi bekleyen paketleri söyle: "Artık açılabilir: …" ve devam eden dallara not:
    "Kendi dalında `git merge feat/kurum-kurulus-panelleri` yap."
 9. Çıktı: tek blok — birleşen, doğrulanan, açılan paketler.
+
+---
+
+## Mod 4 — `/sprint hat <1|2|3>` (otomatik hat; kullanıcı takip etmez)
+
+Oturum kendi hattındaki paketleri **sırayla, kendi başına** yürütür: bekler, yapar, birleştirir, sıradakine geçer.
+Kullanıcıya soru sorma; DUR koşulunda tek paragraf rapor yaz ve dur.
+
+**Hatlar** (S0, C, B, M0, I yönetici oturumunda yapıldı):
+| Hat | Sıra |
+|---|---|
+| 1 | A → D1 → H-0 → R |
+| 2 | D2 → F → J |
+| 3 | G → E → K |
+
+Döngü — hattaki her paket için:
+1. **Zaten yapıldı mı?** `git fetch -q origin` ve `git log origin/feat/kurum-kurulus-panelleri --oneline --grep "SPRINT <ID> "`.
+   Varsa atla.
+2. **Bağımlılık bekle:** SPRINT.md §4'teki sert bağımlılıkların her biri için aynı grep. Eksik varsa
+   **ön planda uyuma** (yasak): `run_in_background` ile şu döngüyü başlat ve bildirimini bekle:
+   `until git fetch -q origin && git log origin/feat/kurum-kurulus-panelleri --oneline --grep "SPRINT <BAĞIMLILIK> " | grep -q .; do sleep 60; done`.
+   (R için: hat 2 ve 3'ün son paketleri dahil tüm paketler.)
+3. **Uygula:** Mod 2'yi (2.1-2.5) çalıştır. Farklar: dal adı `ajan/<id>`; tek worktree'de kalabilirsin
+   (her paket için `git checkout -B ajan/<id> origin/feat/kurum-kurulus-panelleri`); model uyarısı verme.
+4. **Birleştir (ana klasöre dokunmadan, uzak dal kilit görevi görür):**
+   ```
+   git fetch -q origin
+   git checkout -B _birlestir-<id> origin/feat/kurum-kurulus-panelleri
+   git merge --no-ff ajan/<id> -m "merge: SPRINT <ID> — <başlık>"
+   ```
+   Çakışma: SPRINT.md §3.3 sahiplik + Mod 3 adım 4 kuralları; mantık çakışmasıysa `git merge --abort`, DUR.
+   Birleşmiş hâlde doğrula: backend değiştiyse `pytest tests/authorization -q` + paketin komutları (önekler:
+   `YETKIN360_ENV_FILE=<ana>/.env TEST_DB_SUFFIX=<id>`); frontend değiştiyse `npm run lint && npm run typecheck && npx vitest run`.
+   Geçerse `git push origin _birlestir-<id>:feat/kurum-kurulus-panelleri` (**force yok**). Reddedilirse
+   (başka hat önce push etti) adım 4'ü baştan tekrarla (en fazla 3 kez, sonra DUR).
+   **Dev veritabanına migration uygulama** — R paketi yapar.
+5. Tek satır yaz: `✔ <ID> birleşti (<hash>) — sıradaki: <ID>` ve döngüye devam et.
+
+Hat bitince: `Hat <n> bitti: <birleşen paketler>` ve dur.
 
 ---
 
