@@ -6,6 +6,15 @@ export function formatMonthYear(value: string): string {
   return new Date(value).toLocaleDateString("tr-TR", { month: "long", year: "numeric", timeZone: "UTC" });
 }
 
+/** "Mehmet K. · Lale Yazılım, Yazılım"; the name or the unit is left out when unknown. */
+export function formatEvaluator(
+  organization: string,
+  evaluator: { display_name: string | null; unit: string | null }
+): string {
+  const place = evaluator.unit ? `${organization}, ${evaluator.unit}` : organization;
+  return evaluator.display_name ? `${evaluator.display_name} · ${place}` : place;
+}
+
 export function formatPeriod(start: string | null, end: string | null): string | null {
   if (!start && !end) return null;
   return `${start ? formatMonthYear(start) : "–"} – ${end ? formatMonthYear(end) : messages.profil.ongoingLabel}`;

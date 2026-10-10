@@ -1061,6 +1061,9 @@
     }
   },
   "publicVerification": {
+    "coSignedBadge": "Çift imzalı",
+    "coSignedDetail": "Kuruluş değerlendirdi, üniversite mühürledi",
+    "evaluatorLabel": "Değerlendiren",
     "notFound": "Kayıt bulunamadı",
     "organizationLabel": "Kurum",
     "institutionLabel": "Eğitim Kurumu",

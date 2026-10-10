@@ -58,6 +58,12 @@ export function ExperienceCard({ experience, index }: { experience: PublicVerifi
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] text-foreground">
             <span>{experience.organization_name_snapshot}</span>
             {trust && trustLabels[trust] ? <Badge variant={TRUST_VARIANT[trust] ?? "default"}>{trustLabels[trust]}</Badge> : null}
+            {experience.co_signed ? (
+              <Badge variant="success" title={messages.publicVerification.coSignedDetail}>
+                {messages.publicVerification.coSignedBadge}
+                <span className="sr-only">: {messages.publicVerification.coSignedDetail}</span>
+              </Badge>
+            ) : null}
           </p>
           <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted-foreground">
             {period ? <span className="font-mono text-xs tabular-nums">{period}</span> : null}

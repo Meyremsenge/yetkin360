@@ -80,6 +80,12 @@ export interface PublicEvidencedSkill {
   category: string;
 }
 
+/** Who evaluated for the organization: "Ad S." (null without a live profile) and unit. */
+export interface PublicEvaluator {
+  display_name: string | null;
+  unit: string | null;
+}
+
 export interface PublicVerifiedExperience {
   id: string;
   organization_name_snapshot: string;
@@ -94,6 +100,9 @@ export interface PublicVerifiedExperience {
   public_token?: string | null;
   skills?: PublicAttestedSkill[];
   evidenced_skills?: PublicEvidencedSkill[];
+  /** Organization evaluated + institution sealed (K1-A). */
+  co_signed?: boolean;
+  evaluator?: PublicEvaluator | null;
 }
 
 export interface PublicSkill {
@@ -178,6 +187,8 @@ export async function getPublicVerification(token: string): Promise<{
     claim_type: string;
     attestor_organization: string | null;
   }>;
+  co_signed?: boolean;
+  evaluator?: PublicEvaluator | null;
 }> {
   try {
     const url = `${BASE_URL}/public/v/${encodeURIComponent(token)}`;
