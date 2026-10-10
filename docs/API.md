@@ -192,7 +192,7 @@ Kesin, test edilebilir matris → [AUTHORIZATION.md](AUTHORIZATION.md).
 
 | Metot | Yol | Yetki | İstek | Cevap | Hatalar |
 |---|---|---|---|---|---|
-| `POST` | `/auth/register` | — | `email`, `password`, `full_name`, `account_kind` (ops., varsayılan `TALENT`), `entity_name` (ops., `account_kind≠TALENT` ise zorunlu) | `201` — `user_id` (her zaman, kayıtlı e-postada bile) | `422`, `429` |
+| `POST` | `/auth/register` | — | `email`, `password`, `full_name`, `account_kind` (ops., varsayılan `TALENT`), `entity_name` (ops., `account_kind≠TALENT` ise zorunlu), `legal_id` (ops., 16 haneli MERSİS; yalnız `ORGANIZATION`) | `201` — `user_id` (her zaman, kayıtlı e-postada bile) | `422`, `409 LEGAL_ID_TAKEN`, `429` |
 | `POST` | `/auth/login` | — | `email`, `password` | `200` — `user_id`, `role`, `email_verified` + **3 cookie** | `401 INVALID_CREDENTIALS`, `423 ACCOUNT_LOCKED`, `429` |
 | `POST` | `/auth/refresh` | — | — (refresh cookie'den) | `204` + **yenilenmiş cookie'ler** | `401 INVALID_REFRESH_TOKEN` |
 | `POST` | `/auth/logout` | `AUTH` | — | `204` + cookie'ler silinir | — |
@@ -226,6 +226,11 @@ iptal edebilsin diye `/auth/refresh` ile sınırlı değildir (YET-185). Eski
   kendi adresidir (oturumdan; istekten gelmez).
 - `/auth/forgot-password` **e-posta kayıtlı olmasa da `204`** döner. Aksi hâlde
   hangi e-postaların kayıtlı olduğu sızar (kullanıcı numaralandırma).
+- `/auth/register`, `account_kind=ORGANIZATION` iken **ücretsiz e-posta sağlayıcı
+  adreslerini `422` ile reddeder** (`fields.email`); doğrulama e-postası böylece
+  her zaman kurumsal adrese gider. Karar yalnız istekten verilir (hesabın var
+  olup olmadığından bağımsız — enumeration sinyali değildir). `legal_id` yalnız
+  biçim olarak doğrulanır ve kuruluşa yazılır; kuruluş yine `T1` açılır.
 - `/auth/register` aynı prensiple **kayıtlı bir e-postayla çağrılsa da her
   zaman `201`** döner (`EMAIL_TAKEN` gibi ayırt edici bir kod yok) — var olan
   hesap dokunulmadan kalır, dönen `user_id` gerçek değildir. Var olan hesap
