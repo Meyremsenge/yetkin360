@@ -6,15 +6,18 @@ Domain verification requires dnspython for DNS TXT lookups.
 
 import secrets
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
 
 import dns.resolver
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import Organization, OrganizationMember, User
+from app.models import Engagement, Organization, OrganizationMember, TalentProfile, User
+from app.services import rate_limit
+from app.services.authorization import Principal, scoped_organization_directory
 from app.services.outbox import enqueue
 
 
@@ -248,6 +251,7 @@ def invite_org_member(
     email: str,
     role: str,
     session: Session,
+    unit: Optional[str] = None,
 ) -> OrganizationMember:
     """
     Invite user to organization by email.
@@ -297,6 +301,7 @@ def invite_org_member(
         user_id=user.id,
         role=role,
         status="ACTIVE",
+        unit=unit,
     )
     session.add(member)
     session.flush()
@@ -511,3 +516,197 @@ def reject_verification(session: Session, organization_id: uuid.UUID) -> Optiona
     org.verification_rejected_at = datetime.now(timezone.utc)
     session.flush()
     return org
+
+
+# ============================================================================
+# SPRINT D2: team list, unit labels, approver picker, showcase switch
+# ============================================================================
+
+# Engagements a supervisor still has to act on (approve/evaluate) or just evaluated.
+OPEN_ASSIGNED_STATUSES = ("ACTIVE", "PENDING_EVALUATION", "EVALUATED")
+UNIT_MAX_LENGTH = 60
+
+
+class InvalidUnitError(Exception):
+    """Raised when a unit label is longer than UNIT_MAX_LENGTH after trimming."""
+
+
+def normalize_unit(unit: Optional[str]) -> Optional[str]:
+    """Trim a unit label; blank means "no unit". Mirrors ck_organization_members_unit_length."""
+    if unit is None:
+        return None
+    trimmed = unit.strip()
+    if not trimmed:
+        return None
+    if len(trimmed) > UNIT_MAX_LENGTH:
+        raise InvalidUnitError(str(len(trimmed)))
+    return trimmed
+
+
+@dataclass(frozen=True)
+class OrgMemberRow:
+    user_id: uuid.UUID
+    display_name: str
+    role: str
+    unit: Optional[str]
+    open_assigned_count: int
+    email: Optional[str]
+
+
+@dataclass(frozen=True)
+class ApproverRow:
+    user_id: uuid.UUID
+    display_name: str
+    unit: Optional[str]
+
+
+def _display_name_column():
+    return func.coalesce(TalentProfile.full_name, "")
+
+
+def _member_rows_query(organization_id: uuid.UUID):
+    open_count = (
+        select(func.count(Engagement.id))
+        .where(
+            Engagement.organization_id == organization_id,
+            Engagement.supervisor_user_id == OrganizationMember.user_id,
+            Engagement.status.in_(OPEN_ASSIGNED_STATUSES),
+        )
+        .correlate(OrganizationMember)
+        .scalar_subquery()
+    )
+    return (
+        select(
+            OrganizationMember.user_id,
+            _display_name_column().label("display_name"),
+            OrganizationMember.role,
+            OrganizationMember.unit,
+            open_count.label("open_assigned_count"),
+            User.email,
+        )
+        .join(User, User.id == OrganizationMember.user_id)
+        .outerjoin(
+            TalentProfile,
+            and_(TalentProfile.user_id == User.id, TalentProfile.deleted_at.is_(None)),
+        )
+        .where(
+            OrganizationMember.organization_id == organization_id,
+            User.deleted_at.is_(None),
+        )
+    )
+
+
+def _to_member_row(row, include_email: bool) -> OrgMemberRow:
+    return OrgMemberRow(
+        user_id=row.user_id,
+        display_name=row.display_name,
+        role=row.role,
+        unit=row.unit,
+        open_assigned_count=row.open_assigned_count,
+        email=row.email if include_email else None,
+    )
+
+
+def list_org_members(
+    session: Session, organization_id: uuid.UUID, include_email: bool
+) -> list[OrgMemberRow]:
+    """
+    Team list of an organization the caller already belongs to (the router checks
+    scope). E-mail addresses are only filled for the organization's admins.
+    Admins first, then by unit (no unit last) and name.
+    """
+    stmt = _member_rows_query(organization_id).order_by(
+        (OrganizationMember.role != "ADMIN"),
+        OrganizationMember.unit.asc().nulls_last(),
+        _display_name_column(),
+        OrganizationMember.user_id,
+    )
+    return [_to_member_row(row, include_email) for row in session.execute(stmt).all()]
+
+
+def update_member_unit(
+    session: Session, organization_id: uuid.UUID, user_id: uuid.UUID, unit: Optional[str]
+) -> Optional[tuple[OrgMemberRow, bool]]:
+    """
+    Set or clear a member's unit (the router checks the caller is an ADMIN of
+    the organization). Returns None when `user_id` is not a member of it,
+    otherwise (row with e-mail, changed).
+    """
+    normalized = normalize_unit(unit)
+    member = session.execute(
+        select(OrganizationMember).where(
+            OrganizationMember.organization_id == organization_id,
+            OrganizationMember.user_id == user_id,
+        )
+    ).scalar_one_or_none()
+    if member is None:
+        return None
+
+    changed = member.unit != normalized
+    if changed:
+        member.unit = normalized
+        session.flush()
+
+    row = session.execute(
+        _member_rows_query(organization_id).where(OrganizationMember.user_id == user_id)
+    ).one_or_none()
+    if row is None:  # the member's user account is deleted
+        return None
+    return _to_member_row(row, include_email=True), changed
+
+
+def list_approvers(
+    session: Session, principal: Principal, organization_id: uuid.UUID
+) -> Optional[list[ApproverRow]]:
+    """
+    People a student may ask to approve their engagement with an organization.
+    Any e-mail-verified user may ask (no membership to scope by), so this goes
+    through scoped_organization_directory (ACTIVE, not deleted; otherwise None
+    -> 404) and is deliberately thin: no e-mail, no role. Every call, a 404
+    probe included, counts against the shared Keşfet limit (60/min/user;
+    raises RateLimitExceeded). Only ACTIVE memberships of ACTIVE, non-deleted
+    users; by unit (no unit last), name.
+    """
+    rate_limit.hit(session, rate_limit.DISCOVER_USER, str(principal.user_id))
+    organization = session.execute(
+        scoped_organization_directory(session, principal).where(Organization.id == organization_id)
+    ).scalar_one_or_none()
+    if organization is None:
+        return None
+
+    stmt = (
+        select(
+            OrganizationMember.user_id,
+            _display_name_column().label("display_name"),
+            OrganizationMember.unit,
+        )
+        .join(User, User.id == OrganizationMember.user_id)
+        .outerjoin(
+            TalentProfile,
+            and_(TalentProfile.user_id == User.id, TalentProfile.deleted_at.is_(None)),
+        )
+        .where(
+            OrganizationMember.organization_id == organization.id,
+            OrganizationMember.status == "ACTIVE",
+            User.status == "ACTIVE",
+            User.deleted_at.is_(None),
+        )
+        .order_by(
+            OrganizationMember.unit.asc().nulls_last(),
+            _display_name_column(),
+            OrganizationMember.user_id,
+        )
+    )
+    return [
+        ApproverRow(user_id=row.user_id, display_name=row.display_name, unit=row.unit)
+        for row in session.execute(stmt).all()
+    ]
+
+
+def set_showcase_public(org: Organization, value: bool, session: Session) -> bool:
+    """Open/close the organization's public showcase. Returns whether it changed."""
+    if org.showcase_public == value:
+        return False
+    org.showcase_public = value
+    session.flush()
+    return True
