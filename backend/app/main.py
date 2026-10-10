@@ -4,6 +4,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.admin import router as admin_router
+from app.api.admin_complaints import router as admin_complaints_router
+from app.api.complaints import router as complaints_router
+from app.api.admin_audit import router as admin_audit_router
+from app.api.admin_directory import router as admin_directory_router
 from app.api.auth import router as auth_router
 from app.api.certificate_checks import router as certificate_checks_router
 from app.api.discover import router as discover_router
@@ -57,6 +61,10 @@ def create_app(environment: str) -> FastAPI:
     application.add_middleware(RequestIdMiddleware)
 
     application.include_router(admin_router)
+    application.include_router(admin_complaints_router)
+    application.include_router(complaints_router)
+    application.include_router(admin_audit_router)
+    application.include_router(admin_directory_router)
     application.include_router(auth_router)
     application.include_router(certificate_checks_router)
     application.include_router(discover_router)

@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import Attestation, Deliverable, Engagement, EngagementTask, Evidence, Institution, InstitutionLinkRequest, Organization, SkillClaim, SkillSignal, TalentProfile, User, VerifiedExperience
+from app.models import Attestation, Complaint, Deliverable, Engagement, EngagementTask, Evidence, Institution, InstitutionLinkRequest, Organization, SkillClaim, SkillSignal, TalentProfile, User, VerifiedExperience
 
 
 @dataclass
@@ -721,4 +721,72 @@ def scoped_public_skill_signals(
             SkillSignal.strength != "NONE",
             source_engagement.in_(engagement_ids),
         )
+    )
+
+
+# ============================================================================
+# Complaints (sikayet-backend)
+# ============================================================================
+
+
+def scoped_owned_complaints(session: Session, principal: Principal) -> Select:
+    """The talent's own complaints — the only scope that may list or download attachments."""
+    if principal.talent_id is None:
+        return select(Complaint).where(Complaint.id.in_([]))
+    return select(Complaint).where(Complaint.talent_id == principal.talent_id)
+
+
+def scoped_complaints(session: Session, principal: Principal) -> Select:
+    """
+    Complaints readable through the non-admin routes, as a union of:
+    - owner: the talent who filed it;
+    - respondent: the derived respondent, only once the admin has asked for an
+      explanation (before that the respondent must not learn about it);
+    - escalated member: after escalation, COORDINATOR/ADMIN members of the target
+      institution (not SUPERVISOR) or ADMIN members of the target organization.
+    The platform admin gets nothing here (admin routes use scoped_admin_complaints).
+    Callers decide which fields each relation may see.
+    """
+    conditions = []
+    if principal.talent_id is not None:
+        conditions.append(Complaint.talent_id == principal.talent_id)
+    if principal.user_id is not None:
+        conditions.append(
+            and_(Complaint.respondent_user_id == principal.user_id, Complaint.explanation_requested_at.is_not(None))
+        )
+    deciding_institution_ids = [
+        inst_id for inst_id in principal.institution_ids if inst_id not in principal.supervisor_institution_ids
+    ]
+    if deciding_institution_ids:
+        conditions.append(
+            and_(Complaint.escalated_at.is_not(None), Complaint.target_institution_id.in_(deciding_institution_ids))
+        )
+    if principal.org_admin_ids:
+        conditions.append(
+            and_(Complaint.escalated_at.is_not(None), Complaint.target_organization_id.in_(principal.org_admin_ids))
+        )
+    if not conditions:
+        return select(Complaint).where(Complaint.id.in_([]))
+    return select(Complaint).where(or_(*conditions))
+
+
+def scoped_admin_complaints(session: Session, principal: Principal) -> Select:
+    """Every complaint for a platform admin, nothing for anyone else (defense in depth
+    behind the router-level require_platform_admin gate)."""
+    if not principal.is_platform_admin:
+        return select(Complaint).where(Complaint.id.in_([]))
+    return select(Complaint)
+
+
+def scoped_upheld_complaint_counts(session: Session, target_type: str, target_ids: list[uuid.UUID]) -> Select:
+    """
+    (target_id, count) of UPHELD complaints — a deliberate public aggregate. Only the
+    number leaves this query: no text, no talent, no respondent (AC-S13). A target
+    without UPHELD complaints has no row (callers default to 0).
+    """
+    column = Complaint.target_institution_id if target_type == "INSTITUTION" else Complaint.target_organization_id
+    return (
+        select(column, func.count())
+        .where(Complaint.status == "UPHELD", column.in_(target_ids))
+        .group_by(column)
     )

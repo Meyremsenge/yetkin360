@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.api.auth import _client_ip
 from app.api.deps import get_current_principal, get_session, get_verified_principal
 from app.core.deps import get_current_user, require_csrf, require_email_verified
 from app.core.errors import ApiError
@@ -87,6 +88,9 @@ class VerificationQueueItem(BaseModel):
 
 class VerificationQueueResponse(BaseModel):
     items: list[VerificationQueueItem]
+    limit: int
+    offset: int
+    has_more: bool
 
 
 class VerificationLevelUpdate(BaseModel):
@@ -144,6 +148,9 @@ class SkillResponse(BaseModel):
 
 class SkillsListResponse(BaseModel):
     items: list[SkillResponse]
+    limit: int
+    offset: int
+    has_more: bool
 
 
 class FraudFlagItem(BaseModel):
@@ -168,6 +175,9 @@ class FraudFlagItem(BaseModel):
 
 class FraudQueueResponse(BaseModel):
     items: list[FraudFlagItem]
+    limit: int
+    offset: int
+    has_more: bool
 
 
 class FraudFlagResolveRequest(BaseModel):
@@ -187,12 +197,18 @@ def get_verification_queue(
     session: Session = Depends(get_session),
 ) -> VerificationQueueResponse:
     """docs/API.md §2.10: T2 + legal_id dolu kurumlar (T3 başvurusu sayılır)."""
-    orgs = list_verification_queue(session, limit=limit, offset=offset)
-    return VerificationQueueResponse(items=[VerificationQueueItem.model_validate(o) for o in orgs])
+    orgs, has_more = list_verification_queue(session, limit=limit, offset=offset)
+    return VerificationQueueResponse(
+        items=[VerificationQueueItem.model_validate(o) for o in orgs],
+        limit=limit,
+        offset=offset,
+        has_more=has_more,
+    )
 
 
 @router.post("/organizations/{organization_id}/verification-level", response_model=OrganizationSummary)
 def update_verification_level(
+    request: Request,
     organization_id: uuid.UUID,
     payload: VerificationLevelUpdate,
     principal: Principal = Depends(get_verified_principal),
@@ -219,7 +235,7 @@ def update_verification_level(
     log_audit_event(
         session=session,
         actor_user_id=principal.user_id,
-        actor_ip=None,
+        actor_ip=_client_ip(request),
         action="ADMIN_SET_VERIFICATION_LEVEL",
         subject_type="organization",
         subject_id=organization_id,
@@ -235,6 +251,7 @@ def update_verification_level(
 
 @router.post("/organizations/{organization_id}/verification-reject", response_model=OrganizationSummary)
 def reject_verification_endpoint(
+    request: Request,
     organization_id: uuid.UUID,
     payload: VerificationReject,
     principal: Principal = Depends(get_verified_principal),
@@ -253,7 +270,7 @@ def reject_verification_endpoint(
     log_audit_event(
         session=session,
         actor_user_id=principal.user_id,
-        actor_ip=None,
+        actor_ip=_client_ip(request),
         action="ADMIN_REJECT_VERIFICATION",
         subject_type="organization",
         subject_id=organization_id,
@@ -277,12 +294,18 @@ def list_skills_endpoint(
     session: Session = Depends(get_session),
 ) -> SkillsListResponse:
     """Admin taksonomi yönetimi için TÜM skill'leri (durumdan bağımsız) listeler."""
-    skills = list_all_skills(session, limit=limit, offset=offset)
-    return SkillsListResponse(items=[SkillResponse.model_validate(s) for s in skills])
+    skills, has_more = list_all_skills(session, limit=limit, offset=offset)
+    return SkillsListResponse(
+        items=[SkillResponse.model_validate(s) for s in skills],
+        limit=limit,
+        offset=offset,
+        has_more=has_more,
+    )
 
 
 @router.post("/skills", response_model=SkillResponse, status_code=201)
 def create_skill_endpoint(
+    request: Request,
     payload: SkillCreateRequest,
     principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
@@ -305,7 +328,7 @@ def create_skill_endpoint(
     log_audit_event(
         session=session,
         actor_user_id=principal.user_id,
-        actor_ip=None,
+        actor_ip=_client_ip(request),
         action="ADMIN_CREATE_SKILL",
         subject_type="skill",
         subject_id=skill.id,
@@ -317,6 +340,7 @@ def create_skill_endpoint(
 
 @router.patch("/skills/{skill_id}", response_model=SkillResponse)
 def update_skill_endpoint(
+    request: Request,
     skill_id: uuid.UUID,
     payload: SkillUpdateRequest,
     principal: Principal = Depends(get_verified_principal),
@@ -344,7 +368,7 @@ def update_skill_endpoint(
     log_audit_event(
         session=session,
         actor_user_id=principal.user_id,
-        actor_ip=None,
+        actor_ip=_client_ip(request),
         action="ADMIN_UPDATE_SKILL",
         subject_type="skill",
         subject_id=skill_id,
@@ -356,6 +380,7 @@ def update_skill_endpoint(
 
 @router.post("/skills/{skill_id}/deprecate", response_model=SkillResponse)
 def deprecate_skill_endpoint(
+    request: Request,
     skill_id: uuid.UUID,
     principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
@@ -368,7 +393,7 @@ def deprecate_skill_endpoint(
     log_audit_event(
         session=session,
         actor_user_id=principal.user_id,
-        actor_ip=None,
+        actor_ip=_client_ip(request),
         action="ADMIN_DEPRECATE_SKILL",
         subject_type="skill",
         subject_id=skill_id,
@@ -380,6 +405,7 @@ def deprecate_skill_endpoint(
 
 @router.post("/skills/{skill_id}/merge", response_model=SkillResponse)
 def merge_skill_endpoint(
+    request: Request,
     skill_id: uuid.UUID,
     payload: SkillMergeRequest,
     principal: Principal = Depends(get_verified_principal),
@@ -397,7 +423,7 @@ def merge_skill_endpoint(
     log_audit_event(
         session=session,
         actor_user_id=principal.user_id,
-        actor_ip=None,
+        actor_ip=_client_ip(request),
         action="ADMIN_MERGE_SKILL",
         subject_type="skill",
         subject_id=skill_id,
@@ -420,17 +446,21 @@ def get_fraud_queue(
     session: Session = Depends(get_session),
 ) -> FraudQueueResponse:
     """PENDING fraud_flags — AI'nin ürettiği işaretler, henüz admin kararı yok."""
-    flags = list_fraud_queue(session, limit=limit, offset=offset)
+    flags, has_more = list_fraud_queue(session, limit=limit, offset=offset)
     labels = subject_labels(session, flags)
     return FraudQueueResponse(
         items=[
             FraudFlagItem.model_validate(f).model_copy(update={"subject_label": labels.get(f.id)}) for f in flags
-        ]
+        ],
+        limit=limit,
+        offset=offset,
+        has_more=has_more,
     )
 
 
 @router.post("/fraud-queue/{flag_id}/resolve", response_model=FraudFlagItem)
 def resolve_fraud_flag_endpoint(
+    request: Request,
     flag_id: uuid.UUID,
     payload: FraudFlagResolveRequest,
     principal: Principal = Depends(get_verified_principal),
@@ -454,7 +484,7 @@ def resolve_fraud_flag_endpoint(
     log_audit_event(
         session=session,
         actor_user_id=principal.user_id,
-        actor_ip=None,
+        actor_ip=_client_ip(request),
         action="ADMIN_RESOLVE_FRAUD_FLAG",
         subject_type="fraud_flag",
         subject_id=flag_id,

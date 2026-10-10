@@ -21,15 +21,17 @@ class SkillStatusTransitionError(Exception):
     """Raised when attempting an invalid skill status transition (e.g., MERGED→DEPRECATED)."""
 
 
-def list_all_skills(session: Session, limit: int = 200, offset: int = 0) -> Sequence[Skill]:
+def list_all_skills(session: Session, limit: int = 200, offset: int = 0) -> tuple[list[Skill], bool]:
     """
     List ALL skills regardless of status (ACTIVE/DEPRECATED/MERGED) — for
     admin taxonomy management (YET-137). Unlike search_skills(), this is not
     filtered to ACTIVE only, since admins need to see/manage deprecated and
-    merged skills too.
+    merged skills too. Returns (rows, has_more); fetches limit+1 rows so the
+    extra row is never returned. `id` is a tie-breaker for stable paging.
     """
-    stmt = select(Skill).order_by(Skill.name_tr).limit(limit).offset(offset)
-    return session.execute(stmt).scalars().all()
+    stmt = select(Skill).order_by(Skill.name_tr, Skill.id).limit(limit + 1).offset(offset)
+    rows = list(session.execute(stmt).scalars().all())
+    return rows[:limit], len(rows) > limit
 
 
 def search_skills(
