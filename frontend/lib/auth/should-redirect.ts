@@ -82,6 +82,9 @@ function isPublicRoute(pathname: string): boolean {
   // Public verification page and subpaths
   if (pathname === "/v" || pathname.startsWith("/v/")) return true;
 
+  // Public organization showcase and subpaths
+  if (pathname === "/o" || pathname.startsWith("/o/")) return true;
+
   // Next.js internals
   if (pathname.startsWith("/_next/")) return true;
 
