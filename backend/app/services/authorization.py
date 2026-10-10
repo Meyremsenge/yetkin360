@@ -202,6 +202,24 @@ def scoped_organizations(session: Session, principal: Principal) -> Select:
     return select(Organization).where(Organization.id.in_(principal.org_ids))
 
 
+def scoped_organization_directory(session: Session, principal: Principal) -> Select:
+    """
+    Return a SQLAlchemy Select query over ALL active organizations — a
+    deliberate exception to tenant scoping, used only by the org-picker
+    flow (PLAN 3.53: talent starting a new engagement searches/browses the
+    organization directory to choose one, since any authenticated talent
+    may begin a relationship with any organization — there is no prior
+    membership to scope by). Requires authentication (route dependency),
+    but not membership. Excludes soft-deleted/non-ACTIVE rows.
+
+    Never use this for anything that should be tenant-isolated — use
+    scoped_organizations() for that.
+    """
+    return select(Organization).where(
+        Organization.status == "ACTIVE", Organization.deleted_at.is_(None)
+    )
+
+
 def scoped_institutions(session: Session, principal: Principal) -> Select:
     """
     Return a SQLAlchemy Select query filtered to institutions in principal's scope.

@@ -188,6 +188,56 @@ def org_b_member(session, organization_b, user_b_member):
 
 
 # ============================================================================
+# PLAN 3.53: GET /organizations (directory, deliberately cross-tenant)
+# ============================================================================
+
+
+class TestOrganizationDirectory:
+    """
+    PLAN 3.53: unlike GET /organizations/{id}, this endpoint is deliberately
+    NOT tenant-scoped — any authenticated talent (no org membership required)
+    sees the full directory to pick an organization for a new engagement.
+    """
+
+    def test_user_with_no_role_sees_both_organizations(
+        self, client, organization_a, organization_b, user_no_role
+    ):
+        response = client.get("/organizations", headers={"X-Debug-User-Id": str(user_no_role.id)})
+        assert response.status_code == 200
+        names = {item["name"] for item in response.json()["items"]}
+        assert organization_a.name in names
+        assert organization_b.name in names
+
+    def test_unauthenticated_request_returns_401(self, client):
+        response = client.get("/organizations")
+        assert response.status_code == 401
+
+    def test_search_query_filters_by_name_case_insensitive(
+        self, client, organization_a, organization_b, user_no_role
+    ):
+        response = client.get(
+            "/organizations",
+            params={"q": organization_a.name.lower()},  # full name — "...A" vs "...B" must not both match
+            headers={"X-Debug-User-Id": str(user_no_role.id)},
+        )
+        assert response.status_code == 200
+        names = {item["name"] for item in response.json()["items"]}
+        assert organization_a.name in names
+        assert organization_b.name not in names
+
+    def test_response_excludes_legal_id_and_internal_status(
+        self, client, organization_a, user_no_role
+    ):
+        """AC-S2-style: directory entries are thinner than the owner-facing OrganizationResponse."""
+        response = client.get("/organizations", headers={"X-Debug-User-Id": str(user_no_role.id)})
+        assert response.status_code == 200
+        entry = next(item for item in response.json()["items"] if item["name"] == organization_a.name)
+        assert "legal_id" not in entry
+        assert "status" not in entry
+        assert entry["verification_level"] == "T1"
+
+
+# ============================================================================
 # AC-S1: GET /organizations/{id} returns 404 for out-of-scope org (404 sızdırmama)
 # ============================================================================
 

@@ -11,7 +11,12 @@ from app.api.deps import get_current_principal, get_session, get_verified_princi
 from app.core.deps import require_csrf
 from app.core.errors import ApiError
 from app.models import Organization
-from app.services.authorization import Principal, get_scoped_or_404, scoped_organizations
+from app.services.authorization import (
+    Principal,
+    get_scoped_or_404,
+    scoped_organization_directory,
+    scoped_organizations,
+)
 from app.services.audit import log_audit_event
 from app.services.organization import (
     AlreadyMemberError,
@@ -61,6 +66,24 @@ class OrganizationResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class OrganizationDirectoryEntry(BaseModel):
+    """Response schema for GET /organizations (directory/picker) — deliberately
+    thinner than OrganizationResponse: no legal_id/status, those are internal
+    to the organization's own admins, not the browsing talent."""
+
+    id: uuid.UUID
+    name: str
+    domain: str | None
+    verification_level: str
+
+    class Config:
+        from_attributes = True
+
+
+class OrganizationDirectoryResponse(BaseModel):
+    items: list[OrganizationDirectoryEntry]
 
 
 class OrganizationMemberInvite(BaseModel):
@@ -135,6 +158,44 @@ def validate_hostname(domain: str) -> bool:
     # Allows TLDs and subdomains
     hostname_pattern = r"^(?!-)(?:[a-zA-Z0-9-]{1,63}(?<!-)\.)*[a-zA-Z0-9]{1,63}$"
     return bool(re.match(hostname_pattern, domain))
+
+
+# ============================================================================
+# PLAN 3.53: Organization directory (picker for "Yeni Çalışma")
+# ============================================================================
+
+
+DIRECTORY_MAX_RESULTS = 50
+
+
+@router.get("/", status_code=200, response_model=OrganizationDirectoryResponse)
+def list_organization_directory_endpoint(
+    q: str | None = None,
+    principal: Principal = Depends(get_verified_principal),
+    session: Session = Depends(get_session),
+) -> OrganizationDirectoryResponse:
+    """
+    PLAN 3.53: any authenticated talent browses/searches the organization
+    directory to pick one and start a new engagement with it
+    (POST /engagements already requires only an organization_id, no prior
+    membership). This is intentionally NOT tenant-scoped — see
+    scoped_organization_directory()'s docstring.
+
+    Args:
+        q: optional case-insensitive substring match on name
+
+    Returns:
+        Up to DIRECTORY_MAX_RESULTS organizations, ordered by name.
+    """
+    query = scoped_organization_directory(session, principal)
+    if q:
+        query = query.where(Organization.name.ilike(f"%{q}%"))
+    query = query.order_by(Organization.name).limit(DIRECTORY_MAX_RESULTS)
+
+    orgs = session.execute(query).scalars().all()
+    return OrganizationDirectoryResponse(
+        items=[OrganizationDirectoryEntry.model_validate(org) for org in orgs]
+    )
 
 
 # ============================================================================
