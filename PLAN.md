@@ -330,12 +330,12 @@ PLAN maddesi olarak açılmamıştı. Detay: `HATA.md`.**
       POST /organizations ve POST /institutions zaten davetsiz serbestti).
       Backend + frontend (segment seçici + koşullu kuruluş/kurum adı alanı)
       ve yetkilendirme testleri tamamlandı. @be2 @fe
-- [ ] 3.53 /calismalar'da "Yeni Çalışma" giriş noktası yok — öğrenci kendi
+- [x] 3.53 /calismalar'da "Yeni Çalışma" giriş noktası yok — öğrenci kendi
       başına kuruluş seçip çalışma başlatamıyor, yalnız kuruluşun gönderdiği
       özel linkle (?organization_id=...) gidilebiliyor. Karar: öğrenci tüm
-      kuruluşlardan serbestçe arayıp seçebilsin — yeni bir
-      GET /organizations (liste/arama, authenticated) ucu + /calismalar'da
-      "Yeni Çalışma" butonu + kuruluş seçici ekran gerekiyor. @be1 @fe
+      kuruluşlardan serbestçe arayıp seçebilsin — GET /organizations
+      (liste/arama, authenticated) ucu + /calismalar'da "Yeni Çalışma"
+      butonu + /calismalar/kurulus-sec seçici ekran eklendi. @be1 @fe
 - [ ] 3.51 Outbox worker'a eksik bildirim handler'ları eklenmeli: `attestation.created`
       (öğrenciye tanıklık/doğrulama bildirimi) ve `engagement.pending_approval`
       (koordinatöre onay bekleyen çalışma bildirimi) — ikisi de servis katmanında
