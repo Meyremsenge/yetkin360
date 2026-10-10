@@ -732,7 +732,7 @@ describe("AppShell", () => {
       expect(screen.getByText("İçerik")).toBeTruthy();
     });
 
-    it("AC-5: Çalışmalarım ve Profil linkleri admin user'da da görünür", () => {
+    it("AC-5: kuruluş üyesi admin'de İşlemler ve Bireysel profilim görünür", () => {
       vi.mocked(useSession).mockReturnValueOnce({
         data: {
           user: { id: "user-admin", is_platform_admin: true },
@@ -756,10 +756,10 @@ describe("AppShell", () => {
         </AppShell>
       );
 
-      // Assert: Çalışmalarım ve Profil linkleri TAM EŞLEŞMEYLE bulunur
+      // Org-side admin: "İşlemler" in the top menu, individual profile in the user menu.
       const html = container.innerHTML;
-      expect(html).toContain(messages.shell.engagementsLink);
-      expect(html).toContain(messages.shell.profileLink);
+      expect(html).toContain(messages.shell.operationsLink);
+      expect(html).toContain(messages.shell.individualProfileLink);
     });
   });
 
@@ -790,26 +790,29 @@ describe("AppShell", () => {
       expect(profile.getAttribute("aria-current")).toBeNull();
     });
 
-    it("öğrenci profili olmayan kuruluş üyesinde çalışma bağlantısı 'Öğrenci çalışmaları' olur", () => {
+    it("kuruluş üyesinde çalışma bağlantısı 'İşlemler' olur; Profil üst menüden çıkıp kullanıcı menüsüne taşınır", () => {
       renderAt("/calismalar", {
         user: { id: "u1" },
         talent_profile: null,
         organizations: [{ id: "org-1", name: "Acme A.Ş." }],
       });
       const nav = screen.getByRole("navigation", { name: messages.shell.mainNav });
-      const link = within(nav).getByRole("link", { name: messages.shell.studentEngagementsLink });
+      const link = within(nav).getByRole("link", { name: messages.shell.operationsLink });
       expect(link.getAttribute("href")).toBe("/calismalar");
       expect(within(nav).queryByRole("link", { name: messages.shell.engagementsLink })).toBeNull();
+      expect(within(nav).queryByRole("link", { name: messages.shell.profileLink })).toBeNull();
+      const menuLink = screen.getByRole("link", { name: messages.shell.individualProfileLink, hidden: true });
+      expect(menuLink.getAttribute("href")).toBe("/profil");
     });
 
-    it("hem öğrenci hem kuruluş üyesi olan kullanıcıda bağlantı 'Çalışmalarım' kalır", () => {
+    it("bireysel kullanıcıda bağlantı 'Çalışmalarım' ve Profil üst menüde kalır", () => {
       renderAt("/calismalar", {
         user: { id: "u1" },
         talent_profile: { public_slug: null },
-        organizations: [{ id: "org-1", name: "Acme A.Ş." }],
       });
       const nav = screen.getByRole("navigation", { name: messages.shell.mainNav });
       expect(within(nav).getByRole("link", { name: messages.shell.engagementsLink })).toBeTruthy();
+      expect(within(nav).getByRole("link", { name: messages.shell.profileLink })).toBeTruthy();
     });
 
     it("öğrencide bağlam seçici görünmez", () => {

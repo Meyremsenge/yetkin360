@@ -263,6 +263,8 @@ describe("KurulusPanelPage (/kurulus/[id]/panel)", () => {
   describe("Çalışma özeti", () => {
     const engagement = (id: string, status: string, organization_id = "org-1") => ({
       id,
+      talent_id: "talent-1",
+      talent_name: "Ayşe Öğrenci",
       title: `Çalışma ${id}`,
       kind: "INTERNSHIP" as const,
       status: status as never,
