@@ -425,3 +425,51 @@ def test_public_certificate_keys_are_an_exact_allowlist(client, session, public_
             "kind", "title", "issuer", "issued_on", "credential_id",
             "badge", "provider", "verify_url", "link_url", "link_host",
         }
+
+
+@pytest.mark.parametrize(
+    "page_course, extracted_course, expected",
+    [
+        ("Resmi Sayfadaki Kurs", "Sertifikadaki Kurs", "Resmi Sayfadaki Kurs"),
+        (None, "Sertifikadaki Kurs", "Sertifikadaki Kurs"),
+        (None, None, "Öğrencinin başlığı"),
+    ],
+)
+def test_confirmed_card_title_comes_from_reviewed_course_name(
+    client, session, public_talent_a, engagement_certificate_a, page_course, extracted_course, expected
+):
+    """AC-S6 (#53 kurs adı): the confirmed card shows the coordinator-reviewed course name,
+    not what the student typed; the student's title is only a fallback."""
+    check = session.execute(
+        select(CertificateCheck).where(CertificateCheck.evidence_id == engagement_certificate_a.id)
+    ).scalar_one()
+    check.page_course_name = page_course
+    check.extracted_course_name = extracted_course
+    session.flush()
+    _item(session, public_talent_a, title="Öğrencinin başlığı", evidence_id=engagement_certificate_a.id, show_on_profile=True)
+
+    assert client.get("/public/talents/portfolyo-a").json()["certificates"][0]["title"] == expected
+
+
+def test_self_declared_title_is_never_replaced(client, session, public_talent_a, engagement_certificate_a):
+    check = session.execute(
+        select(CertificateCheck).where(CertificateCheck.evidence_id == engagement_certificate_a.id)
+    ).scalar_one()
+    check.decision = "PENDING"
+    check.page_course_name = "Resmi Sayfadaki Kurs"
+    session.flush()
+    _item(session, public_talent_a, title="Öğrencinin başlığı", evidence_id=engagement_certificate_a.id, show_on_profile=True)
+
+    assert client.get("/public/talents/portfolyo-a").json()["certificates"][0]["title"] == "Öğrencinin başlığı"
+
+
+def test_owner_sees_course_name_of_engagement_certificate(client, session, user_talent_a, engagement_certificate_a):
+    check = session.execute(
+        select(CertificateCheck).where(CertificateCheck.evidence_id == engagement_certificate_a.id)
+    ).scalar_one()
+    check.extracted_course_name = "  Veri Bilimi Temelleri "
+    session.flush()
+
+    certs = client.get(BASE, headers=_auth(user_talent_a)).json()["engagement_certificates"]
+    assert certs[0]["course_name"] == "Veri Bilimi Temelleri"
+    assert certs[0]["decision"] == "CONFIRMED"

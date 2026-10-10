@@ -25,7 +25,7 @@ import { EmptyNote, ProfileSection, SkeletonRows, fieldClass, focusRingClass, la
 
 const t = messages.profil;
 const PORTFOLIO_QUERY_KEY = ["talent-portfolio"] as const;
-const providerLabels = t.providers as Record<string, string>;
+const providerLabels = messages.certificateProviders as Record<string, string>;
 
 function errorMessage(err: unknown): string {
   if (err instanceof ApiError) {
@@ -162,12 +162,17 @@ function PortfolioRow({ item }: { item: PortfolioItem }) {
 
 function EngagementCertificateRow({ cert }: { cert: EngagementCertificate }) {
   const queryClient = useQueryClient();
-  const provider = cert.provider ? providerLabels[cert.provider] ?? cert.provider : providerLabels.UNKNOWN;
+  const knownProvider = cert.provider && cert.provider !== "UNKNOWN" ? providerLabels[cert.provider] : null;
+  const provider = knownProvider ?? providerLabels.UNKNOWN;
+  // Default showcase title: the course name from the check, else "<provider> sertifikası".
+  const defaultTitle =
+    cert.course_name ??
+    (knownProvider ? t.engagementCertDefaultTitle.replace("{provider}", knownProvider) : t.engagementCertFallbackTitle);
   const add = useMutation({
     mutationFn: () =>
       createPortfolioItem({
         kind: "CERTIFICATE",
-        title: t.engagementCertDefaultTitle.replace("{provider}", provider),
+        title: defaultTitle,
         evidence_id: cert.evidence_id,
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEY }),
@@ -177,8 +182,9 @@ function EngagementCertificateRow({ cert }: { cert: EngagementCertificate }) {
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 py-3">
       <div className="min-w-0">
-        <p className="text-sm font-medium text-foreground">{provider}</p>
+        <p className="text-sm font-medium text-foreground">{cert.course_name ?? provider}</p>
         <p className="text-xs text-muted-foreground">
+          {cert.course_name ? <span className="mr-2">{provider}</span> : null}
           {cert.credential_id ? <span className="mr-2 font-mono">{cert.credential_id}</span> : null}
           <span className={cn(cert.decision === "CONFIRMED" && "text-success", cert.decision === "REJECTED" && "text-destructive")}>
             {decision}

@@ -31,6 +31,8 @@ export interface EngagementCertificate {
   created_at: string;
   provider: string | null;
   credential_id: string | null;
+  /** Official page's course name, else the one read off the certificate. */
+  course_name: string | null;
   /** null: no certificate check requested yet. */
   decision: CertificateDecision | null;
   portfolio_item_id: string | null;

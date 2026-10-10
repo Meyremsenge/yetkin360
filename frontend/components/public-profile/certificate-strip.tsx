@@ -9,11 +9,15 @@ import { formatMonthYear } from "./format";
 
 const t = messages.publicProfile;
 const kindLabels = t.certificateKind as Record<string, string>;
-const providerLabels = t.providers as Record<string, string>;
+const providerLabels = messages.certificateProviders as Record<string, string>;
 
 function CertificateCard({ cert }: { cert: PublicCertificate }) {
   const confirmed = cert.badge === "COORDINATOR_CONFIRMED";
-  const source = confirmed ? (cert.provider ? providerLabels[cert.provider] ?? cert.provider : null) : cert.issuer;
+  const source = confirmed
+    ? cert.provider && cert.provider !== "UNKNOWN"
+      ? providerLabels[cert.provider] ?? null
+      : null
+    : cert.issuer;
 
   return (
     <li

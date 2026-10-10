@@ -187,8 +187,8 @@ describe("PortfolioSection — sertifikalar ve çalışmalar", () => {
     vi.mocked(listPortfolio).mockResolvedValue({
       items: [],
       engagement_certificates: [
-        { evidence_id: "ev-1", created_at: "2026-09-01T00:00:00Z", provider: "COURSERA", credential_id: "C1", decision: "CONFIRMED", portfolio_item_id: null },
-        { evidence_id: "ev-2", created_at: "2026-09-02T00:00:00Z", provider: "UDEMY", credential_id: null, decision: "REJECTED", portfolio_item_id: null },
+        { evidence_id: "ev-1", created_at: "2026-09-01T00:00:00Z", provider: "COURSERA", credential_id: "C1", course_name: null, decision: "CONFIRMED", portfolio_item_id: null },
+        { evidence_id: "ev-2", created_at: "2026-09-02T00:00:00Z", provider: "UDEMY", credential_id: null, course_name: null, decision: "REJECTED", portfolio_item_id: null },
       ],
     });
     vi.mocked(createPortfolioItem).mockResolvedValue(item());
@@ -198,6 +198,30 @@ describe("PortfolioSection — sertifikalar ve çalışmalar", () => {
     fireEvent.click(buttons[0]);
     await waitFor(() =>
       expect(createPortfolioItem).toHaveBeenCalledWith({ kind: "CERTIFICATE", title: "Coursera sertifikası", evidence_id: "ev-1" })
+    );
+  });
+
+  it("kurs adı varsa varsayılan başlık odur; BTK sağlayıcısı Türkçe etiketlenir", async () => {
+    vi.mocked(listPortfolio).mockResolvedValue({
+      items: [],
+      engagement_certificates: [
+        { evidence_id: "ev-3", created_at: "2026-09-03T00:00:00Z", provider: "BTK", credential_id: "AbC123", course_name: "Siber Güvenliğe Giriş", decision: "CONFIRMED", portfolio_item_id: null },
+        { evidence_id: "ev-4", created_at: "2026-09-04T00:00:00Z", provider: "UNKNOWN", credential_id: null, course_name: null, decision: null, portfolio_item_id: null },
+      ],
+    });
+    vi.mocked(createPortfolioItem).mockResolvedValue(item());
+    renderSection();
+    expect(await screen.findByText("Siber Güvenliğe Giriş")).toBeInTheDocument();
+    expect(screen.getByText("BTK Akademi")).toBeInTheDocument();
+
+    const buttons = screen.getAllByRole("button", { name: "Vitrine ekle" });
+    fireEvent.click(buttons[0]);
+    await waitFor(() =>
+      expect(createPortfolioItem).toHaveBeenCalledWith({ kind: "CERTIFICATE", title: "Siber Güvenliğe Giriş", evidence_id: "ev-3" })
+    );
+    fireEvent.click(buttons[1]);
+    await waitFor(() =>
+      expect(createPortfolioItem).toHaveBeenLastCalledWith({ kind: "CERTIFICATE", title: "Kurs sertifikası", evidence_id: "ev-4" })
     );
   });
 });

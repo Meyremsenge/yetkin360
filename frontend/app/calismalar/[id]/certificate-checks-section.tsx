@@ -65,7 +65,8 @@ export function CertificateChecksSection({ engagementId }: { engagementId: strin
               <div className="mt-1 space-y-0.5 text-slate-600">
                 {check.provider && (
                   <p>
-                    {messages.calismalar.certificateCheckProviderLabel}: {check.provider}
+                    {messages.calismalar.certificateCheckProviderLabel}:{" "}
+                {(messages.certificateProviders as Record<string, string>)[check.provider] ?? check.provider}
                   </p>
                 )}
                 {check.credential_id && (

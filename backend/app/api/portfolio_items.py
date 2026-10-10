@@ -120,6 +120,8 @@ class EngagementCertificateResponse(BaseModel):
     created_at: datetime
     provider: str | None
     credential_id: str | None
+    # Official page's course name, else the one read off the certificate (default showcase title)
+    course_name: str | None
     # None: no check requested yet; otherwise PENDING | CONFIRMED | REJECTED
     decision: str | None
     portfolio_item_id: uuid.UUID | None

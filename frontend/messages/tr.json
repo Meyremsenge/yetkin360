@@ -404,12 +404,8 @@
       "REJECTED": "Koordinatör reddetti"
     },
     "engagementCertDefaultTitle": "{provider} sertifikası",
-    "providers": {
-      "COURSERA": "Coursera",
-      "UDEMY": "Udemy",
-      "UNKNOWN": "Kurs"
-    },
-    "portfolioDateFormat": "Tarihi ay ve yıl olarak seç."
+    "portfolioDateFormat": "Tarihi ay ve yıl olarak seç.",
+    "engagementCertFallbackTitle": "Kurs sertifikası"
   },
   "kurumBaglan": {
     "title": "Kuruma Bağlanma Talebi",
@@ -773,11 +769,6 @@
     "certificateKind": {
       "CERTIFICATE": "Sertifika",
       "WORK": "Çalışma"
-    },
-    "providers": {
-      "COURSERA": "Coursera",
-      "UDEMY": "Udemy",
-      "UNKNOWN": "Kurs"
     }
   },
   "publicVerification": {
@@ -996,5 +987,11 @@
     "subtitle": "Sicil kaydınıza erişmek için giriş yapın.",
     "close": "Kapat",
     "noAccount": "Hesabınız yok mu?"
+  },
+  "certificateProviders": {
+    "COURSERA": "Coursera",
+    "UDEMY": "Udemy",
+    "BTK": "BTK Akademi",
+    "UNKNOWN": "Diğer"
   }
 }

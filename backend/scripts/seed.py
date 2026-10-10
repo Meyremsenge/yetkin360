@@ -1124,6 +1124,7 @@ def seed_showcase_portfolio(session: Session) -> None:
                 provider="COURSERA",
                 credential_id="SEED-PGPERF-2026",
                 verify_url=None,
+                extracted_course_name="PostgreSQL ile Sorgu Optimizasyonu",
                 name_match=True,
                 decision="CONFIRMED",
                 decided_by_user_id=coordinator.id,

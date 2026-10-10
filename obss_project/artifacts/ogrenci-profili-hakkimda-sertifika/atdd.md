@@ -46,10 +46,10 @@ Kaynak: `docs/sonraki-oturum-promptlari.md` §2 · Tasarım: `docs/arastirma-ogr
 - AC-S3 (T/IDOR): `evidence_id` = B'nin kanıtı veya silinmiş kanıt → 404 `EVIDENCE_NOT_FOUND`, satır oluşmaz. Aynı kanıt ikinci kez → 409 (yalnız kendi kanıtında ulaşılabilir; varlık kâhini yok).
 - AC-S4 (T — rozet sahteciliği): Gövdede `badge: "COORDINATOR_CONFIRMED"`, `provider`, `decision` gönderilirse yok sayılır → rozet `SELF_DECLARED`. PATCH ile `evidence_id` değiştirilemez (alan yok sayılır).
 - AC-S5 (T — rozet ödünç alma): B'nin kaydı (API dışından) A'nın CONFIRMED kanıtına bağlansa bile B'nin public kartı `SELF_DECLARED` döner.
-- AC-S6 (T — onaylı kartı sahte bilgiyle süsleme): Rozet `COORDINATOR_CONFIRMED` iken public karttaki `credential_id` ve `provider` **yalnız** `certificate_checks`'ten gelir; öğrencinin yazdığı `credential_id`/`issuer` onaylı kartta gösterilmez. Başlık öğrenci beyanıdır; karşılığı "Resmi doğrulama" linkiyle herkesçe kontrol edilebilir.
+- AC-S6 (T — onaylı kartı sahte bilgiyle süsleme): Rozet `COORDINATOR_CONFIRMED` iken public karttaki `credential_id` ve `provider` **yalnız** `certificate_checks`'ten gelir; öğrencinin yazdığı `credential_id`/`issuer` onaylı kartta gösterilmez. Başlık, kontroldeki kurs adıdır (önce `page_course_name`, yoksa `extracted_course_name` — #53 ile geldi); ikisi de boşsa öğrencinin başlığına düşülür. Kendi beyanı kartta başlık hiçbir zaman değiştirilmez.
 - AC-S7 (T — reddedilen sertifika): Kanıtın kontrolü `REJECTED` ise kayıt public profilde **hiç** görünmez (kendi beyanı olarak da); sahibine rozet `COORDINATOR_REJECTED` döner.
 - AC-S8 (I): Public sertifika öğesi tam olarak şu anahtarları taşır: `kind,title,issuer,issued_on,credential_id,badge,provider,verify_url,link_url,link_host`. `extracted_name`, `qr_raw_data`, `page_name`, `storage_key`, evidence id yanıtta geçmez.
-- AC-S9 (I — açık yönlendirme/phishing): `verify_url` yalnız `https` ve `coursera.org|www.coursera.org|udemy.com|www.udemy.com|ude.my` ise döner; `https://coursera.org.evil.example/...` → `null`.
+- AC-S9 (I — açık yönlendirme/phishing): `verify_url` yalnız `https` ve `coursera.org|www.coursera.org|udemy.com|www.udemy.com|ude.my|btkakademi.gov.tr|www.btkakademi.gov.tr` ise döner; `https://coursera.org.evil.example/...` → `null`.
 - AC-S10 (XSS/phishing): `external_url` yalnız `https://` (API 422 + DB CHECK); `javascript:`/`http:`/kimlik bilgili/standart dışı port → 422. `link_host` IDN alan adlarında punycode döner (`https://gооgle.com` → `xn--ggle-55da.com`), böylece homograf görünür olur.
 - AC-S11 (D): Bir öğrencinin silinmemiş kayıt sayısı 50 ile sınırlı; 51. POST → 409 `PORTFOLIO_LIMIT_REACHED`. Public liste en fazla 50 öğe.
 - AC-S12 (R): Oluşturma, rıza değişimi ve silme `audit_events`'e yazılır (metadata'da PII yok).
@@ -68,7 +68,7 @@ Kaynak: `docs/sonraki-oturum-promptlari.md` §2 · Tasarım: `docs/arastirma-ogr
 | Oturum yok | 401 |
 
 ## Riskler / Kabul edilen riskler
-- **Başlık sahteciliği (kalıntı risk):** Onaylı kartın başlığı öğrenci beyanıdır; `certificate_checks` kurs adını tutmaz. Azaltım: AC-S6 + herkese açık resmi doğrulama linki. Tam çözüm (çıkarılan kurs adını saklamak) kapsam dışı.
+- **Başlık sahteciliği (büyük ölçüde kapandı):** #53 ile `certificate_checks` kurs adını tutuyor; onaylı kart başlığı artık oradan geliyor (AC-S6). Kalıntı: kontrolde kurs adı okunamadıysa öğrencinin başlığı gösterilir — resmi doğrulama linki yine kontrol imkânı verir.
 - **Rate limit yok:** POST için ayrı hız sınırı eklenmedi; AC-S11 kayıt tavanı sınırsız büyümeyi keser. Yük, tek kiracılı MVP'de kabul edildi.
 - **"Hakkımda"da öğrencinin kendi kişisel verisi** (telefon vb.): Öğrencinin kendi tercihi; UI'da KVKK özel nitelikli veri uyarısı (final analiz §17.2). Sunucu tarafı içerik filtresi yok.
 - **Aynı dosyanın çalışma dışı yeniden yüklenmesi:** Reddedilen sertifika, kontrol talep edilmeden kendi beyanı olarak tekrar eklenebilir; görsel olarak mühürsüz ve "Kendi beyanı" etiketli kalır.

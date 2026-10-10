@@ -42,7 +42,15 @@ MAX_ITEMS_PER_TALENT = 50
 # Official verification pages only; anything else is never rendered as a link
 # (open redirect / phishing on a page that carries our "confirmed" badge).
 OFFICIAL_VERIFY_HOSTS = frozenset(
-    {"coursera.org", "www.coursera.org", "udemy.com", "www.udemy.com", "ude.my"}
+    {
+        "coursera.org",
+        "www.coursera.org",
+        "udemy.com",
+        "www.udemy.com",
+        "ude.my",
+        "btkakademi.gov.tr",
+        "www.btkakademi.gov.tr",
+    }
 )
 
 EDITABLE_FIELDS = ("kind", "title", "issuer", "issued_on", "credential_id", "external_url", "show_on_profile")
@@ -111,6 +119,13 @@ def _own_check(session: Session, principal: Principal, item: PortfolioItem) -> C
     return get_certificate_check_for_evidence(session, principal, evidence.id)
 
 
+def _checked_course_name(check: CertificateCheck | None) -> str | None:
+    """Course name the coordinator reviewed: the official page's, else the one read off the certificate."""
+    if check is None:
+        return None
+    return (check.page_course_name or check.extracted_course_name or "").strip() or None
+
+
 def _serialize(session: Session, principal: Principal, item: PortfolioItem) -> dict:
     check = _own_check(session, principal, item)
     return {
@@ -168,6 +183,7 @@ def list_own_portfolio(session: Session, principal: Principal) -> dict:
                 "created_at": evidence.created_at,
                 "provider": check.provider if check is not None else None,
                 "credential_id": check.credential_id if check is not None else None,
+                "course_name": _checked_course_name(check),
                 "decision": check.decision if check is not None else None,
                 "portfolio_item_id": linked.get(evidence.id),
             }
@@ -298,8 +314,9 @@ class PublicCertificate:
 def build_public_certificates(session: Session, talent_id: uuid.UUID) -> list[PublicCertificate]:
     """Consented items of an already-resolved PUBLIC talent; confirmed first, then newest.
 
-    On a confirmed card provider and credential number come only from the
-    coordinator-reviewed check, never from what the student typed (atdd AC-S6).
+    On a confirmed card title (course name), provider and credential number come
+    from the coordinator-reviewed check, never from what the student typed (atdd
+    AC-S6); the student's title is only a fallback when the check has no course name.
     """
     result: list[tuple[PublicCertificate, datetime]] = []
     for item, check in session.execute(scoped_public_portfolio_items(session, talent_id)).all():
@@ -312,7 +329,7 @@ def build_public_certificates(session: Session, talent_id: uuid.UUID) -> list[Pu
             (
                 PublicCertificate(
                     kind=item.kind,
-                    title=item.title,
+                    title=(_checked_course_name(check) or item.title) if confirmed else item.title,
                     issuer=None if confirmed else item.issuer,
                     issued_on=item.issued_on,
                     credential_id=check.credential_id if confirmed else item.credential_id,

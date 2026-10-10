@@ -67,6 +67,20 @@ describe("CertificateStrip", () => {
     expect(screen.queryByRole("link", { name: /Resmi doğrulama/ })).toBeNull();
   });
 
+  it("BTK sağlayıcısını Türkçe adıyla, UNKNOWN'ı hiç göstermez", () => {
+    render(
+      <CertificateStrip
+        certificates={[
+          cert({ provider: "BTK", verify_url: "https://www.btkakademi.gov.tr/portal/certificate/validate?certificateId=AbC123" }),
+          cert({ title: "Bilinmeyen", provider: "UNKNOWN", verify_url: null }),
+        ]}
+      />
+    );
+    expect(screen.getByText("BTK Akademi")).toBeInTheDocument();
+    expect(screen.queryByText("UNKNOWN")).toBeNull();
+    expect(screen.queryByText("Diğer")).toBeNull();
+  });
+
   it("listeler klavyeyle odaklanabilir", () => {
     render(<CertificateStrip certificates={[cert(), cert({ title: "İkinci" })]} />);
     const list = screen.getByRole("list", { name: /Koordinatör onaylı/ });

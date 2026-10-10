@@ -62,6 +62,8 @@ def test_https_host(url, host):
         ("https://coursera.org/share/ABC", True),
         ("https://www.udemy.com/certificate/UC-1/", True),
         ("https://ude.my/UC-1", True),
+        ("https://www.btkakademi.gov.tr/portal/certificate/validate?certificateId=AbC123", True),
+        ("https://btkakademi.gov.tr.evil.example/portal/certificate/validate", False),
         ("https://coursera.org.evil.example/verify", False),
         ("https://evilcoursera.org/verify", False),
         ("http://www.coursera.org/verify/ABC", False),
