@@ -320,6 +320,15 @@
     "strongestLevel": "En güçlü seviye: {level}",
     "showAllSkills": "Tüm yetkinlikleri göster ({count})",
     "showFewerSkills": "Daha az göster",
+    "verifiedExperiencesDescription": "Kuruluşun tanıklık ettiği, mühürlü kayıtlar. Herkese açık yaptıkların profilinde ve doğrulama bağlantısında görünür.",
+    "signalsTabDescription": "Çalışmalarından gelen kanıt sinyalleri. Mühürlü olanlar görev, çıktı ya da tanıklıkla desteklenir; soldaki beyanlarından ayrı tutulur.",
+    "tabsLabel": "Profil bölümleri",
+    "tabs": {
+      "hakkimda": "Hakkımda",
+      "yetkinlik": "Yetkinlik ve kanıt",
+      "deneyimler": "Doğrulanmış deneyimler",
+      "sertifikalar": "Sertifikalar ve çalışmalar"
+    },
     "verifiedLabel": "Doğrulanmış deneyim",
     "institutionDescription": "Bağlı olduğunuz kurum ve gönderdiğiniz bağlanma talepleri.",
     "engagementSourceLabel": "Çalışma kaydından",

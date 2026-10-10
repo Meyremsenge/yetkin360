@@ -241,7 +241,11 @@ function SignalGroupCard({ group }: { group: SignalGroup }) {
   );
 }
 
-export default function EvidenceSection() {
+/**
+ * `part` lets /profil put signals and verified experiences on separate tabs;
+ * without it both render in one card.
+ */
+export default function EvidenceSection({ part = "all" }: { part?: "all" | "signals" | "experiences" }) {
   // AC-1/AC-12: Independent useQuery for signals
   const SIGNALS_QUERY_KEY = ["talent-signals"] as const;
   const {
@@ -274,13 +278,15 @@ export default function EvidenceSection() {
     refetchSignals();
   };
 
-  return (
-    <ProfileSection title={messages.profil.evidenceSection} description={messages.profil.evidenceDescription}>
+  const signalsBlock = (
+    <>
       {/* ===== Signals Section ===== */}
-      <div className="mb-8">
-        <h3 className="mb-3 font-serif text-lg font-medium text-foreground">
-          {messages.profil.signalsSectionTitle}
-        </h3>
+      <div className={part === "all" ? "mb-8" : undefined}>
+        {part === "all" && (
+          <h3 className="mb-3 font-serif text-lg font-medium text-foreground">
+            {messages.profil.signalsSectionTitle}
+          </h3>
+        )}
 
         {signalsLoading && <SkeletonRows />}
 
@@ -323,11 +329,18 @@ export default function EvidenceSection() {
         )}
       </div>
 
+    </>
+  );
+
+  const experiencesBlock = (
+    <>
       {/* ===== Verified Experiences Section ===== */}
       <div>
-        <h3 className="mb-3 font-serif text-lg font-medium text-foreground">
-          {messages.profil.verifiedExperiencesSectionTitle}
-        </h3>
+        {part === "all" && (
+          <h3 className="mb-3 font-serif text-lg font-medium text-foreground">
+            {messages.profil.verifiedExperiencesSectionTitle}
+          </h3>
+        )}
 
         {verifiedExpLoading && <SkeletonRows rows={2} />}
 
@@ -345,7 +358,7 @@ export default function EvidenceSection() {
         )}
 
         {!verifiedExpLoading && !verifiedExpError && verifiedExperiences.length > 0 && (
-          <ul className="space-y-3">
+          <ul className={part === "experiences" ? "grid gap-3 md:grid-cols-2" : "space-y-3"}>
             {verifiedExperiences.map((exp) => (
               <li
                 key={exp.id}
@@ -365,6 +378,30 @@ export default function EvidenceSection() {
           </ul>
         )}
       </div>
+    </>
+  );
+
+  if (part === "signals") {
+    return (
+      <ProfileSection title={messages.profil.evidenceSection} description={messages.profil.signalsTabDescription}>
+        {signalsBlock}
+      </ProfileSection>
+    );
+  }
+  if (part === "experiences") {
+    return (
+      <ProfileSection
+        title={messages.profil.verifiedExperiencesSectionTitle}
+        description={messages.profil.verifiedExperiencesDescription}
+      >
+        {experiencesBlock}
+      </ProfileSection>
+    );
+  }
+  return (
+    <ProfileSection title={messages.profil.evidenceSection} description={messages.profil.evidenceDescription}>
+      {signalsBlock}
+      {experiencesBlock}
     </ProfileSection>
   );
 }
