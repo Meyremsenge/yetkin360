@@ -177,6 +177,24 @@ class TestFraudCheckHandler:
         assert flag.reason == "Şablon ifade"
         assert flag.model == "anthropic/claude-haiku-4.5"
 
+    def test_markdown_fenced_json_output_is_parsed(
+        self, session, attestation_with_statement, handler_env, monkeypatch
+    ):
+        """Modeller talimata uymayıp ```json ... ``` sarmalı dönebiliyor (gerçek
+        OpenRouter çağrısında canlı gözlendi) — fence'i soyup parse edebilmeli."""
+        _install_fake_openrouter(
+            monkeypatch,
+            body=_chat_response('```json\n{"is_suspicious": true, "confidence": "MEDIUM", "reason": "Fence testi"}\n```'),
+        )
+
+        outbox_worker.attestation_fraud_check_handler(
+            {"attestation_id": str(attestation_with_statement.id)}, outbox_id=1
+        )
+
+        flag = session.query(FraudFlag).filter_by(subject_id=attestation_with_statement.id).one()
+        assert flag.confidence == "MEDIUM"
+        assert flag.reason == "Fence testi"
+
     def test_non_suspicious_statement_creates_no_flag(
         self, session, attestation_with_statement, handler_env, monkeypatch
     ):

@@ -446,6 +446,11 @@ def _check_statement_for_fraud(statement: str, api_key: str, model: str) -> dict
     response.raise_for_status()
     content = response.json()["choices"][0]["message"]["content"].strip()
 
+    # Models routinely wrap JSON in a ```json ... ``` fence despite the
+    # instruction not to — strip it before parsing rather than failing.
+    if content.startswith("```"):
+        content = content.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+
     try:
         verdict = json.loads(content)
     except (json.JSONDecodeError, KeyError, IndexError):
