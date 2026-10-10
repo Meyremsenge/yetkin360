@@ -157,3 +157,25 @@ export async function createReminders(
     body: { engagement_ids: engagementIds, template },
   });
 }
+
+export interface InstitutionStudentItem {
+  talent_profile_id: string;
+  full_name: string;
+  department: string | null;
+  study_year: number | null;
+  /** Only set when the student's profile is PUBLIC. */
+  public_slug: string | null;
+  verified_count: number;
+  in_progress_count: number;
+  total_count: number;
+}
+
+/**
+ * Students linked to the institution (approved link, profile not PRIVATE) with their
+ * engagement counts for this institution. Coordinator/Admin only; others get 404.
+ */
+export async function listInstitutionStudents(
+  institutionId: string
+): Promise<{ items: InstitutionStudentItem[] } | undefined> {
+  return apiFetch<{ items: InstitutionStudentItem[] }>(`/institutions/${institutionId}/students`);
+}

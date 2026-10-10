@@ -12,6 +12,7 @@ import {
   rejectLinkRequest,
   inviteMember,
   createReminders,
+  listInstitutionStudents,
 } from "@/lib/api/institutions";
 import { ApiError, NetworkError, SessionExpiredError } from "@/lib/api/errors";
 
@@ -31,6 +32,7 @@ vi.mock("@/lib/api/institutions", async (importOriginal) => {
     rejectLinkRequest: vi.fn(),
     inviteMember: vi.fn(),
     createReminders: vi.fn(),
+    listInstitutionStudents: vi.fn(),
   };
 });
 
@@ -154,6 +156,7 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
     vi.mocked(useSession).mockReturnValue(mockSession as unknown as ReturnType<typeof useSession>);
     // YET-197/IS-10: default to an empty pending-link-requests list unless a test overrides it.
     vi.mocked(listPendingLinkRequests).mockResolvedValue({ items: [] });
+    vi.mocked(listInstitutionStudents).mockResolvedValue({ items: [] });
   });
 
   afterEach(() => {
@@ -709,6 +712,56 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
       await waitFor(() => {
         expect(screen.getByText("Hatırlatma gönderilemedi.")).toBeTruthy();
       });
+    });
+  });
+
+  describe("Öğrenciler", () => {
+    const student = {
+      talent_profile_id: "tp-1",
+      full_name: "Deniz Kaya",
+      department: "Bilgisayar Mühendisliği",
+      study_year: 3,
+      public_slug: "deniz-kaya",
+      verified_count: 2,
+      in_progress_count: 1,
+      total_count: 3,
+    };
+
+    it("bağlı öğrenciler doğrulanmış/süren sayılarıyla listelenir; PUBLIC profil linki yeni sekmede açılır", async () => {
+      vi.mocked(getCoordinatorDashboard).mockResolvedValue(validDashboardData);
+      vi.mocked(listInstitutionStudents).mockResolvedValue({
+        items: [student, { ...student, talent_profile_id: "tp-2", full_name: "Ece Ak", public_slug: null, verified_count: 0, in_progress_count: 0, total_count: 0 }],
+      });
+
+      renderWithQueryClient(<KurumPanelPage />);
+
+      const row = (await screen.findByText("Deniz Kaya")).closest("li") as HTMLElement;
+      expect(within(row).getByText("2 doğrulanmış")).toBeTruthy();
+      expect(within(row).getByText("1 süren")).toBeTruthy();
+      expect(within(row).getByText("Bilgisayar Mühendisliği · 3. sınıf")).toBeTruthy();
+      const link = within(row).getByRole("link", { name: /Profili gör/ });
+      expect(link.getAttribute("href")).toBe("/p/deniz-kaya");
+      expect(link.getAttribute("target")).toBe("_blank");
+
+      const quiet = screen.getByText("Ece Ak").closest("li") as HTMLElement;
+      expect(within(quiet).getByText("Henüz çalışma yok")).toBeTruthy();
+      expect(within(quiet).queryByRole("link")).toBeNull();
+    });
+
+    it("bağlı öğrenci yoksa ne yapılacağını söyleyen boş durum gösterilir", async () => {
+      vi.mocked(getCoordinatorDashboard).mockResolvedValue(validDashboardData);
+
+      renderWithQueryClient(<KurumPanelPage />);
+
+      expect(await screen.findByText("Henüz bağlı öğrenci yok.")).toBeTruthy();
+    });
+
+    it("başlıkta oturumdaki kurum adı gösterilir", async () => {
+      vi.mocked(getCoordinatorDashboard).mockResolvedValue(validDashboardData);
+
+      renderWithQueryClient(<KurumPanelPage />);
+
+      expect(await screen.findByRole("heading", { level: 1, name: "Test Üniversitesi" })).toBeTruthy();
     });
   });
 });

@@ -1,11 +1,30 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { ErrorBanner } from "@/components/error-banner";
-import { Button } from "@/components/ui/button";
+import { PageBody, PageHeader } from "@/components/page-layout";
+import {
+  CopyButton,
+  EmptyState,
+  Initials,
+  PanelGrid,
+  PanelIcon,
+  PanelSection,
+  PanelSkeleton,
+  SideCard,
+  StatTile,
+  StatusPill,
+  TimeAgo,
+  actionClass,
+  formatDate,
+  formatTemplate,
+} from "@/components/panel-kit";
+import { SealMark } from "@/components/brand/brand-mark";
+import { Alert } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -13,32 +32,47 @@ import {
   createReminders,
   getCoordinatorDashboard,
   inviteMember,
+  listInstitutionStudents,
   listPendingLinkRequests,
   rejectLinkRequest,
   type InstitutionMemberRole,
+  type InstitutionStudentItem,
+  type PendingItem,
+  type PendingLinkRequestItem,
 } from "@/lib/api/institutions";
 import { ApiError, NetworkError, SessionExpiredError } from "@/lib/api/errors";
+import { useSession } from "@/lib/session/use-session";
+import { cn } from "@/lib/utils";
 import messages from "@/messages/tr.json";
 
+const t = messages.kurumPanel;
+const c = messages.calismalar;
+
 const REMINDER_TEMPLATE = "evaluation_pending";
+
+const SM = "h-8 px-3 text-[13px]";
+
+function errorMessage(error: unknown): string {
+  if (error instanceof SessionExpiredError) return messages.session.expired;
+  if (error instanceof ApiError || error instanceof NetworkError) return error.message;
+  return messages.errors.generic;
+}
+
+function institutionNameFrom(items: unknown[] | undefined, id: string): string | undefined {
+  const match = (items ?? []).find(
+    (item): item is { id: string; name: string } =>
+      typeof item === "object" &&
+      item !== null &&
+      (item as { id?: unknown }).id === id &&
+      typeof (item as { name?: unknown }).name === "string"
+  );
+  return match?.name;
+}
 
 export default function KurumPanelPage() {
   const params = useParams<{ id: string }>();
   const institutionId = params.id;
-  const queryClient = useQueryClient();
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
-
-  // YET-202/ENT-01: üye davet formu
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<InstitutionMemberRole>("COORDINATOR");
-  const [inviteError, setInviteError] = useState<string | null>(null);
-  const [inviteMessage, setInviteMessage] = useState<string | null>(null);
-
-  // YET-202/ENT-01: toplu hatırlatma seçimi
-  const [selectedEngagementIds, setSelectedEngagementIds] = useState<string[]>([]);
-  const [reminderError, setReminderError] = useState<string | null>(null);
-  const [reminderMessage, setReminderMessage] = useState<string | null>(null);
+  const session = useSession();
 
   // AC-6/AC-S1: Cache key must include institutionId for tenant isolation
   const { data, isLoading, isError, error, refetch } = useQuery({
@@ -52,50 +86,484 @@ export default function KurumPanelPage() {
     queryFn: () => listPendingLinkRequests(institutionId),
   });
 
-  const invalidateLinkRequests = () => {
+  const studentsQuery = useQuery({
+    queryKey: ["institution-students", institutionId],
+    queryFn: () => listInstitutionStudents(institutionId),
+  });
+
+  // The dashboard has no name; the session lists the caller's institutions.
+  const institutionName = institutionNameFrom(session.data?.institutions, institutionId);
+  const joinLink = () => `${window.location.origin}/kurum/${institutionId}/baglan`;
+
+  const students = studentsQuery.data?.items ?? [];
+  const verifiedTotal = students.reduce((sum, student) => sum + student.verified_count, 0);
+
+  return (
+    <AppShell>
+      <PageHeader
+        eyebrow={t.title}
+        title={institutionName ?? t.title}
+        description={t.pageDescription}
+        actions={<CopyButton value={joinLink} label={t.joinLinkButton} />}
+      />
+
+      <PageBody>
+        {/* AC-1/AC-4/AC-5: Loading state */}
+        {isLoading ? <PanelSkeleton tiles={4} /> : null}
+
+        {/* AC-3/AC-4/AC-5: Error state */}
+        {isError && error ? (
+          <ErrorBanner
+            message={errorMessage(error)}
+            requestId={error instanceof ApiError ? error.requestId : undefined}
+            onRetry={() => refetch()}
+          />
+        ) : null}
+
+        {/* AC-1/AC-2: Success state */}
+        {!isLoading && !isError && data ? (
+          <PanelGrid
+            main={
+              <>
+                <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+                  <StatTile
+                    label={t.pendingApprovalLabel}
+                    value={data.summary.pending_approval}
+                    tone="ochre"
+                    icon="clock"
+                    href="#onay-bekleyen"
+                  />
+                  <StatTile
+                    label={t.pendingEvaluationLabel}
+                    value={data.summary.pending_evaluation}
+                    tone="ochre"
+                    icon="clipboard"
+                    href="#degerlendirme-bekleyen"
+                  />
+                  <StatTile
+                    label={t.summary.linkedStudents}
+                    value={students.length}
+                    tone="ink"
+                    icon="users"
+                    href="#ogrenciler"
+                  />
+                  <StatTile label={t.summary.verifiedExperiences} value={verifiedTotal} tone="pine" icon="check" />
+                </div>
+
+                <LinkRequestsSection institutionId={institutionId} query={linkRequestsQuery} />
+
+                <PanelSection
+                  id="onay-bekleyen"
+                  icon="clock"
+                  title={t.pendingApprovalTitle}
+                  hint={t.pendingApprovalHint}
+                  flush={data.pending_approval.length > 0}
+                >
+                  {data.pending_approval.length === 0 ? (
+                    <EmptyState icon="inbox" title={t.emptyPendingApprovalMessage} hint={t.emptyPendingApprovalHint} />
+                  ) : (
+                    <ul className="divide-y divide-border">
+                      {data.pending_approval.map((item) => (
+                        <EngagementRow
+                          key={item.id}
+                          item={item}
+                          date={item.started_on ? formatTemplate(t.startedOn, { date: formatDate(item.started_on) }) : null}
+                          status="PENDING_APPROVAL"
+                        />
+                      ))}
+                    </ul>
+                  )}
+                </PanelSection>
+
+                <EvaluationSection institutionId={institutionId} items={data.pending_evaluation} />
+
+                <StudentsSection query={studentsQuery} students={students} />
+              </>
+            }
+            aside={<MembersCard institutionId={institutionId} members={data.members} />}
+          />
+        ) : null}
+      </PageBody>
+    </AppShell>
+  );
+}
+
+function EngagementRow({
+  item,
+  date,
+  status,
+  leading,
+  selected,
+}: {
+  item: PendingItem;
+  date: string | null;
+  status: "PENDING_APPROVAL" | "PENDING_EVALUATION";
+  leading?: React.ReactNode;
+  selected?: boolean;
+}) {
+  return (
+    <li
+      className={cn(
+        "flex items-center gap-3 px-5 py-3.5 transition-colors",
+        selected ? "bg-success/[0.06]" : "hover:bg-background"
+      )}
+    >
+      {leading}
+      <Link
+        href={`/calismalar/${item.id}`}
+        className="group flex min-w-0 flex-1 items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium text-foreground group-hover:underline group-hover:underline-offset-4">
+            {item.title}
+          </span>
+          {date ? <span className="mt-0.5 block font-mono text-xs text-muted-foreground">{date}</span> : null}
+        </span>
+        <StatusPill tone="warning" className="hidden sm:inline-flex">
+          {c.status[status]}
+        </StatusPill>
+        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-muted-foreground" fill="none" stroke="currentColor" strokeWidth={1.75} aria-hidden="true">
+          <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </Link>
+    </li>
+  );
+}
+
+function LinkRequestsSection({
+  institutionId,
+  query,
+}: {
+  institutionId: string;
+  query: { isLoading: boolean; isError: boolean; isSuccess: boolean; data?: { items: PendingLinkRequestItem[] } };
+}) {
+  const queryClient = useQueryClient();
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+
+  const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["institution-link-requests", institutionId] });
-    // Approval can affect dashboard membership-adjacent state; keep it fresh too.
+    // An approved link adds a student; keep the dashboard and student list fresh too.
     queryClient.invalidateQueries({ queryKey: ["institution-dashboard", institutionId] });
+    queryClient.invalidateQueries({ queryKey: ["institution-students", institutionId] });
+  };
+
+  const onDone = (message: string) => () => {
+    setActionError(null);
+    setActionMessage(message);
+    invalidate();
+  };
+  const onFail = () => {
+    setActionMessage(null);
+    setActionError(t.linkRequestActionError);
   };
 
   const approveMutation = useMutation({
     mutationFn: (requestId: string) => approveLinkRequest(institutionId, requestId),
-    onSuccess: () => {
-      setActionError(null);
-      setActionMessage(messages.kurumPanel.linkRequestApprovedMessage);
-      invalidateLinkRequests();
-    },
-    onError: () => {
-      setActionMessage(null);
-      setActionError(messages.kurumPanel.linkRequestActionError);
-    },
+    onSuccess: onDone(t.linkRequestApprovedMessage),
+    onError: onFail,
   });
-
   const rejectMutation = useMutation({
     mutationFn: (requestId: string) => rejectLinkRequest(institutionId, requestId),
+    onSuccess: onDone(t.linkRequestRejectedMessage),
+    onError: onFail,
+  });
+  const isActionPending = approveMutation.isPending || rejectMutation.isPending;
+  const items = query.data?.items ?? [];
+
+  return (
+    <PanelSection
+      icon="userPlus"
+      title={t.linkRequestsTitle}
+      hint={t.linkRequestsHint}
+      count={query.isSuccess ? items.length : undefined}
+      flush={items.length > 0}
+    >
+      {actionError ? (
+        <Alert variant="error" className={cn("text-sm", items.length > 0 ? "m-5 mb-0" : "mb-4")}>
+          {actionError}
+        </Alert>
+      ) : null}
+      {actionMessage ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className={cn(
+            "rounded-md border border-success/30 bg-success/10 px-4 py-3 text-sm text-success",
+            items.length > 0 ? "m-5 mb-0" : "mb-4"
+          )}
+        >
+          {actionMessage}
+        </div>
+      ) : null}
+
+      {query.isLoading ? (
+        <div aria-hidden="true" className="h-14 animate-pulse rounded-lg bg-muted motion-reduce:animate-none" />
+      ) : query.isError ? (
+        <p className="text-sm text-destructive">{t.linkRequestActionError}</p>
+      ) : items.length === 0 ? (
+        <EmptyState icon="inbox" title={t.emptyLinkRequestsMessage} hint={t.emptyLinkRequestsHint} />
+      ) : (
+        <ul className="divide-y divide-border">
+          {items.map((item) => (
+            <li key={item.id} className="y360-step-in flex flex-wrap items-center gap-3 bg-warning/[0.04] px-5 py-3.5">
+              <Initials name={item.talent_full_name} />
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium text-foreground">{item.talent_full_name}</span>
+                <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                  {t.requestedAt} · <TimeAgo iso={item.requested_at} />
+                </span>
+              </span>
+              <span className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => approveMutation.mutate(item.id)}
+                  disabled={isActionPending}
+                  className={cn(actionClass.primary, SM)}
+                >
+                  {t.approveButton}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => rejectMutation.mutate(item.id)}
+                  disabled={isActionPending}
+                  className={cn(actionClass.dangerOutline, SM)}
+                >
+                  {t.rejectButton}
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </PanelSection>
+  );
+}
+
+function EvaluationSection({ institutionId, items }: { institutionId: string; items: PendingItem[] }) {
+  const [selected, setSelected] = useState<string[]>([]);
+  const [reminderError, setReminderError] = useState<string | null>(null);
+  const [reminderMessage, setReminderMessage] = useState<string | null>(null);
+
+  const reminderMutation = useMutation({
+    mutationFn: () => createReminders(institutionId, selected, REMINDER_TEMPLATE),
     onSuccess: () => {
-      setActionError(null);
-      setActionMessage(messages.kurumPanel.linkRequestRejectedMessage);
-      invalidateLinkRequests();
+      setReminderError(null);
+      setReminderMessage(t.reminderSuccessMessage);
+      setSelected([]);
     },
     onError: () => {
-      setActionMessage(null);
-      setActionError(messages.kurumPanel.linkRequestActionError);
+      setReminderMessage(null);
+      setReminderError(t.reminderErrorMessage);
     },
   });
 
-  const isActionPending = approveMutation.isPending || rejectMutation.isPending;
+  const handleSendReminders = () => {
+    setReminderMessage(null);
+    if (selected.length === 0) {
+      setReminderError(t.reminderNoneSelectedMessage);
+      return;
+    }
+    setReminderError(null);
+    reminderMutation.mutate();
+  };
+
+  const toggle = (id: string) =>
+    setSelected((prev) => (prev.includes(id) ? prev.filter((existing) => existing !== id) : [...prev, id]));
+  const allSelected = selected.length > 0 && selected.length === items.length;
+
+  return (
+    <PanelSection
+      id="degerlendirme-bekleyen"
+      icon="clipboard"
+      title={t.pendingEvaluationTitle}
+      hint={t.pendingEvaluationHint}
+      flush={items.length > 0}
+      actions={
+        items.length > 0 ? (
+          <button
+            type="button"
+            onClick={handleSendReminders}
+            disabled={reminderMutation.isPending}
+            className={cn(actionClass.outline, "w-full sm:w-auto")}
+          >
+            <PanelIcon name="bell" className="h-4 w-4" />
+            {reminderMutation.isPending ? t.reminderSendingButton : t.reminderSendButton}
+          </button>
+        ) : undefined
+      }
+    >
+      {items.length === 0 ? (
+        <EmptyState icon="clipboard" title={t.emptyPendingEvaluationMessage} hint={t.emptyPendingEvaluationHint} />
+      ) : (
+        <>
+          <div className="flex items-center justify-between gap-3 border-b border-border bg-muted/50 px-5 py-2.5">
+            <label className="flex cursor-pointer items-center gap-3 text-[13px] font-medium text-foreground">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-success"
+                checked={allSelected}
+                onChange={(e) => setSelected(e.target.checked ? items.map((item) => item.id) : [])}
+              />
+              {t.reminderSelectAllLabel}
+            </label>
+            {selected.length > 0 ? (
+              <span className="font-mono text-xs text-success">
+                {formatTemplate(t.selectedCount, { n: selected.length })}
+              </span>
+            ) : null}
+          </div>
+
+          {reminderError ? (
+            <Alert variant="error" className="m-5 mb-0 text-sm">
+              {reminderError}
+            </Alert>
+          ) : null}
+          {reminderMessage ? (
+            <div
+              role="status"
+              aria-live="polite"
+              className="m-5 mb-0 rounded-md border border-success/30 bg-success/10 px-4 py-3 text-sm text-success"
+            >
+              {reminderMessage}
+            </div>
+          ) : null}
+
+          <ul className="divide-y divide-border">
+            {items.map((item) => {
+              const isSelected = selected.includes(item.id);
+              return (
+                <EngagementRow
+                    key={item.id}
+                    item={item}
+                    selected={isSelected}
+                    status="PENDING_EVALUATION"
+                    date={item.ended_on ? formatTemplate(t.endedOn, { date: formatDate(item.ended_on) }) : null}
+                    leading={
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 shrink-0 accent-success"
+                        checked={isSelected}
+                        onChange={() => toggle(item.id)}
+                        aria-label={item.title}
+                      />
+                    }
+                  />
+              );
+            })}
+          </ul>
+        </>
+      )}
+    </PanelSection>
+  );
+}
+
+function StudentsSection({
+  query,
+  students,
+}: {
+  query: { isLoading: boolean; isError: boolean; refetch: () => unknown };
+  students: InstitutionStudentItem[];
+}) {
+  return (
+    <PanelSection
+      id="ogrenciler"
+      icon="users"
+      title={t.studentsTitle}
+      hint={t.studentsHint}
+      flush={students.length > 0}
+    >
+      {query.isLoading ? (
+        <div aria-hidden="true" className="h-24 animate-pulse rounded-lg bg-muted motion-reduce:animate-none" />
+      ) : query.isError ? (
+        <div className="flex items-center justify-between gap-4 text-sm text-destructive">
+          <span>{t.studentsError}</span>
+          <button type="button" onClick={() => void query.refetch()} className={cn(actionClass.neutral, SM)}>
+            {messages.errors.retry}
+          </button>
+        </div>
+      ) : students.length === 0 ? (
+        <EmptyState icon="users" title={t.studentsEmptyTitle} hint={t.studentsEmptyHint} />
+      ) : (
+        <ul className="divide-y divide-border">
+          {students.map((student) => {
+            const meta = [
+              student.department,
+              student.study_year ? formatTemplate(t.studyYear, { n: student.study_year }) : null,
+            ].filter(Boolean);
+            return (
+              <li key={student.talent_profile_id} className="flex flex-wrap items-center gap-3 px-5 py-3.5">
+                <Initials name={student.full_name} />
+                <span className="min-w-[60%] flex-1 sm:min-w-0">
+                  <span className="flex items-center gap-2">
+                    <span className="truncate font-medium text-foreground">{student.full_name}</span>
+                    {student.verified_count > 0 ? <SealMark className="h-4 w-4 shrink-0" /> : null}
+                  </span>
+                  {meta.length > 0 ? (
+                    <span className="mt-0.5 block truncate text-xs text-muted-foreground">{meta.join(" · ")}</span>
+                  ) : null}
+                </span>
+                <span className="flex flex-wrap items-center gap-2">
+                  {student.total_count === 0 ? (
+                    <span className="text-xs text-muted-foreground">{t.noEngagements}</span>
+                  ) : (
+                    <>
+                      <StatusPill tone={student.verified_count > 0 ? "success" : "default"}>
+                        {formatTemplate(t.verifiedCount, { n: student.verified_count })}
+                      </StatusPill>
+                      {student.in_progress_count > 0 ? (
+                        <StatusPill tone="warning">
+                          {formatTemplate(t.inProgressCount, { n: student.in_progress_count })}
+                        </StatusPill>
+                      ) : null}
+                    </>
+                  )}
+                  {student.public_slug ? (
+                    <a
+                      href={`/p/${student.public_slug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={cn(actionClass.outline, SM)}
+                    >
+                      {t.viewProfile}
+                      <span className="sr-only"> {t.newTab}</span>
+                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                        <path d="M7 17 17 7M8 7h9v9" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </a>
+                  ) : null}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </PanelSection>
+  );
+}
+
+function MembersCard({
+  institutionId,
+  members,
+}: {
+  institutionId: string;
+  members: { user_id: string; email: string; role: string }[];
+}) {
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<InstitutionMemberRole>("COORDINATOR");
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteMessage, setInviteMessage] = useState<string | null>(null);
 
   const inviteMutation = useMutation({
     mutationFn: () => inviteMember(institutionId, inviteEmail.trim(), inviteRole),
     onSuccess: () => {
       setInviteError(null);
-      setInviteMessage(messages.kurumPanel.inviteSuccessMessage);
+      setInviteMessage(t.inviteSuccessMessage);
       setInviteEmail("");
     },
     onError: () => {
       setInviteMessage(null);
-      setInviteError(messages.kurumPanel.inviteErrorMessage);
+      setInviteError(t.inviteErrorMessage);
     },
   });
 
@@ -106,342 +574,75 @@ export default function KurumPanelPage() {
     inviteMutation.mutate();
   };
 
-  const toggleEngagementSelected = (id: string) => {
-    setSelectedEngagementIds((prev) =>
-      prev.includes(id) ? prev.filter((existing) => existing !== id) : [...prev, id]
-    );
-  };
-
-  const toggleSelectAll = (allIds: string[], checked: boolean) => {
-    setSelectedEngagementIds(checked ? allIds : []);
-  };
-
-  const reminderMutation = useMutation({
-    mutationFn: () => createReminders(institutionId, selectedEngagementIds, REMINDER_TEMPLATE),
-    onSuccess: () => {
-      setReminderError(null);
-      setReminderMessage(messages.kurumPanel.reminderSuccessMessage);
-      setSelectedEngagementIds([]);
-    },
-    onError: () => {
-      setReminderMessage(null);
-      setReminderError(messages.kurumPanel.reminderErrorMessage);
-    },
-  });
-
-  const handleSendReminders = () => {
-    setReminderMessage(null);
-    if (selectedEngagementIds.length === 0) {
-      setReminderError(messages.kurumPanel.reminderNoneSelectedMessage);
-      return;
-    }
-    setReminderError(null);
-    reminderMutation.mutate();
-  };
-
   return (
-    <AppShell>
-      <div className="p-6 max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">{messages.kurumPanel.title}</h1>
+    <SideCard title={t.membersTitle} hint={t.membersHint}>
+      {members.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground">
+          {t.emptyMembersMessage}
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {members.map((member) => (
+            <li key={member.user_id} className="flex items-center justify-between gap-2 text-sm">
+              <span className="min-w-0 truncate font-mono text-[13px] text-foreground" title={member.email}>
+                {member.email}
+              </span>
+              <StatusPill tone={member.role === "ADMIN" ? "success" : "default"}>
+                {t.memberRole[member.role as "ADMIN" | "COORDINATOR"] ?? member.role}
+              </StatusPill>
+            </li>
+          ))}
+        </ul>
+      )}
 
-        {/* AC-1/AC-4/AC-5: Loading state */}
-        {isLoading && <p className="text-slate-600">{messages.shell.loading}</p>}
-
-        {/* AC-3/AC-4/AC-5: Error state */}
-        {isError && error && (
-          <ErrorBanner
-            message={
-              error instanceof SessionExpiredError
-                ? messages.session.expired
-                : error instanceof ApiError
-                  ? error.message
-                  : error instanceof NetworkError
-                    ? error.message
-                    : messages.errors.generic
-            }
-            requestId={error instanceof ApiError ? error.requestId : undefined}
-            onRetry={() => refetch()}
+      <form onSubmit={handleInviteSubmit} className="mt-5 space-y-3 rounded-lg border border-border bg-sand/50 p-4">
+        <p className="text-sm font-semibold text-foreground">{t.inviteMemberTitle}</p>
+        <div>
+          <Label htmlFor="invite-email" className="text-xs">
+            {t.inviteEmailLabel}
+          </Label>
+          <Input
+            id="invite-email"
+            type="email"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            required
           />
-        )}
+        </div>
+        <div>
+          <Label htmlFor="invite-role" className="text-xs">
+            {t.inviteRoleLabel}
+          </Label>
+          <select
+            id="invite-role"
+            value={inviteRole}
+            onChange={(e) => setInviteRole(e.target.value as InstitutionMemberRole)}
+            className="block h-10 w-full rounded-md border border-border bg-card px-3 text-sm text-foreground focus:border-success focus:outline-none focus:ring-2 focus:ring-success/25"
+          >
+            <option value="COORDINATOR">{t.memberRole.COORDINATOR}</option>
+            <option value="ADMIN">{t.memberRole.ADMIN}</option>
+          </select>
+        </div>
+        <button type="submit" disabled={inviteMutation.isPending} className={cn(actionClass.neutral, "w-full bg-card")}>
+          <PanelIcon name="userPlus" className="h-4 w-4" />
+          {inviteMutation.isPending ? t.invitingButton : t.inviteButton}
+        </button>
 
-        {/* AC-1/AC-2: Success state */}
-        {!isLoading && !isError && data && (
-          <>
-            {/* Summary cards */}
-            <div className="grid grid-cols-2 gap-4 mb-8">
-              {/* Pending approval card */}
-              <div className="bg-slate-50 rounded-md border border-slate-200 p-4">
-                <div className="text-sm text-slate-600 font-medium mb-2">
-                  {messages.kurumPanel.pendingApprovalLabel}
-                </div>
-                <div className="text-3xl font-bold text-slate-900">
-                  {data.summary.pending_approval}
-                </div>
-              </div>
-
-              {/* Pending evaluation card */}
-              <div className="bg-slate-50 rounded-md border border-slate-200 p-4">
-                <div className="text-sm text-slate-600 font-medium mb-2">
-                  {messages.kurumPanel.pendingEvaluationLabel}
-                </div>
-                <div className="text-3xl font-bold text-slate-900">
-                  {data.summary.pending_evaluation}
-                </div>
-              </div>
-            </div>
-
-            {/* Pending approval list */}
-            <section className="mb-8">
-              <h2 className="text-lg font-bold mb-3">
-                {messages.kurumPanel.pendingApprovalTitle}
-              </h2>
-              {data.pending_approval.length === 0 ? (
-                <p className="text-sm text-slate-600 bg-slate-50 rounded-md border border-slate-200 p-4">
-                  {messages.kurumPanel.emptyPendingApprovalMessage}
-                </p>
-              ) : (
-                <ul className="space-y-2">
-                  {data.pending_approval.map((item) => (
-                    <li
-                      key={item.id}
-                      className="bg-white p-4 rounded-md border border-slate-200 text-sm"
-                    >
-                      <div className="font-medium text-slate-900">{item.title}</div>
-                      {item.started_on && (
-                        <div className="text-xs text-slate-600 mt-1">
-                          {new Date(item.started_on).toLocaleString("tr-TR")}
-                        </div>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            {/* Pending evaluation list */}
-            <section>
-              <h2 className="text-lg font-bold mb-3">
-                {messages.kurumPanel.pendingEvaluationTitle}
-              </h2>
-              {data.pending_evaluation.length === 0 ? (
-                <p className="text-sm text-slate-600 bg-slate-50 rounded-md border border-slate-200 p-4">
-                  {messages.kurumPanel.emptyPendingEvaluationMessage}
-                </p>
-              ) : (
-                <>
-                  <label className="flex items-center gap-2 text-sm text-slate-700 mb-2">
-                    <input
-                      type="checkbox"
-                      checked={
-                        selectedEngagementIds.length > 0 &&
-                        selectedEngagementIds.length === data.pending_evaluation.length
-                      }
-                      onChange={(e) =>
-                        toggleSelectAll(data.pending_evaluation.map((item) => item.id), e.target.checked)
-                      }
-                    />
-                    {messages.kurumPanel.reminderSelectAllLabel}
-                  </label>
-                  <ul className="space-y-2">
-                    {data.pending_evaluation.map((item) => (
-                      <li
-                        key={item.id}
-                        className="flex items-start gap-3 bg-white p-4 rounded-md border border-slate-200 text-sm"
-                      >
-                        <input
-                          type="checkbox"
-                          className="mt-1"
-                          checked={selectedEngagementIds.includes(item.id)}
-                          onChange={() => toggleEngagementSelected(item.id)}
-                          aria-label={item.title}
-                        />
-                        <div>
-                          <div className="font-medium text-slate-900">{item.title}</div>
-                          {item.ended_on && (
-                            <div className="text-xs text-slate-600 mt-1">
-                              {new Date(item.ended_on).toLocaleString("tr-TR")}
-                            </div>
-                          )}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <div className="mt-3">
-                    <Button onClick={handleSendReminders} disabled={reminderMutation.isPending}>
-                      {reminderMutation.isPending
-                        ? messages.kurumPanel.reminderSendingButton
-                        : messages.kurumPanel.reminderSendButton}
-                    </Button>
-                  </div>
-
-                  {reminderError && (
-                    <div
-                      role="alert"
-                      aria-live="polite"
-                      className="mt-3 rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-600"
-                    >
-                      {reminderError}
-                    </div>
-                  )}
-                  {reminderMessage && (
-                    <div
-                      role="status"
-                      aria-live="polite"
-                      className="mt-3 rounded-md bg-green-50 border border-green-200 p-3 text-sm text-green-700"
-                    >
-                      {reminderMessage}
-                    </div>
-                  )}
-                </>
-              )}
-            </section>
-
-            {/* YET-202/ENT-01: Üyeler listesi + davet formu */}
-            <section className="mt-8">
-              <h2 className="text-lg font-bold mb-3">{messages.kurumPanel.membersTitle}</h2>
-
-              {data.members.length === 0 ? (
-                <p className="text-sm text-slate-600 bg-slate-50 rounded-md border border-slate-200 p-4 mb-4">
-                  {messages.kurumPanel.emptyMembersMessage}
-                </p>
-              ) : (
-                <ul className="space-y-2 mb-4">
-                  {data.members.map((member) => (
-                    <li
-                      key={member.user_id}
-                      className="flex items-center justify-between bg-white p-4 rounded-md border border-slate-200 text-sm"
-                    >
-                      <span className="text-slate-900">{member.email}</span>
-                      <span className="text-xs text-slate-600">
-                        {messages.kurumPanel.memberRole[member.role as "ADMIN" | "COORDINATOR"] ?? member.role}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              <form
-                onSubmit={handleInviteSubmit}
-                className="bg-slate-50 p-4 rounded-md border border-slate-200"
-              >
-                <h3 className="text-sm font-bold mb-3">{messages.kurumPanel.inviteMemberTitle}</h3>
-
-                <div className="flex flex-wrap gap-3 items-end">
-                  <div className="flex-1 min-w-[200px]">
-                    <Label htmlFor="invite-email">{messages.kurumPanel.inviteEmailLabel}</Label>
-                    <Input
-                      id="invite-email"
-                      type="email"
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="invite-role">{messages.kurumPanel.inviteRoleLabel}</Label>
-                    <select
-                      id="invite-role"
-                      value={inviteRole}
-                      onChange={(e) => setInviteRole(e.target.value as InstitutionMemberRole)}
-                      className="block px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-                    >
-                      <option value="COORDINATOR">{messages.kurumPanel.memberRole.COORDINATOR}</option>
-                      <option value="ADMIN">{messages.kurumPanel.memberRole.ADMIN}</option>
-                    </select>
-                  </div>
-
-                  <Button type="submit" disabled={inviteMutation.isPending}>
-                    {inviteMutation.isPending
-                      ? messages.kurumPanel.invitingButton
-                      : messages.kurumPanel.inviteButton}
-                  </Button>
-                </div>
-
-                {inviteError && (
-                  <div
-                    role="alert"
-                    aria-live="polite"
-                    className="mt-3 rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-600"
-                  >
-                    {inviteError}
-                  </div>
-                )}
-                {inviteMessage && (
-                  <div
-                    role="status"
-                    aria-live="polite"
-                    className="mt-3 rounded-md bg-green-50 border border-green-200 p-3 text-sm text-green-700"
-                  >
-                    {inviteMessage}
-                  </div>
-                )}
-              </form>
-            </section>
-
-            {/* YET-197/IS-10: Pending institution link requests */}
-            <section className="mt-8">
-              <h2 className="text-lg font-bold mb-3">{messages.kurumPanel.linkRequestsTitle}</h2>
-
-              {actionError && (
-                <div
-                  role="alert"
-                  aria-live="polite"
-                  className="mb-3 rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-600"
-                >
-                  {actionError}
-                </div>
-              )}
-              {actionMessage && (
-                <div
-                  role="status"
-                  aria-live="polite"
-                  className="mb-3 rounded-md bg-green-50 border border-green-200 p-3 text-sm text-green-600"
-                >
-                  {actionMessage}
-                </div>
-              )}
-
-              {linkRequestsQuery.isLoading ? (
-                <p className="text-slate-600">{messages.shell.loading}</p>
-              ) : linkRequestsQuery.isError ? (
-                <p className="text-sm text-red-600">{messages.kurumPanel.linkRequestActionError}</p>
-              ) : linkRequestsQuery.data && linkRequestsQuery.data.items.length === 0 ? (
-                <p className="text-sm text-slate-600 bg-slate-50 rounded-md border border-slate-200 p-4">
-                  {messages.kurumPanel.emptyLinkRequestsMessage}
-                </p>
-              ) : (
-                <ul className="space-y-2">
-                  {linkRequestsQuery.data?.items.map((item) => (
-                    <li
-                      key={item.id}
-                      className="flex items-center justify-between bg-white p-4 rounded-md border border-slate-200 text-sm"
-                    >
-                      <div className="font-medium text-slate-900">{item.talent_full_name}</div>
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={() => approveMutation.mutate(item.id)}
-                          disabled={isActionPending}
-                        >
-                          {messages.kurumPanel.approveButton}
-                        </Button>
-                        <Button
-                          onClick={() => rejectMutation.mutate(item.id)}
-                          disabled={isActionPending}
-                          className="bg-red-600 hover:bg-red-700"
-                        >
-                          {messages.kurumPanel.rejectButton}
-                        </Button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          </>
-        )}
-      </div>
-    </AppShell>
+        {inviteError ? (
+          <Alert variant="error" className="text-sm">
+            {inviteError}
+          </Alert>
+        ) : null}
+        {inviteMessage ? (
+          <div
+            role="status"
+            aria-live="polite"
+            className="rounded-md border border-success/30 bg-success/10 px-3 py-2.5 text-sm text-success"
+          >
+            {inviteMessage}
+          </div>
+        ) : null}
+      </form>
+    </SideCard>
   );
 }

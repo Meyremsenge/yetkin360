@@ -93,7 +93,7 @@ export function StatTile({
   const valueTone = value === 0 && (tone === "ochre" || tone === "brick") ? "ink" : tone;
   const body = (
     <>
-      <span className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-lg", TONE_TILE[tone])}>
+      <span className={cn("hidden h-11 w-11 shrink-0 items-center justify-center rounded-lg min-[400px]:flex", TONE_TILE[tone])}>
         <PanelIcon name={icon} className="h-5 w-5" />
       </span>
       <span className="min-w-0">
@@ -109,7 +109,7 @@ export function StatTile({
       </span>
     </>
   );
-  const base = "flex items-center gap-4 rounded-xl border border-border bg-card px-5 py-4";
+  const base = "flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-4 sm:gap-4 sm:px-5";
   if (href) {
     return (
       <a
