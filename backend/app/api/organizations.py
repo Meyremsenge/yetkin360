@@ -4,7 +4,7 @@ import uuid
 import re
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_principal, get_session, get_verified_principal
@@ -24,13 +24,20 @@ from app.services.organization import (
     DomainLockedError,
     DuplicateLegalIdError,
     FreeEmailDomainError,
+    InvalidUnitError,
     RateLimitError,
     change_organization_domain,
     create_organization,
     invite_org_member,
+    list_approvers,
+    list_org_members,
+    normalize_unit,
+    set_showcase_public,
+    update_member_unit,
     verify_domain,
 )
 from app.services.outbox import enqueue
+from app.services.rate_limit import RateLimitExceeded
 
 router = APIRouter(prefix="/organizations", tags=["organizations"])
 
@@ -48,10 +55,18 @@ class OrganizationCreate(BaseModel):
     legal_id: str | None = None
 
 
-class OrganizationDomainUpdate(BaseModel):
-    """Request schema for PATCH /organizations/{id}: the domain can be changed, not cleared."""
+class OrganizationUpdate(BaseModel):
+    """Request schema for PATCH /organizations/{id}: the domain can be changed (not
+    cleared) and the public showcase switched; at least one of them is required."""
 
-    domain: str
+    domain: str | None = None
+    showcase_public: bool | None = None
+
+    @model_validator(mode="after")
+    def _at_least_one_field(self) -> "OrganizationUpdate":
+        if self.domain is None and self.showcase_public is None:
+            raise ValueError("domain or showcase_public is required")
+        return self
 
 
 class OrganizationResponse(BaseModel):
@@ -63,6 +78,7 @@ class OrganizationResponse(BaseModel):
     legal_id: str | None
     verification_level: str
     status: str
+    showcase_public: bool
 
     class Config:
         from_attributes = True
@@ -91,6 +107,7 @@ class OrganizationMemberInvite(BaseModel):
 
     email: str
     role: str  # ADMIN or MEMBER
+    unit: str | None = None
 
 
 class OrganizationMemberResponse(BaseModel):
@@ -104,6 +121,35 @@ class OrganizationMemberResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class OrgMemberListEntry(BaseModel):
+    """GET /organizations/{id}/members row; email is only filled for the org's admins."""
+
+    user_id: uuid.UUID
+    display_name: str
+    role: str
+    unit: str | None
+    open_assigned_count: int
+    email: str | None
+
+
+class OrgMemberUnitUpdate(BaseModel):
+    """Request schema for PATCH /organizations/{id}/members/{user_id}; null clears the unit."""
+
+    unit: str | None
+
+
+class ApproverEntry(BaseModel):
+    """GET /organizations/{id}/approvers row — deliberately no e-mail and no role."""
+
+    user_id: uuid.UUID
+    display_name: str
+    unit: str | None
+
+
+def _invalid_unit() -> ApiError:
+    return ApiError(422, "INVALID_UNIT", "Birim adı en fazla 60 karakter olabilir")
 
 
 class DomainVerifyRequest(BaseModel):
@@ -272,32 +318,51 @@ def create_organization_endpoint(
 
 
 @router.patch("/{organization_id}", status_code=200, response_model=OrganizationResponse)
-def change_domain_endpoint(
+def update_organization_endpoint(
     organization_id: uuid.UUID,
-    payload: OrganizationDomainUpdate,
+    payload: OrganizationUpdate,
     principal: Principal = Depends(get_verified_principal),
     session: Session = Depends(get_session),
     _csrf: None = Depends(require_csrf),
 ) -> Organization:
     """
-    Change the organization's domain (org ADMIN only).
+    Change the organization's domain and/or public showcase switch (org ADMIN only).
 
-    T1: changes. T2: changes and drops to T1 (re-verify via DNS). T3/T4: locked.
-    Same value is a 200 no-op.
+    Domain — T1: changes. T2: changes and drops to T1 (re-verify via DNS). T3/T4: locked.
+    Same value is a 200 no-op. showcase_public (SPRINT D2) is set independently.
 
     Status codes:
         200: Changed (or same value)
         400: FREE_EMAIL_DOMAIN
         404: Organization not found / caller is not an ADMIN of it
         409: ALAN_ADI_KILITLI (T3/T4) / DOMAIN_ALREADY_VERIFIED (held by another org)
-        422: Invalid domain format
+        422: Invalid domain format / empty body
     """
     scoped = scoped_organizations(session, principal)
     org = get_scoped_or_404(scoped.where(Organization.id == organization_id), session)
     if not org or organization_id not in principal.org_admin_ids:
         raise ApiError(404, "NOT_FOUND", "Organizasyon bulunamadı")
 
-    new_domain = payload.domain.strip()
+    if payload.domain is not None:
+        _change_domain(org, payload.domain, principal, session)
+
+    if payload.showcase_public is not None and set_showcase_public(org, payload.showcase_public, session):
+        log_audit_event(
+            session=session,
+            actor_user_id=principal.user_id,
+            actor_ip=None,
+            action="ORGANIZATION_SHOWCASE_CHANGED",
+            subject_type="organization",
+            subject_id=organization_id,
+            result="SUCCESS",
+            metadata={"showcase_public": payload.showcase_public},
+        )
+
+    return org
+
+
+def _change_domain(org: Organization, domain: str, principal: Principal, session: Session) -> None:
+    new_domain = domain.strip()
     if not validate_hostname(new_domain):
         raise ApiError(422, "INVALID_DOMAIN_FORMAT", "Geçersiz alan adı biçimi")
 
@@ -317,12 +382,10 @@ def change_domain_endpoint(
             actor_ip=None,
             action="ORGANIZATION_DOMAIN_CHANGED",
             subject_type="organization",
-            subject_id=organization_id,
+            subject_id=org.id,
             result="SUCCESS",
             metadata={"from_level": level_before, "to_level": org.verification_level},
         )
-
-    return org
 
 
 # ============================================================================
@@ -376,6 +439,12 @@ def invite_member_endpoint(
     if organization_id not in principal.org_admin_ids:
         raise ApiError(404, "NOT_FOUND", "Organizasyon bulunamadı")
 
+    # SPRINT D2: optional unit label, validated after the scope check
+    try:
+        unit = normalize_unit(payload.unit)
+    except InvalidUnitError:
+        raise _invalid_unit()
+
     # Invite member (isolate exception handling to invite_org_member only)
     member = None
     try:
@@ -384,6 +453,7 @@ def invite_member_endpoint(
             email=payload.email,
             role=payload.role,
             session=session,
+            unit=unit,
         )
     except AlreadyMemberError:
         # AC-4: Zaten üye → 202 (rol değişmez, hiçbir şey yapılmaz)
@@ -448,6 +518,111 @@ def invite_member_endpoint(
         )
 
     return {"status": "queued"}
+
+
+# ============================================================================
+# SPRINT D2: team list, unit labels, approver picker
+# ============================================================================
+
+
+@router.get("/{organization_id}/members", status_code=200, response_model=list[OrgMemberListEntry])
+def list_members_endpoint(
+    organization_id: uuid.UUID,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> list[OrgMemberListEntry]:
+    """
+    Team list for any member of the organization; e-mail only for its admins.
+
+    Status codes:
+        200: List (admins first, then by unit and name)
+        404: Organization not found / caller is not a member of it
+    """
+    scoped = scoped_organizations(session, principal)
+    org = get_scoped_or_404(scoped.where(Organization.id == organization_id), session)
+    if not org:
+        raise ApiError(404, "NOT_FOUND", "Organizasyon bulunamadı")
+
+    rows = list_org_members(
+        session, organization_id, include_email=organization_id in principal.org_admin_ids
+    )
+    return [OrgMemberListEntry.model_validate(row, from_attributes=True) for row in rows]
+
+
+@router.patch(
+    "/{organization_id}/members/{user_id}", status_code=200, response_model=OrgMemberListEntry
+)
+def update_member_unit_endpoint(
+    organization_id: uuid.UUID,
+    user_id: uuid.UUID,
+    payload: OrgMemberUnitUpdate,
+    principal: Principal = Depends(get_verified_principal),
+    session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
+) -> OrgMemberListEntry:
+    """
+    Set or clear a member's unit (org ADMIN only). Blank text clears it.
+
+    Status codes:
+        200: Updated member row (same value is a no-op)
+        404: Organization not found / caller is not its ADMIN / user is not a member of it
+        422: INVALID_UNIT (longer than 60 characters)
+    """
+    scoped = scoped_organizations(session, principal)
+    org = get_scoped_or_404(scoped.where(Organization.id == organization_id), session)
+    if not org or organization_id not in principal.org_admin_ids:
+        raise ApiError(404, "NOT_FOUND", "Organizasyon bulunamadı")
+
+    try:
+        result = update_member_unit(session, organization_id, user_id, payload.unit)
+    except InvalidUnitError:
+        raise _invalid_unit()
+    if result is None:
+        raise ApiError(404, "NOT_FOUND", "Üye bulunamadı")
+
+    row, changed = result
+    if changed:
+        log_audit_event(
+            session=session,
+            actor_user_id=principal.user_id,
+            actor_ip=None,
+            action="ORG_MEMBER_UNIT_CHANGED",
+            subject_type="organization",
+            subject_id=organization_id,
+            result="SUCCESS",
+            metadata={"member_user_id": str(user_id), "cleared": row.unit is None},
+        )
+    return OrgMemberListEntry.model_validate(row, from_attributes=True)
+
+
+@router.get("/{organization_id}/approvers", status_code=200, response_model=list[ApproverEntry])
+def list_approvers_endpoint(
+    organization_id: uuid.UUID,
+    principal: Principal = Depends(get_verified_principal),
+    session: Session = Depends(get_session),
+) -> list[ApproverEntry]:
+    """
+    Approver picker for a student starting an engagement: any e-mail-verified
+    user, no membership needed (like the directory). Name + unit only.
+
+    Status codes:
+        200: List (by unit, no unit last, then name)
+        401: Unauthenticated / EMAIL_NOT_VERIFIED
+        404: Organization not found, deleted or not ACTIVE (same body)
+        429: RATE_LIMITED (60/min/user, shared with Keşfet)
+    """
+    try:
+        rows = list_approvers(session, principal, organization_id)
+    except RateLimitExceeded as exc:
+        raise ApiError(
+            429,
+            "RATE_LIMITED",
+            "Çok fazla istek yapıldı. Lütfen biraz sonra tekrar deneyin.",
+            headers={"Retry-After": str(exc.retry_after)},
+        )
+    if rows is None:
+        raise ApiError(404, "NOT_FOUND", "Organizasyon bulunamadı")
+    return [ApproverEntry.model_validate(row, from_attributes=True) for row in rows]
 
 
 # ============================================================================

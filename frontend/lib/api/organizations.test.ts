@@ -1,5 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createOrganization, getOrganization, inviteOrgMember, verifyDomain, listOrganizationDirectory } from "./organizations";
+import {
+  createOrganization,
+  getOrganization,
+  inviteOrgMember,
+  verifyDomain,
+  listOrganizationDirectory,
+  listOrgMembers,
+  updateMemberUnit,
+  listApprovers,
+  updateOrganization,
+} from "./organizations";
 import * as client from "./client";
 import { ApiError, NetworkError } from "./errors";
 
@@ -202,6 +212,89 @@ describe("lib/api/organizations", () => {
       mockApiFetch.mockRejectedValueOnce(new NetworkError("network"));
 
       await expect(listOrganizationDirectory()).rejects.toBeInstanceOf(NetworkError);
+    });
+  });
+  describe("SPRINT D2 — ekip, birim, onaylayıcı, vitrin", () => {
+    it("inviteOrgMember birim verilirse gövdeye ekler", async () => {
+      mockApiFetch.mockResolvedValueOnce({ status: "queued" });
+
+      await inviteOrgMember("org-1", "aday@test.com", "MEMBER", "Yazılım");
+
+      expect(mockApiFetch).toHaveBeenCalledWith("/organizations/org-1/members", {
+        method: "POST",
+        body: { email: "aday@test.com", role: "MEMBER", unit: "Yazılım" },
+      });
+    });
+
+    it("listOrgMembers GET /organizations/{id}/members çağırır", async () => {
+      const rows = [
+        { user_id: "u-1", display_name: "Mehmet Kaya", role: "MEMBER", unit: "Yazılım", open_assigned_count: 2, email: null },
+      ];
+      mockApiFetch.mockResolvedValueOnce(rows);
+
+      await expect(listOrgMembers("org-1")).resolves.toEqual(rows);
+      expect(mockApiFetch).toHaveBeenCalledWith("/organizations/org-1/members");
+    });
+
+    it("updateMemberUnit PATCH gövdesi {unit}; null birimi temizler", async () => {
+      mockApiFetch.mockResolvedValueOnce({
+        user_id: "u-1", display_name: "Mehmet Kaya", role: "MEMBER", unit: null, open_assigned_count: 0, email: "m@x.com",
+      });
+
+      const row = await updateMemberUnit("org-1", "u-1", null);
+
+      expect(row.unit).toBeNull();
+      expect(mockApiFetch).toHaveBeenCalledWith("/organizations/org-1/members/u-1", {
+        method: "PATCH",
+        body: { unit: null },
+      });
+    });
+
+    it("updateMemberUnit 422 INVALID_UNIT hatasını iletir", async () => {
+      mockApiFetch.mockRejectedValueOnce(
+        new ApiError({ status: 422, code: "INVALID_UNIT", message: "x", requestId: null })
+      );
+
+      await expect(updateMemberUnit("org-1", "u-1", "x".repeat(61))).rejects.toMatchObject({
+        status: 422,
+        code: "INVALID_UNIT",
+      });
+    });
+
+    it("listApprovers GET /organizations/{id}/approvers çağırır", async () => {
+      const rows = [{ user_id: "u-1", display_name: "Mehmet Kaya", unit: "Yazılım" }];
+      mockApiFetch.mockResolvedValueOnce(rows);
+
+      await expect(listApprovers("org-1")).resolves.toEqual(rows);
+      expect(mockApiFetch).toHaveBeenCalledWith("/organizations/org-1/approvers");
+    });
+
+    it("listApprovers 429 RATE_LIMITED hatasını iletir", async () => {
+      mockApiFetch.mockRejectedValueOnce(
+        new ApiError({ status: 429, code: "RATE_LIMITED", message: "x", requestId: null })
+      );
+
+      await expect(listApprovers("org-1")).rejects.toMatchObject({ status: 429, code: "RATE_LIMITED" });
+    });
+
+    it("updateOrganization vitrin anahtarını PATCH ile gönderir", async () => {
+      const response = {
+        id: "org-1", name: "Lale", domain: null, legal_id: null,
+        verification_level: "T1", status: "ACTIVE", showcase_public: true,
+      };
+      mockApiFetch.mockResolvedValueOnce(response);
+
+      await expect(updateOrganization("org-1", { showcase_public: true })).resolves.toEqual(response);
+      expect(mockApiFetch).toHaveBeenCalledWith("/organizations/org-1", {
+        method: "PATCH",
+        body: { showcase_public: true },
+      });
+    });
+
+    it("boş yanıtta UNKNOWN_ERROR fırlatır", async () => {
+      mockApiFetch.mockResolvedValueOnce(undefined);
+
+      await expect(listOrgMembers("org-1")).rejects.toMatchObject({ code: "UNKNOWN_ERROR" });
     });
   });
 });

@@ -29,6 +29,8 @@ export interface OrganizationResponse {
   legal_id: string | null;
   verification_level: string;
   status: string;
+  /** SPRINT D2: backend her zaman döndürür; eski test fikstürleri bozulmasın diye opsiyonel. */
+  showcase_public?: boolean;
 }
 
 export interface DomainVerifyResult {
@@ -59,15 +61,20 @@ export async function getOrganization(organizationId: string): Promise<Organizat
   return response;
 }
 
-/** AC-1/AC-2/AC-4: her zaman 202 {"status":"queued"} — hesap var/yok sızıntısı yok. */
+/**
+ * AC-1/AC-2/AC-4: her zaman 202 {"status":"queued"} — hesap var/yok sızıntısı yok.
+ * SPRINT D2: isteğe bağlı birim (en fazla 60 karakter, boş → birimsiz).
+ */
 export async function inviteOrgMember(
   organizationId: string,
   email: string,
-  role: OrgMemberRole
+  role: OrgMemberRole,
+  unit?: string | null
 ): Promise<{ status: string }> {
+  const body = unit === undefined ? { email, role } : { email, role, unit };
   const response = await apiFetch<{ status: string }>(`/organizations/${organizationId}/members`, {
     method: "POST",
-    body: { email, role },
+    body,
   });
   if (!response) throw unexpectedResponse();
   return response;
@@ -105,4 +112,72 @@ export async function listOrganizationDirectory(q?: string): Promise<Organizatio
   const response = await apiFetch<{ items: OrganizationDirectoryEntry[] }>(`/organizations/${query}`);
   if (!response) throw unexpectedResponse();
   return response.items;
+}
+
+/**
+ * SPRINT D2: ekip listesi. Kuruluşun her üyesi görür; `email` yalnız çağıran
+ * ADMIN ise dolu, değilse null. `open_assigned_count` = kişinin onaylayıcı
+ * olduğu açık (ACTIVE / PENDING_EVALUATION / EVALUATED) çalışma sayısı.
+ */
+export interface OrgMember {
+  user_id: string;
+  display_name: string;
+  role: OrgMemberRole;
+  unit: string | null;
+  open_assigned_count: number;
+  email: string | null;
+}
+
+export async function listOrgMembers(organizationId: string): Promise<OrgMember[]> {
+  const response = await apiFetch<OrgMember[]>(`/organizations/${organizationId}/members`);
+  if (!response) throw unexpectedResponse();
+  return response;
+}
+
+/** SPRINT D2: yalnız ADMIN. null (veya boş metin) birimi temizler; 61+ karakter → 422 INVALID_UNIT. */
+export async function updateMemberUnit(
+  organizationId: string,
+  userId: string,
+  unit: string | null
+): Promise<OrgMember> {
+  const response = await apiFetch<OrgMember>(`/organizations/${organizationId}/members/${userId}`, {
+    method: "PATCH",
+    body: { unit },
+  });
+  if (!response) throw unexpectedResponse();
+  return response;
+}
+
+/**
+ * SPRINT D2: öğrencinin çalışmayı onaya gönderirken seçebileceği onaylayıcılar.
+ * E-posta ve rol bilinçli olarak yok. Keşfet ile ortak hız sınırı → 429 RATE_LIMITED.
+ */
+export interface Approver {
+  user_id: string;
+  display_name: string;
+  unit: string | null;
+}
+
+export async function listApprovers(organizationId: string): Promise<Approver[]> {
+  const response = await apiFetch<Approver[]>(`/organizations/${organizationId}/approvers`);
+  if (!response) throw unexpectedResponse();
+  return response;
+}
+
+/** SPRINT D2: yalnız ADMIN. En az bir alan gerekir (alan adı veya vitrin anahtarı). */
+export interface OrganizationUpdateInput {
+  domain?: string;
+  showcase_public?: boolean;
+}
+
+export async function updateOrganization(
+  organizationId: string,
+  input: OrganizationUpdateInput
+): Promise<OrganizationResponse> {
+  const response = await apiFetch<OrganizationResponse>(`/organizations/${organizationId}`, {
+    method: "PATCH",
+    body: input,
+  });
+  if (!response) throw unexpectedResponse();
+  return response;
 }

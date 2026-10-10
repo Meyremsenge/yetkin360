@@ -359,4 +359,4 @@ def test_response_is_the_organization_response_shape(client, session):
 
     body = _patch(client, org, owner).json()
 
-    assert set(body) == {"id", "name", "domain", "legal_id", "verification_level", "status"}
+    assert set(body) == {"id", "name", "domain", "legal_id", "verification_level", "status", "showcase_public"}
