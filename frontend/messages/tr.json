@@ -372,6 +372,9 @@
     "portfolioEmpty": "Henüz kayıt yok",
     "portfolioEmptyHint": "Bir kurs sertifikası ya da kişisel bir proje ekleyerek başla; profilinde göstermek için \"Profilde göster\" anahtarını açman yeterli.",
     "portfolioAddTitle": "Yeni kayıt ekle",
+    "portfolioAddButton": "Yeni kayıt",
+    "portfolioAddHint": "Çalışma dışında aldığın bir sertifika ya da yaptığın bir iş. Koordinatör onayı olmadan \"Kendi beyanı\" olarak görünür.",
+    "portfolioAddClose": "Paneli kapat",
     "portfolioKindLabel": "Tür",
     "portfolioKind": {
       "CERTIFICATE": "Sertifika",

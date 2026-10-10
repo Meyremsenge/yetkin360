@@ -18,15 +18,21 @@ export const focusRingClass =
 export function ProfileSection({
   title,
   description,
+  action,
   children,
 }: {
   title: string;
   description?: string;
+  /** Primary action, top-right of the card (e.g. "+ Yeni kayıt"). */
+  action?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <Card className="mt-6 p-4 sm:p-6">
-      <h2 className="font-serif text-xl font-medium text-foreground">{title}</h2>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h2 className="font-serif text-xl font-medium text-foreground">{title}</h2>
+        {action}
+      </div>
       {description ? (
         <p className="mt-1 mb-4 text-sm text-muted-foreground">{description}</p>
       ) : (

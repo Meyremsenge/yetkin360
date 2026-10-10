@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -250,7 +250,7 @@ async function uploadShowcaseFile(file: File, kind: AddForm["kind"]): Promise<st
   return record.id;
 }
 
-function AddPortfolioForm() {
+function AddPortfolioForm({ titleId, onAdded }: { titleId: string; onAdded: () => void }) {
   const queryClient = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -298,6 +298,7 @@ function AddPortfolioForm() {
       reset(EMPTY_FORM);
       setFile(null);
       await queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEY });
+      onAdded();
     } catch (err) {
       setFormError(err instanceof ApiError ? errorMessage(err) : err instanceof Error && err.message ? err.message : t.portfolioError);
     } finally {
@@ -310,12 +311,8 @@ function AddPortfolioForm() {
     message ? <p className="mt-1 text-xs text-destructive">{message}</p> : null;
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} noValidate className="mt-6 border-t border-border pt-5" aria-labelledby="portfolio-add-title">
-      <h3 id="portfolio-add-title" className="font-serif text-lg font-medium text-foreground">
-        {t.portfolioAddTitle}
-      </h3>
-
-      <fieldset className="mt-3">
+    <form onSubmit={handleSubmit(onSubmit)} noValidate aria-labelledby={titleId}>
+      <fieldset>
         <legend className={labelClass}>{t.portfolioKindLabel}</legend>
         <div className="inline-flex rounded-md border border-border bg-muted p-0.5">
           {(["CERTIFICATE", "WORK"] as const).map((value) => (
@@ -435,13 +432,103 @@ function AddPortfolioForm() {
   );
 }
 
+/**
+ * "+ Yeni kayıt" opens the add form in a sheet from the right, so the action
+ * stays at the top however long the list grows. The form stays mounted: a
+ * draft survives closing the sheet; a successful add closes it.
+ */
+function AddPortfolioSheet() {
+  const [open, setOpen] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!open || !dialog) return;
+    // jsdom has no showModal; the open attribute is enough there.
+    if (typeof dialog.showModal === "function") {
+      if (!dialog.open) dialog.showModal();
+    } else {
+      dialog.setAttribute("open", "");
+    }
+    const root = document.documentElement;
+    const previousOverflow = root.style.overflow;
+    root.style.overflow = "hidden";
+    return () => {
+      root.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
+  const close = () => {
+    const dialog = dialogRef.current;
+    if (dialog && typeof dialog.close === "function") dialog.close();
+    else {
+      dialog?.removeAttribute("open");
+      setOpen(false);
+    }
+  };
+
+  return (
+    <>
+      <Button
+        type="button"
+        size="sm"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+        className={cn("inline-flex items-center gap-1.5", primaryButtonClass)}
+      >
+        <span aria-hidden="true" className="text-base leading-none">+</span>
+        {t.portfolioAddButton}
+      </Button>
+      <dialog
+        ref={dialogRef}
+        className="y360-sheet"
+        aria-labelledby={titleId}
+        onClose={() => setOpen(false)}
+        onClick={(event) => {
+          // A click on the dialog element itself is a click on the backdrop.
+          if (event.target === event.currentTarget) close();
+        }}
+      >
+        <div className="flex h-full flex-col bg-card">
+          <div className="flex items-start justify-between gap-3 border-b border-border px-6 py-5">
+            <div>
+              <h2 id={titleId} className="font-serif text-xl font-medium text-foreground">
+                {t.portfolioAddTitle}
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">{t.portfolioAddHint}</p>
+            </div>
+            <button
+              type="button"
+              aria-label={t.portfolioAddClose}
+              onClick={close}
+              className={cn(
+                "-mr-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground",
+                focusRingClass
+              )}
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" className="h-4 w-4">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-6 py-5">
+            <AddPortfolioForm titleId={titleId} onAdded={close} />
+          </div>
+        </div>
+      </dialog>
+    </>
+  );
+}
+
 export default function PortfolioSection() {
   const { data, isLoading, isError, refetch } = useQuery({ queryKey: PORTFOLIO_QUERY_KEY, queryFn: listPortfolio });
   const items = data?.items ?? [];
   const engagementCerts = data?.engagement_certificates ?? [];
 
   return (
-    <ProfileSection title={t.portfolioTitle} description={t.portfolioDescription}>
+    <ProfileSection title={t.portfolioTitle} description={t.portfolioDescription} action={<AddPortfolioSheet />}>
       {isLoading ? <SkeletonRows rows={2} /> : null}
       {isError ? (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -475,8 +562,6 @@ export default function PortfolioSection() {
           </ul>
         </div>
       ) : null}
-
-      <AddPortfolioForm />
     </ProfileSection>
   );
 }

@@ -53,6 +53,11 @@ function renderSection() {
   );
 }
 
+// The add form lives in a side sheet opened from the section header.
+function openAddSheet() {
+  fireEvent.click(screen.getByRole("button", { name: "Yeni kayıt" }));
+}
+
 describe("PortfolioSection — sertifikalar ve çalışmalar", () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => cleanup());
@@ -106,6 +111,7 @@ describe("PortfolioSection — sertifikalar ve çalışmalar", () => {
     vi.mocked(createPortfolioItem).mockResolvedValue(item());
     renderSection();
     await screen.findByText("Henüz kayıt yok");
+    openAddSheet();
 
     fireEvent.click(screen.getByLabelText("Çalışma"));
     fireEvent.change(screen.getByLabelText("Başlık"), { target: { value: "Kişisel site" } });
@@ -131,6 +137,7 @@ describe("PortfolioSection — sertifikalar ve çalışmalar", () => {
     vi.mocked(listPortfolio).mockResolvedValue({ items: [], engagement_certificates: [] });
     renderSection();
     await screen.findByText("Henüz kayıt yok");
+    openAddSheet();
     fireEvent.change(screen.getByLabelText("Bağlantı"), { target: { value: "http://ornek.dev" } });
     fireEvent.click(screen.getByRole("button", { name: "Ekle" }));
 
@@ -147,6 +154,7 @@ describe("PortfolioSection — sertifikalar ve çalışmalar", () => {
     vi.mocked(createPortfolioItem).mockResolvedValue(item());
     renderSection();
     await screen.findByText("Henüz kayıt yok");
+    openAddSheet();
 
     const file = new File(["%PDF"], "sertifika.pdf", { type: "application/pdf" });
     fireEvent.drop(screen.getByText("Dosyayı buraya bırak ya da seç").closest("label")!, { dataTransfer: { files: [file] } });
@@ -165,6 +173,7 @@ describe("PortfolioSection — sertifikalar ve çalışmalar", () => {
     vi.mocked(listPortfolio).mockResolvedValue({ items: [], engagement_certificates: [] });
     renderSection();
     await screen.findByText("Henüz kayıt yok");
+    openAddSheet();
     const exe = new File(["MZ"], "kotu.exe", { type: "application/x-msdownload" });
     fireEvent.drop(screen.getByText("Dosyayı buraya bırak ya da seç").closest("label")!, { dataTransfer: { files: [exe] } });
     expect(await screen.findByText(/Desteklenmeyen dosya türü/)).toBeInTheDocument();
@@ -178,6 +187,7 @@ describe("PortfolioSection — sertifikalar ve çalışmalar", () => {
     );
     renderSection();
     await screen.findByText("Henüz kayıt yok");
+    openAddSheet();
     fireEvent.change(screen.getByLabelText("Başlık"), { target: { value: "Fazla" } });
     fireEvent.click(screen.getByRole("button", { name: "Ekle" }));
     expect(await screen.findByText("En fazla 50 kayıt ekleyebilirsin.")).toBeInTheDocument();
@@ -223,5 +233,39 @@ describe("PortfolioSection — sertifikalar ve çalışmalar", () => {
     await waitFor(() =>
       expect(createPortfolioItem).toHaveBeenLastCalledWith({ kind: "CERTIFICATE", title: "Kurs sertifikası", evidence_id: "ev-4" })
     );
+  });
+
+  it("'Yeni kayıt' düğmesi formu sağdan açılan panelde açar; kapat düğmesi kapatır", async () => {
+    vi.mocked(listPortfolio).mockResolvedValue({ items: [], engagement_certificates: [] });
+    const { container } = renderSection();
+    await screen.findByText("Henüz kayıt yok");
+
+    const dialog = container.querySelector("dialog")!;
+    expect(dialog.hasAttribute("open")).toBe(false);
+    const trigger = screen.getByRole("button", { name: "Yeni kayıt" });
+    expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
+
+    openAddSheet();
+    await waitFor(() => expect(dialog.hasAttribute("open")).toBe(true));
+    expect(within(dialog).getByRole("heading", { name: "Yeni kayıt ekle" })).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Paneli kapat" }));
+    await waitFor(() => expect(dialog.hasAttribute("open")).toBe(false));
+  });
+
+  it("başarılı kayıttan sonra panel kapanır", async () => {
+    vi.mocked(listPortfolio).mockResolvedValue({ items: [], engagement_certificates: [] });
+    vi.mocked(createPortfolioItem).mockResolvedValue(item());
+    const { container } = renderSection();
+    await screen.findByText("Henüz kayıt yok");
+    openAddSheet();
+    const dialog = container.querySelector("dialog")!;
+    await waitFor(() => expect(dialog.hasAttribute("open")).toBe(true));
+
+    fireEvent.change(screen.getByLabelText("Başlık"), { target: { value: "Kişisel site" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ekle" }));
+
+    await waitFor(() => expect(createPortfolioItem).toHaveBeenCalled());
+    await waitFor(() => expect(dialog.hasAttribute("open")).toBe(false));
   });
 });
