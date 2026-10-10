@@ -24,28 +24,6 @@ body {
   @apply bg-background text-foreground antialiased;
 }
 
-/* Staggered entrance for list cards (Keşfet). Off under reduced motion. */
-@keyframes y360-step-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-.y360-step-in {
-  animation: y360-step-in 240ms ease-out both;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .y360-step-in {
-    animation: none;
-  }
-}
-
 @layer base {
   h1 {
     @apply text-3xl font-bold;
