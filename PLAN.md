@@ -347,6 +347,16 @@ PLAN maddesi olarak açılmamıştı. Detay: `HATA.md`.**
       tanımlı değildi — bu oturumda elle `python -m app.workers.outbox_worker`
       çalıştırılarak `email.verify_email` kuyruğu boşaltıldı, kalıcı çözüm değil.
       bkz. 3.27. @be2
+- [x] 3.54 AI fraud-flag — faz 1 (tanıklık metni): CLAUDE.md'nin MVP'de "AI
+      yasak" kuralı final-analiz §11.4.6 gerekçesiyle bilinçli olarak
+      daraltıldı — AI hiçbir zaman karar vermez, yalnız `attestation.statement`
+      metnini OpenRouter'a (outbox worker, açık transaction dışında) gönderip
+      şüpheli paternleri `fraud_flags` tablosuna işaretler; nihai karar
+      (`CONFIRMED`/`DISMISSED`) `GET`/`POST /admin/fraud-queue` ile admin'e
+      aittir. `attestation.statement` önceden API'den hiç girilemiyordu
+      (hardcoded `None`) — bu iş onu gerçek bir request alanı yaptı. Faz 2
+      (evidence dosya içeriği — PDF/OCR metin çıkarımı gerektirir) ayrı onay
+      bekliyor. @be2
 - [ ] 3.16 Kod dondurma — Faz 4'e yeni özellik girmez @all
 
 ---
