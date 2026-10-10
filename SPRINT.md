@@ -36,6 +36,9 @@ kuruluşun platformda **neden hesap açacağı** görünmüyor. Kararımız:
 
 ## 1. Açık kararlar (kullanıcı cevaplayacak — plan ikisine de hazır)
 
+> **KARAR (10 Ekim gece, varsayılan — kullanıcı değiştirebilir):** K1 = **Seçenek A (çift imza)** → K paketi yapılır.
+> K2 = **H-0** (seçenek arayüzden kaldırılır); H yapılmaz. Yürütme: tek yönetici oturumu alt ajanlarla.
+
 ### K1 — Mührü kim veriyor?
 Bugün: çalışma bir kuruma (üniversiteye) bağlıysa **mührü koordinatör verir**, kuruluş yalnız
 değerlendirme formunu doldurur (`backend/app/services/attestation.py:211-226`). Kurumsuz çalışmada
