@@ -56,7 +56,11 @@ REFRESH_IP = Rule("refresh_ip", 60, 60)
 REMINDER_INSTITUTION = Rule("reminder_institution", 20, 3600)
 REMINDER_TARGET = Rule("reminder_target", 1, 86400)
 
+# PLAN R.1 (Keşfet): docs/SECURITY.md §3 "Arama" row, per user.
+DISCOVER_USER = Rule("discover_user", 60, 60)
+
 _RULES = (
+    DISCOVER_USER,
     LOGIN_IP,
     LOGIN_ACCOUNT,
     REGISTER_IP,

@@ -573,10 +573,37 @@ tek ekrandaki kanıtı:
 
 ## 3. Uç özeti
 
-Toplam **38 uç**. Hackathon fazlarına dağılımı → [PLAN.md](../PLAN.md).
+Toplam **40 uç**. Hackathon fazlarına dağılımı → [PLAN.md](../PLAN.md).
 
 | Grup | Uç sayısı | Faz |
 |---|---|---|
+### 2.11 Keşfet — `/discover`
+
+Dizin ve arama; **eşleştirme değil** (puan, öneri, uygunluk sıralaması yok).
+Tasarım ve mahremiyet gerekçesi → [kesfet-tasarim.md](kesfet-tasarim.md).
+
+| Metot | Yol | Yetki | İstek (sorgu) | Cevap | Hatalar |
+|---|---|---|---|---|---|
+| `GET` | `/discover/talents` | `AUTH` (e-posta doğrulanmış) | `q?` (2–64), `skill_id?` (çoklu, maks. 5, hepsi eşleşmeli), `institution_id?`, `department?`, `city?`, `limit?` (20, maks. 50), `cursor?` | `200` — `{items, next_cursor, has_more}` | `401`, `422 VALIDATION_ERROR`, `429 RATE_LIMITED` |
+| `GET` | `/discover/organizations` | `AUTH` (e-posta doğrulanmış) | `q?` (2–64), `limit?`, `cursor?` | `200` — `{items, next_cursor, has_more}` | `401`, `422 VALIDATION_ERROR`, `429 RATE_LIMITED` |
+
+**Öğrenci kartı:** `public_slug`, `full_name`, `headline`, `department`, `city`,
+`institution_name`, `sealed_skills[]` (ad), `verified_experience_count`.
+Yalnız `visibility = 'PUBLIC'` **ve** `public_slug` dolu profiller listelenir —
+yani zaten anonim `/public/talents/{slug}` ile okunabilenler. `sealed_skills`
+ve sayaç yalnız `PUBLIC` doğrulanmış deneyimlerden türetilir; iptal edilmiş
+tanıklık sayılmaz. E-posta, iç kimlikler ve beyan edilmiş (doğrulanmamış)
+yetkinlikler **dönmez**.
+
+**Kuruluş kartı:** `id`, `name`, `verification_level`, `domain` (yalnız T2+ ise;
+aksi halde `null`). Yalnız `status = 'ACTIVE'` ve silinmemiş kuruluşlar.
+
+- Sıralama sabittir: öğrenciler `created_at DESC, id DESC`, kuruluşlar `name, id`.
+- Var olmayan `skill_id` / `institution_id` → `200` + boş liste (`404` değil).
+- Bilinmeyen sorgu parametresi (`visibility`, `organization_id`, `role` …) → `422`.
+- Hız sınırı iki uç için ortak: **60/dk/kullanıcı**; aşımda `Retry-After` başlığı.
+- `DISCOVER_ENABLED=false` iken iki uç da (kimlik doğrulamadan önce) `404` döner.
+
 | `/auth` | 7 | 1 |
 | `/me`, `/talents` | 7 | 1 |
 | `/skills` | 1 | 1 |
@@ -591,3 +618,4 @@ Toplam **38 uç**. Hackathon fazlarına dağılımı → [PLAN.md](../PLAN.md).
 **Definition of Done hatırlatması:** Yeni uç = **aynı commit'te yetkilendirme
 testi**. Testsiz uç commit edilmez (CLAUDE.md). Her ucun test satırı →
 [AUTHORIZATION.md](AUTHORIZATION.md).
+| `/discover` | 2 | 3 (R.1) |

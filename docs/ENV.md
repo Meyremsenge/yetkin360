@@ -59,6 +59,7 @@ Kararların gerekçesi → [SECURITY.md](SECURITY.md) §5.
 | `MAX_FAILED_LOGINS` | `5` | Aşılınca hesap kilitlenir |
 | `ACCOUNT_LOCK_MINUTES` | `15` | Kilit süresi |
 | `RATE_LIMIT_ENABLED` | `true` | Kimlik uçlarında DB tabanlı hız sınırı (YET-186, [SECURITY.md](SECURITY.md) §3). Yalnız yerel geliştirmede `false` yapılabilir; production'da açık kalır. IP anahtarı `request.client.host`'tur: Caddy arkasında uvicorn `--proxy-headers --forwarded-allow-ips=<caddy-ip>` ile çalıştırılmazsa tüm istekler tek IP sayılır |
+| `DISCOVER_ENABLED` | `true` | Keşfet dizini (PLAN R.1). `false` iken `/discover/*` uçları `404` döner; geri alma anahtarıdır |
 
 ## 4. CORS
 
