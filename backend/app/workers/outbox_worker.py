@@ -1347,6 +1347,184 @@ def certificate_check_requested_handler(payload: dict, outbox_id: int) -> None:
         engine.dispose()
 
 
+def _resolve_organization_admin_recipients(organization_id: str) -> tuple[str | None, list[str]]:
+    """Organization name + e-mails of its ACTIVE ADMIN members (own short-lived session;
+    payloads never carry names or addresses, PII guard)."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session as _Session
+
+    from app.core.config import settings
+    from app.models import Organization, OrganizationMember, User
+
+    engine = create_engine(settings.database_url)
+    try:
+        with _Session(engine) as session:
+            name = session.execute(
+                select(Organization.name).where(Organization.id == organization_id)
+            ).scalars().first()
+            emails = session.execute(
+                select(User.email)
+                .join(OrganizationMember, OrganizationMember.user_id == User.id)
+                .where(
+                    OrganizationMember.organization_id == organization_id,
+                    OrganizationMember.role == "ADMIN",
+                    OrganizationMember.status == "ACTIVE",
+                )
+            ).scalars().all()
+            return name, list(emails)
+    finally:
+        engine.dispose()
+
+
+def organization_verification_decided_handler(payload: dict, outbox_id: int) -> None:
+    """
+    Handler for organization.verification_decided topic (O2): tells the
+    organization's ADMIN members that the platform admin approved or rejected
+    the verification application.
+
+    Args:
+      - payload: {"organization_id", "decision": "APPROVED"|"REJECTED",
+        "verification_level"?} — ids and decision only; recipients are resolved here.
+      - outbox_id: row ID in outbox table
+    """
+    from app.core.config import settings
+    from app.core import email_messages as msg
+
+    if settings.email_backend == "console":
+        print(f"[EMAIL] Organization verification decision email (outbox_id={outbox_id})")
+        return
+
+    name, emails = _resolve_organization_admin_recipients(payload["organization_id"])
+    if name is None or not emails:
+        return
+
+    approved = payload["decision"] == "APPROVED"
+    subject = (
+        msg.ORGANIZATION_VERIFICATION_APPROVED_SUBJECT if approved else msg.ORGANIZATION_VERIFICATION_REJECTED_SUBJECT
+    )
+    body_template = (
+        msg.ORGANIZATION_VERIFICATION_APPROVED_BODY if approved else msg.ORGANIZATION_VERIFICATION_REJECTED_BODY
+    )
+    body = body_template.format(organization_name=name, login_url=f"{settings.frontend_origin}/giris")
+    for to_email in emails:
+        _send_smtp_email(to_email=to_email, subject=subject, body=body)
+
+
+def _complaint_url(complaint_id: str) -> str:
+    from app.core.config import settings
+
+    return f"{settings.frontend_origin}/sikayetlerim/{complaint_id}"
+
+
+def _complaint_escalation_emails_stmt(target_type: str, target_id: str, excluded_user_id: str | None):
+    """
+    E-mails of the members who decide for the complaint's target, minus the respondent:
+    institution COORDINATOR/ADMIN (not SUPERVISOR) or ACTIVE organization ADMIN.
+    Kept as a statement so it is testable on the test session.
+    """
+    from app.models import InstitutionMember, OrganizationMember, User
+
+    if target_type == "INSTITUTION":
+        stmt = (
+            select(User.email)
+            .join(InstitutionMember, InstitutionMember.user_id == User.id)
+            .where(InstitutionMember.institution_id == target_id, InstitutionMember.role.in_(("COORDINATOR", "ADMIN")))
+        )
+    else:
+        stmt = (
+            select(User.email)
+            .join(OrganizationMember, OrganizationMember.user_id == User.id)
+            .where(
+                OrganizationMember.organization_id == target_id,
+                OrganizationMember.role == "ADMIN",
+                OrganizationMember.status == "ACTIVE",
+            )
+        )
+    stmt = stmt.where(User.status == "ACTIVE")
+    if excluded_user_id is not None:
+        stmt = stmt.where(User.id != excluded_user_id)
+    return stmt.order_by(User.email)
+
+
+def _resolve_complaint_escalation_emails(target_type: str, target_id: str, excluded_user_id: str | None) -> list[str]:
+    """Own short-lived session, same rule as _resolve_user_email."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session as _Session
+
+    from app.core.config import settings
+
+    engine = create_engine(settings.database_url)
+    try:
+        with _Session(engine) as session:
+            return list(session.execute(_complaint_escalation_emails_stmt(target_type, target_id, excluded_user_id)).scalars().all())
+    finally:
+        engine.dispose()
+
+
+def complaint_explanation_requested_handler(payload: dict, outbox_id: int) -> None:
+    """
+    complaint.explanation_requested (sikayet-backend, C6): tells the derived respondent
+    that the admin asked for an explanation. Payload: {"complaint_id", "respondent_user_id"}.
+    Only a link is mailed (AC-S13).
+    """
+    from app.core.config import settings
+    from app.core import email_messages as msg
+
+    url = _complaint_url(payload["complaint_id"])
+    if settings.email_backend == "console":
+        print(f"[EMAIL] Complaint explanation requested (outbox_id={outbox_id}): {url}")
+        return
+    to_email = _resolve_user_email(payload["respondent_user_id"])
+    if to_email is None:
+        return
+    _send_smtp_email(
+        to_email=to_email,
+        subject=msg.COMPLAINT_EXPLANATION_REQUESTED_SUBJECT,
+        body=msg.COMPLAINT_EXPLANATION_REQUESTED_BODY.format(complaint_url=url),
+    )
+
+
+def complaint_escalated_handler(payload: dict, outbox_id: int) -> None:
+    """
+    complaint.escalated (C6): notifies the other deciding members of the target
+    institution/organization (the respondent excluded). Payload: {"complaint_id",
+    "target_type", "target_id", "excluded_user_id"}.
+    """
+    from app.core.config import settings
+    from app.core import email_messages as msg
+
+    url = _complaint_url(payload["complaint_id"])
+    if settings.email_backend == "console":
+        print(f"[EMAIL] Complaint escalated (outbox_id={outbox_id}): {url}")
+        return
+    for to_email in _resolve_complaint_escalation_emails(
+        payload["target_type"], payload["target_id"], payload.get("excluded_user_id")
+    ):
+        _send_smtp_email(
+            to_email=to_email,
+            subject=msg.COMPLAINT_ESCALATED_SUBJECT,
+            body=msg.COMPLAINT_ESCALATED_BODY.format(complaint_url=url),
+        )
+
+
+def complaint_closed_handler(payload: dict, outbox_id: int) -> None:
+    """complaint.closed (C6): tells the talent the complaint has an outcome. Payload:
+    {"complaint_id", "talent_id", "outcome"} — the outcome is shown in the panel, not mailed."""
+    from app.core.config import settings
+    from app.core import email_messages as msg
+
+    url = _complaint_url(payload["complaint_id"])
+    if settings.email_backend == "console":
+        print(f"[EMAIL] Complaint closed (outbox_id={outbox_id}): {url}")
+        return
+    to_email = _resolve_talent_user_email(payload["talent_id"])
+    if to_email is None:
+        return
+    _send_smtp_email(
+        to_email=to_email, subject=msg.COMPLAINT_CLOSED_SUBJECT, body=msg.COMPLAINT_CLOSED_BODY.format(complaint_url=url)
+    )
+
+
 # Handler dispatch table (expanded as new topics are introduced)
 DEFAULT_HANDLERS = {
     "evidence.scan_requested": evidence_scan_requested_handler,
@@ -1361,6 +1539,10 @@ DEFAULT_HANDLERS = {
     "attestation.created": attestation_created_handler,
     "engagement.pending_approval": engagement_pending_approval_handler,
     "evidence.certificate_check_requested": certificate_check_requested_handler,
+    "organization.verification_decided": organization_verification_decided_handler,
+    "complaint.explanation_requested": complaint_explanation_requested_handler,
+    "complaint.escalated": complaint_escalated_handler,
+    "complaint.closed": complaint_closed_handler,
 }
 
 

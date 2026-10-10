@@ -6,6 +6,7 @@ Implements AC-4, AC-S6 (PII protection).
 
 import uuid
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.audit import AuditEvent
@@ -89,3 +90,27 @@ def log_audit_event(
     )
     session.add(event)
     session.flush()
+
+
+def list_audit_events(
+    session: Session,
+    action: str | None = None,
+    subject_type: str | None = None,
+    actor_user_id: uuid.UUID | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[AuditEvent]:
+    """
+    Read-only, newest first (A1). Platform-admin callers only (router gate).
+    Fetches limit + 1 rows so the caller can compute has_more exactly; the
+    extra row must be trimmed by the caller.
+    """
+    stmt = select(AuditEvent)
+    if action is not None:
+        stmt = stmt.where(AuditEvent.action == action)
+    if subject_type is not None:
+        stmt = stmt.where(AuditEvent.subject_type == subject_type)
+    if actor_user_id is not None:
+        stmt = stmt.where(AuditEvent.actor_user_id == actor_user_id)
+    stmt = stmt.order_by(AuditEvent.created_at.desc(), AuditEvent.id.desc()).offset(offset).limit(limit + 1)
+    return list(session.execute(stmt).scalars().all())

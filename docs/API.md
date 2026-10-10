@@ -601,8 +601,30 @@ güvenlik sınırı değildir — sınır yukarıdaki sunucu kontrolüdür.
 | `POST` | `/admin/organizations/{id}/verification-reject` | `note?` | `200` — kurum kuyruktan çıkar, seviye değişmez | `404`, `409 NOT_PENDING` |
 | `GET` | `/admin/fraud-queue` | `limit?`, `offset?` | `200` — PENDING fraud flag'leri (AI işareti, karar yok) | — |
 | `POST` | `/admin/fraud-queue/{id}/resolve` | `outcome` (`CONFIRMED`/`DISMISSED`) | `200` — admin kararı kalıcı kaydedilir | `404`, `409 NOT_PENDING` |
+| `GET` | `/admin/fraud-flags/history` | `status?` (`CONFIRMED`/`DISMISSED`), `limit?`, `offset?` | `200` — incelenmiş işaretler, `reviewed_at` ve `reviewed_by_user_id` ile; son incelenen önce | `422` |
+| `GET` | `/admin/audit-events` | `action?`, `subject_type?`, `actor_user_id?`, `limit?`, `offset?` | `200` — salt okunur denetim kaydı, yeniden eskiye; aktör yalnız kimlik (e-posta yok), `metadata` izinli anahtarlarla sınırlı | `422` |
+| `GET` | `/admin/skills` | `limit?` (≤200), `offset?` | `200` — durumdan bağımsız tüm skill'ler | `422` |
+| `POST` | `/admin/skills` | `slug`, `name_tr`, `name_en?`, `category`, `parent_id?` | `201` — yeni skill | `409 CONFLICT` (slug), `422` |
+| `PATCH` | `/admin/skills/{id}` | `name_tr?`, `name_en?`, `category?`, `parent_id?`, `status?` (`ACTIVE`/`DEPRECATED`) | `200` | `404`, `409 CONFLICT` (geçersiz durum geçişi), `422` |
+| `POST` | `/admin/skills/{id}/deprecate` | — | `200` — `DEPRECATED` | `404` |
+| `POST` | `/admin/skills/{id}/merge` | `merged_into_id` | `200` — `MERGED`, `merged_into_id` dolu | `404`, `422` |
+| `GET` | `/admin/users` | `q?` (e-posta içinde, loglanmaz), `status?`, `limit?` (≤200), `offset?` | `200` — `{items:[{id,email,status,is_platform_admin,email_verified,created_at}],limit,offset,has_more}`; şifre/token/sayaç alanı yok | `422` |
+| `POST` | `/admin/users/{id}/suspend` | — (body yok sayılır) | `200` — `SUSPENDED`; refresh token'lar iptal; zaten askıdaysa değişmez, audit yok | `404` (yok/`DELETED`), `409 LAST_ADMIN_PROTECTED` (kendi hesabı / son aktif admin) |
+| `POST` | `/admin/users/{id}/reactivate` | — | `200` — `ACTIVE`; askıda değilse değişmez | `404` |
+| `GET` | `/admin/organizations` | `q?` (ad/alan adı/legal_id), `verification_level?`, `status?` (`ACTIVE`/`SUSPENDED`), `limit?`, `offset?` | `200` — aynı zarf; silinmiş kuruluş yok | `422` |
+| `POST` | `/admin/organizations/{id}/suspend` · `/reactivate` | — | `200` — idempotent | `404` |
+| `GET` | `/admin/institutions` | `q?` (ad/alan adı), `limit?`, `offset?` | `200` — aynı zarf | `422` |
+| `POST` | `/admin/institutions/{id}/verification-level` | `verification_level` (`T1`–`T4`), `note?` (saklanmaz, yalnız uzunluk audit'e) | `200` — aynı seviyede değişiklik/audit yok | `404`, `422` |
+| `POST` | `/admin/institutions/{id}/suspend` · `/reactivate` | — | `200` — idempotent | `404` |
 
 - Admin uçları **offset sayfalama** kullanabilir (§1.6).
+- **Liste zarfı:** liste uçları `{"items":[…], "limit":50, "offset":0, "has_more":false}` döner;
+  `has_more` `limit+1` kayıt çekilerek kesin hesaplanır, fazladan kayıt yanıta girmez.
+  `limit` 1–200, `offset` ≥ 0; aralık dışı değer `422` (sessiz kırpma yok). Geçerli
+  zarf uçları: `verification-queue`, `fraud-queue`, `skills`, `audit-events`, `fraud-flags/history`.
+- **Kuruluş doğrulama bildirimi:** seviye yükseltildiğinde veya başvuru reddedildiğinde aynı
+  transaction'da `organization.verification_decided` outbox olayı yazılır (yalnız kimlikler ve
+  karar); worker kuruluşun aktif `ADMIN` üyelerine e-posta gönderir.
 - Her doğrulama seviyesi değişikliği `audit_events` üretir.
 - Bu uçlar T3 verilmesi içindir; T1/T2 otomatik, T4 koordinatör onayıyla gelir.
 - **Fraud-queue (PLAN 3.54, faz 1):** AI (`attestation.fraud_check_requested`
@@ -630,9 +652,10 @@ güvenlik sınırı değildir — sınır yukarıdaki sunucu kontrolüdür.
   veya son 30 günde üretilmişse yeniden satır açılmaz. Kural gerekçeleri yalnız
   sayı içerir; ad/e-posta/metin içermez.
 
-> ❓ AÇIK SORU: Admin skill yönetimi ucu ([PLAN.md](../PLAN.md) 3.6 "skill
-> yönetimi") §34 listesinde yok. Kullanıcı skill önerisi gönderme ucu ve admin
-> onay ucu gerekiyor mu, yoksa MVP'de skill'ler yalnız seed'den mi gelecek?
+> **Karar (güncel):** Admin skill yönetimi yukarıdaki beş uçla yapılır
+> (`GET/POST /admin/skills`, `PATCH /admin/skills/{id}`, `…/deprecate`, `…/merge`).
+> ❓ AÇIK SORU: kullanıcının skill **önerme** ucu ve buna bağlı admin onay ucu
+> hâlâ yok; MVP'de skill'ler admin tarafından veya seed'den gelir.
 
 ---
 
@@ -662,6 +685,41 @@ aksi halde `null`). Yalnız `status = 'ACTIVE'` ve silinmemiş kuruluşlar.
 - Bilinmeyen sorgu parametresi (`visibility`, `organization_id`, `role` …) → `422`.
 - Hız sınırı iki uç için ortak: **60/dk/kullanıcı**; aşımda `Retry-After` başlığı.
 - `DISCOVER_ENABLED=false` iken iki uç da (kimlik doğrulamadan önce) `404` döner.
+
+### 2.12 Şikayet — `/complaints`, `/admin/complaints`
+
+Onay bekleyen bir engagement (`PENDING_APPROVAL`/`PENDING_EVALUATION`) veya sertifika kontrolü
+(`decision=PENDING`) `COMPLAINT_MIN_WAIT_DAYS` (7) gün yanıtsız kalırsa öğrenci admine şikayet eder.
+Hedef kurum/kuruluş ve yetkili sunucuda özneden türetilir. Liste zarfı: `{items, limit, offset, has_more}`
+(`limit` 1–200, varsayılan 50; `has_more` limit+1 ile).
+
+| Metot | Yol | Yetki | İstek | Cevap | Hatalar |
+|---|---|---|---|---|---|
+| `POST` | `/complaints` | `TALENT` (özne kendisinin) | `{subject_type: ENGAGEMENT\|CERTIFICATE_CHECK, subject_id, description (10–4000)}`; başka alan → 422 | `201` `{id, status:"OPEN", status_label:"IN_PROGRESS", subject_type, subject_id, created_at}` | `404`, `409 TOO_EARLY\|ALREADY_OPEN\|NOT_PENDING`, `422`, `429 RATE_LIMITED` (24 saatte 3) |
+| `GET` | `/complaints` | `AUTH` (yalnız kendi şikayetleri) | `limit?`, `offset?` | `200` zarf; öğe `{id, viewer_role:"OWNER", subject_type, subject_id, status_label, description, resolution_reason, created_at, closed_at, attachments[]}` | `401` |
+| `GET` | `/complaints/assigned` | `AUTH` (yetkili / yükseltilmiş üye) | `limit?`, `offset?` | `200` zarf; öğe = yetkili görünümü | `401` |
+| `GET` | `/complaints/{id}` | sahip → `OWNER` görünümü; yetkili (gerekçe istendikten sonra) veya yükseltme sonrası kurum COORDINATOR/ADMIN · kuruluş ADMIN → `RESPONDENT` görünümü `{id, viewer_role, subject_type, subject_id, status, request_note, explanation_due_at, explanation_text, created_at}` | — | `200` | `401`, `404` |
+| `POST` | `/complaints/{id}/explanation` | yalnız türetilmiş yetkili, `EXPLANATION_REQUESTED` iken, bir kez | `{text (1–2000)}` | `200` yetkili görünümü (`EXPLANATION_SUBMITTED`) | `404`, `409 INVALID_TRANSITION`, `422` |
+| `POST` | `/complaints/{id}/attachments/upload-url` | sahip, şikayet açıkken | `{filename, content_type: pdf\|jpeg\|png, size_bytes ≤10 MB}` | `200` `{upload_url, upload_fields, object_key, expires_in}` | `404`, `409 COMPLAINT_CLOSED`, `422 UNSUPPORTED_CONTENT_TYPE\|FILE_TOO_LARGE`, `429`, `503` |
+| `POST` | `/complaints/{id}/attachments` | sahip; şikayet başına ≤5 | `{storage_key, mime_type, size_bytes}` | `201` `{id, mime_type, size_bytes, created_at}` | `404`, `409 ATTACHMENT_LIMIT_REACHED\|COMPLAINT_CLOSED`, `422 INVALID_FILE_CONTENT\|UPLOAD_NOT_FOUND\|INVALID_STORAGE_KEY`, `503` |
+| `GET` | `/complaints/{id}/attachments/{attachment_id}` | yalnız sahip (yetkili → 404) | — | `200` `{download_url, expires_in:300}` (audit) | `404`, `409 ATTACHMENT_CONTENT_CHANGED`, `503` |
+| `GET` | `/admin/complaints` | `ADMIN` | `status?` (yoksa açık kuyruk), `limit?`, `offset?` | `200` zarf; öğe `{id, status, subject_type, subject_id, subject_pending, target_type, target_id, target_name, attachment_count, explanation_due_at, created_at}` | `401`, `404`, `422` |
+| `GET` | `/admin/complaints/{id}` | `ADMIN` | — | `200` öğe + `{talent_id, talent_name, description, respondent_user_id, request_note, explanation_text, resolution_reason, version, closed_at, attachments[], events[]}` | `404` |
+| `GET` | `/admin/complaints/{id}/attachments/{attachment_id}` | `ADMIN` (her indirme audit) | — | `200` `{download_url, expires_in}` | `404`, `409`, `503` |
+| `POST` | `/admin/complaints/{id}/transitions` | `ADMIN` | `{action, note?, reason?, version?}` | `200` admin detayı | `404`, `409 INVALID_TRANSITION\|VERSION_CONFLICT\|NO_RESPONDENT\|DEADLINE_NOT_REACHED`, `422` |
+
+Eylemler: `START_REVIEW` (OPEN→UNDER_REVIEW) · `DISMISS` (`reason` zorunlu; OPEN/UNDER_REVIEW→DISMISSED) ·
+`REQUEST_EXPLANATION` (`note` zorunlu; OPEN/UNDER_REVIEW→EXPLANATION_REQUESTED, süre `COMPLAINT_EXPLANATION_DAYS`=5) ·
+`ACCEPT_EXPLANATION` (EXPLANATION_SUBMITTED→RESOLVED) · `REJECT_EXPLANATION` (EXPLANATION_SUBMITTED→ESCALATED;
+EXPLANATION_REQUESTED'dan yalnız süre dolduysa) · `RESOLVE` (ESCALATED→RESOLVED; diğer açık durumlardan yalnız
+`subject_pending=false` ise) · `UPHOLD` (ESCALATED→UPHELD). Terminal: DISMISSED/RESOLVED/UPHELD (DB trigger ile geri
+alınamaz). Öğrenci iç durumu görmez: `status_label` = `IN_PROGRESS` veya sonuç.
+Bildirimler outbox ile: `complaint.explanation_requested` (yetkili), `complaint.escalated` (diğer karar verici üyeler),
+`complaint.closed` (öğrenci); e-postada yalnız panel bağlantısı vardır.
+
+**Sayaç (`upheld_complaint_count`):** yalnız admin'in `UPHOLD` kararlarının sayısı (algoritma yok; 0 ise 0).
+`/discover/organizations` kartı, `GET /organizations` dizini, `GET /organizations/{id}` ve
+`GET /institutions/{id}/dashboard` yanıtlarında döner; metin, öğrenci veya yetkili bilgisi taşımaz.
 
 ## 3. Uç özeti
 

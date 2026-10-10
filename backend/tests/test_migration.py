@@ -375,22 +375,47 @@ def _m0_schema_present() -> tuple[bool, bool, bool]:
     )
 
 
+def _complaints_schema_present() -> bool:
+    return "complaints" in set(inspect(engine).get_table_names())
+
+
+def _current_revisions() -> set[str]:
+    with engine.connect() as conn:
+        return {row[0] for row in conn.execute(text("SELECT version_num FROM alembic_version"))}
+
+
 def test_m0_migration_upgrade_downgrade_upgrade_roundtrip():
-    """upgrade head -> downgrade -1 -> upgrade head on the test DB (M0 is the head)."""
+    """upgrade head -> downgrade -1 -> upgrade head on the test DB.
+
+    The head is the schema-less merge of M0 (c15c0d0133f7) and complaints
+    (q7c1m2p3l4n5). Alembic rejects a relative "-1" from a merge point
+    ("Ambiguous walk"), so the one-step downgrade names a parent: it drops only
+    the merge and leaves both branches applied. Going back to their common
+    parent (53d336a5a854) then removes both branches' schema.
+    """
     cfg = _alembic_config()
     head = ScriptDirectory.from_config(cfg).get_current_head()
-    assert head == "c15c0d0133f7", "M0 must be the head; update this test when a newer migration lands"
+    assert head == "19c560f24837", "M0+complaints merge must be the head; update this test when a newer migration lands"
 
     engine.dispose()
     try:
         command.upgrade(cfg, "head")
         assert _m0_schema_present() == (True, True, True)
+        assert _complaints_schema_present()
 
-        command.downgrade(cfg, "-1")
+        command.downgrade(cfg, "c15c0d0133f7")
+        engine.dispose()
+        assert _current_revisions() == {"c15c0d0133f7", "q7c1m2p3l4n5"}
+        assert _m0_schema_present() == (True, True, True)
+        assert _complaints_schema_present()
+
+        command.downgrade(cfg, "53d336a5a854")
         engine.dispose()
         assert _m0_schema_present() == (False, False, False)
+        assert not _complaints_schema_present()
     finally:
         command.upgrade(cfg, "head")
         engine.dispose()
 
     assert _m0_schema_present() == (True, True, True)
+    assert _complaints_schema_present()

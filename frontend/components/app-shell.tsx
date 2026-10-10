@@ -276,8 +276,15 @@ function primaryLinks(data: NavData): NavEntry[] {
 
 const ADMIN_LINKS: NavEntry[] = [
   { href: "/admin/dogrulama-kuyrugu", icon: "shield", label: messages.shell.adminVerificationQueueLink },
-  { href: "/admin/skiller", icon: "tag", label: messages.shell.adminSkillsLink },
+  { href: "/admin/sikayetler", icon: "shield", label: messages.adminComplaints.navLink },
+  // Skill management (/admin/skiller) stays reachable by URL but is not in the
+  // menu: the taxonomy is seeded and rarely edited.
   { href: "/admin/sahtekarlik-isaretleri", icon: "shield", label: messages.shell.adminFraudQueueLink },
+  { href: "/admin/sahtekarlik-isaretleri/gecmis", icon: "shield", label: messages.shell.adminFraudHistoryLink },
+  { href: "/admin/denetim-kayitlari", icon: "shield", label: messages.shell.adminAuditLink },
+  { href: "/admin/kullanicilar", icon: "shield", label: messages.shell.adminUsersLink },
+  { href: "/admin/kuruluslar", icon: "shield", label: messages.shell.adminOrganizationsLink },
+  { href: "/admin/kurumlar", icon: "landmark", label: messages.shell.adminInstitutionsLink },
 ];
 
 /** Role-specific destinations, grouped: organisations, institutions, admin. */
@@ -500,6 +507,17 @@ function UserMenu({
               {messages.shell.individualProfileLink}
             </Link>
           )}
+          <Link
+            href="/sikayetlerim"
+            onClick={() => setOpen(false)}
+            className={cn(
+              "flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm text-foreground transition-colors duration-[120ms] hover:bg-muted/60",
+              FOCUS_RING
+            )}
+          >
+            <Icon name="shield" />
+            {messages.complaints.navLink}
+          </Link>
           <button
             type="button"
             onClick={() => {

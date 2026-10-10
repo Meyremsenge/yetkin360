@@ -7,6 +7,7 @@ import { ErrorBanner } from "@/components/error-banner";
 import { PageBody, PageHeader } from "@/components/page-layout";
 import { CopyButton, PanelGrid, PanelSkeleton, StatTile, StatusPill, actionClass } from "@/components/panel-kit";
 import { Alert } from "@/components/ui/alert";
+import { UpheldComplaintBadge } from "@/components/upheld-complaint-badge";
 import { getOrganization, listOrgMembers } from "@/lib/api/organizations";
 import { ApiError } from "@/lib/api/errors";
 import type { StatusTone } from "@/lib/ui/engagement-chain";
@@ -75,6 +76,7 @@ export default function KurulusPanelPage() {
                 <StatusPill tone={TRUST_TONE[org.verification_level] ?? "default"}>
                   {trustLabels[org.verification_level] ?? org.verification_level}
                 </StatusPill>
+                <UpheldComplaintBadge count={org.upheld_complaint_count} />
                 {org.legal_id ? (
                   <span className="font-mono text-[13px] text-muted-foreground">
                     {t.legalIdLabel}: {org.legal_id}

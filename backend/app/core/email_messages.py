@@ -42,3 +42,31 @@ ENGAGEMENT_PENDING_APPROVAL_BODY = (
     "Kurumunuza bağlı bir öğrencinin çalışması onayınızı bekliyor.\n\n"
     "İncelemek için giriş yapın: {engagement_url}"
 )
+
+ORGANIZATION_VERIFICATION_APPROVED_SUBJECT = "Yetkin360 - Kuruluş doğrulamanız onaylandı"
+ORGANIZATION_VERIFICATION_REJECTED_SUBJECT = "Yetkin360 - Kuruluş doğrulama başvurunuz reddedildi"
+
+# {organization_name}, {login_url}
+ORGANIZATION_VERIFICATION_APPROVED_BODY = (
+    "{organization_name} kuruluşunun doğrulama başvurusu onaylandı.\n\n"
+    "Güncel durumu görmek için giriş yapın: {login_url}"
+)
+ORGANIZATION_VERIFICATION_REJECTED_BODY = (
+    "{organization_name} kuruluşunun doğrulama başvurusu reddedildi.\n\n"
+    "Bilgilerinizi gözden geçirmek için giriş yapın: {login_url}"
+)
+
+# Şikayet (sikayet-backend): mails carry only a link — never the complaint text,
+# the explanation or an attachment (AC-S13). {complaint_url}
+COMPLAINT_EXPLANATION_REQUESTED_SUBJECT = "Yetkin360 - Hakkınızda bir şikayet için açıklama bekleniyor"
+COMPLAINT_EXPLANATION_REQUESTED_BODY = (
+    "Onayınızı bekleyen bir kayıtla ilgili platform yöneticisi sizden açıklama istedi.\n\n"
+    "Açıklamanızı yazmak için giriş yapın: {complaint_url}"
+)
+COMPLAINT_ESCALATED_SUBJECT = "Yetkin360 - Yanıtsız kalan bir onay talebi size iletildi"
+COMPLAINT_ESCALATED_BODY = (
+    "Kurumunuzda/kuruluşunuzda yanıtsız kalan bir onay talebiyle ilgili şikayet size iletildi.\n\n"
+    "Ayrıntıları görmek için giriş yapın: {complaint_url}"
+)
+COMPLAINT_CLOSED_SUBJECT = "Yetkin360 - Şikayetiniz sonuçlandı"
+COMPLAINT_CLOSED_BODY = "Şikayetiniz sonuçlandı.\n\nSonucu görmek için giriş yapın: {complaint_url}"

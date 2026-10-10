@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { AdminPagination } from "@/components/admin-pagination";
 import { AppShell } from "@/components/app-shell";
 import { PageBody, PageHeader } from "@/components/page-layout";
 import {
@@ -31,15 +32,17 @@ const SM = "h-8 px-3 text-[13px]";
 
 export default function DogrulamaKuyruguPage() {
   const queryClient = useQueryClient();
-  const QUEUE_KEY = ["admin", "verification-queue"] as const;
+  const [offset, setOffset] = useState(0);
+  const limit = adminApi.ADMIN_PAGE_SIZE;
+  const QUEUE_KEY = ["admin", "verification-queue", { limit, offset }] as const;
 
   const [selectedLevels, setSelectedLevels] = useState<Record<string, string>>({});
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const { data: queue, isLoading, isError, error } = useQuery({
+  const { data: queue, isLoading, isError, error, refetch } = useQuery({
     queryKey: QUEUE_KEY,
-    queryFn: () => adminApi.getVerificationQueue(),
+    queryFn: () => adminApi.getVerificationQueue({ limit, offset }),
   });
 
   const { mutate: updateLevel, isPending: isUpdating } = useMutation({
@@ -55,7 +58,7 @@ export default function DogrulamaKuyruguPage() {
       // veriyle yerinde güncellemek yerine reject ile tutarlı şekilde kaldırıyoruz.
       queryClient.setQueryData(QUEUE_KEY, (prev: adminApi.VerificationQueueResponse | undefined) => {
         if (!prev) return prev;
-        return { items: prev.items.filter((org) => org.id !== updated.id) };
+        return { ...prev, items: prev.items.filter((org) => org.id !== updated.id) };
       });
       setTimeout(() => setSuccessMessage(null), 3000);
     },
@@ -76,7 +79,7 @@ export default function DogrulamaKuyruguPage() {
       setSuccessMessage(q.rejected);
       queryClient.setQueryData(QUEUE_KEY, (prev: adminApi.VerificationQueueResponse | undefined) => {
         if (!prev) return prev;
-        return { items: prev.items.filter((org) => org.id !== rejected.id) };
+        return { ...prev, items: prev.items.filter((org) => org.id !== rejected.id) };
       });
       setTimeout(() => setSuccessMessage(null), 3000);
     },
@@ -137,6 +140,13 @@ export default function DogrulamaKuyruguPage() {
                     : error instanceof NetworkError && error.kind === "timeout"
                       ? messages.errors.timeout
                       : messages.errors.generic}
+                  <button
+                    type="button"
+                    onClick={() => refetch()}
+                    className="ml-3 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700"
+                  >
+                    {messages.errors.retry}
+                  </button>
                 </Alert>
               ) : !queue || queue.items.length === 0 ? (
                 <section className="rounded-xl border border-border bg-card p-5">
@@ -235,6 +245,13 @@ export default function DogrulamaKuyruguPage() {
                       </tbody>
                     </table>
                   </div>
+                  <AdminPagination
+                    offset={offset}
+                    limit={limit}
+                    hasMore={queue.has_more}
+                    disabled={isUpdating || isRejecting}
+                    onChange={setOffset}
+                  />
                 </>
               )
             }

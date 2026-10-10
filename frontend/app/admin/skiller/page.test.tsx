@@ -22,7 +22,7 @@ function renderWithQueryClient(ui: React.ReactElement) {
   );
 }
 
-const mockSkill = {
+const mockSkill: adminApi.Skill = {
   id: "skill-1",
   slug: "python",
   name_tr: "Python",
@@ -31,10 +31,9 @@ const mockSkill = {
   parent_id: null,
   status: "ACTIVE",
   merged_into_id: null,
-  created_at: "2026-09-01T00:00:00Z",
 };
 
-const mockSkillWithNulls = {
+const mockSkillWithNulls: adminApi.Skill = {
   id: "skill-2",
   slug: "web-dev",
   name_tr: "Web Geliştirme",
@@ -43,10 +42,9 @@ const mockSkillWithNulls = {
   parent_id: "skill-1",
   status: "ACTIVE",
   merged_into_id: null,
-  created_at: "2026-09-05T00:00:00Z",
 };
 
-const mockDeprecatedSkill = {
+const mockDeprecatedSkill: adminApi.Skill = {
   id: "skill-3",
   slug: "flash",
   name_tr: "Flash",
@@ -55,10 +53,9 @@ const mockDeprecatedSkill = {
   parent_id: null,
   status: "DEPRECATED",
   merged_into_id: null,
-  created_at: "2025-01-01T00:00:00Z",
 };
 
-const mockMergedSkill = {
+const mockMergedSkill: adminApi.Skill = {
   id: "skill-4",
   slug: "js",
   name_tr: "JavaScript",
@@ -67,16 +64,16 @@ const mockMergedSkill = {
   parent_id: null,
   status: "MERGED",
   merged_into_id: "skill-1",
-  created_at: "2026-01-01T00:00:00Z",
 };
 
-const mockSkillsList = {
-  items: [mockSkill, mockSkillWithNulls, mockDeprecatedSkill, mockMergedSkill],
-};
 
-const mockEmptySkillsList = {
-  items: [],
-};
+function paged<T>(items: T[], extra: Partial<{ limit: number; offset: number; has_more: boolean }> = {}) {
+  return { items, limit: 50, offset: 0, has_more: false, ...extra };
+}
+
+const mockSkillsList = paged([mockSkill, mockSkillWithNulls, mockDeprecatedSkill, mockMergedSkill]);
+
+const mockEmptySkillsList = paged([]);
 
 /**
  * PLAN 3.6 — Admin skill taksonomi yönetimi sayfası testi.
@@ -85,6 +82,13 @@ const mockEmptySkillsList = {
 describe("SkillerPage (/admin/skiller)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Merge dialog loads targets across all pages via getAllSkills().
+    vi.mocked(adminApi.getAllSkills).mockResolvedValue([
+      mockSkill,
+      mockSkillWithNulls,
+      mockDeprecatedSkill,
+      mockMergedSkill,
+    ]);
     // Mock session — admin kullanıcı
     vi.mocked(useSession).mockReturnValue({
       data: {
@@ -156,7 +160,7 @@ describe("SkillerPage (/admin/skiller)", () => {
 
   it("AC-5: skill oluştur başarılı — 201 döner, yeni skill listeye eklenir", async () => {
     vi.mocked(adminApi.getSkills).mockResolvedValueOnce(mockSkillsList);
-    const newSkill = {
+    const newSkill: adminApi.Skill = {
       id: "skill-5",
       slug: "golang",
       name_tr: "Go",
@@ -165,9 +169,12 @@ describe("SkillerPage (/admin/skiller)", () => {
       parent_id: null,
       status: "ACTIVE",
       merged_into_id: null,
-      created_at: "2026-09-27T00:00:00Z",
     };
     vi.mocked(adminApi.createSkill).mockResolvedValueOnce(newSkill);
+    // After create the list is refetched (the new row may belong on any page).
+    vi.mocked(adminApi.getSkills).mockResolvedValue(
+      paged([...mockSkillsList.items, newSkill])
+    );
 
     const user = userEvent.setup();
     renderWithQueryClient(<SkillerPage />);
@@ -200,7 +207,7 @@ describe("SkillerPage (/admin/skiller)", () => {
 
   it("AC-5: skill oluştur başarılı — form temizlenir", async () => {
     vi.mocked(adminApi.getSkills).mockResolvedValueOnce(mockSkillsList);
-    const newSkill = { ...mockSkill, slug: "golang", name_tr: "Go" };
+    const newSkill: adminApi.Skill = { ...mockSkill, slug: "golang", name_tr: "Go" };
     vi.mocked(adminApi.createSkill).mockResolvedValueOnce(newSkill);
 
     const user = userEvent.setup();
@@ -369,6 +376,7 @@ describe("SkillerPage (/admin/skiller)", () => {
 
     // Hedef seçme modal/dialog — skill-2 (Web Geliştirme) seç
     const targetSelect = screen.getByLabelText(/hedef|target/i) as HTMLSelectElement;
+    await screen.findByRole("option", { name: "Web Geliştirme" });
     await user.selectOptions(targetSelect, "skill-2");
 
     const confirmButton = screen.getByRole("button", { name: /onayla|tamam/i });
@@ -521,9 +529,7 @@ describe("SkillerPage (/admin/skiller)", () => {
   // =========================================================================
 
   it("Nullable alan — name_en null ise gösterilmez, name_tr fallback kullanılır", async () => {
-    vi.mocked(adminApi.getSkills).mockResolvedValueOnce({
-      items: [mockSkillWithNulls],
-    });
+    vi.mocked(adminApi.getSkills).mockResolvedValueOnce(paged([mockSkillWithNulls]));
 
     renderWithQueryClient(<SkillerPage />);
 
@@ -540,9 +546,7 @@ describe("SkillerPage (/admin/skiller)", () => {
   });
 
   it("Nullable alan — parent_id null ise 'Kök seviye' gösterilir", async () => {
-    vi.mocked(adminApi.getSkills).mockResolvedValueOnce({
-      items: [mockSkill],
-    });
+    vi.mocked(adminApi.getSkills).mockResolvedValueOnce(paged([mockSkill]));
 
     renderWithQueryClient(<SkillerPage />);
 
@@ -554,9 +558,7 @@ describe("SkillerPage (/admin/skiller)", () => {
   });
 
   it("Nullable alan — parent_id dolu ise üst skill adı gösterilir", async () => {
-    vi.mocked(adminApi.getSkills).mockResolvedValueOnce({
-      items: [mockSkill, mockSkillWithNulls], // Parent (Python) + child (Web Geliştirme)
-    });
+    vi.mocked(adminApi.getSkills).mockResolvedValueOnce(paged([mockSkill, mockSkillWithNulls]));
 
     renderWithQueryClient(<SkillerPage />);
 
@@ -570,9 +572,7 @@ describe("SkillerPage (/admin/skiller)", () => {
   });
 
   it("Nullable alan — MERGED ise merged_into_id gösterilir", async () => {
-    vi.mocked(adminApi.getSkills).mockResolvedValueOnce({
-      items: [mockSkill, mockMergedSkill], // Merge hedefi (Python) + merged (JavaScript)
-    });
+    vi.mocked(adminApi.getSkills).mockResolvedValueOnce(paged([mockSkill, mockMergedSkill]));
 
     renderWithQueryClient(<SkillerPage />);
 
@@ -588,9 +588,7 @@ describe("SkillerPage (/admin/skiller)", () => {
   });
 
   it("Nullable alan — MERGED değilse merged_into_id sütunu boş kalır", async () => {
-    vi.mocked(adminApi.getSkills).mockResolvedValueOnce({
-      items: [mockSkill],
-    });
+    vi.mocked(adminApi.getSkills).mockResolvedValueOnce(paged([mockSkill]));
 
     renderWithQueryClient(<SkillerPage />);
 
@@ -672,7 +670,7 @@ describe("SkillerPage (/admin/skiller)", () => {
 
   it("AC-1/AC-4: skill oluşturma başarılı — başarı mesajı role='status' ile bulunabilir", async () => {
     vi.mocked(adminApi.getSkills).mockResolvedValueOnce(mockSkillsList);
-    const newSkill = {
+    const newSkill: adminApi.Skill = {
       id: "skill-5",
       slug: "golang",
       name_tr: "Go",
@@ -681,7 +679,6 @@ describe("SkillerPage (/admin/skiller)", () => {
       parent_id: null,
       status: "ACTIVE",
       merged_into_id: null,
-      created_at: "2026-09-27T00:00:00Z",
     };
     vi.mocked(adminApi.createSkill).mockResolvedValueOnce(newSkill);
 
@@ -714,7 +711,7 @@ describe("SkillerPage (/admin/skiller)", () => {
 
   it("AC-4: başarı mesajı görsel stil korunur (regresyon: yeşil renk, kenarlık)", async () => {
     vi.mocked(adminApi.getSkills).mockResolvedValueOnce(mockSkillsList);
-    const newSkill = {
+    const newSkill: adminApi.Skill = {
       id: "skill-5",
       slug: "golang",
       name_tr: "Go",
@@ -723,7 +720,6 @@ describe("SkillerPage (/admin/skiller)", () => {
       parent_id: null,
       status: "ACTIVE",
       merged_into_id: null,
-      created_at: "2026-09-27T00:00:00Z",
     };
     vi.mocked(adminApi.createSkill).mockResolvedValueOnce(newSkill);
 
@@ -789,6 +785,7 @@ describe("SkillerPage (/admin/skiller)", () => {
     const confirmBtn = within(dialog).getByRole("button", { name: /onayla|tamam/i }) as HTMLButtonElement;
 
     // First, select a merge target (to enable the confirm button)
+    await screen.findByRole("option", { name: "Web Geliştirme" });
     await user.selectOptions(selectElem, "skill-2");
 
     // Focus'ı confirm butona ver (son focusable element)
@@ -832,6 +829,7 @@ describe("SkillerPage (/admin/skiller)", () => {
     const confirmBtn = within(dialog).getByRole("button", { name: /onayla|tamam/i }) as HTMLButtonElement;
 
     // First, select a merge target (to enable the confirm button)
+    await screen.findByRole("option", { name: "Web Geliştirme" });
     await user.selectOptions(selectElem, "skill-2");
 
     // Focus'ı select'e ver (ilk focusable element)
@@ -960,5 +958,126 @@ describe("SkillerPage (/admin/skiller)", () => {
       expect(screen.queryByRole("dialog")).toBeNull();
     }
     // Backdrop'un bulunması garantili değilse, test hâlâ geçer (mevcut davranış)
+  });
+});
+
+
+/**
+ * admin-sayfalama-ve-kabuk — AC-1/AC-8/AC-9: Önceki/Sonraki sayfalama + hata/tekrar dene.
+ */
+describe("SkillerPage — sayfalama", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: { id: "admin-1", email: "admin@test.com", is_platform_admin: true },
+        organizations: [],
+        institutions: [],
+        talent_profile: null,
+      },
+      error: null,
+      isPending: false,
+      isError: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useSession>);
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("has_more=true ise Sonraki etkin; tıklanınca offset=50 ile istek atılır", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    vi.mocked(adminApi.getSkills)
+      .mockResolvedValueOnce({ items: [mockDeprecatedSkill], limit: 50, offset: 0, has_more: true })
+      .mockResolvedValueOnce({ items: [], limit: 50, offset: 50, has_more: false });
+
+    renderWithQueryClient(<SkillerPage />);
+
+    const next = await screen.findByRole("button", { name: "Sonraki" });
+    expect((next as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole("button", { name: "Önceki" }) as HTMLButtonElement).disabled).toBe(true);
+
+    await userEvent.setup().click(next);
+
+    await waitFor(() => {
+      expect(adminApi.getSkills).toHaveBeenLastCalledWith({ limit: 50, offset: 50 });
+    });
+  });
+
+  it("has_more=false ve offset=0 iken sayfalama gösterilmez", async () => {
+    vi.mocked(adminApi.getSkills).mockResolvedValueOnce({
+      items: [mockDeprecatedSkill],
+      limit: 50,
+      offset: 0,
+      has_more: false,
+    });
+
+    renderWithQueryClient(<SkillerPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Flash")).toBeTruthy();
+    });
+    expect(screen.queryByRole("navigation", { name: "Sayfalama" })).toBeNull();
+  });
+
+  it("liste hatasında aria-live uyarısı ve 'Tekrar dene' görünür; tıklanınca yeniden istenir", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    vi.mocked(adminApi.getSkills)
+      .mockRejectedValueOnce(new ApiError({ status: 500, code: "INTERNAL_ERROR", message: "x", requestId: null }))
+      .mockResolvedValueOnce({ items: [mockDeprecatedSkill], limit: 50, offset: 0, has_more: false });
+
+    renderWithQueryClient(<SkillerPage />);
+
+    const retry = await screen.findByRole("button", { name: "Tekrar dene" });
+    expect(screen.getByRole("alert")).toBeTruthy();
+
+    await userEvent.setup().click(retry);
+
+    await waitFor(() => {
+      expect(screen.getByText("Flash")).toBeTruthy();
+    });
+  });
+});
+
+describe("SkillerPage — merge hedefleri tüm sayfalardan", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: { id: "admin-1", email: "admin@test.com", is_platform_admin: true },
+        organizations: [],
+        institutions: [],
+        talent_profile: null,
+      },
+      error: null,
+      isPending: false,
+      isError: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useSession>);
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("birleştirme hedefleri görünen sayfayla sınırlı kalmaz (getAllSkills kullanılır)", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    const offPage: adminApi.Skill = { ...mockSkill, id: "skill-99", slug: "rust", name_tr: "Rust" };
+    vi.mocked(adminApi.getSkills).mockResolvedValue({
+      items: [mockSkill],
+      limit: 50,
+      offset: 0,
+      has_more: true,
+    });
+    vi.mocked(adminApi.getAllSkills).mockResolvedValue([mockSkill, offPage]);
+
+    renderWithQueryClient(<SkillerPage />);
+
+    const mergeButton = await screen.findByRole("button", { name: /Birleştir Python/ });
+    await userEvent.setup().click(mergeButton);
+
+    expect(await screen.findByRole("option", { name: "Rust" })).toBeTruthy();
+    expect(adminApi.getAllSkills).toHaveBeenCalled();
   });
 });

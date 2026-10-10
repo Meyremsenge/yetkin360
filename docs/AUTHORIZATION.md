@@ -362,6 +362,28 @@ hangi uca karşılık geldiğini gösterir.
 | `GET /admin/verification-queue` | `ADMIN` | — |
 | `POST /admin/organizations/{id}/verification-level` | `ADMIN` | G2 |
 | `POST /admin/organizations/{id}/verification-reject` | `ADMIN` | G2 |
+| `GET /admin/fraud-queue` | `ADMIN` | — |
+| `POST /admin/fraud-queue/{id}/resolve` | `ADMIN` | — |
+| `GET /admin/fraud-flags/history` | `ADMIN` | — |
+| `GET /admin/audit-events` | `ADMIN` | — |
+| `GET /admin/skills` | `ADMIN` | — |
+| `POST /admin/skills` | `ADMIN` | — |
+| `PATCH /admin/skills/{id}` | `ADMIN` | — |
+| `POST /admin/skills/{id}/deprecate` | `ADMIN` | — |
+| `POST /admin/skills/{id}/merge` | `ADMIN` | — |
+| `GET /admin/users` | `ADMIN` | — |
+| `POST /admin/users/{id}/suspend` · `/reactivate` | `ADMIN` | G2 — kendi hesabı / son aktif admin → 409 |
+| `GET /admin/organizations` | `ADMIN` | — |
+| `POST /admin/organizations/{id}/suspend` · `/reactivate` | `ADMIN` | G2 |
+| `GET /admin/institutions` | `ADMIN` | — |
+| `POST /admin/institutions/{id}/verification-level` | `ADMIN` | G2 |
+| `POST /admin/institutions/{id}/suspend` · `/reactivate` | `ADMIN` | G2 |
+| `POST /complaints` | `TALENT` — özne kendisinin (değilse 404) | `tests/authorization/test_complaints_authz.py` |
+| `GET /complaints` · `/complaints/assigned` | `AUTH` — yalnız kendi / kendisine atanmış | `test_complaints_authz.py` |
+| `GET /complaints/{id}` | sahip; yetkili (gerekçe istendikten sonra); yükseltme sonrası hedefin COORDINATOR/ADMIN üyeleri — admin dahil diğerleri 404 | `test_complaints_authz.py` |
+| `POST /complaints/{id}/explanation` | türetilmiş yetkili | `test_complaints_authz.py` |
+| `POST /complaints/{id}/attachments*` · `GET …/attachments/{aid}` | yalnız sahip — yetkili eki **indiremez** (404) | `test_complaints_authz.py` |
+| `GET /admin/complaints*` · `POST /admin/complaints/{id}/transitions` | `ADMIN` — ek indirmeleri audit'e yazılır; `PRIVATE` evidence erişimi değişmez (§4.1) | `test_complaints_authz.py` |
 
 > ❓ AÇIK SORU: `POST /engagements` — engagement'ı kim başlatabilir? §34 hem
 > kurumun hem öğrencinin oluşturabileceğini ima ediyor ama §10.2 durum makinesi

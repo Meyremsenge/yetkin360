@@ -18,6 +18,7 @@ from app.services.authorization import (
     scoped_organizations,
 )
 from app.services.audit import log_audit_event
+from app.services.complaint import upheld_complaint_count, upheld_complaint_counts
 from app.services.organization import (
     AlreadyMemberError,
     DomainAlreadyVerifiedError,
@@ -93,9 +94,16 @@ class OrganizationDirectoryEntry(BaseModel):
     name: str
     domain: str | None
     verification_level: str
+    upheld_complaint_count: int = 0  # admin-upheld complaints (sikayet-backend C7)
 
     class Config:
         from_attributes = True
+
+
+class OrganizationDetailResponse(OrganizationResponse):
+    """GET /organizations/{id}: OrganizationResponse + the admin-upheld complaint count."""
+
+    upheld_complaint_count: int
 
 
 class OrganizationDirectoryResponse(BaseModel):
@@ -239,8 +247,14 @@ def list_organization_directory_endpoint(
     query = query.order_by(Organization.name).limit(DIRECTORY_MAX_RESULTS)
 
     orgs = session.execute(query).scalars().all()
+    upheld = upheld_complaint_counts(session, "ORGANIZATION", [org.id for org in orgs])
     return OrganizationDirectoryResponse(
-        items=[OrganizationDirectoryEntry.model_validate(org) for org in orgs]
+        items=[
+            OrganizationDirectoryEntry.model_validate(org).model_copy(
+                update={"upheld_complaint_count": upheld.get(org.id, 0)}
+            )
+            for org in orgs
+        ]
     )
 
 
@@ -748,7 +762,7 @@ def verify_domain_endpoint(
 # ============================================================================
 
 
-@router.get("/{organization_id}", status_code=200, response_model=OrganizationResponse)
+@router.get("/{organization_id}", status_code=200, response_model=OrganizationDetailResponse)
 def get_organization_endpoint(
     organization_id: uuid.UUID,
     principal: Principal = Depends(get_current_principal),
@@ -775,4 +789,7 @@ def get_organization_endpoint(
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
 
-    return org
+    return OrganizationDetailResponse(
+        **OrganizationResponse.model_validate(org).model_dump(),
+        upheld_complaint_count=upheld_complaint_count(session, "ORGANIZATION", org.id),
+    )

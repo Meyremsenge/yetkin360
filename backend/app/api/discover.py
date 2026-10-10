@@ -73,12 +73,14 @@ class DiscoverTalentListResponse(BaseModel):
 
 
 class DiscoverOrganizationResponse(BaseModel):
-    """Card in GET /discover/organizations. `domain` is null unless verified (T2+)."""
+    """Card in GET /discover/organizations. `domain` is null unless verified (T2+).
+    `upheld_complaint_count`: complaints the platform admin upheld (0 if none)."""
 
     id: uuid.UUID
     name: str
     verification_level: str
     domain: str | None
+    upheld_complaint_count: int
 
 
 class DiscoverOrganizationListResponse(BaseModel):
