@@ -3,11 +3,14 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime as _dt, timezone as _tz
+
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_principal, get_session, get_verified_principal
+from app.core.config import settings
 from app.core.deps import require_csrf
 from app.core.errors import ApiError
 from app.models import Institution, InstitutionLinkRequest
@@ -18,9 +21,11 @@ from app.services.institution import (
     AlreadyMemberError,
     DuplicateLinkRequestError,
     approve_institution_link,
+    build_institution_report,
     create_institution,
     get_institution,
     invite_member,
+    list_institution_partners,
     list_institution_students,
     list_pending_link_requests,
     reject_institution_link,
@@ -134,6 +139,10 @@ class DashboardEngagementItem(BaseModel):
     title: str
     started_on: str | None = None
     ended_on: str | None = None
+    talent_full_name: str
+    organization_name: str
+    kind: str
+    version: int
 
 
 class DashboardMemberItem(BaseModel):
@@ -150,6 +159,24 @@ class DashboardSummary(BaseModel):
 
     pending_approval: int
     pending_evaluation: int
+    pending_attestation: int
+
+
+class InstitutionPartnerItem(BaseModel):
+    """Organization the institution's students work with (no member data)."""
+
+    organization_id: str
+    organization_name: str
+    verification_level: str
+    student_count: int
+    engagement_count: int
+    verified_count: int
+
+
+class InstitutionPartnersResponse(BaseModel):
+    """Response schema for GET /institutions/{id}/partners."""
+
+    items: list[InstitutionPartnerItem]
 
 
 class DashboardResponse(BaseModel):
@@ -159,6 +186,7 @@ class DashboardResponse(BaseModel):
     summary: DashboardSummary
     pending_approval: list[DashboardEngagementItem]
     pending_evaluation: list[DashboardEngagementItem]
+    pending_attestation: list[DashboardEngagementItem]
     members: list[DashboardMemberItem]
 
 
@@ -601,6 +629,7 @@ def get_coordinator_dashboard_endpoint(
             summary=DashboardSummary(**dashboard_data["summary"]),
             pending_approval=[DashboardEngagementItem(**item) for item in dashboard_data["pending_approval"]],
             pending_evaluation=[DashboardEngagementItem(**item) for item in dashboard_data["pending_evaluation"]],
+            pending_attestation=[DashboardEngagementItem(**item) for item in dashboard_data["pending_attestation"]],
             members=[DashboardMemberItem(**item) for item in dashboard_data["members"]],
         )
     except ValueError:
@@ -642,6 +671,74 @@ def list_institution_students_endpoint(
 
     items = list_institution_students(session=session, principal=principal, institution_id=institution_id)
     return InstitutionStudentsResponse(items=[InstitutionStudentItem(**item) for item in items])
+
+
+def _require_institution_member(session: Session, principal: Principal, institution_id: uuid.UUID) -> None:
+    """401 when unauthenticated; 404 for non-members and unknown institutions alike."""
+    if principal.user_id is None:
+        raise HTTPException(status_code=401, detail={"code": "UNAUTHORIZED", "message": "Kimlik doğrulama gerekli."})
+    if institution_id not in principal.institution_ids:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Kurum bulunamadı."})
+    scoped = scoped_institutions(session, principal).where(Institution.id == institution_id)
+    if get_scoped_or_404(scoped, session) is None:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Kurum bulunamadı."})
+
+
+@router.get("/{institution_id}/partners", status_code=200, response_model=InstitutionPartnersResponse)
+def list_institution_partners_endpoint(
+    institution_id: uuid.UUID,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> InstitutionPartnersResponse:
+    """
+    Organizations the institution's students work with. Members of THE institution only
+    (COORDINATOR, ADMIN, SUPERVISOR); everyone else gets 404, unauthenticated 401.
+    """
+    _require_institution_member(session, principal, institution_id)
+    items = list_institution_partners(session=session, principal=principal, institution_id=institution_id)
+    return InstitutionPartnersResponse(items=[InstitutionPartnerItem(**item) for item in items])
+
+
+@router.get("/{institution_id}/report.csv", status_code=200)
+def institution_report_csv_endpoint(
+    institution_id: uuid.UUID,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> Response:
+    """
+    CSV report of linked students' engagements (UTF-8 BOM, ';' delimiter, formula-safe cells).
+
+    Same scope as the students list (approved link, not PRIVATE). Members of THE
+    institution only; everyone else gets 404, unauthenticated 401. Audited as
+    INSTITUTION_REPORT_EXPORTED with the row count only (no names, no e-mails).
+    """
+    _require_institution_member(session, principal, institution_id)
+    body, row_count = build_institution_report(
+        session=session,
+        principal=principal,
+        institution_id=institution_id,
+        frontend_origin=settings.frontend_origin,
+    )
+    log_audit_event(
+        session=session,
+        actor_user_id=principal.user_id,
+        actor_ip=None,
+        action="INSTITUTION_REPORT_EXPORTED",
+        subject_type="institution",
+        subject_id=institution_id,
+        result="SUCCESS",
+        metadata={"institution_id": str(institution_id), "row_count": row_count},
+    )
+    filename = f"yetkin360-rapor-{_dt.now(_tz.utc).date().isoformat()}.csv"
+    return Response(
+        content=body,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 # ============================================================================
