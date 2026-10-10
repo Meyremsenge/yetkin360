@@ -434,7 +434,9 @@ class NotPendingError(Exception):
 _LEVEL_RANK = {"T1": 1, "T2": 2, "T3": 3, "T4": 4}
 
 
-def list_verification_queue(session: Session, limit: int = 50, offset: int = 0) -> list[Organization]:
+def list_verification_queue(
+    session: Session, limit: int = 50, offset: int = 0
+) -> tuple[list[Organization], bool]:
     """
     List organizations awaiting T3 review (admin-only — PLAN 3.6/YET-136).
 
@@ -442,6 +444,7 @@ def list_verification_queue(session: Session, limit: int = 50, offset: int = 0) 
     (docs/DOMAIN.md §3.4: T3 requires MERSİS/vergi no, simplified to legal_id
     in this schema — see AUTHORIZATION.md §2.4). Oldest first (fairness).
     Rejected applications (verification_rejected_at set) are excluded (YET-198).
+    Returns (rows, has_more); fetches limit+1 rows so the extra row is never returned.
     """
     stmt = (
         select(Organization)
@@ -454,9 +457,10 @@ def list_verification_queue(session: Session, limit: int = 50, offset: int = 0) 
         )
         .order_by(Organization.created_at.asc())
         .offset(offset)
-        .limit(limit)
+        .limit(limit + 1)
     )
-    return list(session.execute(stmt).scalars().all())
+    rows = list(session.execute(stmt).scalars().all())
+    return rows[:limit], len(rows) > limit
 
 
 def set_verification_level(
@@ -484,8 +488,22 @@ def set_verification_level(
         org.verified_at = datetime.now(timezone.utc)
         org.verified_by_user_id = admin_user_id
         org.verification_rejected_at = None
+        raised = True
+    else:
+        raised = False
     org.verification_level = verification_level
     _flush_domain_claim(session, org.domain or "")
+    if raised:
+        # O2: notify the organization's admins; ids + decision only (no address, no note).
+        enqueue(
+            session,
+            "organization.verification_decided",
+            {
+                "organization_id": str(org.id),
+                "decision": "APPROVED",
+                "verification_level": verification_level,
+            },
+        )
     return org
 
 
@@ -510,4 +528,10 @@ def reject_verification(session: Session, organization_id: uuid.UUID) -> Optiona
 
     org.verification_rejected_at = datetime.now(timezone.utc)
     session.flush()
+    # O2: notify the organization's admins; ids + decision only (no address, no note).
+    enqueue(
+        session,
+        "organization.verification_decided",
+        {"organization_id": str(org.id), "decision": "REJECTED"},
+    )
     return org

@@ -29,6 +29,8 @@ export interface OrganizationResponse {
   legal_id: string | null;
   verification_level: string;
   status: string;
+  /** C7 damga: haklı bulunan şikayet sayısı; yok/null/0 ise rozet gösterilmez. */
+  upheld_complaint_count?: number | null;
 }
 
 export interface DomainVerifyResult {

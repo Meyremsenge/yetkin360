@@ -16,10 +16,15 @@ import pytest
 from fastapi.routing import APIRoute
 
 from app.api.admin import require_platform_admin, router as admin_router
+from app.api.admin_audit import router as admin_audit_router
+from app.api.admin_complaints import router as admin_complaints_router
+from app.api.admin_directory import router as admin_directory_router
 from app.main import app
 from app.models import User
 
-ADMIN_ROUTES = [route for route in admin_router.routes if isinstance(route, APIRoute)]
+# Every router serving /admin/* must be listed here and must declare the gate itself.
+GATED_ROUTERS = [admin_router, admin_directory_router, admin_audit_router, admin_complaints_router]
+ADMIN_ROUTES = [route for r in GATED_ROUTERS for route in r.routes if isinstance(route, APIRoute)]
 ROUTE_CASES = [
     pytest.param(method, route.path, id=f"{method} {route.path}")
     for route in ADMIN_ROUTES
@@ -44,7 +49,8 @@ def test_admin_routes_exist():
 
 
 def test_router_itself_declares_the_gate():
-    assert any(dep.dependency is require_platform_admin for dep in admin_router.dependencies)
+    for gated in GATED_ROUTERS:
+        assert any(dep.dependency is require_platform_admin for dep in gated.dependencies)
 
 
 def test_no_admin_path_is_served_outside_the_gated_router():

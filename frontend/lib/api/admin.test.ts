@@ -37,15 +37,13 @@ const mockOrganizationWithNulls = {
 };
 
 const mockVerificationQueue = {
-  items: [
-    mockOrganization,
-    mockOrganizationWithNulls,
-  ],
+  items: [mockOrganization, mockOrganizationWithNulls],
+  limit: 50,
+  offset: 0,
+  has_more: false,
 };
 
-const mockEmptyQueue = {
-  items: [],
-};
+const mockEmptyQueue = { items: [], limit: 50, offset: 0, has_more: false };
 
 const mockSkill = {
   id: "skill-1",
@@ -692,5 +690,56 @@ describe("Davranış Sözleşmesi — Status kod tam eşleşmeleri", () => {
         expect(err.status).toBe(500);
       }
     }
+  });
+});
+
+// ============================================================================
+// admin-sayfalama-ve-kabuk — limit/offset + has_more zarfı
+// ============================================================================
+
+describe("lib/api/admin — sayfalama", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("getVerificationQueue/getSkills/getFraudQueue limit ve offset'i sorguya yazar", async () => {
+    mockApiFetch.mockResolvedValue({ items: [], limit: 50, offset: 100, has_more: false });
+
+    await admin.getVerificationQueue({ limit: 50, offset: 100 });
+    await admin.getSkills({ limit: 200, offset: 200 });
+    await admin.getFraudQueue({ offset: 50 });
+
+    expect(mockApiFetch).toHaveBeenNthCalledWith(1, "/admin/verification-queue?limit=50&offset=100");
+    expect(mockApiFetch).toHaveBeenNthCalledWith(2, "/admin/skills?limit=200&offset=200");
+    expect(mockApiFetch).toHaveBeenNthCalledWith(3, "/admin/fraud-queue?limit=50&offset=50");
+  });
+
+  it("varsayılan: limit=50, offset=0", async () => {
+    mockApiFetch.mockResolvedValue({ items: [], limit: 50, offset: 0, has_more: false });
+
+    await admin.getVerificationQueue();
+
+    expect(mockApiFetch).toHaveBeenCalledWith("/admin/verification-queue?limit=50&offset=0");
+  });
+
+  it("getAllSkills has_more=false olana kadar tüm sayfaları dolaşır", async () => {
+    const a = { id: "1" };
+    const b = { id: "2" };
+    mockApiFetch
+      .mockResolvedValueOnce({ items: [a], limit: 200, offset: 0, has_more: true })
+      .mockResolvedValueOnce({ items: [b], limit: 200, offset: 1, has_more: false });
+
+    const all = await admin.getAllSkills();
+
+    expect(all).toEqual([a, b]);
+    expect(mockApiFetch).toHaveBeenNthCalledWith(2, "/admin/skills?limit=200&offset=1");
+  });
+
+  it("getAllSkills bir sayfa hata verirse kısmi liste dönmez, reddeder", async () => {
+    mockApiFetch
+      .mockResolvedValueOnce({ items: [{ id: "1" }], limit: 200, offset: 0, has_more: true })
+      .mockRejectedValueOnce(new NetworkError("timeout"));
+
+    await expect(admin.getAllSkills()).rejects.toBeInstanceOf(NetworkError);
   });
 });

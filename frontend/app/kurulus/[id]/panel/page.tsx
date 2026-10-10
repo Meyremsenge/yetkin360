@@ -8,6 +8,7 @@ import { ErrorBanner } from "@/components/error-banner";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { UpheldComplaintBadge } from "@/components/upheld-complaint-badge";
 import {
   getOrganization,
   inviteOrgMember,
@@ -152,6 +153,7 @@ export default function KurulusPanelPage() {
                 <Badge variant={TRUST_BADGE_VARIANT[org.verification_level] ?? "default"}>
                   {trustLabels[org.verification_level] ?? org.verification_level}
                 </Badge>
+                <UpheldComplaintBadge count={org.upheld_complaint_count} />
                 {org.legal_id && (
                   <span className="font-mono text-[13px] text-muted-foreground">
                     {messages.kurulusPanel.legalIdLabel}: {org.legal_id}

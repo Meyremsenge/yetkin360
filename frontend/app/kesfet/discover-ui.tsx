@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { SealMark } from "@/components/brand/brand-mark";
+import { UpheldComplaintBadge } from "@/components/upheld-complaint-badge";
 import type { DiscoverOrganization, DiscoverTalent } from "@/lib/api/discover";
 import { cn } from "@/lib/utils";
 import messages from "@/messages/tr.json";
@@ -374,6 +375,8 @@ export function OrganizationCard({
             )}
           </div>
         </div>
+
+        <UpheldComplaintBadge count={organization.upheld_complaint_count} />
 
         <div className="mt-auto pt-5">
           <p className="mb-2 text-xs font-medium text-muted-foreground">{t.trustLabel}</p>

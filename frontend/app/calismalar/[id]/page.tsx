@@ -195,7 +195,22 @@ export default function CalismaDetayPage() {
               )}
             </DetailSection>
 
-            <CertificateChecksSection engagementId={engagement.id} />
+            {engagement.status === "PENDING_APPROVAL" && isSubject && (
+              <section className="mt-8 rounded-md border border-border bg-muted p-4">
+                <p className="text-sm text-muted-foreground">{messages.complaints.reportHint}</p>
+                <Link
+                  href={`/sikayetlerim/yeni?subject_type=ENGAGEMENT&subject_id=${encodeURIComponent(engagement.id)}`}
+                  className="mt-2 inline-block text-sm font-medium text-success underline underline-offset-4"
+                >
+                  {messages.complaints.reportAction}
+                </Link>
+              </section>
+            )}
+
+            <CertificateChecksSection
+              engagementId={engagement.id}
+              canComplain={isSubject}
+            />
 
             <DetailSection
               icon="deliverables"

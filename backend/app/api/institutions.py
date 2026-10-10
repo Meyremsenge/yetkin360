@@ -25,6 +25,7 @@ from app.services.institution import (
     reject_institution_link,
     request_institution_link,
 )
+from app.services.complaint import upheld_complaint_count
 from app.services.engagement import get_coordinator_dashboard
 from app.services.outbox import enqueue
 from app.services.rate_limit import RateLimitExceeded
@@ -140,6 +141,7 @@ class DashboardResponse(BaseModel):
     pending_approval: list[DashboardEngagementItem]
     pending_evaluation: list[DashboardEngagementItem]
     members: list[DashboardMemberItem]
+    upheld_complaint_count: int = 0  # admin-upheld complaints about this institution (sikayet-backend C7)
 
 
 # ============================================================================
@@ -582,6 +584,7 @@ def get_coordinator_dashboard_endpoint(
             pending_approval=[DashboardEngagementItem(**item) for item in dashboard_data["pending_approval"]],
             pending_evaluation=[DashboardEngagementItem(**item) for item in dashboard_data["pending_evaluation"]],
             members=[DashboardMemberItem(**item) for item in dashboard_data["members"]],
+            upheld_complaint_count=upheld_complaint_count(session, "INSTITUTION", institution_id),
         )
     except ValueError:
         # Authorization failure or institution not found (both → 404)

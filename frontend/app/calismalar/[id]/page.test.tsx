@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import CalismaDetayPage from "@/app/calismalar/[id]/page";
+import messages from "@/messages/tr.json";
 import { useSession } from "@/lib/session/use-session";
 import { useParams } from "next/navigation";
 import { getEngagement } from "@/lib/api/engagements";
@@ -282,5 +283,44 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
       expect(screen.getByText("Geri çekildi: Yanlış girilmiş")).toBeTruthy();
     });
     expect(screen.queryByText("Geri Çek")).toBeNull();
+  });
+
+  describe("şikayet bağlantısı kimliği (talent profil id)", () => {
+    function sessionAs(userId: string, talentProfileId: string | null) {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { id: userId, email: "user@test.com" },
+          organizations: [],
+          institutions: [],
+          talent_profile: talentProfileId ? { id: talentProfileId } : null,
+        },
+        error: null,
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useSession>);
+    }
+
+    it("talent profil id'si engagement.talent_id ile eşleşirse yanıtsız onay için şikayet bağlantısı görünür", async () => {
+      sessionAs("user-1", "talent-1");
+      vi.mocked(getEngagement).mockResolvedValueOnce({ ...baseEngagement, status: "PENDING_APPROVAL" });
+
+      renderWithQueryClient(<CalismaDetayPage />);
+
+      const link = await screen.findByRole("link", { name: messages.complaints.reportAction });
+      expect(link.getAttribute("href")).toContain("subject_id=eng-1");
+    });
+
+    it("yalnız user.id engagement.talent_id ile aynıysa (talent profili farklı) bağlantı görünmez", async () => {
+      sessionAs("talent-1", "talent-2");
+      vi.mocked(getEngagement).mockResolvedValueOnce({ ...baseEngagement, status: "PENDING_APPROVAL" });
+
+      renderWithQueryClient(<CalismaDetayPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Yaz Kısa Projesi")).toBeTruthy();
+      });
+      expect(screen.queryByRole("link", { name: messages.complaints.reportAction })).toBeNull();
+    });
   });
 });

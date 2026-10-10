@@ -24,7 +24,8 @@ TALENT_CARD_FIELDS = {
     "sealed_skills",
     "verified_experience_count",
 }
-ORGANIZATION_CARD_FIELDS = {"id", "name", "verification_level", "domain"}
+# upheld_complaint_count: admin-upheld complaint count only (sikayet-backend C7, AC-S13).
+ORGANIZATION_CARD_FIELDS = {"id", "name", "verification_level", "domain", "upheld_complaint_count"}
 
 
 @pytest.fixture

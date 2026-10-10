@@ -93,6 +93,12 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     openrouter_model: str = "anthropic/claude-haiku-4.5"
 
+    # Şikayet (sikayet-backend): a talent may complain once an approval has waited
+    # this many days; the respondent has this many days to explain before the admin
+    # may escalate by hand (no background job).
+    complaint_min_wait_days: int = 7
+    complaint_explanation_days: int = 5
+
     @model_validator(mode="after")
     def _validate_environment(self) -> "Settings":
         """YET-207: refuse to start with a cookie/CSRF-weakening production config.

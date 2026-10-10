@@ -300,6 +300,26 @@ Her PR'da çalışır; kırmızıysa merge edilmez.
 
 ---
 
+### 8.1 Bilinen risk — herkes kurum açıp ADMIN olabiliyor (GUV-02)
+
+`POST /institutions` (ve kayıtta `account_kind`) oturum açmış **herkese** açıktır;
+kurumu açan kişi o kurumun `ADMIN`'i olur. Sahte bir kurum açıp kendi adına
+koordinatör gibi davranmak mümkündür.
+
+Mevcut azaltıcılar:
+
+- Yeni kurum/kuruluş en düşük doğrulama seviyesiyle başlar; `T3` yalnız platform
+  admini tarafından verilir (`/admin/organizations/{id}/verification-level`).
+- Kurum ve kuruluş işaretleri için sabit kurallar fraud işareti üretir
+  (`fraud_flags`, `/admin/fraud-queue`); karar admin'dedir.
+- Doğrulama başvuruları admin kuyruğundan geçer (`/admin/verification-queue`);
+  tüm admin kararları `audit_events`'e yazılır.
+
+Kalan risk: kurum açma uç noktası bir onay adımı gerektirmez. Bu MVP için kabul
+edilmiştir; çözüm (kurum açma için onay/davet) hackathon sonrası yol haritasındadır.
+
+---
+
 ## 9. MVP'de bilinçli olarak ertelenen önlemler
 
 Bu tablo, hackathon jürisine ve katkıcılara **neyin eksik olduğunu ve neden**
