@@ -336,17 +336,24 @@ PLAN maddesi olarak açılmamıştı. Detay: `HATA.md`.**
       kuruluşlardan serbestçe arayıp seçebilsin — GET /organizations
       (liste/arama, authenticated) ucu + /calismalar'da "Yeni Çalışma"
       butonu + /calismalar/kurulus-sec seçici ekran eklendi. @be1 @fe
-- [ ] 3.51 Outbox worker'a eksik bildirim handler'ları eklenmeli: `attestation.created`
+- [x] 3.51 Outbox worker'a eksik bildirim handler'ları eklendi: `attestation.created`
       (öğrenciye tanıklık/doğrulama bildirimi) ve `engagement.pending_approval`
-      (koordinatöre onay bekleyen çalışma bildirimi) — ikisi de servis katmanında
-      kuyruğa ekleniyor ama `app/workers/outbox_worker.py`'deki `DEFAULT_HANDLERS`
-      sözlüğünde kayıtlı değil; worker sonsuza kadar çalışsa bile bu satırlar hiç
-      seçilmiyor (sorgu yalnız handler'ı olan konuları çekiyor), kalıcı olarak
-      işlenmeden kuyrukta birikiyor. Ayrıca outbox worker'ın kendisi hiçbir yerde
-      (launch.json, Docker, systemd) sürekli çalışan bir servis olarak
-      tanımlı değildi — bu oturumda elle `python -m app.workers.outbox_worker`
-      çalıştırılarak `email.verify_email` kuyruğu boşaltıldı, kalıcı çözüm değil.
+      (koordinatöre onay bekleyen çalışma bildirimi) — DEFAULT_HANDLERS'a
+      kaydedildi, canlı doğrulandı (worker yeniden başlatılınca gerçek 36
+      satırlık birikmiş kuyruk hatasız boşaldı). Kalan: outbox worker'ın
+      Docker/systemd gibi kalıcı bir servis olarak tanımlanması — deploy
+      kapsamına (3.14) bırakıldı, launch.json'da "worker" config zaten var.
       bkz. 3.27. @be2
+- [x] 3.54 AI fraud-flag — faz 1 (tanıklık metni): CLAUDE.md'nin MVP'de "AI
+      yasak" kuralı final-analiz §11.4.6 gerekçesiyle bilinçli olarak
+      daraltıldı — AI hiçbir zaman karar vermez, yalnız `attestation.statement`
+      metnini OpenRouter'a (outbox worker, açık transaction dışında) gönderip
+      şüpheli paternleri `fraud_flags` tablosuna işaretler; nihai karar
+      (`CONFIRMED`/`DISMISSED`) `GET`/`POST /admin/fraud-queue` ile admin'e
+      aittir. `attestation.statement` önceden API'den hiç girilemiyordu
+      (hardcoded `None`) — bu iş onu gerçek bir request alanı yaptı. Faz 2
+      (evidence dosya içeriği — PDF/OCR metin çıkarımı gerektirir) ayrı onay
+      bekliyor. @be2
 - [ ] 3.16 Kod dondurma — Faz 4'e yeni özellik girmez @all
 
 ---

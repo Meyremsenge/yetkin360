@@ -441,6 +441,53 @@ class TestAttestationHappyPath:
             assert att.requested_claim_type == "COMPETENCE"
             assert att.attestor_user_id == user_inst_coord_diana_att.id
 
+    def test_attestation_with_statement_enqueues_fraud_check_outbox(
+        self, client, session, user_inst_coord_diana_att, inst_coord_diana_att,
+        engagement_evaluated_alice_att, skill_communication_att, deliverable_alice_att
+    ):
+        """PLAN 3.54: statement verilirse attestations.statement'a yazılır VE
+        outbox'a attestation.fraud_check_requested eklenir (AI hiçbir zaman
+        attestations'a yazmaz — sadece bu outbox satırını worker işler)."""
+        from app.models import Outbox
+
+        payload = {"claim_type": "COMPETENCE", "version": 1, "statement": "Alice projeyi tek başına teslim etti."}
+
+        response = client.post(
+            f"/engagements/{engagement_evaluated_alice_att.id}/attestations",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_inst_coord_diana_att.id)},
+        )
+        assert response.status_code == 201, response.text
+
+        att = session.query(Attestation).filter_by(
+            engagement_id=engagement_evaluated_alice_att.id
+        ).first()
+        assert att.statement == "Alice projeyi tek başına teslim etti."
+
+        outbox_row = session.query(Outbox).filter_by(topic="attestation.fraud_check_requested").first()
+        assert outbox_row is not None
+        assert outbox_row.payload == {"attestation_id": str(att.id)}
+
+    def test_attestation_without_statement_enqueues_no_fraud_check(
+        self, client, session, user_inst_coord_diana_att, inst_coord_diana_att,
+        engagement_evaluated_alice_att, skill_communication_att, deliverable_alice_att
+    ):
+        """statement verilmezse fraud_check_requested outbox satırı eklenmez —
+        AI'ya gönderilecek boş metin yok."""
+        from app.models import Outbox
+
+        payload = {"claim_type": "COMPETENCE", "version": 1}
+
+        response = client.post(
+            f"/engagements/{engagement_evaluated_alice_att.id}/attestations",
+            json=payload,
+            headers={"X-Debug-User-Id": str(user_inst_coord_diana_att.id)},
+        )
+        assert response.status_code == 201, response.text
+
+        outbox_row = session.query(Outbox).filter_by(topic="attestation.fraud_check_requested").first()
+        assert outbox_row is None
+
 
 # ============================================================================
 # AC-2: Kısmi Başarı — Downgrade COMPETENCE → PARTICIPATION

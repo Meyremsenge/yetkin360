@@ -18,6 +18,7 @@ from app.core.deps import require_csrf
 from app.core.errors import ApiError
 from app.services.audit import log_audit_event
 from app.services.authorization import Principal
+from app.services.fraud_flag import NotPendingError as FraudFlagNotPendingError, list_fraud_queue, resolve_fraud_flag
 from app.services.organization import (
     DomainAlreadyVerifiedError,
     NotPendingError,
@@ -125,6 +126,30 @@ class SkillResponse(BaseModel):
 
 class SkillsListResponse(BaseModel):
     items: list[SkillResponse]
+
+
+class FraudFlagItem(BaseModel):
+    """PLAN 3.54: AI-generated flag — reason/confidence are the model's output,
+    never a verdict; subject_id/subject_type let the admin open the attestation."""
+
+    id: uuid.UUID
+    subject_type: str
+    subject_id: uuid.UUID
+    reason: str
+    confidence: Literal["LOW", "MEDIUM", "HIGH"]
+    model: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class FraudQueueResponse(BaseModel):
+    items: list[FraudFlagItem]
+
+
+class FraudFlagResolveRequest(BaseModel):
+    outcome: Literal["CONFIRMED", "DISMISSED"]
 
 
 # ============================================================================
@@ -366,3 +391,57 @@ def merge_skill_endpoint(
         metadata={"merged_into_id": str(payload.merged_into_id)},
     )
     return SkillResponse.model_validate(skill)
+
+
+# ============================================================================
+# Fraud flag kuyruğu (PLAN 3.54) — AI işaretler, admin karar verir
+# ============================================================================
+
+
+@router.get("/fraud-queue", response_model=FraudQueueResponse)
+def get_fraud_queue(
+    limit: int = Query(50, ge=1, le=MAX_PAGE_SIZE),
+    offset: int = Query(0, ge=0),
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> FraudQueueResponse:
+    """PENDING fraud_flags — AI'nin ürettiği işaretler, henüz admin kararı yok."""
+    _require_admin(principal)
+    flags = list_fraud_queue(session, limit=limit, offset=offset)
+    return FraudQueueResponse(items=[FraudFlagItem.model_validate(f) for f in flags])
+
+
+@router.post("/fraud-queue/{flag_id}/resolve", response_model=FraudFlagItem)
+def resolve_fraud_flag_endpoint(
+    flag_id: uuid.UUID,
+    payload: FraudFlagResolveRequest,
+    principal: Principal = Depends(get_verified_principal),
+    session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
+) -> FraudFlagItem:
+    """Admin kararı: CONFIRMED (gerçek sahtekarlık) veya DISMISSED (yanlış alarm)."""
+    _require_admin(principal)
+
+    try:
+        flag = resolve_fraud_flag(
+            session,
+            flag_id=flag_id,
+            outcome=payload.outcome,
+            admin_user_id=principal.user_id,
+        )
+    except FraudFlagNotPendingError:
+        raise ApiError(409, "NOT_PENDING", "Bu işaret zaten incelenmiş.")
+    if flag is None:
+        raise ApiError(404, "NOT_FOUND", "İşaret bulunamadı.")
+
+    log_audit_event(
+        session=session,
+        actor_user_id=principal.user_id,
+        actor_ip=None,
+        action="ADMIN_RESOLVE_FRAUD_FLAG",
+        subject_type="fraud_flag",
+        subject_id=flag_id,
+        result="SUCCESS",
+        metadata={"outcome": payload.outcome},
+    )
+    return FraudFlagItem.model_validate(flag)

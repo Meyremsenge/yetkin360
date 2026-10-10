@@ -169,3 +169,43 @@ export async function mergeSkill(
 export async function getSkills(): Promise<SkillsListResponse | undefined> {
   return (await apiFetch<SkillsListResponse>("/admin/skills")) as SkillsListResponse | undefined;
 }
+
+// ============================================================================
+// Fraud flag kuyruğu (PLAN 3.54) — AI işaretler, admin karar verir
+// ============================================================================
+
+export interface FraudFlag {
+  id: string;
+  subject_type: string; // "ATTESTATION"
+  subject_id: string;
+  reason: string;
+  confidence: "LOW" | "MEDIUM" | "HIGH";
+  model: string;
+  created_at: string;
+}
+
+export interface FraudQueueResponse {
+  items: FraudFlag[];
+}
+
+/**
+ * Fetch pending fraud flags.
+ * GET /admin/fraud-queue
+ */
+export async function getFraudQueue(): Promise<FraudQueueResponse | undefined> {
+  return (await apiFetch<FraudQueueResponse>("/admin/fraud-queue")) as FraudQueueResponse | undefined;
+}
+
+/**
+ * Record the admin's decision on a flag — CONFIRMED (real fraud) or DISMISSED (false positive).
+ * POST /admin/fraud-queue/{id}/resolve
+ */
+export async function resolveFraudFlag(
+  flagId: string,
+  outcome: "CONFIRMED" | "DISMISSED"
+): Promise<FraudFlag | undefined> {
+  return (await apiFetch<FraudFlag>(`/admin/fraud-queue/${flagId}/resolve`, {
+    method: "POST",
+    body: { outcome },
+  })) as FraudFlag | undefined;
+}

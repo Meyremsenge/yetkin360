@@ -155,6 +155,7 @@ def create_attestation(
     requested_claim_type: str,
     version: int,
     skill_id: str | None = None,
+    statement: str | None = None,
 ) -> tuple[Attestation, VerifiedExperience]:
     """
     Create attestation for EVALUATED engagement, triggering T8 (EVALUATED → VERIFIED) transition.
@@ -277,7 +278,7 @@ def create_attestation(
         attestor_user_id=principal.user_id,
         attestor_org_id=engagement.organization_id,
         skill_id=skill_id_uuid,
-        statement=None,  # Not in request body (reserved for future)
+        statement=statement.strip() if statement and statement.strip() else None,
         downgrade_reasons=downgrade_reasons if downgrade_reasons else [],
         created_at=now,
     )
@@ -389,6 +390,12 @@ def create_attestation(
         },
     )
     session.add(outbox_entry)
+
+    # PLAN 3.54: statement varsa AI'nin sahtekarlık/şüpheli-içerik taraması için
+    # outbox'a ekle (statement metni payload'a gömülmez — worker DB'den okur,
+    # evidence_scan_requested_handler'daki "payload sadece konum taşır" deseniyle aynı).
+    if attestation.statement:
+        session.add(Outbox(topic="attestation.fraud_check_requested", payload={"attestation_id": str(attestation.id)}))
 
     # Transaction is committed by caller (route layer)
     return attestation, verified_exp

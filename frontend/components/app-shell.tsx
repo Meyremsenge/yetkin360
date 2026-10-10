@@ -341,6 +341,13 @@ function NavLinks({
             active={isActive("/admin/skiller")}
             onNavigate={onNavigate}
           />
+          <NavItem
+            href="/admin/sahtekarlik-isaretleri"
+            icon="shield"
+            label={messages.shell.adminFraudQueueLink}
+            active={isActive("/admin/sahtekarlik-isaretleri")}
+            onNavigate={onNavigate}
+          />
         </NavGroup>
       )}
     </>
