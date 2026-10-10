@@ -113,7 +113,7 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
       expect(screen.getByText("Yaz Kısa Projesi")).toBeTruthy();
       expect(screen.getByText("Aktif")).toBeTruthy();
       expect(container.textContent).toContain("API şeması");
-      expect(container.textContent).toContain("DONE");
+      expect(container.textContent).toContain("Tamamlandı");
       expect(screen.getByText("Henüz çıktı yüklenmemiş.")).toBeTruthy();
       // ACTIVE durumundan aday geçişler: CANCELLED, PENDING_EVALUATION
       expect(screen.getByText("İptal Et")).toBeTruthy();

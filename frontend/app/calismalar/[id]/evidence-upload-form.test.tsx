@@ -142,7 +142,8 @@ describe("EvidenceUploadForm", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Taranıyor")).toBeTruthy();
-      expect(screen.getByText(/application\/pdf/)).toBeTruthy();
+      // The file type is shown as a short chip ("pdf"), not the raw MIME type.
+      expect(screen.getByText("pdf")).toBeTruthy();
     });
   });
 

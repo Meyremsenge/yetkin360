@@ -14,10 +14,10 @@ import { Button } from "./button";
 
 describe("Button Component", () => {
   describe("AC-1: Varsayılan variant (geriye dönük uyumluluk)", () => {
-    it("AC-1: <Button> render edildiğinde bg-slate-900 BULUNMALI", () => {
+    it("AC-1: <Button> render edildiğinde bg-success BULUNMALI", () => {
       const { container } = render(<Button>Tıkla</Button>);
       const btn = container.querySelector("button");
-      expect(btn?.className).toContain("bg-slate-900");
+      expect(btn?.className).toContain("bg-success");
     });
 
     it("AC-1: <Button> render edildiğinde text-white BULUNMALI", () => {
@@ -26,20 +26,20 @@ describe("Button Component", () => {
       expect(btn?.className).toContain("text-white");
     });
 
-    it("AC-1: <Button> render edildiğinde hover:bg-slate-700 BULUNMALI", () => {
+    it("AC-1: <Button> render edildiğinde hover:bg-success/90 BULUNMALI", () => {
       const { container } = render(<Button>Tıkla</Button>);
       const btn = container.querySelector("button");
-      expect(btn?.className).toContain("hover:bg-slate-700");
+      expect(btn?.className).toContain("hover:bg-success/90");
     });
 
-    it("AC-1: <Button variant='primary'> render edildiğinde bg-slate-900 BULUNMALI", () => {
+    it("AC-1: <Button variant='primary'> render edildiğinde bg-success BULUNMALI", () => {
       const { container } = render(
         <Button variant="primary">
           Tıkla
         </Button>
       );
       const btn = container.querySelector("button");
-      expect(btn?.className).toContain("bg-slate-900");
+      expect(btn?.className).toContain("bg-success");
     });
 
     it("AC-1: <Button variant='primary'> render edildiğinde text-white BULUNMALI", () => {
@@ -52,14 +52,14 @@ describe("Button Component", () => {
       expect(btn?.className).toContain("text-white");
     });
 
-    it("AC-1: <Button variant='primary'> render edildiğinde hover:bg-slate-700 BULUNMALI", () => {
+    it("AC-1: <Button variant='primary'> render edildiğinde hover:bg-success/90 BULUNMALI", () => {
       const { container } = render(
         <Button variant="primary">
           Tıkla
         </Button>
       );
       const btn = container.querySelector("button");
-      expect(btn?.className).toContain("hover:bg-slate-700");
+      expect(btn?.className).toContain("hover:bg-success/90");
     });
   });
 
@@ -94,14 +94,14 @@ describe("Button Component", () => {
       expect(btn?.className).toContain("hover:bg-destructive/90");
     });
 
-    it("AC-2: <Button variant='destructive'> className'de bg-slate-900 BULUNMAMALI", () => {
+    it("AC-2: <Button variant='destructive'> className'de bg-success BULUNMAMALI", () => {
       const { container } = render(
         <Button variant="destructive">
           Sil
         </Button>
       );
       const btn = container.querySelector("button");
-      expect(btn?.className).not.toContain("bg-slate-900");
+      expect(btn?.className).not.toContain("bg-success");
     });
   });
 
@@ -263,14 +263,14 @@ describe("Button Component", () => {
       expect(btn?.className).toContain("hover:bg-red-700");
     });
 
-    it("AC-5: <Button variant='primary' className='hover:bg-red-700'> className'de hover:bg-slate-700 BULUNMAMALI", () => {
+    it("AC-5: <Button variant='primary' className='hover:bg-red-700'> className'de hover:bg-success/90 BULUNMAMALI", () => {
       const { container } = render(
         <Button variant="primary" className="hover:bg-red-700">
           Hover Özel
         </Button>
       );
       const btn = container.querySelector("button");
-      expect(btn?.className).not.toContain("hover:bg-slate-700");
+      expect(btn?.className).not.toContain("hover:bg-success/90");
     });
   });
 
@@ -283,12 +283,13 @@ describe("Button Component", () => {
       expect(btn?.className).toContain("bg-red-600");
     });
 
-    it("AC-9: Mevcut çağıran — <Button className='bg-red-600'>Kaldır</Button> — className'de bg-slate-900 BULUNMAMALI (override)", () => {
+    it("AC-9: Mevcut çağıran — <Button className='bg-red-600'>Kaldır</Button> — className'de bg-success BULUNMAMALI (override)", () => {
       const { container } = render(
         <Button className="bg-red-600">Kaldır</Button>
       );
       const btn = container.querySelector("button");
-      expect(btn?.className).not.toContain("bg-slate-900");
+      // Token check: "hover:bg-success/90" legitimately stays; only the base bg is overridden.
+      expect(btn?.className.split(" ")).not.toContain("bg-success");
     });
 
     it("AC-9: Mevcut çağıran — <Button className='bg-green-50 hover:bg-green-100'> — className'de bg-green-50 BULUNMALI", () => {

@@ -11,14 +11,14 @@ export function Button({
   size?: "sm" | "md" | "lg";
 }) {
   const variantClasses: Record<string, string> = {
-    primary: "bg-slate-900 text-white",
+    primary: "bg-success text-white",
     destructive: "bg-destructive text-white",
     secondary: "bg-muted text-foreground",
     ghost: "bg-transparent",
   };
 
   const hoverClasses: Record<string, string> = {
-    primary: "hover:bg-slate-700",
+    primary: "hover:bg-success/90",
     destructive: "hover:bg-destructive/90",
     secondary: "hover:bg-muted/80",
     ghost: "hover:bg-muted",

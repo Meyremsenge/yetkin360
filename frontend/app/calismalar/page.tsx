@@ -4,11 +4,13 @@ import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
+import { ChainLegend, PageBody, PageHeader } from "@/components/page-layout";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { listEngagements } from "@/lib/api/engagements";
 import { cn } from "@/lib/utils";
+import { CHAIN_PROGRESS, STATUS_TONE, type StatusTone } from "@/lib/ui/engagement-chain";
 import messages from "@/messages/tr.json";
 
 type FilterKey = keyof typeof messages.calismalar.filterTabs;
@@ -22,40 +24,15 @@ const FILTER_STATUSES: Record<Exclude<FilterKey, "all">, string[]> = {
   closed: ["REJECTED", "CANCELLED", "DISPUTED"],
 };
 
-type BadgeVariant = "default" | "success" | "error" | "warning";
+type BadgeVariant = StatusTone;
 
-const STATUS_BADGE_VARIANT: Record<string, BadgeVariant> = {
-  DRAFT: "default",
-  PENDING_APPROVAL: "warning",
-  ACTIVE: "default",
-  PENDING_EVALUATION: "warning",
-  EVALUATED: "default",
-  VERIFIED: "success",
-  RESOLVED: "success",
-  REJECTED: "error",
-  CANCELLED: "error",
-  DISPUTED: "error",
-};
+const STATUS_BADGE_VARIANT = STATUS_TONE;
 
 const DOT_CLASS: Record<BadgeVariant, string> = {
   default: "bg-foreground",
   success: "bg-success",
   error: "bg-destructive",
   warning: "bg-warning",
-};
-
-// Completed chain steps per status; `broken` marks the step where the chain stopped (1-based).
-const CHAIN_PROGRESS: Record<string, { done: number; broken?: number }> = {
-  DRAFT: { done: 0 },
-  PENDING_APPROVAL: { done: 0 },
-  ACTIVE: { done: 1 },
-  PENDING_EVALUATION: { done: 2 },
-  EVALUATED: { done: 2 },
-  VERIFIED: { done: 4 },
-  RESOLVED: { done: 4 },
-  REJECTED: { done: 0, broken: 1 },
-  CANCELLED: { done: 1, broken: 2 },
-  DISPUTED: { done: 3, broken: 4 },
 };
 
 function formatTemplate(template: string, values: Record<string, string | number>): string {
@@ -139,15 +116,37 @@ function SealMark() {
   );
 }
 
+type Tone = "ink" | "ochre" | "pine";
+
+const TONE_TILE: Record<Tone, string> = {
+  ink: "bg-muted text-foreground",
+  ochre: "bg-warning/10 text-warning",
+  pine: "bg-success/10 text-success",
+};
+
 const SUMMARY: {
   key: keyof typeof messages.calismalar.summary;
   filterKey: FilterKey;
-  accent?: boolean;
+  tone: Tone;
+  icon: string;
 }[] = [
-  { key: "total", filterKey: "all" },
-  { key: "ongoing", filterKey: "ongoing" },
-  { key: "verified", filterKey: "verified", accent: true },
+  {
+    key: "total",
+    filterKey: "all",
+    tone: "ink",
+    icon: "M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16M4 6h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z",
+  },
+  { key: "ongoing", filterKey: "ongoing", tone: "ochre", icon: "M12 6v6l4 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z" },
+  { key: "verified", filterKey: "verified", tone: "pine", icon: "M22 11.1V12a10 10 0 1 1-5.9-9.1M22 4 12 14l-3-3" },
 ];
+
+// "Next step" chip colour follows the status badge.
+const NEXT_TONE: Record<BadgeVariant, string> = {
+  default: "bg-muted text-foreground",
+  warning: "bg-warning/10 text-warning",
+  success: "bg-success/10 text-success",
+  error: "bg-destructive/10 text-destructive",
+};
 
 function PlusIcon() {
   return (
@@ -244,40 +243,37 @@ export default function CalismalarPage() {
 
   return (
     <AppShell>
-      <div className="max-w-[1120px] px-4 py-8 md:px-6 lg:px-10">
-        <header className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="font-serif text-[32px] font-semibold leading-10 text-foreground">
-              {messages.calismalar.listTitle}
-            </h1>
-            {!isLoading && !isError ? (
-              <p className="mt-2 text-sm text-muted-foreground">
-                {formatTemplate(messages.calismalar.listCount, { count: items.length })}
-              </p>
-            ) : null}
-          </div>
+      <PageHeader
+        eyebrow={messages.shell.groupWork}
+        title={messages.calismalar.listTitle}
+        description={messages.calismalar.pageDescription}
+        actions={
           <Link
             href="/calismalar/kurulus-sec"
-            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-success px-4 text-sm font-medium text-background shadow-[0_8px_20px_-12px_rgba(38,84,69,0.8)] transition-colors hover:bg-success/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2"
+            className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md bg-success px-5 text-sm font-medium text-background shadow-[0_8px_20px_-12px_rgba(38,84,69,0.8)] transition-colors hover:bg-success/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2"
           >
             <PlusIcon />
             {messages.calismalar.newEngagementButton}
           </Link>
-        </header>
+        }
+      >
+        <ChainLegend />
+      </PageHeader>
 
+      <PageBody>
         {isLoading ? (
-          <div className="mt-8">
+          <div>
             <SkeletonCards />
           </div>
         ) : isError ? (
-          <Alert variant="error" className="mt-8 flex items-center justify-between gap-4">
+          <Alert variant="error" className="flex items-center justify-between gap-4">
             <span>{messages.calismalar.loadError}</span>
             <Button variant="secondary" size="sm" onClick={() => void refetch()}>
               {messages.calismalar.retry}
             </Button>
           </Alert>
         ) : items.length === 0 ? (
-          <section className="mt-8 rounded-lg border border-border bg-card p-6">
+          <section className="rounded-xl border border-border bg-card p-6">
             <BriefcaseIcon />
             <p className="mt-4 text-base font-semibold text-foreground">
               {messages.calismalar.emptyMessage}
@@ -288,18 +284,20 @@ export default function CalismalarPage() {
           </section>
         ) : (
           <>
-            <dl className="mt-8 grid grid-cols-3 overflow-hidden rounded-xl border border-border bg-card">
-              {SUMMARY.map(({ key, filterKey, accent }) => (
-                <div key={key} className="border-r border-border px-4 py-4 last:border-r-0 md:px-6">
-                  <dt className="text-xs text-muted-foreground">{messages.calismalar.summary[key]}</dt>
-                  <dd
-                    className={cn(
-                      "mt-1 font-serif text-3xl font-semibold tabular-nums",
-                      accent ? "text-success" : "text-foreground"
-                    )}
-                  >
-                    {countFor(filterKey)}
-                  </dd>
+            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {SUMMARY.map(({ key, filterKey, tone, icon }) => (
+                <div key={key} className="flex items-center gap-4 rounded-xl border border-border bg-card px-5 py-4">
+                  <span className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-lg", TONE_TILE[tone])}>
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d={icon} />
+                    </svg>
+                  </span>
+                  <div>
+                    <dt className="text-xs text-muted-foreground">{messages.calismalar.summary[key]}</dt>
+                    <dd className="font-serif text-[28px] font-semibold leading-tight tabular-nums text-foreground">
+                      {countFor(filterKey)}
+                    </dd>
+                  </div>
                 </div>
               ))}
             </dl>
@@ -381,6 +379,17 @@ export default function CalismalarPage() {
                             <p className="mt-1 text-sm text-muted-foreground">
                               {messages.calismalar.kind[item.kind]} · {item.organization_name}
                             </p>
+                            <p
+                              className={cn(
+                                "mt-4 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[13px] font-medium",
+                                NEXT_TONE[variant]
+                              )}
+                            >
+                              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                                <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                              {messages.calismalar.nextStep[item.status as keyof typeof messages.calismalar.nextStep]}
+                            </p>
                           </div>
                           <div className="flex items-center justify-between gap-2 border-t border-border pt-4">
                             <MiniChain status={item.status} />
@@ -419,7 +428,7 @@ export default function CalismalarPage() {
             </div>
           </>
         )}
-      </div>
+      </PageBody>
     </AppShell>
   );
 }

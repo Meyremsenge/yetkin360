@@ -107,7 +107,7 @@ export function TransitionActions({
   };
 
   return (
-    <div className="mb-6 border-t pt-6">
+    <div className="mt-4 border-t border-border pt-4">
       {candidates.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {candidates.map((toStatus) => (
@@ -117,7 +117,7 @@ export function TransitionActions({
               disabled={mutation.isPending}
               className={
                 toStatus === "REJECTED" || toStatus === "CANCELLED"
-                  ? "bg-red-600 hover:bg-red-700"
+                  ? "border border-destructive/30 bg-transparent text-destructive hover:bg-destructive/10"
                   : ""
               }
             >

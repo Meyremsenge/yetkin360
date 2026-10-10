@@ -88,7 +88,7 @@ export default function ProfileHero({ profile }: { profile: Record<string, unkno
   };
 
   return (
-    <section className="mt-6 overflow-hidden rounded-xl border border-border bg-card">
+    <section className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_20px_50px_-40px_rgba(34,31,27,0.45)]">
       <div className="relative flex flex-col gap-6 p-5 sm:p-7 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-5">
           <span

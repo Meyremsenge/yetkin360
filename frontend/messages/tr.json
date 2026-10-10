@@ -330,7 +330,8 @@
         "signals": "Kanıt sinyali"
       }
     },
-    "skillSearchLabel": "Eklemek istediğiniz yetkinlik"
+    "skillSearchLabel": "Eklemek istediğiniz yetkinlik",
+    "pageDescription": "Kimliğiniz, yetkinlikleriniz ve kanıtlarınız. Kanıtla desteklenen her şey mühürle işaretlenir."
   },
   "kurumBaglan": {
     "title": "Kuruma Bağlanma Talebi",
@@ -494,7 +495,36 @@
     },
     "newCardTitle": "Yeni bir çalışma başlatın",
     "newCardHint": "Kuruluşu seçin, deneyiminizi beyan edin; kanıt ve tanıklık zinciri buradan başlar.",
-    "updatedLabel": "Son güncelleme"
+    "updatedLabel": "Son güncelleme",
+    "pageDescription": "Staj ve projeleriniz burada. Her çalışma dört adımda doğrulanmış deneyime dönüşür.",
+    "nextStep": {
+      "DRAFT": "Onaya gönderin",
+      "PENDING_APPROVAL": "Kuruluş onayı bekleniyor",
+      "ACTIVE": "Görev ve kanıt ekleyin",
+      "PENDING_EVALUATION": "Kuruluş değerlendirmesi bekleniyor",
+      "EVALUATED": "Tanıklık bekleniyor",
+      "VERIFIED": "Tamamlandı, paylaşılabilir",
+      "RESOLVED": "Tamamlandı",
+      "REJECTED": "Kuruluş reddetti",
+      "CANCELLED": "Çalışma kapatıldı",
+      "DISPUTED": "İtiraz inceleniyor"
+    },
+    "taskStatus": {
+      "PLANNED": "Planlandı",
+      "IN_PROGRESS": "Sürüyor",
+      "DONE": "Tamamlandı"
+    },
+    "detail": {
+      "statusCardTitle": "Durum ve işlemler",
+      "nextStepLabel": "Sıradaki adım",
+      "tasksHint": "Bu çalışmada üstlendiğiniz işler.",
+      "deliverablesHint": "Teslim ettiğiniz çıktılar ve onları kanıtlayan dosyalar.",
+      "attestationsHint": "Kuruluşun bu çalışma için verdiği tanıklıklar.",
+      "verifiedTitle": "Bu çalışma doğrulandı",
+      "verifiedText": "Kanıt ve tanıklıkla mühürlendi; doğrulanmış deneyim olarak profilinize işlendi.",
+      "verifiedLink": "Profilde gör",
+      "submittedOn": "Teslim: {date}"
+    }
   },
   "calismaOlustur": {
     "title": "Yeni Çalışma Oluştur",

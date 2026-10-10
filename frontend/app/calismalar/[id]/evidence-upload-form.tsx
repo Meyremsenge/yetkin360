@@ -10,7 +10,7 @@ import {
   type EvidenceRecord,
   type ScanStatus,
 } from "@/lib/api/evidence";
-import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import messages from "@/messages/tr.json";
 
 /**
@@ -24,10 +24,10 @@ import messages from "@/messages/tr.json";
 const POLL_INTERVAL_MS = 3000;
 
 const SCAN_STATUS_CLASS: Record<ScanStatus, string> = {
-  PENDING: "bg-amber-100 text-amber-700",
-  CLEAN: "bg-green-100 text-green-700",
-  INFECTED: "bg-red-100 text-red-700",
-  FAILED: "bg-red-100 text-red-700",
+  PENDING: "bg-warning/10 text-warning",
+  CLEAN: "bg-success/10 text-success",
+  INFECTED: "bg-destructive/10 text-destructive",
+  FAILED: "bg-destructive/10 text-destructive",
 };
 
 type Step = "idle" | "requesting_url" | "uploading" | "recording";
@@ -109,13 +109,19 @@ export function EvidenceUploadForm({ deliverableId }: { deliverableId: string })
   };
 
   return (
-    <div className="mt-2 pl-3 border-l-2 border-slate-200">
+    <div className="mt-3">
       {items.length > 0 && (
-        <ul className="space-y-1 mb-2">
+        <ul className="mb-3 space-y-2">
           {items.map((item) => (
-            <li key={item.id} className="flex items-center justify-between text-xs">
-              <span className="text-slate-600">
-                {item.mime_type} · {(item.size_bytes / 1024).toFixed(0)} KB
+            <li
+              key={item.id}
+              className="flex items-center justify-between gap-3 rounded-md border border-border bg-card px-3 py-2 text-xs"
+            >
+              <span className="flex items-center gap-2.5 text-foreground">
+                <span className="flex h-7 w-7 items-center justify-center rounded-md bg-sand font-mono text-[10px] font-medium uppercase text-foreground">
+                  {(item.mime_type.split("/")[1] ?? "").slice(0, 4)}
+                </span>
+                <span className="font-mono text-muted-foreground">{(item.size_bytes / 1024).toFixed(0)} KB</span>
               </span>
               <span
                 className={`px-2 py-0.5 rounded-full font-medium ${SCAN_STATUS_CLASS[item.scan_status]}`}
@@ -127,9 +133,20 @@ export function EvidenceUploadForm({ deliverableId }: { deliverableId: string })
         </ul>
       )}
 
-      <Label htmlFor={`evidence-file-${deliverableId}`} className="text-xs">
-        {messages.calismalar.evidenceUploadLabel}
-      </Label>
+      <label
+        htmlFor={`evidence-file-${deliverableId}`}
+        className={cn(
+          "flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-muted-foreground/30 bg-card px-4 py-3 text-sm transition-colors hover:border-success hover:bg-success/[0.04] focus-within:border-success",
+          step !== "idle" && "pointer-events-none opacity-60"
+        )}
+      >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-success/10 text-success" aria-hidden="true">
+          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+          </svg>
+        </span>
+        <span className="text-foreground">{messages.calismalar.evidenceUploadLabel}</span>
+      </label>
       {/* `accept` UX kolaylığı için var: işletim sistemi dosya seçicisi uyumsuz dosyaları
           soluklaştırıp seçilemez yapar. Bu bir güvenlik sınırı DEĞİL — gerçek kontrol
           validateFile()'da MIME türüne bakıyor; `accept` bypass edilse (ör. sürükle-bırak,
@@ -140,7 +157,7 @@ export function EvidenceUploadForm({ deliverableId }: { deliverableId: string })
         accept=".pdf,.jpg,.jpeg,.png,.docx"
         disabled={step !== "idle"}
         onChange={handleFileChange}
-        className="block text-xs"
+        className="sr-only"
       />
 
       {step !== "idle" && (

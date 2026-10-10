@@ -40,14 +40,14 @@ describe("AC-3: bg-renk-token-tanimsiz — tailwind.config.ts token bağlantıs�
 
 /**
  * AC-4: Mevcut shadcn bileşenleri hardcoded renk bağlamını korur (regresyon testi)
- * button.tsx'te `bg-slate-900` hâlâ var — bu bileşen yeni token'lar tarafından ezilmemeli
+ * button.tsx'te `bg-success` hâlâ var — bu bileşen yeni token'lar tarafından ezilmemeli
  */
 describe("AC-4: bg-renk-token-tanimsiz — mevcut komponent renkleri korunur (regresyon)", () => {
-  it("AC-4: button.tsx hardcoded bg-slate-900 rengi korunmuş", () => {
+  it("AC-4: button.tsx hardcoded bg-success rengi korunmuş", () => {
     const source = readFileSync(buttonPath, "utf-8");
 
-    // button bileşeni hâlâ hardcoded bg-slate-900 kullanmalı
-    expect(source).toContain("bg-slate-900");
+    // button bileşeni hâlâ hardcoded bg-success kullanmalı
+    expect(source).toContain("bg-success");
   });
 
   it("AC-4: button.tsx text-white rengi korunmuş", () => {
@@ -57,11 +57,11 @@ describe("AC-4: bg-renk-token-tanimsiz — mevcut komponent renkleri korunur (re
     expect(source).toContain("text-white");
   });
 
-  it("AC-4: button.tsx hover:bg-slate-700 rengi korunmuş", () => {
+  it("AC-4: button.tsx hover:bg-success/90 rengi korunmuş", () => {
     const source = readFileSync(buttonPath, "utf-8");
 
-    // button bileşeni hâlâ hover:bg-slate-700 kullanmalı
-    expect(source).toContain("hover:bg-slate-700");
+    // button bileşeni hâlâ hover:bg-success/90 kullanmalı
+    expect(source).toContain("hover:bg-success/90");
   });
 
   it("AC-4: button bileşeni kendi style'ını taşır", () => {
@@ -69,7 +69,7 @@ describe("AC-4: bg-renk-token-tanimsiz — mevcut komponent renkleri korunur (re
 
     // button className'inde style tanımlı olmalı (template literal kullanıyor)
     expect(source).toContain("className");
-    expect(source).toContain("bg-slate-900");
+    expect(source).toContain("bg-success");
   });
 });
 
@@ -176,11 +176,11 @@ describe("AC-3: fe03-token-font-degisimi — Tailwind color token'ları güncell
     expect(source).toContain("--border: 36 16% 86%");
   });
 
-  it("AC-3: globals.css'te card token yeni değeri 40 33% 99.5%", () => {
+  it("AC-3: globals.css'te card token yeni değeri 0 0% 100%", () => {
     const source = readFileSync(globalsPath, "utf-8");
 
-    // --card: 40 33% 99.5%;
-    expect(source).toContain("--card: 40 33% 99.5%");
+    // --card: 0 0% 100%;
+    expect(source).toContain("--card: 0 0% 100%");
   });
 });
 
@@ -190,11 +190,11 @@ describe("AC-3: fe03-token-font-degisimi — Tailwind color token'ları güncell
  * Davranış Sözleşmesi (atdd.md satır 55) — paper rengi
  */
 describe("AC-4: fe03-token-font-degisimi — background token güncellendi", () => {
-  it("AC-4: globals.css'te background token yeni değeri 40 30% 97%", () => {
+  it("AC-4: globals.css'te background token yeni değeri 40 33% 98.6%", () => {
     const source = readFileSync(globalsPath, "utf-8");
 
-    // --background: 40 30% 97%; (paper rengi — saf beyaz değil, krem tonu)
-    expect(source).toContain("--background: 40 30% 97%");
+    // --background: 40 33% 98.6%; (paper rengi — saf beyaz değil, krem tonu)
+    expect(source).toContain("--background: 40 33% 98.6%");
   });
 
   it("AC-4: globals.css'te foreground token yeni değeri 30 12% 12%", () => {

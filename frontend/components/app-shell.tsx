@@ -16,7 +16,7 @@ import { SealMark } from "@/components/brand/brand-mark";
 import messages from "@/messages/tr.json";
 
 const FOCUS_RING =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-1 focus-visible:ring-offset-sand";
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-1 focus-visible:ring-offset-card";
 const CONTENT_GUTTER = "px-4 md:px-6 lg:px-10";
 const OVERLAY_SHADOW = "shadow-[0_8px_24px_-12px_rgba(34,31,27,0.25)]";
 
@@ -245,8 +245,8 @@ function NavItem({
         className={cn(
           "flex h-9 items-center gap-2.5 rounded-md border px-3 text-sm transition-colors duration-[120ms]",
           active
-            ? "border-border bg-card font-medium text-foreground"
-            : "border-transparent text-muted-foreground hover:bg-background hover:text-foreground",
+            ? "border-success/15 bg-success/[0.08] font-medium text-success"
+            : "border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
           FOCUS_RING
         )}
       >
@@ -406,7 +406,7 @@ function UserMenu({
   onLogout: () => void;
   variant: "sidebar" | "topbar";
 }) {
-  const { name, subtitle, email, publicSlug } = identity;
+  const { name, subtitle, email } = identity;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -454,35 +454,7 @@ function UserMenu({
           <p className="truncate font-mono text-[11px] text-muted-foreground">{masked}</p>
         </div>
       </div>
-      <ul className="p-1.5">
-        <li>
-          <Link
-            href="/profil"
-            onClick={() => setOpen(false)}
-            className={cn(itemClass, "text-foreground hover:bg-muted")}
-          >
-            <Icon name="user" className="text-muted-foreground" />
-            {messages.shell.profileLink}
-          </Link>
-        </li>
-        {publicSlug && (
-          <li>
-            <Link
-              href={`/p/${encodeURIComponent(publicSlug)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setOpen(false)}
-              className={cn(itemClass, "text-foreground hover:bg-muted")}
-            >
-              <Icon name="globe" className="text-muted-foreground" />
-              <span className="flex-1">{messages.shell.publicProfileLink}</span>
-              <Icon name="arrowUpRight" className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="sr-only">{messages.shell.newTab}</span>
-            </Link>
-          </li>
-        )}
-      </ul>
-      <div className="border-t border-border p-1.5">
+      <div className="p-1.5">
         <button
           type="button"
           onClick={() => {
@@ -512,7 +484,7 @@ function UserMenu({
           variant === "sidebar"
             ? cn(
                 "flex h-14 w-full items-center gap-3 rounded-lg border px-2.5 text-left transition-colors duration-[120ms]",
-                open ? "border-border bg-card" : "border-transparent hover:border-border hover:bg-card/70"
+                open ? "border-border bg-muted/60" : "border-transparent hover:border-border hover:bg-muted/40"
               )
             : "flex h-10 w-10 items-center justify-center rounded-full",
           FOCUS_RING
@@ -581,7 +553,7 @@ function MobileDrawer({
         aria-modal="true"
         aria-label={messages.shell.mainNav}
         className={cn(
-          "absolute inset-y-0 left-0 flex w-[280px] max-w-[85vw] flex-col overflow-y-auto border-r border-border bg-sand",
+          "absolute inset-y-0 left-0 flex w-[280px] max-w-[85vw] flex-col overflow-y-auto border-r border-border bg-card",
           OVERLAY_SHADOW
         )}
       >
@@ -620,7 +592,7 @@ function ShellLoading() {
       <span role="status" className="sr-only">
         {messages.shell.loading}
       </span>
-      <aside className="fixed inset-y-0 left-0 hidden w-[248px] flex-col border-r border-border bg-sand px-5 pb-3 pt-6 lg:flex">
+      <aside className="fixed inset-y-0 left-0 hidden w-[248px] flex-col border-r border-border bg-card px-5 pb-3 pt-6 lg:flex">
         <SkeletonBar className="h-6 w-28 bg-background" />
         <SkeletonBar className="mt-2 h-3 w-40 bg-background" />
         <div className="mt-10 space-y-3">
@@ -652,7 +624,7 @@ function ShellLoading() {
 function ShellErrorFrame({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-background">
-      <header className={cn(CONTENT_GUTTER, "flex h-14 items-center border-b border-border bg-sand lg:h-16")}>
+      <header className={cn(CONTENT_GUTTER, "flex h-14 items-center border-b border-border bg-card lg:h-16")}>
         <Logo />
       </header>
       <main className={cn(CONTENT_GUTTER, "max-w-[600px] pt-8")}>{children}</main>
@@ -758,7 +730,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {data && navData && (
         <>
           {/* Desktop sidebar (≥1024px) */}
-          <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col border-r border-border bg-sand lg:flex">
+          <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col border-r border-border bg-card lg:flex">
             <SidebarHeader />
             <div aria-hidden="true" className="mx-5 h-px bg-border" />
             <nav aria-label={messages.shell.mainNav} className="flex-1 overflow-y-auto pb-6">
@@ -796,7 +768,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className={cn(data && "lg:pl-[248px]")}>
         {hasBanners && (
-          <div className={cn(CONTENT_GUTTER, "max-w-[1120px] space-y-2 pt-6")}>
+          <div className={cn(CONTENT_GUTTER, "mx-auto max-w-[1200px] space-y-2 pt-6")}>
             {cachedError && (
               <ErrorBanner
                 message={cachedError.message}
