@@ -768,3 +768,32 @@ def scoped_public_skill_signals(
             source_engagement.in_(engagement_ids),
         )
     )
+
+
+def scoped_institution_students(
+    session: Session, principal: Principal, institution_id: uuid.UUID
+) -> Select:
+    """
+    Talent profiles linked to an institution, as seen by that institution's members.
+
+    Coordinator panel student list. A profile is in scope only when:
+      - the principal is a member of the institution (institution_ids: COORDINATOR,
+        ADMIN, SUPERVISOR); anyone else gets an empty query (caller answers 404),
+      - the student's link was approved (TalentProfile.institution_id is set by the
+        D10 link-request workflow, so the student consented),
+      - the student did not choose PRIVATE (INSTITUTION and wider levels include
+        their own institution),
+      - the profile is not deleted and the user account is ACTIVE.
+    """
+    if institution_id not in principal.institution_ids:
+        return select(TalentProfile).where(TalentProfile.id.in_([]))
+    return (
+        select(TalentProfile)
+        .join(User, User.id == TalentProfile.user_id)
+        .where(
+            TalentProfile.institution_id == institution_id,
+            TalentProfile.visibility != "PRIVATE",
+            TalentProfile.deleted_at.is_(None),
+            User.status == "ACTIVE",
+        )
+    )

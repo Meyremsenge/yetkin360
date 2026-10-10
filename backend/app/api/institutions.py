@@ -21,6 +21,7 @@ from app.services.institution import (
     create_institution,
     get_institution,
     invite_member,
+    list_institution_students,
     list_pending_link_requests,
     reject_institution_link,
     request_institution_link,
@@ -103,6 +104,25 @@ class PendingLinkRequestsListResponse(BaseModel):
     """Response schema for GET /institutions/{id}/link-requests."""
 
     items: list[PendingLinkRequestItem]
+
+
+class InstitutionStudentItem(BaseModel):
+    """Linked student row for the coordinator panel (no email, slug only if PUBLIC)."""
+
+    talent_profile_id: str
+    full_name: str
+    department: str | None = None
+    study_year: int | None = None
+    public_slug: str | None = None
+    verified_count: int
+    in_progress_count: int
+    total_count: int
+
+
+class InstitutionStudentsResponse(BaseModel):
+    """Response schema for GET /institutions/{id}/students."""
+
+    items: list[InstitutionStudentItem]
 
 
 class DashboardEngagementItem(BaseModel):
@@ -586,6 +606,42 @@ def get_coordinator_dashboard_endpoint(
     except ValueError:
         # Authorization failure or institution not found (both → 404)
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Kurum bulunamadı."})
+
+
+# ============================================================================
+# Linked students (coordinator panel)
+# ============================================================================
+
+
+@router.get("/{institution_id}/students", status_code=200, response_model=InstitutionStudentsResponse)
+def list_institution_students_endpoint(
+    institution_id: uuid.UUID,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> InstitutionStudentsResponse:
+    """
+    Students linked to the institution, with verified / in-progress engagement counts.
+
+    Only members of THE institution (coordinator, admin, supervisor) may list; anyone
+    else (other institutions, talents, organization members, unknown ids) gets 404.
+
+    Status codes:
+        200: List retrieved (possibly empty)
+        401: Unauthenticated
+        404: Institution not found or user not authorized
+    """
+    if principal.user_id is None:
+        raise HTTPException(status_code=401, detail={"code": "UNAUTHORIZED", "message": "Kimlik doğrulama gerekli."})
+
+    if institution_id not in principal.institution_ids:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Kurum bulunamadı."})
+
+    scoped = scoped_institutions(session, principal).where(Institution.id == institution_id)
+    if get_scoped_or_404(scoped, session) is None:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Kurum bulunamadı."})
+
+    items = list_institution_students(session=session, principal=principal, institution_id=institution_id)
+    return InstitutionStudentsResponse(items=[InstitutionStudentItem(**item) for item in items])
 
 
 # ============================================================================

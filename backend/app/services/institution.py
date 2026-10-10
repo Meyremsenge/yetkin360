@@ -3,17 +3,23 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from app.models import (
+    Engagement,
     Institution,
     InstitutionLinkRequest,
     InstitutionMember,
     TalentProfile,
     User,
 )
-from app.services.authorization import Principal, scoped_own_institution_link_requests
+from app.services.authorization import (
+    Principal,
+    scoped_engagements,
+    scoped_institution_students,
+    scoped_own_institution_link_requests,
+)
 
 
 class DuplicateDomainError(Exception):
@@ -390,3 +396,74 @@ def list_my_link_requests(session: Session, principal: Principal) -> list[dict]:
         }
         for r in requests
     ]
+
+
+# Engagement statuses grouped for the coordinator's per-student counts.
+_VERIFIED_STATUSES = ("VERIFIED", "RESOLVED")
+_IN_PROGRESS_STATUSES = ("PENDING_APPROVAL", "ACTIVE", "PENDING_EVALUATION", "EVALUATED")
+
+
+def list_institution_students(
+    session: Session, principal: Principal, institution_id: uuid.UUID
+) -> list[dict]:
+    """
+    Students linked to the institution with their engagement counts (coordinator panel).
+
+    Students come from scoped_institution_students (approved link, not PRIVATE). Counts
+    are computed only over engagements the principal already sees through
+    scoped_engagements AND that belong to this institution, so a student's work with
+    another institution, or on their own, is never counted or revealed here.
+    Email is deliberately not returned; public_slug only when the profile is PUBLIC.
+
+    Returns:
+        List of dicts ordered by full_name: talent_profile_id, full_name, department,
+        study_year, public_slug, verified_count, in_progress_count, total_count.
+    """
+    students = (
+        session.execute(
+            scoped_institution_students(session, principal, institution_id).order_by(
+                TalentProfile.full_name.asc()
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not students:
+        return []
+
+    engagements = (
+        scoped_engagements(session, principal)
+        .where(
+            Engagement.institution_id == institution_id,
+            Engagement.talent_id.in_([s.id for s in students]),
+        )
+        .subquery()
+    )
+    counts = {
+        row.talent_id: row
+        for row in session.execute(
+            select(
+                engagements.c.talent_id,
+                func.count().label("total"),
+                func.count().filter(engagements.c.status.in_(_VERIFIED_STATUSES)).label("verified"),
+                func.count().filter(engagements.c.status.in_(_IN_PROGRESS_STATUSES)).label("in_progress"),
+            ).group_by(engagements.c.talent_id)
+        ).all()
+    }
+
+    result = []
+    for student in students:
+        row = counts.get(student.id)
+        result.append(
+            {
+                "talent_profile_id": str(student.id),
+                "full_name": student.full_name,
+                "department": student.department,
+                "study_year": student.study_year,
+                "public_slug": student.public_slug if student.visibility == "PUBLIC" else None,
+                "verified_count": row.verified if row else 0,
+                "in_progress_count": row.in_progress if row else 0,
+                "total_count": row.total if row else 0,
+            }
+        )
+    return result
