@@ -311,6 +311,10 @@ PLAN maddesi olarak açılmamıştı. Detay: `HATA.md`.**
 - [ ] 3.37 Alan adı gaspı, DNS transaction, hatırlatma sınırları (HATA_DUZELTME_PROMPT A-15, GUV-09, AUTHZ-04, GUV-13) @be2
 - [ ] 3.38 Refresh sonrası CSRF başlığı yeniden okunsun (HATA_DUZELTME_PROMPT B-01, ENT-03, L-13) @fe
 - [ ] 3.39 `/me` rol bilgisi, admin linkleri, durum etiketleri, 307 (HATA_DUZELTME_PROMPT B-02, ENT-04, ENT-05, IS-04, ENT-06) @fe
+      > Kısmen yapıldı (2026-10-10 kod doğrulaması): `/me` `is_platform_admin` + `email_verified` dönüyor, admin
+      > linkleri yalnız admin'e gösteriliyor, `EVALUATED`/`DISPUTED`/`RESOLVED` etiketleri var, skill-signals
+      > için `/` alias router'ı var. Eksik: B-02 tarifindeki `roles` nesnesi (`organization_admin_ids` vb.)
+      > `me.py`'de bulunamadı. Kutu bu yüzden açık.
 - [ ] 3.40 Engagement tarihleri (oluşturma + PATCH) (HATA_DUZELTME_PROMPT B-03, IS-02) @be1
 - [ ] 3.41 Public token, VE görünürlüğü, geri çekme okuma filtresi (HATA_DUZELTME_PROMPT B-04, IS-01, GUV-05, GUV-03, L-05) @be1
 - [ ] 3.42 Skill sinyal ve tanıklık kuralları (HATA_DUZELTME_PROMPT B-05, GUV-04, IS-05, IS-06) @be1
@@ -321,7 +325,14 @@ PLAN maddesi olarak açılmamıştı. Detay: `HATA.md`.**
 - [ ] 3.47 Tanıklık, geri çekme, deneyim paylaşımı ekranları (HATA_DUZELTME_PROMPT B-10, ENT-01, IS-01) @fe
 - [ ] 3.48 Frontend testleri + CI'da vitest (HATA_DUZELTME_PROMPT B-11, TEST-01) @fe
 - [ ] 3.49 Kurum bağlanma talepleri + admin kuyruğu reddi (HATA_DUZELTME_PROMPT B-12, IS-10, IS-11) @fe
+      > Kısmen yapıldı (2026-10-10 kod doğrulaması): ret kısmı tamam — `POST /admin/organizations/{id}/verification-reject`
+      > (`admin.py`) + frontend `rejectVerification` + kuyruk ekranı; bağlanma talepleri için liste/onay/ret uçları,
+      > `GET /talents/me/institution-link-requests`, `app/profil/institution-link-section.tsx` ve koordinatör paneli var.
+      > Eksik: B-12 madde 4'teki `GET /institutions?q=` (kurum adı araması) `institutions.py`'de bulunamadı.
 - [ ] 3.50 Profil düzeltmeleri, skill yönetimi, frontend bağımlılığı (HATA_DUZELTME_PROMPT B-13, IS-09, DEP-02, L-06, L-10) @fe
+      > Kısmen yapıldı (2026-10-10 kod doğrulaması): `public_slug` biçim doğrulaması + `SLUG_TAKEN` 409, alan temizleme
+      > (`model_fields_set`), MERGED→DEPRECATED engeli ve `next` 16.3.8 (DEP-02) var. Eksik/doğrulanamadı: slug uzunluk
+      > sınırı (3-40) ve rezerve kelimeler, skill `parent_id` döngü kontrolü `me.py`/`skill.py`'de bulunamadı.
 - [x] 3.52 Kayıt ekranına hesap türü seçimi: `register` isteğine opsiyonel
       `account_kind` (TALENT/ORGANIZATION/INSTITUTION) + `entity_name` eklendi
       — docs/API.md §2.1 revize edildi, §"Kayıta hesap türü" (kullanıcı
