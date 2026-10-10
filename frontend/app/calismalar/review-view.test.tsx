@@ -78,7 +78,7 @@ describe("ReviewView (kurum/kuruluş çalışma listesi)", () => {
 
   it("arama öğrenci adına ve başlığa göre süzer; sonuç yoksa bunu söyler", () => {
     render(<ReviewView items={ITEMS} scope={ORG} />);
-    const search = screen.getByLabelText("Öğrenci ya da çalışma ara");
+    const search = screen.getByLabelText("Kişi ya da çalışma ara");
 
     fireEvent.change(search, { target: { value: "ipek" } });
     expect(within(screen.getByTestId("review-approved-card")).getByText("Mobil Proje")).toBeTruthy();
@@ -101,6 +101,6 @@ describe("ReviewView (kurum/kuruluş çalışma listesi)", () => {
   it("adı boş gelen öğrenci için yer tutucu gösterilir", () => {
     render(<ReviewView items={[summary({ talent_name: "" })]} scope={ORG} />);
 
-    expect(within(screen.getByTestId("review-approved-card")).getByText("Adsız öğrenci")).toBeTruthy();
+    expect(within(screen.getByTestId("review-approved-card")).getByText("Adsız kişi")).toBeTruthy();
   });
 });

@@ -501,7 +501,7 @@ describe("KurulusPanelPage (/kurulus/[id]/panel)", () => {
       await waitFor(() =>
         expect(screen.getByText("Henüz bu kuruluşla yürütülen bir çalışma yok.")).toBeTruthy()
       );
-      expect(screen.getAllByRole("button", { name: /Öğrenci bağlantısını kopyala/ }).length).toBeGreaterThan(0);
+      expect(screen.getAllByRole("button", { name: /Başlatma bağlantısını kopyala/ }).length).toBeGreaterThan(0);
     });
 
     it("Tümünü gör /calismalar'a gider", async () => {

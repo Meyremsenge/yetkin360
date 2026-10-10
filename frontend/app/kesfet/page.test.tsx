@@ -179,7 +179,7 @@ describe("KesfetPage (/kesfet)", () => {
           expect.objectContaining({ department: "Hukuk" })
         )
       );
-      expect(screen.getByRole("button", { name: "Bölüm: Hukuk filtresini kaldır" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Bölüm / alan: Hukuk filtresini kaldır" })).toBeTruthy();
       expect(await screen.findByText(t.talentsEmptyFilteredTitle)).toBeTruthy();
 
       vi.mocked(listDiscoverTalents).mockResolvedValue(page([alice]));

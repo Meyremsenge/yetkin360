@@ -151,8 +151,12 @@ export default function ProfileForm({ initialData }: ProfileFormProps) {
               min="0"
               max="10"
               placeholder="3"
+              aria-describedby="study_year_hint"
               className={`${fieldClass} tabular-nums`}
             />
+            <p id="study_year_hint" className="mt-1 text-xs text-muted-foreground">
+              {messages.profil.studyYearOptional}
+            </p>
             <FieldError message={errors.study_year?.message} />
           </div>
 
