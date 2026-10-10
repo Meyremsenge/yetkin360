@@ -674,3 +674,123 @@ def test_plan_3_28_demo_data_is_realistic_and_linked(session):
 
     titles = [e.title for e in session.query(Engagement).filter(Engagement.status == "VERIFIED")]
     assert titles and not any(t.startswith("Engagement ") for t in titles)
+
+
+# ============================================================================
+# SPRINT J: organization teams with units, showcase, Ayşe's demo story
+# ============================================================================
+
+
+def _seed_story(session):
+    from scripts.seed import seed_demo_story, seed_org_team, seed_verified_organizations
+
+    seed_skills(session)
+    seed_talents(session)
+    seed_institutions_and_organizations(session)
+    seed_verified_organizations(session)
+    seed_engagements(session)
+    seed_org_team(session)
+    seed_demo_story(session)
+    session.commit()
+
+
+def _member_rows(session, legal_id):
+    from app.models import OrganizationMember
+
+    return {
+        email: (role, unit)
+        for email, role, unit in session.query(User.email, OrganizationMember.role, OrganizationMember.unit)
+        .join(OrganizationMember, OrganizationMember.user_id == User.id)
+        .join(Organization, Organization.id == OrganizationMember.organization_id)
+        .filter(Organization.legal_id == legal_id)
+    }
+
+
+def test_sprint_j_org_team_members_units_and_showcase(session):
+    _seed_story(session)
+
+    assert _member_rows(session, "ORG1") == {
+        "org1-admin@seed.local": ("ADMIN", "Yönetim"),
+        "org1-yazilim@seed.local": ("MEMBER", "Yazılım"),
+        "org1-tasarim@seed.local": ("MEMBER", "Tasarım"),
+    }
+    assert _member_rows(session, "ORG3")["org3-ik@seed.local"] == ("MEMBER", "İnsan Kaynakları")
+
+    names = {
+        email: name
+        for email, name in session.query(User.email, TalentProfile.full_name).join(
+            TalentProfile, TalentProfile.user_id == User.id
+        ).filter(User.email.in_(["org1-yazilim@seed.local", "org1-tasarim@seed.local", "org3-ik@seed.local"]))
+    }
+    assert names == {
+        "org1-yazilim@seed.local": "Mehmet Kaya",
+        "org1-tasarim@seed.local": "Zeynep Arı",
+        "org3-ik@seed.local": "Elif Çınar",
+    }
+
+    showcase = {o.legal_id: o.showcase_public for o in session.query(Organization).filter(Organization.legal_id.like("ORG%"))}
+    assert showcase == {"ORG1": True, "ORG2": False, "ORG3": False, "ORG4": True, "ORG5": False}
+
+
+def test_sprint_j_ayse_story_runs_through_the_real_state_machine(session):
+    from app.models import Evaluation, InstitutionMember
+    from scripts.seed import DEMO_STORY_ENGAGEMENTS
+
+    _seed_story(session)
+
+    ayse = session.query(TalentProfile).join(User, TalentProfile.user_id == User.id).filter(
+        User.email == "ogrenci1@seed.local"
+    ).one()
+    mehmet = session.query(User).filter_by(email="org1-yazilim@seed.local").one()
+    lale = session.query(Organization).filter_by(legal_id="ORG1").one()
+    galata = session.query(Institution).filter_by(domain="inst1.seed.local").one()
+    assert ayse.institution_id == galata.id
+
+    by_title = {
+        e.title: e
+        for e in session.query(Engagement).filter(
+            Engagement.title.in_([row[0][0] for row in DEMO_STORY_ENGAGEMENTS])
+        )
+    }
+    assert {title: e.status for title, e in by_title.items()} == {
+        row[0][0]: row[1] for row in DEMO_STORY_ENGAGEMENTS
+    }
+    for engagement in by_title.values():
+        assert engagement.talent_id == ayse.id
+        assert engagement.organization_id == lale.id
+        assert engagement.institution_id == galata.id
+        assert engagement.supervisor_user_id == mehmet.id
+
+    verified = by_title["Mobil Bankacılık API Stajı"]
+    evaluation = session.query(Evaluation).filter_by(engagement_id=verified.id, direction="ORG_TO_TALENT").one()
+    assert evaluation.evaluator_user_id == mehmet.id
+    attestation = session.query(Attestation).filter_by(engagement_id=verified.id).one()
+    sealer = session.query(InstitutionMember).filter_by(
+        institution_id=galata.id, user_id=attestation.attestor_user_id
+    ).one()
+    assert sealer.role == "COORDINATOR"
+    assert session.query(VerifiedExperience).filter_by(engagement_id=verified.id).count() == 1
+
+
+def test_sprint_j_story_is_idempotent(session):
+    from app.models import OrganizationMember
+    from scripts.seed import seed_demo_story, seed_org_team
+
+    _seed_story(session)
+    counts = (
+        session.query(func.count(User.id)).scalar(),
+        session.query(func.count(OrganizationMember.id)).scalar(),
+        session.query(func.count(Engagement.id)).scalar(),
+        session.query(func.count(Attestation.id)).scalar(),
+    )
+
+    assert seed_org_team(session) == 0
+    assert seed_demo_story(session) == 0
+    session.commit()
+
+    assert counts == (
+        session.query(func.count(User.id)).scalar(),
+        session.query(func.count(OrganizationMember.id)).scalar(),
+        session.query(func.count(Engagement.id)).scalar(),
+        session.query(func.count(Attestation.id)).scalar(),
+    )
