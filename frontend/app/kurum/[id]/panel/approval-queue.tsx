@@ -423,7 +423,7 @@ export function AttestationSection({
               trailing={
                 canSeal ? (
                   <Link
-                    href={`/calismalar/${item.id}`}
+                    href={`/calismalar/${item.id}#taniklik`}
                     aria-label={formatTemplate(t.sealButtonOf, {
                       title: item.title,
                     })}

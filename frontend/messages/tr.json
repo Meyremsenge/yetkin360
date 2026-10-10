@@ -791,6 +791,7 @@
       "verifiedTitle": "Bu çalışma doğrulandı",
       "verifiedText": "Kanıt ve tanıklıkla mühürlendi; doğrulanmış deneyim olarak profilinize işlendi.",
       "verifiedLink": "Profilde gör",
+      "verifiedTextOther": "Kanıt ve tanıklıkla mühürlendi; öğrencinin doğrulanmış deneyimi olarak kaydedildi.",
       "submittedOn": "Teslim: {date}"
     }
   },

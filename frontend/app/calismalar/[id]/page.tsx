@@ -183,15 +183,20 @@ export default function CalismaDetayPage() {
               <SealMark className="y360-stamp h-16 w-16 shrink-0" />
               <div>
                 <p className="font-serif text-xl font-semibold text-success">{c.detail.verifiedTitle}</p>
-                <p className="mt-0.5 text-sm text-foreground">{c.detail.verifiedText}</p>
+                <p className="mt-0.5 text-sm text-foreground">
+                  {isSubject ? c.detail.verifiedText : c.detail.verifiedTextOther}
+                </p>
               </div>
             </div>
-            <Link
-              href="/profil"
-              className="inline-flex h-10 shrink-0 items-center justify-center rounded-md bg-success px-4 text-sm font-medium text-background hover:bg-success/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2"
-            >
-              {c.detail.verifiedLink}
-            </Link>
+            {/* /profil is the viewer's own profile: only meaningful for the student. */}
+            {isSubject ? (
+              <Link
+                href="/profil"
+                className="inline-flex h-10 shrink-0 items-center justify-center rounded-md bg-success px-4 text-sm font-medium text-background hover:bg-success/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2"
+              >
+                {c.detail.verifiedLink}
+              </Link>
+            ) : null}
           </div>
         ) : null}
 
@@ -235,7 +240,10 @@ export default function CalismaDetayPage() {
                           </span>
                         ) : null}
                       </div>
-                      <EvidenceUploadForm deliverableId={deliverable.id} engagementId={engagement.id} />
+                      {/* Only the engagement's own student may attach evidence (server: 404 otherwise). */}
+                      {isSubject ? (
+                        <EvidenceUploadForm deliverableId={deliverable.id} engagementId={engagement.id} />
+                      ) : null}
                     </li>
                   ))}
                 </ul>

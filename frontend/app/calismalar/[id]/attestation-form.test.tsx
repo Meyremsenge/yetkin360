@@ -89,6 +89,11 @@ describe("AttestationForm", () => {
     expect(screen.getByText("Tanıklığı Gönder")).toBeTruthy();
   });
 
+  it("panellerin 'Mühürle' bağlantısı için form #taniklik çapasını taşır", () => {
+    renderWithQueryClient(<AttestationForm engagement={evaluatedEngagement} onSuccess={vi.fn()} />);
+    expect(document.getElementById("taniklik")?.tagName).toBe("FORM");
+  });
+
   it("viewer.can_attest false ise (ör. ACTIVE) hiçbir şey render edilmez", () => {
     renderWithQueryClient(
       <AttestationForm
