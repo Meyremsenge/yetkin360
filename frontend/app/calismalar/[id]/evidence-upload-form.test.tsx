@@ -258,6 +258,8 @@ describe("EvidenceUploadForm", () => {
         qr_raw_data: null,
         extracted_name: null,
         name_match: null,
+        page_name: null,
+        page_match: null,
         decision: "PENDING",
         decided_by_user_id: null,
         decided_at: null,
@@ -291,6 +293,8 @@ describe("EvidenceUploadForm", () => {
           qr_raw_data: null,
           extracted_name: "Ahmet Yılmaz",
           name_match: true,
+          page_name: null,
+          page_match: null,
           decision: "PENDING",
           decided_by_user_id: null,
           decided_at: null,
@@ -307,6 +311,36 @@ describe("EvidenceUploadForm", () => {
       expect(screen.getByText(new RegExp(messages.calismalar.certificateCheckNameMatchYes))).toBeTruthy();
       expect(screen.getByText(messages.calismalar.certificateCheckVerifyLinkLabel)).toBeTruthy();
       expect(screen.getByText(messages.calismalar.certificateCheckDecisionPending)).toBeTruthy();
+    });
+
+    it("resmi sayfa karşılaştırması (page_name/page_match) varsa gösterilir", async () => {
+      vi.mocked(listEvidenceForDeliverable).mockResolvedValue([mockCertificateRecord]);
+      vi.mocked(listCertificateChecksForEngagement).mockResolvedValue([
+        {
+          id: "check-1",
+          evidence_id: mockCertificateRecord.id,
+          status: "DONE",
+          provider: "COURSERA",
+          credential_id: "ABC123",
+          verify_url: "https://coursera.org/verify/ABC123",
+          qr_raw_data: null,
+          extracted_name: "Ahmet Yılmaz",
+          name_match: true,
+          page_name: "Ahmet Yılmaz",
+          page_match: true,
+          decision: "PENDING",
+          decided_by_user_id: null,
+          decided_at: null,
+          created_at: "2026-10-10T00:00:00Z",
+        },
+      ]);
+
+      render(<EvidenceUploadForm deliverableId="del-1" engagementId="eng-1" />);
+
+      await waitFor(() => {
+        expect(screen.getByText(new RegExp(messages.calismalar.certificateCheckPageNameLabel))).toBeTruthy();
+      });
+      expect(screen.getByText(new RegExp(messages.calismalar.certificateCheckPageMatchYes))).toBeTruthy();
     });
 
     it("409 ALREADY_REQUESTED hatasında uyarı mesajı gösterilir", async () => {

@@ -187,6 +187,8 @@ export interface CertificateCheck {
   qr_raw_data: string | null;
   extracted_name: string | null;
   name_match: boolean | null;
+  page_name: string | null;
+  page_match: boolean | null;
   decision: CertificateCheckDecision;
   decided_by_user_id: string | null;
   decided_at: string | null;

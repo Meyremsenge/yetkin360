@@ -219,6 +219,20 @@ export function EvidenceUploadForm({
                                 )}
                               </p>
                             )}
+                            {check.page_name && (
+                              <p>
+                                {messages.calismalar.certificateCheckPageNameLabel}: {check.page_name}{" "}
+                                {check.page_match !== null && (
+                                  <span className={check.page_match ? "text-green-700" : "text-red-700"}>
+                                    (
+                                    {check.page_match
+                                      ? messages.calismalar.certificateCheckPageMatchYes
+                                      : messages.calismalar.certificateCheckPageMatchNo}
+                                    )
+                                  </span>
+                                )}
+                              </p>
+                            )}
                             {check.verify_url && (
                               <p>
                                 <a

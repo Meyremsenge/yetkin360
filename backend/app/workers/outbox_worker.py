@@ -705,6 +705,48 @@ def _names_match(extracted_name: str, profile_name: str) -> bool:
     return difflib.SequenceMatcher(a=a, b=b).ratio() >= 0.85
 
 
+# PLAN 3.55b: yalnız bu domainlere otomatik istek atılır — AI'nin ürettiği
+# verify_url'e kör güvenilmez, SSRF/keyfi-URL riskine karşı allowlist.
+_VERIFY_PAGE_ALLOWED_HOSTS = {"coursera.org", "www.coursera.org"}
+
+
+def _fetch_official_page_name(verify_url: str) -> str | None:
+    """
+    Resmi doğrulama sayfasından ismi DETERMİNİSTİK olarak çeker (regex, AI
+    değil) — yalnız Coursera (sunucu taraflı render edilir, düz HTTP yeterli).
+    Udemy bilerek desteklenmiyor: sayfası Cloudflare bot korumasının arkasında
+    (canlı test: düz istek 403 "Just a moment..." döner) — bypass denemek
+    uygun değil, link koordinatöre gösterilmeye devam eder (manuel tıklama).
+
+    Sayfa parse edilemezse None döner (hata değil — "bilinmiyor" anlamına
+    gelir, "eşleşmiyor" değil). Ağ hatası/timeout'ta da None döner: bu
+    doğrulama tamamen opsiyonel bir öneri, outbox retry'ını tetiklemeye
+    değmez (ana çıkarım zaten tamamlanmış olur).
+    """
+    import re
+    from urllib.parse import urlparse
+
+    import httpx
+
+    host = (urlparse(verify_url).hostname or "").lower()
+    if host not in _VERIFY_PAGE_ALLOWED_HOSTS:
+        return None
+
+    try:
+        response = httpx.get(
+            verify_url, timeout=15, follow_redirects=True, headers={"User-Agent": "Mozilla/5.0"}
+        )
+        if response.status_code != 200:
+            return None
+    except Exception:
+        # Opsiyonel bir ek öneri — network/SSL/DNS hatası ana çıkarımı (zaten
+        # bellekte hazır) FAILED'e düşürmemeli, outbox retry'ını da tetiklememeli.
+        return None
+
+    match = re.search(r"Completed by\s*<strong>([^<]+)</strong>", response.text)
+    return match.group(1).strip() if match else None
+
+
 def _extract_certificate_fields(image_png: bytes, api_key: str, model: str) -> dict | None:
     """
     Calls OpenRouter's vision-capable model to TRANSFORM the certificate image
@@ -859,16 +901,23 @@ def certificate_check_requested_handler(payload: dict, outbox_id: int) -> None:
 
             extracted_name = fields["extracted_name"]
             name_match = _names_match(extracted_name, talent_name) if extracted_name else None
+            verify_url = qr_data or fields["verify_url"]
+
+            page_name = _fetch_official_page_name(verify_url) if verify_url else None
+            page_match = _names_match(extracted_name, page_name) if extracted_name and page_name else None
+
             session.execute(
                 update(CertificateCheck).where(CertificateCheck.id == check_id, CertificateCheck.status == "PENDING")
                 .values(
                     status="DONE",
                     provider=fields["provider"],
                     credential_id=fields["credential_id"],
-                    verify_url=qr_data or fields["verify_url"],
+                    verify_url=verify_url,
                     qr_raw_data=qr_data,
                     extracted_name=extracted_name,
                     name_match=name_match,
+                    page_name=page_name,
+                    page_match=page_match,
                     model=settings.openrouter_model,
                 )
             )

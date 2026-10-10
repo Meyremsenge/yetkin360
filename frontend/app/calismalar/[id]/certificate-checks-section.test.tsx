@@ -27,6 +27,8 @@ const pendingDecisionCheck: CertificateCheck = {
   qr_raw_data: "https://coursera.org/verify/ABC123",
   extracted_name: "Ahmet Yılmaz",
   name_match: false,
+  page_name: null,
+  page_match: null,
   decision: "PENDING",
   decided_by_user_id: null,
   decided_at: null,
@@ -67,6 +69,19 @@ describe("CertificateChecksSection", () => {
     expect(screen.getByText(new RegExp(messages.calismalar.certificateCheckNameMatchNo))).toBeTruthy();
     expect(screen.getByRole("button", { name: messages.calismalar.certificateCheckConfirmButton })).toBeTruthy();
     expect(screen.getByRole("button", { name: messages.calismalar.certificateCheckRejectButton })).toBeTruthy();
+  });
+
+  it("resmi sayfa adı ve eşleşmesi varsa koordinatöre gösterilir", async () => {
+    vi.mocked(listCertificateChecksForEngagement).mockResolvedValue([
+      { ...pendingDecisionCheck, page_name: "Başka Bir İsim", page_match: false },
+    ]);
+
+    renderWithQueryClient(<CertificateChecksSection engagementId="eng-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText(new RegExp(messages.calismalar.certificateCheckPageNameLabel))).toBeTruthy();
+    });
+    expect(screen.getByText(new RegExp(messages.calismalar.certificateCheckPageMatchNo))).toBeTruthy();
   });
 
   it("Onayla tıklanınca resolveCertificateCheck CONFIRMED ile çağrılır", async () => {

@@ -78,6 +78,13 @@ class CertificateCheck(Base):
     name_match: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
+    # PLAN 3.55b: resmi doğrulama sayfasından (yalnız Coursera — Udemy Cloudflare
+    # bot korumasının arkasında, otomatik erişilemez) deterministik olarak
+    # çekilen ad ve sertifikadaki adla karşılaştırması. AI karar vermez; bu da
+    # düz string karşılaştırması (bkz. _names_match) — yalnız bir öneridir.
+    page_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    page_match: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+
     decision: Mapped[str] = mapped_column(String(20), nullable=False, server_default="PENDING")
     decided_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True

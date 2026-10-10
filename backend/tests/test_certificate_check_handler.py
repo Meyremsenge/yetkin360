@@ -179,6 +179,114 @@ class TestCertificateCheckHandler:
         assert check.name_match is True
         assert check.decision == "PENDING"  # AI never decides
         assert check.verify_url == "https://udemy.com/cert/UC-123"
+        assert check.page_name is None  # udemy.com allowlist'te değil — otomatik çekilmedi
+        assert check.page_match is None
+
+    def test_coursera_verify_page_is_fetched_and_compared(self, session, talent_cc, handler_env, monkeypatch):
+        """PLAN 3.55b: coursera.org allowlist'te — resmi sayfadan ad çekilip
+        sertifikadaki adla DETERMİNİSTİK karşılaştırılır (AI kararı değil)."""
+        ev = _evidence(session, talent_cc)
+        check = _pending_check(session, ev)
+        handler_env(_blank_png())
+        _install_fake_openrouter(
+            monkeypatch,
+            body=_chat_response(
+                '{"provider": "COURSERA", "credential_id": "ABC123", '
+                '"extracted_name": "Ahmet Yılmaz", "verify_url": "https://coursera.org/verify/ABC123"}'
+            ),
+        )
+
+        class _PageResponse:
+            status_code = 200
+            text = "<div>Completed by <strong>Ahmet Yılmaz</strong></div>"
+
+        page_calls = []
+
+        def fake_get(url, timeout=None, follow_redirects=None, headers=None):
+            page_calls.append(url)
+            return _PageResponse()
+
+        monkeypatch.setattr("httpx.get", fake_get)
+
+        outbox_worker.certificate_check_requested_handler({"certificate_check_id": str(check.id)}, 1)
+
+        assert page_calls == ["https://coursera.org/verify/ABC123"]
+        session.refresh(check)
+        assert check.page_name == "Ahmet Yılmaz"
+        assert check.page_match is True
+
+    def test_coursera_page_name_mismatch_is_flagged_false(self, session, talent_cc, handler_env, monkeypatch):
+        ev = _evidence(session, talent_cc)
+        check = _pending_check(session, ev)
+        handler_env(_blank_png())
+        _install_fake_openrouter(
+            monkeypatch,
+            body=_chat_response(
+                '{"provider": "COURSERA", "credential_id": "ABC123", '
+                '"extracted_name": "Ahmet Yılmaz", "verify_url": "https://coursera.org/verify/ABC123"}'
+            ),
+        )
+
+        class _PageResponse:
+            status_code = 200
+            text = "<div>Completed by <strong>Başka Bir İsim</strong></div>"
+
+        monkeypatch.setattr("httpx.get", lambda *a, **k: _PageResponse())
+
+        outbox_worker.certificate_check_requested_handler({"certificate_check_id": str(check.id)}, 1)
+
+        session.refresh(check)
+        assert check.page_name == "Başka Bir İsim"
+        assert check.page_match is False
+
+    def test_arbitrary_host_is_never_fetched_ssrf_guard(self, session, talent_cc, handler_env, monkeypatch):
+        """AI'nin ürettiği verify_url'e kör güvenilmez — allowlist dışı hiçbir
+        host'a istek atılmaz (SSRF/keyfi URL savunması)."""
+        ev = _evidence(session, talent_cc)
+        check = _pending_check(session, ev)
+        handler_env(_blank_png())
+        _install_fake_openrouter(
+            monkeypatch,
+            body=_chat_response(
+                '{"provider": "UNKNOWN", "credential_id": null, "extracted_name": "Ahmet Yılmaz", '
+                '"verify_url": "https://internal.attacker.example/steal?x=1"}'
+            ),
+        )
+        calls = []
+        monkeypatch.setattr("httpx.get", lambda *a, **k: calls.append(a) or (_ for _ in ()).throw(AssertionError("should not fetch")))
+
+        outbox_worker.certificate_check_requested_handler({"certificate_check_id": str(check.id)}, 1)
+
+        assert calls == []
+        session.refresh(check)
+        assert check.page_name is None
+        assert check.page_match is None
+
+    def test_coursera_page_fetch_failure_does_not_fail_the_handler(self, session, talent_cc, handler_env, monkeypatch):
+        """Doğrulama sayfası çekimi opsiyonel bir ek öneri — başarısız olursa
+        ana çıkarım (provider/isim/kimlik no) yine DONE olarak kaydedilir."""
+        ev = _evidence(session, talent_cc)
+        check = _pending_check(session, ev)
+        handler_env(_blank_png())
+        _install_fake_openrouter(
+            monkeypatch,
+            body=_chat_response(
+                '{"provider": "COURSERA", "credential_id": "ABC123", '
+                '"extracted_name": "Ahmet Yılmaz", "verify_url": "https://coursera.org/verify/ABC123"}'
+            ),
+        )
+
+        def failing_get(*a, **k):
+            raise _FakeHttpError("network down")
+
+        monkeypatch.setattr("httpx.get", failing_get)
+
+        outbox_worker.certificate_check_requested_handler({"certificate_check_id": str(check.id)}, 1)
+
+        session.refresh(check)
+        assert check.status == "DONE"
+        assert check.page_name is None
+        assert check.page_match is None
 
     def test_name_mismatch_is_flagged_false_not_rejected(self, session, talent_cc, handler_env, monkeypatch):
         """Ad uyuşmazlığı AI'nin kararı değil — sadece name_match=False, decision PENDING kalır."""
