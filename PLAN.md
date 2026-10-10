@@ -388,7 +388,11 @@ Yeni özellik yok. Yalnız prova ve kırık olanın düzeltilmesi.
 
 Yapılmazsa sunumda yol haritası olarak anlatılır.
 
-- [ ] R.1 Basit aday filtreleme ekranı (skill + kurum filtresi — matching motoru değil)
+- [x] R.1 Basit aday filtreleme ekranı (skill + kurum filtresi — matching motoru değil)
+      > "Keşfet" olarak yapıldı: `GET /discover/talents` + `GET /discover/organizations`
+      > ve `/kesfet` sayfası. Yalnız `PUBLIC` profiller listelenir, oturum açmış herkes
+      > görür; puan/öneri yok. Arayüzde yetkinlik, bölüm ve şehir filtresi var; kurum
+      > (üniversite) filtresi API'de mevcut, arayüzde yok. Tasarım: docs/kesfet-tasarim.md.
 - [ ] R.2 Excel/PDF rapor dışa aktarma (akreditasyon argümanı)
 - [ ] R.3 İtiraz (`DISPUTED`) akışı
 

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { login } from "@/lib/api/client";
+import { apiFetch, login } from "@/lib/api/client";
 import { loginSchema, type LoginFormData } from "@/lib/auth/schemas";
 import { sanitizeNext } from "@/lib/auth/sanitize-next";
 import messages from "@/messages/tr.json";
@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { SESSION_QUERY_KEY } from "@/lib/session/use-session";
 
 const DEFAULT_AFTER_LOGIN = "/calismalar";
+const ADMIN_AFTER_LOGIN = "/admin/dogrulama-kuyrugu";
+const ADMIN_ROLE = "PLATFORM_ADMIN";
 
 const fieldClass =
   "y360-autofill h-11 bg-card border-border px-3.5 text-[15px] text-foreground placeholder:text-muted-foreground/70 transition-colors hover:border-muted-foreground/40 focus:border-success focus:ring-success/25 motion-reduce:transition-none";
@@ -28,7 +30,13 @@ function useQueryClientSafe() {
   }
 }
 
-export default function LoginForm({ nextPath }: { nextPath?: string }) {
+/**
+ * `adminOnly` is the /admin/giris variant: same POST /auth/login, but a
+ * non-admin account is signed straight back out and shown the generic
+ * credentials error. This is UX only — every /admin/* request is still
+ * decided on the server (require_platform_admin).
+ */
+export default function LoginForm({ nextPath, adminOnly = false }: { nextPath?: string; adminOnly?: boolean }) {
   const router = useRouter();
   const queryClient = useQueryClientSafe();
   const {
@@ -42,7 +50,19 @@ export default function LoginForm({ nextPath }: { nextPath?: string }) {
 
   const onSubmit = async (data: LoginFormData) => {
     try {
-      await login(data.email, data.password);
+      const result = await login(data.email, data.password);
+      const isAdmin = result?.role === ADMIN_ROLE;
+
+      if (adminOnly && !isAdmin) {
+        // Drop the session that was just created; a failed sign-out must not
+        // hide the error from the user.
+        await apiFetch("/auth/logout", { method: "POST" }).catch(() => undefined);
+        if (queryClient) {
+          await queryClient.invalidateQueries({ queryKey: SESSION_QUERY_KEY });
+        }
+        setError("root", { message: messages.giris.invalidCredentials });
+        return;
+      }
 
       // Invalidate session cache (if provider available)
       if (queryClient) {
@@ -51,8 +71,10 @@ export default function LoginForm({ nextPath }: { nextPath?: string }) {
 
       // Redirect (sanitize next path to prevent open redirect).
       // "/" is the public landing page, so a logged-in user goes to the app instead.
+      // An admin has no student pages, so their default is the admin queue.
       const safeNext = sanitizeNext(nextPath);
-      router.push(safeNext === "/" ? DEFAULT_AFTER_LOGIN : safeNext);
+      const fallback = isAdmin ? ADMIN_AFTER_LOGIN : DEFAULT_AFTER_LOGIN;
+      router.push(safeNext === "/" ? fallback : safeNext);
     } catch (error) {
       // Duck-typing: check for error object with status property
       if (error && typeof error === "object") {

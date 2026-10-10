@@ -214,6 +214,13 @@
     "subtitle": "Sicil kaydınıza erişmek için e-posta ve şifrenizle giriş yapın.",
     "backHome": "Ana sayfaya dön"
   },
+  "adminGiris": {
+    "title": "Yönetici Girişi",
+    "subtitle": "Bu giriş yalnızca platform yöneticileri içindir.",
+    "brandSentence": "Kurum doğrulama, yetkinlik kataloğu ve sahtecilik incelemesi buradan yönetilir.",
+    "userLoginLink": "Öğrenci ve kuruluş girişi",
+    "linkFromLogin": "Yönetici girişi"
+  },
   "kayit": {
     "title": "Kayıt Ol",
     "accountKindLabel": "Hesap Türü",

@@ -554,6 +554,15 @@ tek ekrandaki kanıtı:
 ### 2.10 Admin — `/admin`
 
 **Tümü `ADMIN` yetkisi gerektirir** (`users.is_platform_admin = true`).
+Kontrol router seviyesindedir (`require_platform_admin`): `/admin` altına eklenen
+her uç onu kendiliğinden alır; admin olmayan `404` görür
+(`tests/authorization/test_admin_router_gate.py` rota tablosundan üretilir).
+
+**Giriş:** Admin için ayrı bir backend ucu yoktur; `POST /auth/login` kullanılır
+ve yanıttaki `role` alanı `PLATFORM_ADMIN` döner. Arayüzde ayrı giriş sayfası
+`/admin/giris`'tir: admin olmayan hesap girerse oturum hemen kapatılır ve genel
+"e-posta veya şifre hatalı" mesajı gösterilir. Bu bir kullanıcı deneyimi ayrımıdır,
+güvenlik sınırı değildir — sınır yukarıdaki sunucu kontrolüdür.
 
 | Metot | Yol | İstek | Cevap | Hatalar |
 |---|---|---|---|---|
