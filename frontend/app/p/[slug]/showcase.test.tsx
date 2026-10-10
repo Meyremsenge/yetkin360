@@ -112,15 +112,14 @@ describe("PublicProfilePage — vitrin", () => {
     expect(screen.getByText("3 hafta")).toBeTruthy();
   });
 
-  it("QR düğmesi QR kodu açar ve kapatır", async () => {
+  it("sicil kartında QR kod her zaman görünür ve profil adresini taşır", async () => {
     vi.mocked(getPublicProfile).mockResolvedValueOnce(richProfile);
     renderPage();
 
-    const toggle = await screen.findByRole("button", { name: "QR kod" });
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    fireEvent.click(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getAllByRole("img", { name: "Ayşe Yılmaz profiline giden QR kod" }).length).toBeGreaterThan(0);
+    const qr = await screen.findAllByRole("img", { name: "Ayşe Yılmaz profiline giden QR kod" });
+    expect(qr.length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "QR kod" })).toBeNull();
+    expect(screen.getAllByText(`${window.location.origin}/p/ayse-yilmaz`).length).toBeGreaterThan(0);
   });
 
   it("linki kopyala profil adresini panoya yazar", async () => {

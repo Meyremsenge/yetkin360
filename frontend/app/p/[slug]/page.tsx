@@ -11,11 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PublicTopBar, publicFocusRing } from "@/components/public-top-bar";
 import { SealMark } from "@/components/brand/brand-mark";
-import { ParticleSeal } from "@/components/brand/particle-seal";
 import { ChainLegend } from "@/components/page-layout";
 import { ExperienceCard } from "@/components/public-profile/experience-card";
 import { QrCode } from "@/components/public-profile/qr-code";
-import { ShareActions } from "@/components/public-profile/share-actions";
+import { ProfileCard } from "@/components/public-profile/profile-card";
 import { SkillMap } from "@/components/public-profile/skill-map";
 import messages from "@/messages/tr.json";
 
@@ -78,7 +77,7 @@ function useProfileUrl(slug: string): string {
   return `${origin}/p/${encodeURIComponent(slug)}`;
 }
 
-function Hero({ profile, url }: { profile: PublicProfile; url: string }) {
+function Hero({ profile }: { profile: PublicProfile }) {
   const meta = [
     profile.department,
     profile.study_year ? t.studyYear.replace("{n}", String(profile.study_year)) : null,
@@ -87,7 +86,7 @@ function Hero({ profile, url }: { profile: PublicProfile; url: string }) {
   const institutionTrust = profile.institution_trust_level;
 
   return (
-    <header className="y360-rise relative grid gap-6 md:grid-cols-[1fr_176px] md:items-center">
+    <header className="y360-rise relative">
       <div className="min-w-0">
         <p className="inline-flex items-center gap-2 font-mono text-xs text-success">
           <SealMark className="h-4 w-4" />
@@ -117,37 +116,8 @@ function Hero({ profile, url }: { profile: PublicProfile; url: string }) {
             ) : null}
           </p>
         ) : null}
-        <div className="mt-6">
-          <ShareActions url={url} name={profile.display_name} />
-        </div>
-      </div>
-      <div className="hidden md:block print:hidden">
-        <ParticleSeal className="h-44 w-44" particles={1400} />
       </div>
     </header>
-  );
-}
-
-function TrustStrip({ profile }: { profile: PublicProfile }) {
-  const stats = [
-    { value: profile.verified_experiences.length, label: t.statExperiences },
-    { value: profile.skills?.length ?? 0, label: t.statSkills },
-    { value: profile.attesting_organization_count ?? 0, label: t.statOrganizations },
-  ];
-  return (
-    <dl
-      aria-label={t.statsLabel}
-      className="grid grid-cols-3 divide-x divide-border rounded-lg border border-border bg-card"
-    >
-      {stats.map((stat) => (
-        <div key={stat.label} className="px-3 py-4 text-center md:px-6 md:py-5 md:text-left">
-          <dd className="font-serif text-[28px] font-semibold leading-none tabular-nums text-foreground md:text-[32px]">
-            {stat.value}
-          </dd>
-          <dt className="mt-2 text-xs text-muted-foreground md:text-[13px]">{stat.label}</dt>
-        </div>
-      ))}
-    </dl>
   );
 }
 
@@ -169,67 +139,71 @@ function ProfileView({ profile, slug }: { profile: PublicProfile; slug: string }
   const skills = profile.skills ?? [];
 
   return (
-    <>
-      <Hero profile={profile} url={url} />
+    <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-x-14 print:block">
+      <div className="lg:col-start-1 lg:row-start-1">
+        <Hero profile={profile} />
+      </div>
 
-      {experiences.length > 0 ? (
-        <div className="mt-10">
-          <TrustStrip profile={profile} />
+      <aside className="lg:col-start-2 lg:row-span-2 lg:row-start-1">
+        <div className="lg:sticky lg:top-8">
+          <ProfileCard profile={profile} url={url} />
         </div>
-      ) : null}
+      </aside>
 
-      {skills.length > 0 ? (
-        <section className="mt-14 print:mt-8 print:break-inside-avoid" aria-labelledby="skill-map-title">
-          <div id="skill-map-title">
-            <SectionHeading title={t.skillMapTitle} lead={t.skillMapLead} />
+      <div className="min-w-0 lg:col-start-1 lg:row-start-2">
+        {skills.length > 0 ? (
+          <section className="print:mt-8 print:break-inside-avoid" aria-labelledby="skill-map-title">
+            <div id="skill-map-title">
+              <SectionHeading title={t.skillMapTitle} lead={t.skillMapLead} />
+            </div>
+            <div className="mt-5">
+              <SkillMap skills={skills} />
+            </div>
+          </section>
+        ) : null}
+
+        <section className={skills.length > 0 ? "mt-14 print:mt-8" : ""} aria-labelledby="timeline-title">
+          <div id="timeline-title">
+            <SectionHeading title={t.timelineTitle} lead={experiences.length > 0 ? t.timelineLead : undefined} />
+          </div>
+          {experiences.length === 0 ? (
+            <EmptyExperiences />
+          ) : (
+            <ol className="mt-6 space-y-5">
+              {experiences.map((exp, index) => (
+                <ExperienceCard key={exp.id} experience={exp} index={index} />
+              ))}
+            </ol>
+          )}
+        </section>
+
+        <section className="mt-14 print:hidden" aria-labelledby="how-title">
+          <div id="how-title">
+            <SectionHeading title={t.howTitle} lead={t.howLead} />
           </div>
           <div className="mt-5">
-            <SkillMap skills={skills} />
+            <ChainLegend current={4} />
           </div>
         </section>
-      ) : null}
 
-      <section className="mt-14 print:mt-8" aria-labelledby="timeline-title">
-        <div id="timeline-title">
-          <SectionHeading title={t.timelineTitle} lead={experiences.length > 0 ? t.timelineLead : undefined} />
-        </div>
-        {experiences.length === 0 ? (
-          <EmptyExperiences />
-        ) : (
-          <ol className="mt-6 space-y-5">
-            {experiences.map((exp, index) => (
-              <ExperienceCard key={exp.id} experience={exp} index={index} />
-            ))}
-          </ol>
-        )}
-      </section>
-
-      <section className="mt-14 print:hidden" aria-labelledby="how-title">
-        <div id="how-title">
-          <SectionHeading title={t.howTitle} lead={t.howLead} />
-        </div>
-        <div className="mt-5">
-          <ChainLegend current={4} />
-        </div>
-      </section>
-
-      <footer className="mt-14 flex flex-col gap-4 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-xs text-muted-foreground">{t.profileUrlLabel}</p>
-          <p className="mt-1 break-all font-mono text-[13px] text-foreground">{url}</p>
-        </div>
-        <Link
-          href="/"
-          className={`inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-border px-4 text-sm font-medium text-foreground transition-colors hover:border-success hover:text-success print:hidden ${publicFocusRing}`}
-        >
-          {messages.publicVerification.whatIs}
-        </Link>
-        <div className="hidden items-center gap-4 print:flex">
-          <QrCode value={url} label={t.qrLabel.replace("{name}", profile.display_name)} className="h-24 w-24" />
-          <p className="max-w-[260px] text-xs text-muted-foreground">{t.printNote}</p>
-        </div>
-      </footer>
-    </>
+        <footer className="mt-14 flex flex-col gap-4 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">{t.profileUrlLabel}</p>
+            <p className="mt-1 break-all font-mono text-[13px] text-foreground">{url}</p>
+          </div>
+          <Link
+            href="/"
+            className={`inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-border px-4 text-sm font-medium text-foreground transition-colors hover:border-success hover:text-success print:hidden ${publicFocusRing}`}
+          >
+            {messages.publicVerification.whatIs}
+          </Link>
+          <div className="hidden items-center gap-4 print:flex">
+            <QrCode value={url} label={t.qrLabel.replace("{name}", profile.display_name)} className="h-24 w-24" />
+            <p className="max-w-[260px] text-xs text-muted-foreground">{t.printNote}</p>
+          </div>
+        </footer>
+      </div>
+    </div>
   );
 }
 
@@ -248,7 +222,7 @@ export default function PublicProfilePage() {
         <PublicTopBar label={t.topBarLabel} />
       </div>
 
-      <main className="mx-auto max-w-[880px] px-4 pb-20 pt-8 md:px-8 md:pt-14 print:max-w-none print:px-0 print:pt-0">
+      <main className="mx-auto max-w-[1200px] px-4 pb-20 pt-8 md:px-8 md:pt-14 print:max-w-none print:px-0 print:pt-0">
         {isLoading ? (
           <ProfileSkeleton />
         ) : isError ? (
