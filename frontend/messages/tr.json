@@ -1240,7 +1240,15 @@
     "form": {
       "confirm": "Sahtekarlık Onayla",
       "dismiss": "Yanlış Alarm"
-    }
+    },
+    "summary": {
+      "pending": "Bekleyen işaret",
+      "high": "Yüksek güvenli",
+      "rule": "Kural kaynaklı"
+    },
+    "emptyHint": "Kurallar veya yapay zeka şüpheli bir durum yakaladığında burada incelemenizi bekler.",
+    "listHint": "Yüksek güvenli işaretler en üstte. Kararınız hesabı kendiliğinden etkilemez.",
+    "listTitle": "İncelenecek işaretler"
   },
   "adminSkills": {
     "title": "Yetkinlik Yönetimi",
