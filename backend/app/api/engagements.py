@@ -237,9 +237,15 @@ class EngagementSummaryResponse(BaseModel):
     title: str
     kind: str
     status: str
+    organization_id: str
+    institution_id: str | None = None
     organization_name: str
     version: int
     updated_at: datetime
+    # The student the engagement belongs to; the organization/institution side
+    # lists engagements by student.
+    talent_id: str
+    talent_name: str
 
     class Config:
         from_attributes = True
@@ -379,7 +385,8 @@ def get_engagements(
     AC-1, AC-2, AC-3, AC-8: List engagements scoped to principal.
 
     Returns:
-        200 + {items: [{id, title, kind, status, organization_name, version, updated_at}]}
+        200 + {items: [{id, title, kind, status, organization_id, institution_id,
+        organization_name, version, updated_at, talent_id, talent_name}]}
 
     Errors:
         - 401 UNAUTHORIZED: Unauthenticated
@@ -423,11 +430,15 @@ def get_engagements(
             title=eng.title,
             kind=eng.kind,
             status=eng.status,
+            organization_id=str(eng.organization_id),
+            institution_id=str(eng.institution_id) if eng.institution_id else None,
             organization_name=org_name,
             version=eng.version,
             updated_at=eng.updated_at,
+            talent_id=str(eng.talent_id),
+            talent_name=talent_name,
         )
-        for eng, org_name in engagement_tuples
+        for eng, org_name, talent_name in engagement_tuples
     ]
 
     return EngagementListResponse(items=items)

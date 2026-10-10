@@ -254,15 +254,23 @@ type NavData = {
   institutions: NamedRef[];
   publicSlug: string | null;
   isAdmin: boolean;
+  /** Organization/institution member without a talent profile: /calismalar lists students' engagements. */
+  reviewsStudents: boolean;
 };
 
 type NavEntry = { href: string; icon: IconName; label: string };
 
-const PRIMARY_LINKS: NavEntry[] = [
-  { href: "/calismalar", icon: "briefcase", label: messages.shell.engagementsLink },
-  { href: "/profil", icon: "user", label: messages.shell.profileLink },
-  ...(DISCOVER_ENABLED ? [{ href: "/kesfet", icon: "compass" as const, label: messages.shell.discoverLink }] : []),
-];
+function primaryLinks(data: NavData): NavEntry[] {
+  return [
+    {
+      href: "/calismalar",
+      icon: "briefcase",
+      label: data.reviewsStudents ? messages.shell.studentEngagementsLink : messages.shell.engagementsLink,
+    },
+    { href: "/profil", icon: "user", label: messages.shell.profileLink },
+    ...(DISCOVER_ENABLED ? [{ href: "/kesfet", icon: "compass" as const, label: messages.shell.discoverLink }] : []),
+  ];
+}
 
 const ADMIN_LINKS: NavEntry[] = [
   { href: "/admin/dogrulama-kuyrugu", icon: "shield", label: messages.shell.adminVerificationQueueLink },
@@ -637,7 +645,7 @@ function MobileDrawer({
         <div aria-hidden="true" className="mx-5 h-px bg-border" />
         <nav aria-label={messages.shell.mainNav} className="pb-6">
           <DrawerGroup label={messages.shell.groupWork}>
-            {PRIMARY_LINKS.map((entry) => (
+            {primaryLinks(data).map((entry) => (
               <DrawerItem
                 key={entry.href}
                 entry={entry}
@@ -807,6 +815,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         institutions: namedRefs(data.institutions),
         publicSlug: data.talent_profile?.public_slug ?? null,
         isAdmin: data.user.is_platform_admin === true,
+        reviewsStudents:
+          !data.talent_profile && namedRefs(data.organizations).length + namedRefs(data.institutions).length > 0,
       }
     : null;
 
@@ -852,7 +862,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
               <nav aria-label={messages.shell.mainNav} className="hidden h-full items-stretch gap-4 lg:flex">
                 <ul className="flex items-stretch">
-                  {PRIMARY_LINKS.map((entry) => (
+                  {primaryLinks(navData).map((entry) => (
                     <TopNavLink key={entry.href} entry={entry} active={isActivePath(pathname, entry.href)} />
                   ))}
                 </ul>
