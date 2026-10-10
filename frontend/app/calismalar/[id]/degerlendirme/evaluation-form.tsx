@@ -88,9 +88,15 @@ export function EvaluationForm({
     <form onSubmit={handleSubmit(onSubmit)}>
       <div className="space-y-4">
         {fields.map((field, index) => (
-          <section key={field.id} className="rounded-lg border border-border bg-card p-5">
+          <section key={field.id} className="y360-step-in rounded-xl border border-border bg-card p-5">
             <div className="flex items-start justify-between gap-4">
-              <span className="font-mono text-xs text-muted-foreground">
+              <span className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
+                <span
+                  aria-hidden="true"
+                  className="flex h-6 w-6 items-center justify-center rounded-full border border-border bg-background text-foreground"
+                >
+                  {index + 1}
+                </span>
                 {fill(messages.degerlendirme.criterionCaption, index + 1)}
               </span>
               {fields.length > 1 && (
@@ -214,7 +220,7 @@ export function EvaluationForm({
         </Button>
       </div>
 
-      <section className="mt-8 rounded-lg border border-border bg-sand p-4">
+      <section className="mt-8 rounded-xl border border-border bg-sand/60 p-5">
         <label
           htmlFor="private_note"
           className="mb-2 flex items-center gap-2 text-base font-semibold text-foreground"
@@ -251,7 +257,7 @@ export function EvaluationForm({
         </Alert>
       )}
 
-      <div className="sticky bottom-0 mt-8 flex items-center justify-between gap-4 border-t border-border bg-background py-4">
+      <div className="sticky bottom-0 z-10 mt-8 flex items-center justify-between gap-4 border-t border-border bg-background py-4">
         <span className="text-[13px] text-muted-foreground">
           {fill(messages.degerlendirme.criteriaCount, fields.length)}
         </span>
