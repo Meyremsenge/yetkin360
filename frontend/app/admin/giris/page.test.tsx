@@ -120,7 +120,18 @@ describe("LoginPage (/giris) — role göre varsayılan hedef", () => {
     render(await LoginPage({ searchParams: Promise.resolve({}) }));
     await submit("ogrenci@example.com");
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/calismalar"));
-    expect(mockApiFetch).not.toHaveBeenCalled();
+    expect(mockApiFetch).not.toHaveBeenCalledWith("/auth/logout", expect.anything());
+  });
+
+  it.each([
+    ["kuruluş yöneticisi", { organizations: [{ id: "o1" }], institutions: [] }, "/kurulus/o1/panel"],
+    ["kurum koordinatörü", { organizations: [], institutions: [{ id: "i1" }] }, "/kurum/i1/panel"],
+  ])("%s normal girişte kendi paneline gider", async (_label, memberships, expected) => {
+    mockLogin.mockResolvedValue(loginResult("USER"));
+    mockApiFetch.mockResolvedValue({ user: { id: "u-1" }, talent_profile: {}, ...memberships });
+    render(await LoginPage({ searchParams: Promise.resolve({}) }));
+    await submit("uye@example.com");
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith(expected));
   });
 
   it("yönetici girişi linkini gösterir", async () => {

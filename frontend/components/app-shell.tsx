@@ -14,6 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { SealMark } from "@/components/brand/brand-mark";
 import { PAGE_CONTAINER } from "@/components/page-layout";
+import { isOrgSide } from "@/lib/session/roles";
 import messages from "@/messages/tr.json";
 
 const FOCUS_RING =
@@ -254,8 +255,8 @@ type NavData = {
   institutions: NamedRef[];
   publicSlug: string | null;
   isAdmin: boolean;
-  /** Organization/institution member without a talent profile: /calismalar lists students' engagements. */
-  reviewsStudents: boolean;
+  /** Organization/institution member: /calismalar is their "İşlemler" screen. */
+  orgSide: boolean;
 };
 
 type NavEntry = { href: string; icon: IconName; label: string };
@@ -265,9 +266,10 @@ function primaryLinks(data: NavData): NavEntry[] {
     {
       href: "/calismalar",
       icon: "briefcase",
-      label: data.reviewsStudents ? messages.shell.studentEngagementsLink : messages.shell.engagementsLink,
+      label: data.orgSide ? messages.shell.operationsLink : messages.shell.engagementsLink,
     },
-    { href: "/profil", icon: "user", label: messages.shell.profileLink },
+    // Org-side users reach their individual profile from the user menu.
+    ...(data.orgSide ? [] : [{ href: "/profil", icon: "user" as const, label: messages.shell.profileLink }]),
     ...(DISCOVER_ENABLED ? [{ href: "/kesfet", icon: "compass" as const, label: messages.shell.discoverLink }] : []),
   ];
 }
@@ -431,7 +433,15 @@ function ContextGroup({ label, children }: { label: string; children: ReactNode 
 }
 
 /** Avatar + menu. The list stays mounted and is toggled with CSS. */
-function UserMenu({ identity, onLogout }: { identity: Identity; onLogout: () => void }) {
+function UserMenu({
+  identity,
+  onLogout,
+  showIndividualProfile = false,
+}: {
+  identity: Identity;
+  onLogout: () => void;
+  showIndividualProfile?: boolean;
+}) {
   const { name, subtitle, email } = identity;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -477,6 +487,19 @@ function UserMenu({ identity, onLogout }: { identity: Identity; onLogout: () => 
           </div>
         </div>
         <div className="p-1.5">
+          {showIndividualProfile && (
+            <Link
+              href="/profil"
+              onClick={() => setOpen(false)}
+              className={cn(
+                "flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm text-foreground transition-colors duration-[120ms] hover:bg-muted",
+                FOCUS_RING
+              )}
+            >
+              <Icon name="user" />
+              {messages.shell.individualProfileLink}
+            </Link>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -653,6 +676,13 @@ function MobileDrawer({
                 onNavigate={onClose}
               />
             ))}
+            {data.orgSide && (
+              <DrawerItem
+                entry={{ href: "/profil", icon: "user", label: messages.shell.individualProfileLink }}
+                active={isActivePath(pathname, "/profil")}
+                onNavigate={onClose}
+              />
+            )}
             {data.publicSlug && (
               <DrawerItem
                 entry={{
@@ -815,8 +845,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         institutions: namedRefs(data.institutions),
         publicSlug: data.talent_profile?.public_slug ?? null,
         isAdmin: data.user.is_platform_admin === true,
-        reviewsStudents:
-          !data.talent_profile && namedRefs(data.organizations).length + namedRefs(data.institutions).length > 0,
+        orgSide: isOrgSide(data),
       }
     : null;
 
@@ -876,7 +905,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 
               <div className="ml-auto flex items-center gap-3">
                 {navData.publicSlug && <PublicProfileLink slug={navData.publicSlug} />}
-                <UserMenu identity={identity} onLogout={() => logoutState.logout()} />
+                <UserMenu
+                  identity={identity}
+                  onLogout={() => logoutState.logout()}
+                  showIndividualProfile={navData.orgSide}
+                />
               </div>
             </div>
           </header>

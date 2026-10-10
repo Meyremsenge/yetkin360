@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { SESSION_QUERY_KEY } from "@/lib/session/use-session";
+import { fetchMe } from "@/lib/session/fetch-me";
+import { homePathFor } from "@/lib/session/roles";
 
 const DEFAULT_AFTER_LOGIN = "/calismalar";
 const ADMIN_AFTER_LOGIN = "/admin/dogrulama-kuyrugu";
@@ -73,8 +75,20 @@ export default function LoginForm({ nextPath, adminOnly = false }: { nextPath?: 
       // "/" is the public landing page, so a logged-in user goes to the app instead.
       // An admin has no student pages, so their default is the admin queue.
       const safeNext = sanitizeNext(nextPath);
-      const fallback = isAdmin ? ADMIN_AFTER_LOGIN : DEFAULT_AFTER_LOGIN;
-      router.push(safeNext === "/" ? fallback : safeNext);
+      if (safeNext !== "/") {
+        router.push(safeNext);
+        return;
+      }
+      let fallback = isAdmin ? ADMIN_AFTER_LOGIN : DEFAULT_AFTER_LOGIN;
+      if (!isAdmin) {
+        // Role-based landing page; a failed /me read must not block the login.
+        try {
+          fallback = homePathFor(await fetchMe());
+        } catch {
+          fallback = DEFAULT_AFTER_LOGIN;
+        }
+      }
+      router.push(fallback);
     } catch (error) {
       // Duck-typing: check for error object with status property
       if (error && typeof error === "object") {
