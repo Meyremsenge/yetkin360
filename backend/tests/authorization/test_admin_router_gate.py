@@ -1,9 +1,13 @@
 """
 The /admin router gate (require_platform_admin) is structural, not per-handler.
 
-These tests are generated from the live route table, so an admin endpoint added
-later is covered without anyone remembering to add a row — and a route mounted
-under /admin without the gate fails the build.
+These tests are generated from the admin router's own route list, so an admin
+endpoint added later is covered without anyone remembering to add a row — and
+an /admin path served from anywhere else fails the build.
+
+Routes are read from `admin.router.routes` and the OpenAPI schema rather than
+`app.routes`: newer FastAPI keeps an included router as one nested entry there,
+so `app.routes` holds no APIRoute for it.
 """
 
 import uuid
@@ -11,13 +15,11 @@ import uuid
 import pytest
 from fastapi.routing import APIRoute
 
-from app.api.admin import require_platform_admin
+from app.api.admin import require_platform_admin, router as admin_router
 from app.main import app
 from app.models import User
 
-ADMIN_ROUTES = [
-    route for route in app.routes if isinstance(route, APIRoute) and route.path.startswith("/admin")
-]
+ADMIN_ROUTES = [route for route in admin_router.routes if isinstance(route, APIRoute)]
 ROUTE_CASES = [
     pytest.param(method, route.path, id=f"{method} {route.path}")
     for route in ADMIN_ROUTES
@@ -39,6 +41,21 @@ def _user(session, email: str, **fields) -> User:
 
 def test_admin_routes_exist():
     assert len(ADMIN_ROUTES) >= 10
+
+
+def test_router_itself_declares_the_gate():
+    assert any(dep.dependency is require_platform_admin for dep in admin_router.dependencies)
+
+
+def test_no_admin_path_is_served_outside_the_gated_router():
+    served = {
+        (method.upper(), path)
+        for path, operations in app.openapi()["paths"].items()
+        if path == "/admin" or path.startswith("/admin/")
+        for method in operations
+    }
+    gated = {(method, route.path) for route in ADMIN_ROUTES for method in route.methods}
+    assert served == gated
 
 
 @pytest.mark.parametrize("route", ADMIN_ROUTES, ids=lambda route: route.path)
