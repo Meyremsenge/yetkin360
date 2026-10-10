@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { AdminPagination } from "@/components/admin-pagination";
 import { AppShell } from "@/components/app-shell";
 import { PageBody, PageHeader } from "@/components/page-layout";
 import {
@@ -26,7 +27,7 @@ const STATUS_TONE: Record<string, "default" | "warning" | "success"> = {
   DEPRECATED: "warning",
   MERGED: "default",
 };
-const CATEGORIES = ["LANGUAGE", "DOMAIN", "TOOL", "FRAMEWORK"] as const;
+const CATEGORIES = ["LANGUAGE", "DOMAIN", "TOOL", "FRAMEWORK", "SOFT"] as const;
 
 const FIELD_CLASS =
   "block h-10 w-full rounded-md border border-border bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground/70 transition-colors hover:border-muted-foreground/40 focus:border-success focus:outline-none focus:ring-2 focus:ring-success/25 disabled:bg-muted";
@@ -35,7 +36,9 @@ const SM = "h-8 px-3 text-[13px]";
 
 export default function SkillerPage() {
   const queryClient = useQueryClient();
-  const SKILLS_KEY = ["admin", "skills"] as const;
+  const [offset, setOffset] = useState(0);
+  const limit = adminApi.ADMIN_PAGE_SIZE;
+  const SKILLS_KEY = ["admin", "skills", { limit, offset }] as const;
 
   const [formData, setFormData] = useState<{ slug: string; name_tr: string; category: string }>({
     slug: "",
@@ -52,9 +55,22 @@ export default function SkillerPage() {
   const dialogRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
 
-  const { data: skillsList, isLoading, isError, error } = useQuery({
+  const { data: skillsList, isLoading, isError, error, refetch } = useQuery({
     queryKey: SKILLS_KEY,
-    queryFn: () => adminApi.getSkills(),
+    queryFn: () => adminApi.getSkills({ limit, offset }),
+  });
+
+  // Merge targets: every skill across all pages, fetched only while the dialog
+  // is open (the visible page alone would hide targets beyond it).
+  const {
+    data: mergeTargets,
+    isLoading: isLoadingTargets,
+    isError: isTargetsError,
+  } = useQuery({
+    queryKey: ["admin", "skills-all"] as const,
+    queryFn: () => adminApi.getAllSkills(),
+    enabled: mergeDialog !== null,
+    staleTime: 0,
   });
 
   const { mutate: createSkill, isPending: isCreating } = useMutation({
@@ -65,12 +81,8 @@ export default function SkillerPage() {
       setFormError(null);
       setFormData({ slug: "", name_tr: "", category: "LANGUAGE" });
       setSuccessMessage(a.createSuccess);
-      queryClient.setQueryData(SKILLS_KEY, (prev: adminApi.SkillsListResponse | undefined) => {
-        if (!prev) return prev;
-        return {
-          items: [...prev.items, newSkill],
-        };
-      });
+      // Sorted server-side: the new skill may land on any page, so refetch.
+      void queryClient.invalidateQueries({ queryKey: ["admin", "skills"] });
       setTimeout(() => setSuccessMessage(null), 3000);
     },
     onError: (err) => {
@@ -98,6 +110,7 @@ export default function SkillerPage() {
       queryClient.setQueryData(SKILLS_KEY, (prev: adminApi.SkillsListResponse | undefined) => {
         if (!prev) return prev;
         return {
+          ...prev,
           items: prev.items.map(s =>
             s.id === updated.id ? updated : s
           ),
@@ -123,9 +136,11 @@ export default function SkillerPage() {
       setActionError(null);
       setMergeDialog(null);
       setMergeTarget("");
+      void queryClient.invalidateQueries({ queryKey: ["admin", "skills-all"] });
       queryClient.setQueryData(SKILLS_KEY, (prev: adminApi.SkillsListResponse | undefined) => {
         if (!prev) return prev;
         return {
+          ...prev,
           items: prev.items.map(s =>
             s.id === updated.id ? updated : s
           ),
@@ -155,13 +170,13 @@ export default function SkillerPage() {
 
   const getParentName = (parentId: string | null | undefined): string => {
     if (!parentId) return a.parentLabel;
-    const parent = skillsList?.items.find((s) => s.id === parentId);
+    const parent = (mergeTargets ?? skillsList?.items)?.find((s) => s.id === parentId);
     return parent ? parent.name_tr : "-";
   };
 
   const getMergedIntoName = (mergedId: string | null | undefined): string => {
     if (!mergedId) return "-";
-    const target = skillsList?.items.find((s) => s.id === mergedId);
+    const target = (mergeTargets ?? skillsList?.items)?.find((s) => s.id === mergedId);
     return target ? target.name_tr : "-";
   };
 
@@ -276,6 +291,13 @@ export default function SkillerPage() {
                 : error instanceof NetworkError && error.kind === "timeout"
                   ? messages.errors.timeout
                   : messages.errors.generic}
+              <button
+                type="button"
+                onClick={() => refetch()}
+                className="ml-3 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700"
+              >
+                {messages.errors.retry}
+              </button>
             </Alert>
           ) : (
             <div className="space-y-6">
@@ -517,6 +539,15 @@ export default function SkillerPage() {
                       </div>
                     </>
                   )}
+                  {skillsList ? (
+                    <AdminPagination
+                      offset={offset}
+                      limit={limit}
+                      hasMore={skillsList.has_more}
+                      disabled={isDeprecating || isMerging}
+                      onChange={setOffset}
+                    />
+                  ) : null}
                 </>
               }
             </div>
@@ -555,14 +586,20 @@ export default function SkillerPage() {
                     className={FIELD_CLASS}
                   >
                     <option value="">{a.mergePlaceholder}</option>
-                    {skillsList?.items
-                      .filter((s) => s.id !== mergeDialog.skillId && s.status === "ACTIVE")
+                    {mergeTargets
+                      ?.filter((s) => s.id !== mergeDialog.skillId && s.status === "ACTIVE")
                       .map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.name_tr}
                         </option>
                       ))}
                   </select>
+                  {isLoadingTargets ? (
+                    <p role="status" className="mt-2 text-xs text-muted-foreground">{messages.shell.loading}</p>
+                  ) : null}
+                  {isTargetsError ? (
+                    <p role="alert" className="mt-2 text-xs text-destructive">{messages.errors.generic}</p>
+                  ) : null}
                 </div>
                 <div className="mt-6 flex justify-end gap-2">
                   <button

@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Attestation, Institution, Organization, Skill, TalentProfile
 from app.services import rate_limit
+from app.services.complaint import upheld_complaint_counts
 from app.services.authorization import (
     Principal,
     scoped_discoverable_attestations,
@@ -55,6 +56,8 @@ class OrganizationCard:
     name: str
     verification_level: str
     domain: str | None
+    # Admin-decided UPHELD complaints only (sikayet-backend C7) — a count, nothing else.
+    upheld_complaint_count: int = 0
 
 
 T = TypeVar("T")
@@ -222,6 +225,7 @@ def list_organizations(
 
     orgs = session.execute(query.order_by(Organization.name, Organization.id).limit(limit + 1)).scalars().all()
     page_orgs = orgs[:limit]
+    upheld = upheld_complaint_counts(session, "ORGANIZATION", [org.id for org in page_orgs])
 
     next_cursor = None
     if len(orgs) > limit:
@@ -237,6 +241,7 @@ def list_organizations(
                 # An unverified domain is free text chosen by whoever created the
                 # organization (GUV-03): only show it once verified.
                 domain=org.domain if org.verification_level in VERIFIED_DOMAIN_LEVELS else None,
+                upheld_complaint_count=upheld.get(org.id, 0),
             )
             for org in page_orgs
         ],

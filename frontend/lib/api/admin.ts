@@ -16,30 +16,47 @@ export interface Organization {
   name: string;
   legal_id?: string | null;
   domain?: string | null;
-  verification_level: string; // "T0" | "T1" | "T2" | "T3"
+  verification_level: string; // "T1" | "T2" | "T3" | "T4"
   verified_at?: string | null;
   created_at: string;
+  /** C7 damga: upheld complaints; only the verification queue returns it. */
+  upheld_complaint_count?: number | null;
 }
 
-export interface VerificationQueueResponse {
-  items: Organization[];
+/** Pagination envelope shared by the three admin list endpoints. */
+export interface PagedResponse<T> {
+  items: T[];
+  limit: number;
+  offset: number;
+  has_more: boolean;
 }
+
+export interface PageParams {
+  limit?: number;
+  offset?: number;
+}
+
+export const ADMIN_PAGE_SIZE = 50;
+export const ADMIN_MAX_PAGE_SIZE = 200;
+
+function pageQuery({ limit = ADMIN_PAGE_SIZE, offset = 0 }: PageParams = {}): string {
+  return `?limit=${limit}&offset=${offset}`;
+}
+
+export type VerificationQueueResponse = PagedResponse<Organization>;
 
 export interface Skill {
   id: string;
   slug: string;
   name_tr: string;
   name_en?: string | null;
-  category: string; // "LANGUAGE" | "DOMAIN" | "TOOL" | "FRAMEWORK"
+  category: "LANGUAGE" | "FRAMEWORK" | "TOOL" | "DOMAIN" | "SOFT";
   parent_id?: string | null;
   status: string; // "ACTIVE" | "DEPRECATED" | "MERGED"
   merged_into_id?: string | null;
-  created_at: string;
 }
 
-export interface SkillsListResponse {
-  items: Skill[];
-}
+export type SkillsListResponse = PagedResponse<Skill>;
 
 // ============================================================================
 // API functions
@@ -53,8 +70,12 @@ export interface SkillsListResponse {
  * AC-8: 500/timeout — throws ApiError/NetworkError
  * AC-9/AC-S2: Unauthorized — throws ApiError(404)
  */
-export async function getVerificationQueue(): Promise<VerificationQueueResponse | undefined> {
-  return (await apiFetch<VerificationQueueResponse>("/admin/verification-queue")) as VerificationQueueResponse | undefined;
+export async function getVerificationQueue(
+  params?: PageParams
+): Promise<VerificationQueueResponse | undefined> {
+  return (await apiFetch<VerificationQueueResponse>(
+    `/admin/verification-queue${pageQuery(params)}`
+  )) as VerificationQueueResponse | undefined;
 }
 
 /**
@@ -166,8 +187,28 @@ export async function mergeSkill(
  * AC-8: 500/timeout — throws ApiError/NetworkError
  * AC-9/AC-S2: Unauthorized — throws ApiError(404)
  */
-export async function getSkills(): Promise<SkillsListResponse | undefined> {
-  return (await apiFetch<SkillsListResponse>("/admin/skills")) as SkillsListResponse | undefined;
+export async function getSkills(params?: PageParams): Promise<SkillsListResponse | undefined> {
+  return (await apiFetch<SkillsListResponse>(
+    `/admin/skills${pageQuery(params)}`
+  )) as SkillsListResponse | undefined;
+}
+
+/**
+ * Walk every page of GET /admin/skills (limit 200) until has_more is false.
+ * Used by the merge dialog so the target list is never limited to the visible page.
+ * A failing page rejects the whole call — a partial target list is never returned.
+ */
+export async function getAllSkills(): Promise<Skill[]> {
+  const all: Skill[] = [];
+  let offset = 0;
+  for (;;) {
+    const page = await getSkills({ limit: ADMIN_MAX_PAGE_SIZE, offset });
+    if (!page) break;
+    all.push(...page.items);
+    if (!page.has_more || page.items.length === 0) break;
+    offset += page.items.length;
+  }
+  return all;
 }
 
 // ============================================================================
@@ -188,16 +229,16 @@ export interface FraudFlag {
   created_at: string;
 }
 
-export interface FraudQueueResponse {
-  items: FraudFlag[];
-}
+export type FraudQueueResponse = PagedResponse<FraudFlag>;
 
 /**
  * Fetch pending fraud flags.
  * GET /admin/fraud-queue
  */
-export async function getFraudQueue(): Promise<FraudQueueResponse | undefined> {
-  return (await apiFetch<FraudQueueResponse>("/admin/fraud-queue")) as FraudQueueResponse | undefined;
+export async function getFraudQueue(params?: PageParams): Promise<FraudQueueResponse | undefined> {
+  return (await apiFetch<FraudQueueResponse>(
+    `/admin/fraud-queue${pageQuery(params)}`
+  )) as FraudQueueResponse | undefined;
 }
 
 /**

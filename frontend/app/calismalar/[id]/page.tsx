@@ -26,6 +26,7 @@ const c = messages.calismalar;
 
 // Mirrors verify_engagement_task: organization members (admins included) and coordinators.
 const TASK_VERIFIER_RELATIONS = new Set<ViewerRelation>(["ORG_ADMIN", "ORG_MEMBER", "COORDINATOR"]);
+const COMPLAINABLE_STATES = new Set<string>(["PENDING_APPROVAL", "PENDING_EVALUATION"]);
 
 const TONE_BADGE: Record<StatusTone, string> = {
   default: "border-border bg-muted text-foreground",
@@ -131,6 +132,9 @@ export default function CalismaDetayPage() {
   // UX only, from the server's viewer block: which task controls to show.
   // Task verification is open to the organization side and the coordinator.
   const isSubject = engagement.viewer.relation === "SUBJECT";
+  // Complaints target the institution (PENDING_APPROVAL) or the organization
+  // (PENDING_EVALUATION); the server checks the waiting period and ownership.
+  const canReport = isSubject && COMPLAINABLE_STATES.has(engagement.status);
   const canVerifyTasks = TASK_VERIFIER_RELATIONS.has(engagement.viewer.relation);
 
   return (
@@ -217,7 +221,26 @@ export default function CalismaDetayPage() {
               )}
             </DetailSection>
 
-            <CertificateChecksSection engagementId={engagement.id} />
+            {canReport && (
+              <section className="mt-8 rounded-md border border-border bg-muted p-4">
+                <p className="text-sm text-muted-foreground">
+                  {engagement.status === "PENDING_EVALUATION"
+                    ? messages.complaints.reportHintEvaluation
+                    : messages.complaints.reportHint}
+                </p>
+                <Link
+                  href={`/sikayetlerim/yeni?subject_type=ENGAGEMENT&subject_id=${encodeURIComponent(engagement.id)}`}
+                  className="mt-2 inline-block text-sm font-medium text-success underline underline-offset-4"
+                >
+                  {messages.complaints.reportAction}
+                </Link>
+              </section>
+            )}
+
+            <CertificateChecksSection
+              engagementId={engagement.id}
+              canComplain={isSubject}
+            />
 
             <DetailSection
               icon="deliverables"

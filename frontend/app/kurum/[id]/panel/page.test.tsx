@@ -235,6 +235,23 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
     });
   });
 
+  it("AC-S13: haklı bulunan şikayet varsa başlıkta sayı rozeti gösterilir", async () => {
+    vi.mocked(getCoordinatorDashboard).mockResolvedValueOnce({ ...validDashboardData, upheld_complaint_count: 2 });
+
+    renderWithQueryClient(<KurumPanelPage />);
+
+    expect(await screen.findByText("2 doğrulama talebini yanıtsız bıraktı")).toBeTruthy();
+  });
+
+  it("AC-S13: haklı bulunan şikayet yoksa rozet gösterilmez", async () => {
+    vi.mocked(getCoordinatorDashboard).mockResolvedValueOnce({ ...validDashboardData, upheld_complaint_count: 0 });
+
+    renderWithQueryClient(<KurumPanelPage />);
+
+    await screen.findByText("Yazılım Geliştirme Stajı");
+    expect(screen.queryByText(/doğrulama talebini yanıtsız bıraktı/)).toBeNull();
+  });
+
   /**
    * AC-2: Boş liste
    * Given: kurumda hiç bekleyen engagement yok

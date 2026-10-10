@@ -1,0 +1,113 @@
+{
+  "task": "admin-eksikler-envanteri",
+  "reviewed_at": "2026-10-10T00:00:00Z",
+  "summary": "Şikayet modülü ve admin genişlemesi genel olarak sağlam: BOLA kapatmaları, append-only trigger, yetkili görünürlük sınırı, PII/outbox hijyeni ve router-gate testi doğru. Bir gerçek hata bulundu ve düzeltildi (ACCEPT_EXPLANATION gerekçesi sessizce kayboluyordu); organizations/institutions.status için DB CHECK eksikliği (CLAUDE.md ihlali) ve yeni uçlarda actor_ip'in boş kalması açık duruyor. İki iddia reddedildi: test_admin_router_gate zayıflamadı (openapi çapraz kontrolü korunuyor).",
+  "findings": [
+    {
+      "severity": "high",
+      "category": "correctness",
+      "file": "frontend/app/admin/sikayetler/[id]/page.tsx:46-52",
+      "issue": "ACCEPT_EXPLANATION için gövde {note} gönderiliyordu; backend yalnız `reason` okuyor. Admin'in kabul gerekçesi 200 OK ile sessizce kayboluyor, resolution_reason ve olay notu None kalıyordu.",
+      "better_approach": "Yalnız REQUEST_EXPLANATION `note`, diğer tüm eylemler `reason` göndersin.",
+      "reason": "backend/app/services/complaint.py ACCEPT_EXPLANATION dalı yalnız `reason`'ı atıyor (orkestratör doğruladı). DÜZELTİLDİ ve 3 test eklendi: ACCEPT/REJECT_EXPLANATION `reason`, REQUEST_EXPLANATION `note` (AC-17)."
+    },
+    {
+      "severity": "medium",
+      "category": "test-gap",
+      "file": "frontend/app/admin/sikayetler/[id]/page.test.tsx",
+      "issue": "ACCEPT_EXPLANATION / REJECT_EXPLANATION gövdesini doğrulayan test yoktu; yukarıdaki hata bu yüzden CI'dan geçmişti.",
+      "better_approach": "Her eylem için gönderilen alan adını assert eden test.",
+      "reason": "DÜZELTİLDİ: 3 test eklendi, 14/14 geçiyor."
+    },
+    {
+      "severity": "medium",
+      "category": "correctness",
+      "file": "backend/app/models/identity.py:60,131",
+      "issue": "Organization.status ve Institution.status kolonlarında CHECK kısıtı yok; admin_directory bu kolonlara 'SUSPENDED'/'ACTIVE' yazan ilk üretim kodu. Kısıt yalnız Pydantic Literal ile uygulama seviyesinde.",
+      "better_approach": "Yeni migration: ck_organizations_status / ck_institutions_status CHECK IN ('ACTIVE','SUSPENDED'); önce mevcut satırlardaki değerleri doğrula.",
+      "reason": "CLAUDE.md: 'Kısıtlar veritabanında olur'. AÇIK: migration açmak kullanıcı onayı gerektirir."
+    },
+    {
+      "severity": "low",
+      "category": "reliability",
+      "file": "backend/app/services/admin_directory.py; backend/app/services/complaint.py",
+      "issue": "admin.py actor_ip'i doldurdu ama yeni yüksek etkili kararlar (kullanıcı/kuruluş/kurum askıya alma, şikayet geçişleri) actor_ip=None bırakıyor.",
+      "better_approach": "Uç fonksiyonlarına `request: Request` ekleyip _client_ip(request)'i servise geçirmek (ve _client_ip'i ortak modüle taşımak).",
+      "reason": "Tutarsızlık; inkâr edilemezlik yalnız actor_user_id'ye bağlı. AÇIK."
+    },
+    {
+      "severity": "low",
+      "category": "reliability",
+      "file": "backend/app/api/auth.py:43-51",
+      "issue": "_client_ip yalnız request.client.host okuyor; nginx/reverse proxy arkasında hep proxy adresi kaydedilir.",
+      "better_approach": "Güvenilir proxy'den X-Forwarded-For ayrıştırma veya sınırlamayı docs/SECURITY.md'de not etme. Spoofing riski yok (başlık hiç okunmuyor).",
+      "reason": "Dağıtım topolojisi (nginx var mı) doğrulanmadı. AÇIK, karar gerekir."
+    },
+    {
+      "severity": "low",
+      "category": "reliability",
+      "file": "frontend/lib/api/complaints.ts:fetchAllPages",
+      "issue": "MAX_PAGES=20 (4000 öğe) üstünde sessizce keser.",
+      "better_approach": "Gerekirse truncated işareti dönmek; bugünkü hacimde (günde 3 şikayet sınırı) tetiklenemez.",
+      "reason": "Savunmacı sınır, bugün tetiklenmiyor."
+    },
+    {
+      "severity": "low",
+      "category": "readability",
+      "file": "frontend/lib/api/complaints.ts:TERMINAL",
+      "issue": "Terminal durum kümesi backend'deki TERMINAL_STATUSES ile iki yerde tutuluyor; yeni terminal durum eklenirse sapar.",
+      "better_approach": "Backend yanıtına her görünümde status_label eklemek ya da kümeyi tek yerden üretmek.",
+      "reason": "Şu an tutarlı, kayma riski."
+    },
+    {
+      "severity": "low",
+      "category": "risk",
+      "file": "backend/tests/authorization/test_multi_role_self_dealing.py (Scenario19, Scenario22)",
+      "issue": "İki test 201 görüyor, 403 bekliyor. Senaryo 19 kullanıcının commit'lenmemiş engagement.py değişikliğiyle (talent görev oluşturabilir, docs/API.md §2.3) çelişiyor; Senaryo 22'nin nedeni doğrulanmadı.",
+      "better_approach": "Kullanıcı kararı: ya engagement.py değişikliği testle birlikte güncellenir ya da değişiklik geri alınır. Test gevşetilmedi.",
+      "reason": "Bu görevin kapsamı dışında, kullanıcıya ait dosya. AÇIK."
+    }
+  ],
+  "strengths": [
+    "complaints migration'ı: complaint_events için BEFORE UPDATE/DELETE trigger, terminal durum kilidi, downgrade ters sırada temizliyor (kod okumasıyla).",
+    "Kapsam fonksiyonları (scoped_owned/scoped/admin_complaints) rol ayrımını net yapıyor; yetkili gerekçe istenmeden şikayeti göremiyor, eke hiçbir yoldan ulaşamıyor.",
+    "Admin ek indirmeleri audit'leniyor; e-posta ve outbox yük taşımıyor, yalnız id ve bağlantı.",
+    "24 saatte 3 şikayet sınırı talent satırı kilidiyle atomik; ALREADY_OPEN partial UNIQUE + IntegrityError.",
+    "Eşzamanlı admin kararları SELECT FOR UPDATE + version ile 409'a düşüyor; DB trigger'ı savunma derinliği.",
+    "Request şemaları extra='forbid': client'tan gelen organization_id/status/talent_id 422 (AC-S11).",
+    "Router-gate testi openapi tabanlı çapraz kontrolle yeni kapısız /admin/* ucunu hâlâ yakalıyor.",
+    "Ek yükleme backend ile alan alan uyumlu; indirme yolu popup engelini aşıyor ve hata yolunda sekmeyi kapatıyor.",
+    "Admin layout fail-closed, /admin/giris muaf; öğrenci görünümünde iç durum hiç yok (AC-19)."
+  ],
+  "risks": [
+    "Organization/Institution status DB kısıtsız: başka bir yazma yolu keyfi string yazarsa kapsam sorguları sessizce yanlış davranabilir.",
+    "Kuruluş askısının etkisi dar: üyeler hâlâ onay/tanıklık verebilir, herkese açık profil görünür; kurum askısı (Institution.status) hiçbir yerde okunmuyor — düğme yanıltıcı olabilir.",
+    "actor_ip proxy arkasında anlamsız olabilir; yeni uçlarda hiç doldurulmuyor.",
+    "Migration q7c1m2p3l4n5 dev DB'de kullanıcı onayı alınmadan upgrade/downgrade/upgrade çalıştırıldı; downgrade yolu bağımsız doğrulanmadı.",
+    "Doğrulanmadı: gerçek tarayıcıda uçtan uca akış, MinIO'ya gerçek presigned yükleme/indirme, security-scan, refactor adımı.",
+    "Alt ajanlar plan/test-copilot/code-copilot skill'lerini çağırmadı; iki paket kodu testten önce yazdı (kırmızı aşama kayıtsız).",
+    "Damga + sayaç public olumsuz itibar sinyali: 'trust score yasak' kuralının bilinçli daraltılması PLAN.md'ye yazılmadı.",
+    "Şikayet metni/ekleri için KVKK saklama süresi ve silme yolu yok (complaints DELETE trigger ile yasak)."
+  ],
+  "caveman_review": {
+    "complexity": "medium",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": false,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": false
+  },
+  "verdict": "approve-with-changes"
+}

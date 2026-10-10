@@ -22,16 +22,21 @@ class NotPendingError(Exception):
     pass
 
 
-def list_fraud_queue(session: Session, limit: int = 50, offset: int = 0) -> list[FraudFlag]:
-    """PENDING flags, oldest first (fairness — same ordering as list_verification_queue)."""
+def list_fraud_queue(session: Session, limit: int = 50, offset: int = 0) -> tuple[list[FraudFlag], bool]:
+    """PENDING flags, oldest first (fairness — same ordering as list_verification_queue).
+
+    Returns (rows, has_more); fetches limit+1 rows so has_more is exact and the
+    extra row is never returned.
+    """
     stmt = (
         select(FraudFlag)
         .where(FraudFlag.status == "PENDING")
         .order_by(FraudFlag.created_at.asc())
         .offset(offset)
-        .limit(limit)
+        .limit(limit + 1)
     )
-    return list(session.execute(stmt).scalars().all())
+    rows = list(session.execute(stmt).scalars().all())
+    return rows[:limit], len(rows) > limit
 
 
 def resolve_fraud_flag(
@@ -57,3 +62,18 @@ def resolve_fraud_flag(
     flag.reviewed_at = datetime.now(timezone.utc)
     session.flush()
     return flag
+
+
+def list_fraud_history(
+    session: Session, status: Optional[str] = None, limit: int = 50, offset: int = 0
+) -> list[FraudFlag]:
+    """
+    Reviewed flags (CONFIRMED/DISMISSED), most recently reviewed first (F2).
+    Fetches limit + 1 rows so the caller can compute has_more exactly; the
+    extra row must be trimmed by the caller.
+    """
+    stmt = select(FraudFlag).where(FraudFlag.status.in_(("CONFIRMED", "DISMISSED")))
+    if status is not None:
+        stmt = stmt.where(FraudFlag.status == status)
+    stmt = stmt.order_by(FraudFlag.reviewed_at.desc().nulls_last(), FraudFlag.id.desc()).offset(offset).limit(limit + 1)
+    return list(session.execute(stmt).scalars().all())

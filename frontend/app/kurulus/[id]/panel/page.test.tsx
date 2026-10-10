@@ -120,6 +120,23 @@ describe("KurulusPanelPage (/kurulus/[id]/panel)", () => {
     });
   });
 
+  it("AC-S13: haklı bulunan şikayet varsa başlıkta sayı rozeti gösterilir", async () => {
+    vi.mocked(getOrganization).mockResolvedValueOnce({ ...baseOrg, upheld_complaint_count: 4 });
+
+    renderWithQueryClient(<KurulusPanelPage />);
+
+    expect(await screen.findByText("4 doğrulama talebini yanıtsız bıraktı")).toBeTruthy();
+  });
+
+  it("AC-S13: haklı bulunan şikayet yoksa rozet gösterilmez", async () => {
+    vi.mocked(getOrganization).mockResolvedValueOnce({ ...baseOrg, upheld_complaint_count: 0 });
+
+    renderWithQueryClient(<KurulusPanelPage />);
+
+    await screen.findByText("Acme A.Ş.");
+    expect(screen.queryByText(/doğrulama talebini yanıtsız bıraktı/)).toBeNull();
+  });
+
   it("404 - jenerik hata mesajı gösterilir", async () => {
     vi.mocked(getOrganization).mockRejectedValueOnce(
       new ApiError({ status: 404, code: "NOT_FOUND", message: "Organizasyon bulunamadı.", requestId: null })

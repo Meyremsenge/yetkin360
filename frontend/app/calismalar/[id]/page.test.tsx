@@ -2,13 +2,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import CalismaDetayPage from "@/app/calismalar/[id]/page";
+import messages from "@/messages/tr.json";
 import { useSession } from "@/lib/session/use-session";
 import { useParams } from "next/navigation";
 import { getEngagement } from "@/lib/api/engagements";
 import { ApiError } from "@/lib/api/errors";
 import type { EngagementDetail } from "@/lib/api/engagements";
 import { makeViewer } from "@/lib/api/engagements.fixtures";
-import messages from "@/messages/tr.json";
 
 vi.mock("next/navigation", () => ({
   useParams: vi.fn(),
@@ -381,5 +381,54 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
       expect(screen.getByText("Geri çekildi: Yanlış girilmiş")).toBeTruthy();
     });
     expect(screen.queryByText("Geri Çek")).toBeNull();
+  });
+
+  describe("şikayet bağlantısı (sunucunun hesapladığı viewer.relation)", () => {
+    const reportLink = () => screen.queryByRole("link", { name: messages.complaints.reportAction });
+
+    it("öğrenci (SUBJECT) yanıtsız onayda kuruma şikayet bağlantısını görür", async () => {
+      vi.mocked(getEngagement).mockResolvedValueOnce({ ...baseEngagement, status: "PENDING_APPROVAL" });
+
+      renderWithQueryClient(<CalismaDetayPage />);
+
+      const link = await screen.findByRole("link", { name: messages.complaints.reportAction });
+      expect(link.getAttribute("href")).toContain("subject_id=eng-1");
+      expect(screen.getByText(messages.complaints.reportHint)).toBeTruthy();
+    });
+
+    it("öğrenci (SUBJECT) yanıtsız değerlendirmede kuruluşa şikayet bağlantısını görür", async () => {
+      vi.mocked(getEngagement).mockResolvedValueOnce({ ...baseEngagement, status: "PENDING_EVALUATION" });
+
+      renderWithQueryClient(<CalismaDetayPage />);
+
+      const link = await screen.findByRole("link", { name: messages.complaints.reportAction });
+      expect(link.getAttribute("href")).toBe("/sikayetlerim/yeni?subject_type=ENGAGEMENT&subject_id=eng-1");
+      expect(screen.getByText(messages.complaints.reportHintEvaluation)).toBeTruthy();
+    });
+
+    it.each(["PENDING_APPROVAL", "PENDING_EVALUATION"] as const)(
+      "öğrenci olmayan izleyici (ORG_ADMIN) %s durumunda bağlantıyı görmez",
+      async (status) => {
+        vi.mocked(getEngagement).mockResolvedValueOnce({ ...baseEngagement, status, viewer: orgAdminViewer });
+
+        renderWithQueryClient(<CalismaDetayPage />);
+
+        await waitFor(() => {
+          expect(screen.getByText("Yaz Kısa Projesi")).toBeTruthy();
+        });
+        expect(reportLink()).toBeNull();
+      }
+    );
+
+    it("bekleyen olmayan durumda (ACTIVE) öğrenci bağlantıyı görmez", async () => {
+      vi.mocked(getEngagement).mockResolvedValueOnce(baseEngagement);
+
+      renderWithQueryClient(<CalismaDetayPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Yaz Kısa Projesi")).toBeTruthy();
+      });
+      expect(reportLink()).toBeNull();
+    });
   });
 });
