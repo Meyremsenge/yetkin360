@@ -267,4 +267,100 @@ describe("TransitionActions", () => {
       expect(onSuccess).toHaveBeenCalled();
     });
   });
+
+  describe("onaya gönderirken alıcı seçimi", () => {
+    const draft: EngagementDetail = { ...activeEngagement, status: "DRAFT", institution_id: "inst-1", version: 1 };
+
+    function sent() {
+      vi.mocked(transitionEngagement).mockResolvedValueOnce({ ...draft, status: "PENDING_APPROVAL", version: 2 });
+    }
+
+    it("'Onaya Gönder' hemen göndermez; önce zorunlu alıcı kutusunu açar", async () => {
+      const user = userEvent.setup();
+      renderWithQueryClient(<TransitionActions engagement={draft} onSuccess={vi.fn()} />);
+
+      await user.click(screen.getByRole("button", { name: "Onaya Gönder" }));
+
+      expect(transitionEngagement).not.toHaveBeenCalled();
+      const input = screen.getByLabelText("Onay isteği kime gitsin?");
+      expect(input.getAttribute("aria-required")).toBe("true");
+      // One submit button only: the form replaces the action row.
+      expect(screen.getAllByRole("button", { name: "Onaya Gönder" })).toHaveLength(1);
+    });
+
+    it("kutu boşsa istek gönderilmez ve alıcının zorunlu olduğu söylenir", async () => {
+      const user = userEvent.setup();
+      renderWithQueryClient(<TransitionActions engagement={draft} onSuccess={vi.fn()} />);
+
+      await user.click(screen.getByRole("button", { name: "Onaya Gönder" }));
+      await user.click(screen.getByRole("button", { name: "Onaya Gönder" }));
+
+      expect(screen.getByRole("alert").textContent).toBe("Onay isteğinin gideceği en az bir e-posta adresi yazın.");
+      expect(transitionEngagement).not.toHaveBeenCalled();
+    });
+
+    it("yazılan adresler notify_emails olarak gönderilir ve ne olacağı açıklanır", async () => {
+      sent();
+      const onSuccess = vi.fn();
+      const user = userEvent.setup();
+      renderWithQueryClient(<TransitionActions engagement={draft} onSuccess={onSuccess} />);
+
+      await user.click(screen.getByRole("button", { name: "Onaya Gönder" }));
+      await user.type(
+        screen.getByLabelText("Onay isteği kime gitsin?"),
+        "kerem@kurum.edu.tr, selin@kurum.edu.tr",
+      );
+      await user.click(screen.getByRole("button", { name: "Onaya Gönder" }));
+
+      await waitFor(() => {
+        expect(transitionEngagement).toHaveBeenCalledWith("eng-1", {
+          to_status: "PENDING_APPROVAL",
+          version: 1,
+          reason: undefined,
+          notify_emails: ["kerem@kurum.edu.tr", "selin@kurum.edu.tr"],
+        });
+        expect(onSuccess).toHaveBeenCalled();
+        expect(screen.getByRole("status").textContent).toContain("kurumun kayıtlı koordinatörüne aitse");
+      });
+    });
+
+    it("biçimi bozuk adres gönderilmez, hata adresi adıyla bildirir", async () => {
+      const user = userEvent.setup();
+      renderWithQueryClient(<TransitionActions engagement={draft} onSuccess={vi.fn()} />);
+
+      await user.click(screen.getByRole("button", { name: "Onaya Gönder" }));
+      await user.type(screen.getByLabelText("Onay isteği kime gitsin?"), "koordinator");
+      await user.click(screen.getByRole("button", { name: "Onaya Gönder" }));
+
+      expect(screen.getByRole("alert").textContent).toBe("Geçerli bir e-posta adresi değil: koordinator");
+      expect(transitionEngagement).not.toHaveBeenCalled();
+    });
+
+    it("beşten fazla adres gönderilmez", async () => {
+      const user = userEvent.setup();
+      renderWithQueryClient(<TransitionActions engagement={draft} onSuccess={vi.fn()} />);
+
+      await user.click(screen.getByRole("button", { name: "Onaya Gönder" }));
+      await user.type(
+        screen.getByLabelText("Onay isteği kime gitsin?"),
+        "a@k.tr b@k.tr c@k.tr d@k.tr e@k.tr f@k.tr",
+      );
+      await user.click(screen.getByRole("button", { name: "Onaya Gönder" }));
+
+      expect(screen.getByRole("alert").textContent).toBe("En fazla 5 adres yazabilirsiniz.");
+      expect(transitionEngagement).not.toHaveBeenCalled();
+    });
+
+    it("'Vazgeç' kutuyu kapatır ve hiçbir şey göndermez", async () => {
+      const user = userEvent.setup();
+      renderWithQueryClient(<TransitionActions engagement={draft} onSuccess={vi.fn()} />);
+
+      await user.click(screen.getByRole("button", { name: "Onaya Gönder" }));
+      await user.click(screen.getByRole("button", { name: "Vazgeç" }));
+
+      expect(screen.queryByLabelText("Onay isteği kime gitsin?")).toBeNull();
+      expect(screen.getByRole("button", { name: "Onaya Gönder" })).toBeTruthy();
+      expect(transitionEngagement).not.toHaveBeenCalled();
+    });
+  });
 });

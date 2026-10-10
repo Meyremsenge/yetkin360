@@ -729,6 +729,7 @@ class TestMultiRoleSelfDealingScenario20:
         """
         payload = {
             "to_status": "PENDING_APPROVAL",
+            "notify_emails": ["approver@example.com"],
             "version": 1,
         }
 

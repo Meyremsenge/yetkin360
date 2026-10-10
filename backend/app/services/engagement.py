@@ -12,10 +12,12 @@ from app.models import (
     Deliverable,
     EngagementTask,
     Engagement,
+    InstitutionMember,
     Organization,
     TalentProfile,
     Skill,
     SkillSignal,
+    User,
 )
 from app.services.authorization import Principal, engagement_relation, get_scoped_or_404, scoped_engagements
 from app.services.audit import log_audit_event
@@ -258,6 +260,7 @@ def transition_engagement(
     reason: str | None = None,
     started_on: str | None = None,
     ended_on: str | None = None,
+    notify_emails: Sequence[str] | None = None,
 ) -> Engagement:
     """
     Transition engagement status with optimistic locking and authorization checks.
@@ -285,6 +288,11 @@ def transition_engagement(
         reason: Optional reason for REJECTED/CANCELLED transitions
         started_on: Optional start date (ISO format string) for engagement
         ended_on: Optional end date (ISO format string) for engagement
+        notify_emails: Required for DRAFT → PENDING_APPROVAL, ignored otherwise.
+            Addresses that belong to coordinators of the engagement's institution
+            receive the approval request instead of every coordinator. Other
+            addresses are ignored without an error, so the caller cannot probe
+            who is a member; if none matches, every coordinator is notified.
 
     Returns:
         Updated Engagement object
@@ -292,7 +300,7 @@ def transition_engagement(
     Raises:
         EngagementNotFoundError: Engagement not found or not accessible (404)
         IllegalTransitionError: to_status not valid from current status (422)
-        PreconditionFailedError: Preconditions not met (institution_id NULL, reason missing, date validation) (422)
+        PreconditionFailedError: Preconditions not met (institution_id NULL, reason or recipient missing, date validation) (422)
         TransitionForbiddenError: Principal not authorized for this transition (403 or 404)
         VersionConflictError: Version mismatch (optimistic locking) (409)
     """
@@ -325,7 +333,7 @@ def transition_engagement(
     # Each entry: from_status -> to_status -> (allowed_roles, preconditions, authorization check)
     transition_table: dict[tuple[str, str], TransitionSpec] = {
         ("DRAFT", "PENDING_APPROVAL"): {
-            "preconditions": ["institution_id_not_null"],
+            "preconditions": ["institution_id_not_null", "recipient_required"],
             "can_transition": lambda: (
                 rel.is_subject or rel.is_org_member
             ),
@@ -386,6 +394,10 @@ def transition_engagement(
         elif precondition == "reason_not_empty":
             if not reason or reason.strip() == "":
                 raise PreconditionFailedError("reason is required for this transition")
+        elif precondition == "recipient_required":
+            # The sender names who at the institution should receive the request.
+            if not any(email.strip() for email in notify_emails or []):
+                raise PreconditionFailedError("notify_emails is required for this transition")
         elif precondition == "has_deliverable":
             # Real database query to verify at least one Deliverable exists (AC-S4: client input ignored)
             count = session.execute(
@@ -489,16 +501,17 @@ def transition_engagement(
     # reason KONULMAMALI outbox payload'ına (PII riski)
     if to_status == "PENDING_APPROVAL":
         # Notify coordinators of the institution
-        enqueue(
-            session=session,
-            topic="engagement.pending_approval",
-            payload={
-                "engagement_id": str(engagement.id),
-                "talent_id": str(engagement.talent_id),
-                "organization_id": str(engagement.organization_id),
-                "institution_id": str(engagement.institution_id),
-            },
-        )
+        payload: dict[str, Any] = {
+            "engagement_id": str(engagement.id),
+            "talent_id": str(engagement.talent_id),
+            "organization_id": str(engagement.organization_id),
+            "institution_id": str(engagement.institution_id),
+        }
+        # User ids, never the addresses (PII guard); absent = every coordinator.
+        selected = _coordinator_ids_for_emails(session, engagement.institution_id, notify_emails)
+        if selected:
+            payload["notify_user_ids"] = selected
+        enqueue(session=session, topic="engagement.pending_approval", payload=payload)
 
     # PLAN 3.56: coordinator approval (T2) is the main defence against fake
     # internships — check the approval itself for conflict-of-interest/bulk patterns.
@@ -510,6 +523,35 @@ def transition_engagement(
         )
 
     return engagement
+
+
+def _coordinator_ids_for_emails(
+    session: Session,
+    institution_id: uuid.UUID | None,
+    emails: Sequence[str] | None,
+) -> list[str]:
+    """
+    Ids of the institution's COORDINATOR members whose e-mail is in `emails`.
+
+    Only coordinators can approve, and only this engagement's institution is
+    searched: an address of anyone else (another institution, a non-member)
+    matches nothing.
+    """
+    wanted = {email.strip().lower() for email in emails or [] if email.strip()}
+    if institution_id is None or not wanted:
+        return []
+
+    rows = session.execute(
+        select(User.id)
+        .join(InstitutionMember, InstitutionMember.user_id == User.id)
+        .where(
+            InstitutionMember.institution_id == institution_id,
+            InstitutionMember.role == "COORDINATOR",
+            func.lower(User.email).in_(wanted),
+        )
+        .order_by(User.id)
+    ).scalars().all()
+    return [str(user_id) for user_id in rows]
 
 
 def create_engagement_task(

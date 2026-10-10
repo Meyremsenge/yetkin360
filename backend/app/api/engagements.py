@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -96,6 +96,11 @@ class PostEngagementResponse(BaseModel):
         from_attributes = True
 
 
+# Format check only (same rule as schemas/auth.py): rejects obvious garbage.
+_EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+MAX_NOTIFY_EMAILS = 5
+
+
 class TransitionEngagementRequest(BaseModel):
     """Request schema for POST /engagements/{id}/transition."""
 
@@ -111,6 +116,14 @@ class TransitionEngagementRequest(BaseModel):
     )
     ended_on: str | None = Field(
         None, description="Optional end date (ISO format) for engagement"
+    )
+    # Required for DRAFT → PENDING_APPROVAL (422 PRECONDITION_FAILED without it):
+    # the approval request goes to these coordinators of the engagement's
+    # institution instead of all of them.
+    notify_emails: list[Annotated[str, Field(pattern=_EMAIL_PATTERN, max_length=320)]] | None = Field(
+        None,
+        max_length=MAX_NOTIFY_EMAILS,
+        description="Coordinator e-mails of the engagement's institution to notify",
     )
 
     class Config:
@@ -654,6 +667,7 @@ def post_engagement_transitions(
             reason=payload.reason,
             started_on=payload.started_on,
             ended_on=payload.ended_on,
+            notify_emails=payload.notify_emails,
         )
     except EngagementNotFoundError:
         raise HTTPException(

@@ -14,6 +14,7 @@ DO NOT run in production without careful consideration.
 """
 
 import sys
+import uuid
 from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
@@ -391,6 +392,39 @@ SHOWCASE_ENGAGEMENTS = [
         "communication", "react", (330, 21),
     ),
 ]
+
+# In-progress engagements, so every institution and organization list
+# (/calismalar review view, panels) has rows at each step and not only
+# finished ones. Per institution: one waiting for its approval, one waiting for
+# the organization's evaluation, the rest spread over later steps.
+# (institution no, organization no, title, kind, skill slug, task, deliverable,
+#  stage, last activity N days ago)
+PIPELINE_ENGAGEMENTS = [
+    (1, 1, "Ödeme Servisi Entegrasyon Stajı", "INTERNSHIP", "fastapi", "Ödeme sağlayıcısı uç noktalarını bağlamak", "Entegrasyon servisi ve test raporu", "PENDING_APPROVAL", 6),
+    (1, 2, "Sevkiyat Rota Analizi", "SHORT_PROJECT", "data-analysis", "Rota verisini temizleyip karşılaştırmak", "Rota karşılaştırma raporu", "PENDING_EVALUATION", 4),
+    (1, 3, "Sayaç Okuma Mobil Arayüzü", "PART_TIME", "react", "Okuma ekranlarını geliştirmek", "Çalışan arayüz ve kullanım notları", "ACTIVE", 1),
+    (1, 4, "Müşteri Segmentasyon Modeli", "CAPSTONE", "ml", "Müşteri verisini kümelere ayırmak", "Segmentasyon modeli ve sunum", "ACTIVE", 2),
+    (1, 5, "Sergi Afişi Tasarım Projesi", "SHORT_PROJECT", "presentation", "Afiş serisini tasarlamak", "Baskıya hazır afiş seti", "REJECTED", 9),
+    (2, 2, "Depo Yönetim Paneli Stajı", "INTERNSHIP", "react", "Stok ekranlarını geliştirmek", "Depo paneli ve kullanım kılavuzu", "PENDING_APPROVAL", 3),
+    (2, 3, "Trafo Arıza Kayıtları Analizi", "SHORT_PROJECT", "python", "Arıza kayıtlarını sınıflandırmak", "Arıza analizi raporu", "PENDING_EVALUATION", 8),
+    (2, 4, "Satış Tahmin Panosu", "PART_TIME", "data-analysis", "Satış verisinden tahmin panosu kurmak", "Etkileşimli tahmin panosu", "EVALUATED", 2),
+    (2, 5, "Web Sitesi Yenileme Projesi", "SHORT_PROJECT", "teamwork", "Sayfa yapısını ekiple yeniden kurmak", "Yeni site taslağı", "ACTIVE", 5),
+    (3, 3, "Enerji İzleme Servisi Stajı", "INTERNSHIP", "docker", "İzleme servisini konteynerleştirmek", "Dağıtım betikleri ve belge", "PENDING_APPROVAL", 1),
+    (3, 4, "Veri Ambarı Temizleme Projesi", "SHORT_PROJECT", "postgresql", "Yinelenen kayıtları ayıklamak", "Temizlenmiş şema ve ölçüm raporu", "PENDING_EVALUATION", 5),
+    (3, 5, "Ambalaj Tasarımı Projesi", "SHORT_PROJECT", "presentation", "Ürün ambalajı seçeneklerini hazırlamak", "Ambalaj tasarım önerisi", "CANCELLED", 12),
+    (3, 1, "Test Otomasyonu Stajı", "INTERNSHIP", "python", "Regresyon testlerini otomatikleştirmek", "Test paketi ve çalışma raporu", "ACTIVE", 3),
+    (4, 4, "Raporlama Altyapısı Stajı", "INTERNSHIP", "postgresql", "Rapor sorgularını yeniden yazmak", "Rapor şablonları ve sorgu seti", "PENDING_APPROVAL", 10),
+    (4, 5, "Sosyal Medya Görsel Dili Projesi", "SHORT_PROJECT", "communication", "Paylaşım şablonlarını hazırlamak", "Görsel dil rehberi", "PENDING_EVALUATION", 2),
+    (4, 1, "Sürüm Yönetimi İyileştirme Projesi", "PART_TIME", "git", "Dal ve sürüm akışını düzenlemek", "Sürüm akışı belgesi", "ACTIVE", 6),
+    (4, 2, "Filo Bakım Takvimi Planlaması", "INTERNSHIP", "project-mgmt", "Bakım takvimini hazırlamak", "Bakım planı ve risk tablosu", "ACTIVE", 4),
+    (5, 5, "Mekân Yönlendirme Tasarımı Stajı", "INTERNSHIP", "problem-solving", "Yönlendirme levhalarını tasarlamak", "Yönlendirme sistemi önerisi", "PENDING_APPROVAL", 2),
+    (5, 1, "Kimlik Doğrulama Modülü Projesi", "CAPSTONE", "cybersecurity", "Oturum akışını güvenlik açısından incelemek", "Güvenlik inceleme raporu", "PENDING_EVALUATION", 7),
+    (5, 2, "Gümrük Belge Akışı İş Analizi", "SHORT_PROJECT", "communication", "Belge akışını paydaşlarla çıkarmak", "İş analizi dokümanı", "EVALUATED", 3),
+    (5, 3, "Güneş Paneli Verim Takibi", "CAPSTONE", "python", "Verim verisini toplayıp modellemek", "Verim takip aracı ve sunum", "ACTIVE", 1),
+]
+
+# A task the student adds on their own; it stays unverified until the organization confirms it.
+PIPELINE_STUDENT_TASK = "Haftalık ilerleme notlarını derlemek"
 
 
 # Keşfet directory (PLAN R.1): extra public students so the directory has a
@@ -903,7 +937,8 @@ def _create_verified_engagement(
         engagement_id=str(engagement.id),
         to_status="PENDING_APPROVAL",
         version=1,
-        reason=None
+        reason=None,
+        notify_emails=[coord_user.email],
     )
 
     # T2: PENDING_APPROVAL → ACTIVE (principal = COORDINATOR)
@@ -1153,6 +1188,191 @@ def seed_showcase_profile(session: Session) -> None:
     print(f"Showcase profile seed: {inserted} engagements inserted")
 
 
+def _seed_principal(
+    user_id: uuid.UUID,
+    kind: str,
+    *,
+    talent_id: uuid.UUID | None = None,
+    org_ids: list[uuid.UUID] | None = None,
+    org_admin_ids: list[uuid.UUID] | None = None,
+    institution_ids: list[uuid.UUID] | None = None,
+) -> Principal:
+    return Principal(
+        user_id=user_id,
+        kind=kind,
+        talent_id=talent_id,
+        org_ids=org_ids or [],
+        org_admin_ids=org_admin_ids or [],
+        institution_ids=institution_ids or [],
+        institution_admin_ids=[],
+        is_platform_admin=False,
+        is_suspended=False,
+    )
+
+
+def _move(
+    session: Session,
+    actor: Principal,
+    engagement_id: str,
+    to_status: str,
+    reason: str | None = None,
+    notify_emails: list[str] | None = None,
+) -> None:
+    transition_engagement(
+        session=session,
+        principal=actor,
+        engagement_id=engagement_id,
+        to_status=to_status,
+        reason=reason,
+        notify_emails=notify_emails,
+    )
+
+
+def seed_pipeline_engagements(session: Session) -> int:
+    """
+    Seed PIPELINE_ENGAGEMENTS: student engagements stopped at different steps of
+    the real state machine, so institutions and organizations see something to
+    approve, evaluate and verify. Idempotent per engagement title. Returns rows inserted.
+    """
+    if settings.environment == "production":
+        raise RuntimeError("Seed script cannot run in production environment")
+
+    student_rows = session.execute(
+        select(User.email, TalentProfile)
+        .join(User, TalentProfile.user_id == User.id)
+        .where(User.email.like("ogrenci%@seed.local"))
+    ).all()
+    students_by_institution: dict[uuid.UUID, list[TalentProfile]] = {}
+    for _, talent in sorted(student_rows, key=lambda r: int(r[0].removeprefix("ogrenci").split("@")[0])):
+        if talent.institution_id is not None:
+            students_by_institution.setdefault(talent.institution_id, []).append(talent)
+
+    skills = {
+        skill.slug: skill
+        for skill in session.execute(
+            select(Skill).where(Skill.slug.in_({row[4] for row in PIPELINE_ENGAGEMENTS}))
+        ).scalars()
+    }
+    existing_titles = set(
+        session.execute(
+            select(Engagement.title).where(Engagement.title.in_({row[2] for row in PIPELINE_ENGAGEMENTS}))
+        ).scalars()
+    )
+
+    now = datetime.now(timezone.utc)
+    inserted = 0
+    picked: dict[uuid.UUID, int] = {}
+    for inst_no, org_no, title, kind, skill_slug, task_title, deliverable_title, stage, days_ago in PIPELINE_ENGAGEMENTS:
+        institution = session.execute(
+            select(Institution).where(Institution.domain == f"inst{inst_no}.seed.local")
+        ).scalars().first()
+        organization = session.execute(
+            select(Organization).where(Organization.legal_id == f"ORG{org_no}")
+        ).scalars().first()
+        candidates = students_by_institution.get(institution.id, []) if institution else []
+        skill = skills.get(skill_slug)
+        if institution is None or organization is None or skill is None or not candidates:
+            print(f"Warning: pipeline engagement skipped (missing institution/org/skill/student): {title}")
+            continue
+
+        # Rotate through the institution's students, also on re-runs that skip existing rows.
+        talent = candidates[picked.get(institution.id, 0) % len(candidates)]
+        picked[institution.id] = picked.get(institution.id, 0) + 1
+        if title in existing_titles:
+            continue
+
+        org_admin = session.execute(
+            select(User).where(User.email == f"org{org_no}-admin@seed.local")
+        ).scalars().first()
+        coordinator = session.execute(
+            select(User).where(User.email == f"kurum{inst_no}-koordinator@seed.local")
+        ).scalars().first()
+        assert org_admin is not None and coordinator is not None, f"Seed members missing for: {title}"
+
+        talent_principal = _seed_principal(talent.user_id, "TALENT", talent_id=talent.id)
+        org_principal = _seed_principal(
+            org_admin.id, "ORG_ADMIN", org_ids=[organization.id], org_admin_ids=[organization.id]
+        )
+        coordinator_principal = _seed_principal(coordinator.id, "COORDINATOR", institution_ids=[institution.id])
+
+        engagement = create_engagement(
+            session=session,
+            principal=talent_principal,
+            talent_id=str(talent.id),
+            organization_id=str(organization.id),
+            kind=kind,
+            title=title,
+            institution_id=str(institution.id),
+            confidential=False,
+        )
+        engagement_id = str(engagement.id)
+
+        _move(session, talent_principal, engagement_id, "PENDING_APPROVAL", notify_emails=[coordinator.email])
+        if stage == "REJECTED":
+            _move(
+                session, coordinator_principal, engagement_id, "REJECTED",
+                "Çalışma kapsamı bölümün staj ölçütlerini karşılamıyor.",
+            )
+        elif stage != "PENDING_APPROVAL":
+            _move(session, coordinator_principal, engagement_id, "ACTIVE")
+            engagement.started_on = now.date() - timedelta(days=days_ago + 21)
+            create_engagement_task(
+                session=session,
+                principal=org_principal,
+                engagement_id=engagement_id,
+                title=task_title,
+                description=f"{title} kapsamında görev",
+                due_at=now + timedelta(days=14),
+                skill_id=str(skill.id),
+            )
+            if stage == "ACTIVE":
+                create_engagement_task(
+                    session=session,
+                    principal=talent_principal,
+                    engagement_id=engagement_id,
+                    title=PIPELINE_STUDENT_TASK,
+                )
+            elif stage == "CANCELLED":
+                _move(session, org_principal, engagement_id, "CANCELLED", "Proje kuruluş tarafında ertelendi.")
+            else:
+                create_deliverable(
+                    session=session,
+                    principal=talent_principal,
+                    engagement_id=engagement_id,
+                    title=deliverable_title,
+                    description=f"{title} teslim dosyası",
+                    skill_id=str(skill.id),
+                )
+                _move(session, org_principal, engagement_id, "PENDING_EVALUATION")
+                if stage == "EVALUATED":
+                    create_evaluation(
+                        session=session,
+                        principal=org_principal,
+                        engagement_id=engagement_id,
+                        direction="ORG_TO_TALENT",
+                        items=[
+                            {
+                                "criterion": "Teknik yetkinlik",
+                                "skill_id": str(skill.id),
+                                "rating": "MEETS",
+                                "comment": "Beklenen çıktıyı zamanında ve belgeli teslim etti.",
+                            }
+                        ],
+                        private_note="Demo değerlendirmesi",
+                    )
+
+        session.flush()
+        session.refresh(engagement)
+        assert engagement.status == stage, f"{title}: expected {stage}, got {engagement.status}"
+        # Spread the waiting times so "longest waiting first" has something to sort.
+        engagement.updated_at = now - timedelta(days=days_ago)
+        session.flush()
+        inserted += 1
+
+    print(f"Pipeline engagements seed: {inserted} inserted")
+    return inserted
+
+
 # Showcase "Hakkımda" + certificate/work showcase for ogrenci1 (docs/arastirma-ogrenci-profili.md).
 # No external links: a made-up verify/project URL would 404 in a live demo, so none are seeded.
 SHOWCASE_ABOUT = (
@@ -1399,6 +1619,8 @@ if __name__ == "__main__":
         seed_engagements(session)
 
         seed_showcase_profile(session)
+
+        seed_pipeline_engagements(session)
 
         seed_showcase_portfolio(session)
 
