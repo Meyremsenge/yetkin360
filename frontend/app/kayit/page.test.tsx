@@ -41,7 +41,13 @@ describe("RegisterPage (kayit/page.tsx) — Kayıt Formu", () => {
       await user.click(submitButton);
 
       await waitFor(() => {
-        expect(mockRegister).toHaveBeenCalledWith("newuser@example.com", "securepass123", "Ahmet Yılmaz");
+        expect(mockRegister).toHaveBeenCalledWith(
+          "newuser@example.com",
+          "securepass123",
+          "Ahmet Yılmaz",
+          "TALENT",
+          undefined
+        );
       });
 
       // Oturum AÇILMAZ (useSession invalidate edilmez, cookie yok)
@@ -170,7 +176,9 @@ describe("RegisterPage (kayit/page.tsx) — Kayıt Formu", () => {
         expect(mockRegister).toHaveBeenCalledWith(
           "already@example.com",
           "securepass123",
-          "Ahmet Yılmaz"
+          "Ahmet Yılmaz",
+          "TALENT",
+          undefined
         );
       });
 

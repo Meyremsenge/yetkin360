@@ -250,11 +250,13 @@ async function performRefresh(): Promise<void> {
 export async function register(
   email: string,
   password: string,
-  full_name: string
+  full_name: string,
+  account_kind?: "TALENT" | "ORGANIZATION" | "INSTITUTION",
+  entity_name?: string
 ): Promise<{ user_id: string } | undefined> {
   return apiFetch<{ user_id: string }>("/auth/register", {
     method: "POST",
-    body: { email, password, full_name },
+    body: { email, password, full_name, account_kind, entity_name },
   });
 }
 

@@ -6,11 +6,18 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { register as registerUser } from "@/lib/api/client";
-import { registerSchema } from "@/lib/auth/schemas";
+import { accountKinds, registerSchema, requireEntityNameForNonTalent, type AccountKind } from "@/lib/auth/schemas";
+import { cn } from "@/lib/utils";
 import messages from "@/messages/tr.json";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+
+const ACCOUNT_KIND_COPY: Record<AccountKind, { label: string; hint: string }> = {
+  TALENT: { label: messages.kayit.accountKindTalent, hint: messages.kayit.accountKindTalentHint },
+  ORGANIZATION: { label: messages.kayit.accountKindOrganization, hint: messages.kayit.accountKindOrganizationHint },
+  INSTITUTION: { label: messages.kayit.accountKindInstitution, hint: messages.kayit.accountKindInstitutionHint },
+};
 
 // Form schema: base schema + password confirmation field
 const registerFormSchema = registerSchema
@@ -29,7 +36,11 @@ const registerFormSchema = registerSchema
       message: "Şifreler eşleşmiyor",
       path: ["password_confirm"],
     }
-  );
+  )
+  .refine(requireEntityNameForNonTalent, {
+    message: "Kuruluş/kurum adı gereklidir",
+    path: ["entity_name"],
+  });
 
 type RegisterFormData = z.infer<typeof registerFormSchema>;
 
@@ -39,15 +50,25 @@ export default function RegisterForm() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
     setError,
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerFormSchema),
+    defaultValues: { account_kind: "TALENT" },
   });
+
+  const accountKind = watch("account_kind");
 
   const onSubmit = async (data: RegisterFormData) => {
     try {
-      await registerUser(data.email, data.password, data.full_name);
+      await registerUser(
+        data.email,
+        data.password,
+        data.full_name,
+        data.account_kind,
+        data.account_kind === "TALENT" ? undefined : data.entity_name
+      );
 
       // Success: show message and redirect
       setSuccessMessage(messages.kayit.success);
@@ -99,6 +120,47 @@ export default function RegisterForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 rounded-md bg-slate-50 p-6 border border-slate-200">
+      <fieldset>
+        <legend className="text-sm font-medium mb-2">{messages.kayit.accountKindLabel}</legend>
+        <div className="grid grid-cols-3 gap-2">
+          {accountKinds.map((kind) => {
+            const selected = accountKind === kind;
+            const copy = ACCOUNT_KIND_COPY[kind];
+            return (
+              <label
+                key={kind}
+                className={cn(
+                  "flex min-h-16 cursor-pointer flex-col items-center justify-center gap-1 rounded-md border px-2 py-2 text-center focus-within:ring-2 focus-within:ring-success",
+                  selected
+                    ? "border-success bg-success/10 text-success"
+                    : "border-border bg-card text-foreground hover:bg-muted"
+                )}
+              >
+                <input type="radio" value={kind} className="sr-only" {...register("account_kind")} />
+                <span className="text-sm font-medium">{copy.label}</span>
+                <span className="text-xs text-muted-foreground">{copy.hint}</span>
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
+
+      {accountKind !== "TALENT" && (
+        <div>
+          <Label htmlFor="entity_name">{messages.kayit.entityNameLabel}</Label>
+          <Input
+            {...register("entity_name")}
+            id="entity_name"
+            type="text"
+            placeholder={messages.kayit.accountKindOrganizationHint}
+          />
+          <p className="text-xs text-muted-foreground mt-1">{messages.kayit.entityNameHint}</p>
+          {errors.entity_name && (
+            <div className="text-xs text-red-600 mt-1">{errors.entity_name.message}</div>
+          )}
+        </div>
+      )}
+
       <div>
         <Label htmlFor="email">{messages.kayit.emailLabel}</Label>
         <Input
