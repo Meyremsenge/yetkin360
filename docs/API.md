@@ -381,7 +381,7 @@ Yetkisiz çağıran her zaman `404` alır ve kota harcamaz.
 | `POST` | `/engagements` | `ORG:MEMBER` veya `TALENT` | `talent_id`, `organization_id`, `institution_id?`, `kind`, `title`, `started_on?`, `ended_on?`, `confidential?` | `201` — engagement (`status: DRAFT`) | `404`, `400` |
 | `GET` | `/engagements/{id}` | taraflardan biri | — | `200` — engagement + `available_transitions[]` | `404` |
 | `GET` | `/engagements` | `AUTH` | `status?`, `role?`, `limit?`, `cursor?` | `200` — **yalnız erişilebilir olanlar**; her satır `organization_id`, `institution_id`, `talent_id`, `talent_name` taşır (kuruluş/kurum tarafı listeyi öğrenciye göre gösterir) | — |
-| `POST` | `/engagements/{id}/transitions` | duruma göre | `to_status`, `version`, `reason?` | `200` — güncel engagement | `403`, `404`, `409`, `422 ILLEGAL_TRANSITION`, `422 PRECONDITION_FAILED` |
+| `POST` | `/engagements/{id}/transitions` | duruma göre | `to_status`, `version`, `reason?`, `notify_emails?` | `200` — güncel engagement | `403`, `404`, `409`, `422 ILLEGAL_TRANSITION`, `422 PRECONDITION_FAILED` |
 | `POST` | `/engagements/{id}/tasks` | Kuruluş üyesi / koordinatör (yalnız `ACTIVE`) veya `TALENT` (kendi çalışması; `DRAFT`, `ACTIVE`) | `title`, `description?`, `due_at?`, `skill_id?` | `201` — görev (`verified`, `verified_at`) | `404`, `403`, `422 PRECONDITION_FAILED` |
 | `POST` | `/engagements/{id}/tasks/{task_id}/verify` | Kuruluş üyesi / koordinatör — **öğrenci kendi görevini doğrulayamaz** | — | `200` — görev (`verified: true`) | `404`, `403`, `409 TASK_ALREADY_VERIFIED`, `422 PRECONDITION_FAILED` |
 | `POST` | `/engagements/{id}/deliverables` | `TALENT` | `title`, `description?`, `task_id?`, `evidence_ids[]` | `201` | `404`, `403`, `422 EVIDENCE_REQUIRED` |
@@ -419,6 +419,20 @@ Görevi kimin eklediği, doğrulanmış sayılıp sayılmayacağını belirler:
 | `403 FORBIDDEN` | Geçiş tanımlı, ön koşul tamam, ama **bu aktör yetkili değil** |
 
 Bu üç hatanın ayrı olması kasıtlıdır: istemci kullanıcıya doğru mesajı gösterebilir.
+
+**Onay isteğinin alıcısı (`notify_emails`).** `DRAFT → PENDING_APPROVAL`
+geçişinde **zorunludur** (yoksa ya da boşsa `422 PRECONDITION_FAILED`), diğer
+geçişlerde yok sayılır; en az 1, en fazla 5 e-posta adresi.
+
+- Adreslerden o kurumun `COORDINATOR` üyesine ait olanlar bildirimi **tek başına** alır.
+- Başka kurumun koordinatörü, kurum yöneticisi, kuruluş üyesi ya da bilinmeyen bir
+  adres **hata vermeden yok sayılır**; hiçbiri eşleşmezse bildirim yine tüm
+  koordinatörlere gider. Yanıt her durumda aynıdır — istemci bir adresin kurumda
+  kayıtlı olup olmadığını öğrenemez.
+- Onay yetkisi değişmez: kurumun her koordinatörü çalışmayı onaylayabilir. Alan
+  yalnız bildirimin kime gideceğini belirler.
+- Biçimi bozuk adres ya da 5'ten fazla adres → `422 VALIDATION_ERROR`.
+- Outbox'a adres değil kullanıcı kimliği yazılır (PII).
 
 `GET /engagements/{id}` cevabındaki `available_transitions[]`, **bu kullanıcının
 şu anda yapabileceği** geçişleri listeler — frontend butonları bundan üretir,

@@ -937,7 +937,8 @@ def _create_verified_engagement(
         engagement_id=str(engagement.id),
         to_status="PENDING_APPROVAL",
         version=1,
-        reason=None
+        reason=None,
+        notify_emails=[coord_user.email],
     )
 
     # T2: PENDING_APPROVAL → ACTIVE (principal = COORDINATOR)
@@ -1210,10 +1211,20 @@ def _seed_principal(
 
 
 def _move(
-    session: Session, actor: Principal, engagement_id: str, to_status: str, reason: str | None = None
+    session: Session,
+    actor: Principal,
+    engagement_id: str,
+    to_status: str,
+    reason: str | None = None,
+    notify_emails: list[str] | None = None,
 ) -> None:
     transition_engagement(
-        session=session, principal=actor, engagement_id=engagement_id, to_status=to_status, reason=reason
+        session=session,
+        principal=actor,
+        engagement_id=engagement_id,
+        to_status=to_status,
+        reason=reason,
+        notify_emails=notify_emails,
     )
 
 
@@ -1296,7 +1307,7 @@ def seed_pipeline_engagements(session: Session) -> int:
         )
         engagement_id = str(engagement.id)
 
-        _move(session, talent_principal, engagement_id, "PENDING_APPROVAL")
+        _move(session, talent_principal, engagement_id, "PENDING_APPROVAL", notify_emails=[coordinator.email])
         if stage == "REJECTED":
             _move(
                 session, coordinator_principal, engagement_id, "REJECTED",
