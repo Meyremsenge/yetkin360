@@ -77,7 +77,7 @@ export function TransitionActions({
     },
   });
 
-  const candidates = availableTransitions(engagement.status);
+  const candidates = availableTransitions(engagement.status, engagement.institution_id);
 
   // AC-S4 (backend) sonrası refetch, engagement.status'u ör. terminal bir duruma
   // güncelleyebilir (candidates boşalır) — ANCAK az önce set edilen formError/

@@ -65,6 +65,33 @@ describe("TransitionActions", () => {
     expect(screen.getByText("Değerlendirmeye Gönder")).toBeTruthy();
   });
 
+  it("DRAFT + institution_id=null (doğrudan kuruluş engagement'ı) için ACTIVE gösterilir, PENDING_APPROVAL değil", () => {
+    // Canlı bulgu: bu durumda eskiden 'Onaya Gönder' gösteriliyordu ama backend
+    // institution_id_not_null ön koşulu yüzünden her zaman 422 PRECONDITION_FAILED
+    // dönüyordu (app/services/engagement.py:313-316) — kullanıcı hiçbir zaman
+    // çalışmasını aktifleştiremiyordu.
+    renderWithQueryClient(
+      <TransitionActions
+        engagement={{ ...activeEngagement, status: "DRAFT", institution_id: null }}
+        onSuccess={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Onayla ve Aktifleştir")).toBeTruthy();
+    expect(screen.queryByText("Onaya Gönder")).toBeNull();
+  });
+
+  it("DRAFT + institution_id dolu (kurum bağlantılı engagement) için PENDING_APPROVAL gösterilir", () => {
+    renderWithQueryClient(
+      <TransitionActions
+        engagement={{ ...activeEngagement, status: "DRAFT", institution_id: "inst-1" }}
+        onSuccess={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Onaya Gönder")).toBeTruthy();
+  });
+
   it("terminal durumda (REJECTED) hiçbir aksiyon gösterilmez", () => {
     renderWithQueryClient(
       <TransitionActions

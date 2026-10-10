@@ -27,8 +27,16 @@ describe("lib/api/engagements", () => {
   });
 
   describe("availableTransitions", () => {
-    it("DRAFT için sadece PENDING_APPROVAL adaydır", () => {
+    it("DRAFT için sadece PENDING_APPROVAL adaydır (institution_id belirtilmezse/varsa)", () => {
       expect(availableTransitions("DRAFT")).toEqual(["PENDING_APPROVAL"]);
+      expect(availableTransitions("DRAFT", "inst-1")).toEqual(["PENDING_APPROVAL"]);
+    });
+
+    it("DRAFT + institution_id=null (doğrudan kuruluş engagement'ı) için tek aday ACTIVE'dir", () => {
+      // app/services/engagement.py:313-324 — PENDING_APPROVAL'ın institution_id_not_null
+      // ön koşulu bu durumda her zaman reddeder (422); öğrenci bunun yerine
+      // doğrudan ACTIVE'e geçebilir (rel.is_subject and institution_id is None).
+      expect(availableTransitions("DRAFT", null)).toEqual(["ACTIVE"]);
     });
 
     it("PENDING_APPROVAL için ACTIVE ve REJECTED adaydır", () => {

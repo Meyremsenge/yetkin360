@@ -12,6 +12,7 @@ import json
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Generic, TypeVar
 
 from sqlalchemy import ColumnElement, func, or_, select, tuple_
 from sqlalchemy.orm import Session
@@ -56,8 +57,11 @@ class OrganizationCard:
     domain: str | None
 
 
+T = TypeVar("T")
+
+
 @dataclass(frozen=True)
-class Page[T]:
+class Page(Generic[T]):
     items: list[T]
     next_cursor: str | None
 
