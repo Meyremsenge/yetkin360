@@ -29,6 +29,9 @@ const pendingDecisionCheck: CertificateCheck = {
   name_match: false,
   page_name: null,
   page_match: null,
+  extracted_course_name: null,
+  page_course_name: null,
+  course_match: null,
   decision: "PENDING",
   decided_by_user_id: null,
   decided_at: null,
@@ -82,6 +85,62 @@ describe("CertificateChecksSection", () => {
       expect(screen.getByText(new RegExp(messages.calismalar.certificateCheckPageNameLabel))).toBeTruthy();
     });
     expect(screen.getByText(new RegExp(messages.calismalar.certificateCheckPageMatchNo))).toBeTruthy();
+  });
+
+  it("resmi sayfadaki kurs adı ve eşleşmesi varsa koordinatöre gösterilir", async () => {
+    vi.mocked(listCertificateChecksForEngagement).mockResolvedValue([
+      {
+        ...pendingDecisionCheck,
+        page_name: "Ahmet Yılmaz",
+        page_match: true,
+        extracted_course_name: "Advanced Machine Learning",
+        page_course_name: "Introduction to Front-End Development",
+        course_match: false,
+      },
+    ]);
+
+    renderWithQueryClient(<CertificateChecksSection engagementId="eng-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Introduction to Front-End Development/)).toBeTruthy();
+    });
+    expect(screen.getByText(/Advanced Machine Learning/)).toBeTruthy();
+    expect(screen.getByText(new RegExp(messages.calismalar.certificateCheckCourseMatchNo))).toBeTruthy();
+    expect(screen.queryByText(messages.calismalar.certificateCheckManualVerifyNotice)).toBeNull();
+  });
+
+  it("resmi sayfa otomatik açılamadıysa (Udemy) elle kontrol uyarısı ve karşılaştırılacak alanlar gösterilir", async () => {
+    vi.mocked(listCertificateChecksForEngagement).mockResolvedValue([
+      {
+        ...pendingDecisionCheck,
+        provider: "UDEMY",
+        credential_id: "UC-a677fedf-70be-4a21-a039-ad09955d4e18",
+        verify_url: "https://ude.my/UC-a677fedf-70be-4a21-a039-ad09955d4e18",
+        extracted_course_name: "Photoshop ile Mimari illüstrasyon ve kolaj",
+      },
+    ]);
+
+    renderWithQueryClient(<CertificateChecksSection engagementId="eng-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText(messages.calismalar.certificateCheckManualVerifyNotice)).toBeTruthy();
+    });
+    expect(screen.getByText(/Photoshop ile Mimari illüstrasyon ve kolaj/)).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: messages.calismalar.certificateCheckVerifyLinkLabel }).getAttribute("href")
+    ).toBe("https://ude.my/UC-a677fedf-70be-4a21-a039-ad09955d4e18");
+  });
+
+  it("doğrulama linki hiç yoksa bunu açıkça söyler", async () => {
+    vi.mocked(listCertificateChecksForEngagement).mockResolvedValue([
+      { ...pendingDecisionCheck, verify_url: null, qr_raw_data: null },
+    ]);
+
+    renderWithQueryClient(<CertificateChecksSection engagementId="eng-1" />);
+
+    await waitFor(() => {
+      expect(screen.getByText(messages.calismalar.certificateCheckNoVerifyLinkNotice)).toBeTruthy();
+    });
   });
 
   it("Onayla tıklanınca resolveCertificateCheck CONFIRMED ile çağrılır", async () => {

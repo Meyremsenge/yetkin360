@@ -87,6 +87,11 @@ export function CertificateChecksSection({ engagementId }: { engagementId: strin
                     )}
                   </p>
                 )}
+                {check.extracted_course_name && (
+                  <p>
+                    {messages.calismalar.certificateCheckCourseLabel}: {check.extracted_course_name}
+                  </p>
+                )}
                 {check.page_name && (
                   <p>
                     {messages.calismalar.certificateCheckPageNameLabel}: {check.page_name}{" "}
@@ -96,6 +101,20 @@ export function CertificateChecksSection({ engagementId }: { engagementId: strin
                         {check.page_match
                           ? messages.calismalar.certificateCheckPageMatchYes
                           : messages.calismalar.certificateCheckPageMatchNo}
+                        )
+                      </span>
+                    )}
+                  </p>
+                )}
+                {check.page_course_name && (
+                  <p>
+                    {messages.calismalar.certificateCheckPageCourseLabel}: {check.page_course_name}{" "}
+                    {check.course_match !== null && (
+                      <span className={check.course_match ? "text-green-700" : "text-red-700"}>
+                        (
+                        {check.course_match
+                          ? messages.calismalar.certificateCheckCourseMatchYes
+                          : messages.calismalar.certificateCheckCourseMatchNo}
                         )
                       </span>
                     )}
@@ -111,6 +130,13 @@ export function CertificateChecksSection({ engagementId }: { engagementId: strin
                     >
                       {messages.calismalar.certificateCheckVerifyLinkLabel}
                     </a>
+                  </p>
+                )}
+                {!check.page_name && !check.page_course_name && (
+                  <p className="mt-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-amber-900">
+                    {check.verify_url
+                      ? messages.calismalar.certificateCheckManualVerifyNotice
+                      : messages.calismalar.certificateCheckNoVerifyLinkNotice}
                   </p>
                 )}
               </div>

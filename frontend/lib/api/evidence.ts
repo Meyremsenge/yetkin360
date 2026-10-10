@@ -182,7 +182,7 @@ export interface CertificateCheck {
   id: string;
   evidence_id: string;
   status: CertificateCheckStatus;
-  provider: "UDEMY" | "COURSERA" | "UNKNOWN" | null;
+  provider: "UDEMY" | "COURSERA" | "BTK" | "UNKNOWN" | null;
   credential_id: string | null;
   verify_url: string | null;
   qr_raw_data: string | null;
@@ -190,6 +190,9 @@ export interface CertificateCheck {
   name_match: boolean | null;
   page_name: string | null;
   page_match: boolean | null;
+  extracted_course_name: string | null;
+  page_course_name: string | null;
+  course_match: boolean | null;
   decision: CertificateCheckDecision;
   decided_by_user_id: string | null;
   decided_at: string | null;

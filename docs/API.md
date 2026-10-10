@@ -427,7 +427,15 @@ AI (`evidence.certificate_check_requested` outbox handler'ı, OpenRouter görsel
 modeli) sertifikadaki ismi/kimlik numarasını/QR'ı (QR: OpenCV, deterministik)
 çıkarır — hiçbir zaman "doğrulandı" kararı vermez (final-analiz §11.4.2/§39).
 İsim eşleşmesi (`name_match`) kod tarafında düz string karşılaştırmasıyla
-hesaplanır. **Kasıtlı yetkilendirme istisnası:** `scoped_evidence()`'ın
+hesaplanır. Sertifika iki farklı çözünürlükte okunur; sertifika numarası ve
+link yalnız okumalar uyuşursa kabul edilir (uyuşmazsa `null`). Udemy ve BTK
+doğrulama linki okunan sertifika numarasından kod tarafında üretilir. Resmi
+doğrulama sayfası Coursera ve BTK Akademi için otomatik açılır; sayfadaki ad ve
+kurs adı sertifikadakilerle karşılaştırılır (`page_name`/`page_match`,
+`extracted_course_name`/`page_course_name`/`course_match`). Udemy sayfası bot
+korumasının arkasında olduğundan otomatik açılmaz — bu alanlar `null` kalır
+("bilinmiyor", "eşleşmiyor" değil) ve koordinatör linki elle kontrol eder.
+**Kasıtlı yetkilendirme istisnası:** `scoped_evidence()`'ın
 "sadece sahibi görür" kuralına (final-analiz §21.2) dar bir istisna —
 `CertificateCheck` özeti (ham dosya DEĞİL) ilgili engagement'ın
 koordinatörüne/supervisor'una da açılır, çünkü özelliğin denetim değeri
