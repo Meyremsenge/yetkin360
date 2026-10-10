@@ -8,6 +8,8 @@ import ProfileForm from "./profile-form";
 import ProfileHero from "./profile-hero";
 import SkillsSection from "./skills-section";
 import EvidenceSection from "./evidence-section";
+import AboutSection from "./about-section";
+import PortfolioSection from "./portfolio-section";
 import InstitutionLinkSection from "./institution-link-section";
 import messages from "@/messages/tr.json";
 
@@ -37,10 +39,12 @@ export default function ProfilePage() {
             <div className="grid grid-cols-1 items-start gap-x-6 xl:grid-cols-2">
               <div>
                 <ProfileForm initialData={talentProfile as Record<string, unknown>} />
+                <AboutSection initialAbout={((talentProfile as Record<string, unknown>).about as string | null) ?? null} />
                 <SkillsSection />
               </div>
               <div>
                 <EvidenceSection />
+                <PortfolioSection />
                 <InstitutionLinkSection />
               </div>
             </div>

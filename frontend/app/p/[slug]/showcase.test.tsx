@@ -146,4 +146,51 @@ describe("PublicProfilePage — vitrin", () => {
     expect(screen.queryByLabelText("Profil özeti")).toBeNull();
     expect(screen.queryByText("Yetkinlik haritası")).toBeNull();
   });
+  it("Hakkımda ve sertifika şeridini gösterir; sicil kartı yalnız onaylı sertifikaları sayar", async () => {
+    vi.mocked(getPublicProfile).mockResolvedValueOnce({
+      ...richProfile,
+      about: "Veri görselleştirme ile ilgileniyorum.",
+      certificates: [
+        {
+          kind: "CERTIFICATE",
+          title: "Veri Bilimi",
+          issuer: null,
+          issued_on: "2026-05-01",
+          credential_id: "ABC123",
+          badge: "COORDINATOR_CONFIRMED",
+          provider: "COURSERA",
+          verify_url: "https://www.coursera.org/verify/ABC123",
+          link_url: null,
+          link_host: null,
+        },
+        {
+          kind: "WORK",
+          title: "Kişisel site",
+          issuer: null,
+          issued_on: null,
+          credential_id: null,
+          badge: "SELF_DECLARED",
+          provider: null,
+          verify_url: null,
+          link_url: null,
+          link_host: null,
+        },
+      ],
+    });
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "Hakkımda" })).toBeInTheDocument();
+    expect(screen.getByText("Veri görselleştirme ile ilgileniyorum.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Sertifikalar" })).toBeInTheDocument();
+    expect(screen.getByText("koordinatör onaylı sertifika").previousSibling).toHaveTextContent("1");
+  });
+
+  it("Hakkımda ve sertifika yoksa bu bölümler hiç çıkmaz", async () => {
+    vi.mocked(getPublicProfile).mockResolvedValueOnce({ ...richProfile, about: "   ", certificates: [] });
+    renderPage();
+    await screen.findByText("Backend Geliştirme Stajı");
+    expect(screen.queryByRole("heading", { name: "Hakkımda" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Sertifikalar" })).toBeNull();
+    expect(screen.queryByText("koordinatör onaylı sertifika")).toBeNull();
+  });
 });

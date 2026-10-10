@@ -19,6 +19,13 @@ vi.mock("@/app/profil/evidence-section", () => ({
 vi.mock("@/app/profil/institution-link-section", () => ({
   default: () => <div data-testid="institution-link-section">Institution Link Section</div>,
 }));
+// Sections with their own tests (about-section.test.tsx, portfolio-section.test.tsx).
+vi.mock("@/app/profil/about-section", () => ({
+  default: () => <div data-testid="about-section">About Section</div>,
+}));
+vi.mock("@/app/profil/portfolio-section", () => ({
+  default: () => <div data-testid="portfolio-section">Portfolio Section</div>,
+}));
 
 /**
  * AC-1: Profil sayfası `AppShell` içinde `ProfileForm` + `SkillsSection` render eder.

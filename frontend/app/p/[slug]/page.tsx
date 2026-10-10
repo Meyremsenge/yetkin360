@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { PublicTopBar, publicFocusRing } from "@/components/public-top-bar";
 import { SealMark } from "@/components/brand/brand-mark";
 import { ChainLegend } from "@/components/page-layout";
+import { AboutBlock } from "@/components/public-profile/about-block";
+import { CertificateStrip } from "@/components/public-profile/certificate-strip";
 import { ExperienceCard } from "@/components/public-profile/experience-card";
 import { QrCode } from "@/components/public-profile/qr-code";
 import { ProfileCard } from "@/components/public-profile/profile-card";
@@ -137,11 +139,14 @@ function ProfileView({ profile, slug }: { profile: PublicProfile; slug: string }
   const url = useProfileUrl(slug);
   const experiences = profile.verified_experiences;
   const skills = profile.skills ?? [];
+  const certificates = profile.certificates ?? [];
+  const about = profile.about?.trim();
 
   return (
     <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_300px] lg:gap-x-14 print:block">
       <div className="lg:col-start-1 lg:row-start-1">
         <Hero profile={profile} />
+        {about ? <AboutBlock about={about} /> : null}
       </div>
 
       <aside className="lg:col-start-2 lg:row-span-2 lg:row-start-1">
@@ -162,7 +167,22 @@ function ProfileView({ profile, slug }: { profile: PublicProfile; slug: string }
           </section>
         ) : null}
 
-        <section className={skills.length > 0 ? "mt-14 print:mt-8" : ""} aria-labelledby="timeline-title">
+        {certificates.length > 0 ? (
+          <section
+            className={skills.length > 0 ? "mt-14 print:mt-8" : ""}
+            aria-labelledby="certificates-title"
+          >
+            <div id="certificates-title">
+              <SectionHeading title={t.certificatesTitle} lead={t.certificatesLead} />
+            </div>
+            <CertificateStrip certificates={certificates} />
+          </section>
+        ) : null}
+
+        <section
+          className={skills.length > 0 || certificates.length > 0 ? "mt-14 print:mt-8" : ""}
+          aria-labelledby="timeline-title"
+        >
           <div id="timeline-title">
             <SectionHeading title={t.timelineTitle} lead={experiences.length > 0 ? t.timelineLead : undefined} />
           </div>

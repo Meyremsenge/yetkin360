@@ -350,6 +350,16 @@ export async function updateTalentProfile(
 }
 
 /**
+ * "Hakkımda": PATCH /talents/me { about }. Blank text clears it (server stores null).
+ */
+export async function updateTalentAbout(about: string): Promise<Record<string, unknown> | undefined> {
+  return apiFetch("/talents/me", {
+    method: "PATCH",
+    body: { about: about.trim() === "" ? null : about },
+  });
+}
+
+/**
  * AC-4: Get current user's skills. Calls GET /talents/me/skills.
  * Returns { items: [...] } where each item has skill (id, name_tr) and claimed_level.
  */
