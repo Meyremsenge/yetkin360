@@ -192,7 +192,7 @@ Kesin, test edilebilir matris → [AUTHORIZATION.md](AUTHORIZATION.md).
 
 | Metot | Yol | Yetki | İstek | Cevap | Hatalar |
 |---|---|---|---|---|---|
-| `POST` | `/auth/register` | — | `email`, `password`, `full_name` | `201` — `user_id` (her zaman, kayıtlı e-postada bile) | `422`, `429` |
+| `POST` | `/auth/register` | — | `email`, `password`, `full_name`, `account_kind` (ops., varsayılan `TALENT`), `entity_name` (ops., `account_kind≠TALENT` ise zorunlu) | `201` — `user_id` (her zaman, kayıtlı e-postada bile) | `422`, `429` |
 | `POST` | `/auth/login` | — | `email`, `password` | `200` — `user_id`, `role`, `email_verified` + **3 cookie** | `401 INVALID_CREDENTIALS`, `423 ACCOUNT_LOCKED`, `429` |
 | `POST` | `/auth/refresh` | — | — (refresh cookie'den) | `204` + **yenilenmiş cookie'ler** | `401 INVALID_REFRESH_TOKEN` |
 | `POST` | `/auth/logout` | `AUTH` | — | `204` + cookie'ler silinir | — |
@@ -237,22 +237,39 @@ iptal edebilsin diye `/auth/refresh` ile sınırlı değildir (YET-185). Eski
 - Kayıt sonrası e-posta doğrulanana kadar **hiçbir yazma işlemi yapılamaz**
   → `401 EMAIL_NOT_VERIFIED`.
 
-**Karar — kayıtta rol seçimi yoktur.** `register` isteği `role` almaz.
+**Karar (revize — bkz. PLAN 3.52) — kayıt `role` almaz, ama opsiyonel
+`account_kind` ile kuruluş/kurum oluşturabilir.** `users` tablosunda hâlâ
+**`role` sütunu yoktur** ve koordinatör/kurum **üyeliği** hâlâ yalnız
+davetle verilir — bu ilke değişmedi. `account_kind` bir yetki beyanı
+**değildir**; yalnız kayıt sırasında ek olarak bir `Organization` veya
+`Institution` satırı açılıp açılmayacağını belirler, çağıran o varlığın
+**ADMIN**'i olur.
 
 Herkes aynı şekilde kaydolur; sunucu **tek transaction'da** `users` +
 `talent_profiles` satırını birlikte açar ([DATABASE.md](DATABASE.md) §"Kullanıcı
-kaydı"). Talent profili boş alanlarla doğar, kullanıcı `PATCH /talents/me` ile
-doldurur.
+kaydı") — bu her zaman olur, `account_kind` ne olursa olsun. Talent profili
+boş alanlarla doğar, kullanıcı `PATCH /talents/me` ile doldurur.
 
-Gerekçe:
-- `users` tablosunda **`role` sütunu yoktur.** Rol kişiye değil **üyeliğe**
-  aittir: `institution_members.role`, `organization_members.role`.
-- Kullanıcı kendi rolünü **beyan edemez.** Koordinatör veya kurum üyeliği
-  yalnız davetle verilir — aksi hâlde herkes kendini koordinatör ilan ederdi.
-- Kayıt ekranı ([PLAN.md](../PLAN.md) 1.13) tek akış: e-posta, şifre, ad soyad.
+- `account_kind=TALENT` (varsayılan): yalnız kullanıcı + talent profili.
+- `account_kind=ORGANIZATION`: yukarıdakine ek olarak `entity_name` ile bir
+  `Organization` (T1, `POST /organizations`'la birebir aynı — doğrulanmamış,
+  kendiliğinden hizmete açık) oluşturulur, kullanıcı onun ADMIN'i olur.
+- `account_kind=INSTITUTION`: aynı şekilde bir `Institution` (T1) oluşturulur,
+  kullanıcı onun ADMIN'i olur.
 
-Kurumdan biri platforma katılırken de aynı kapıdan girer; kurum üyeliği
-sonradan eklenir. Bu kişinin talent profili boş kalır, zararı yoktur.
+**Bu neden güvenlik ilkesini bozmuyor:** `POST /organizations` ve
+`POST /institutions` zaten davetsiz, kimliği doğrulanmış **herhangi bir**
+kullanıcıya açıktı (bkz. §2.4/§2.5) — kuruluş/kurum oluşturmak hiçbir zaman
+davet gerektirmedi, yalnız T1→T2/T3 **doğrulaması** sonradan ve ayrı bir
+admin/domain sürecinden geçer. `account_kind`, kayıt sonrası zaten
+yapılabilecek bir işlemi tek adıma indirgiyor — yeni bir güven sınırı
+açmıyor. Değişmeyen şey: **koordinatörlük** ve **var olan bir kuruma/kuruluşa
+üyelik** hâlâ yalnız davetle (`POST /institutions/{id}/members`,
+`POST /organizations/{id}/members`) verilir, kayıt ekranından asla.
+
+Kurumdan biri platforma katılırken de aynı kapıdan girer; `account_kind=TALENT`
+ile kaydolup kurum üyeliği sonradan eklenir. Bu kişinin talent profili boş
+kalır, zararı yoktur.
 
 ### 2.2 Profil ve yetkinlik — `/me`, `/talents`
 

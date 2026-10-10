@@ -19,7 +19,18 @@ from sqlalchemy import func, select
 from app.core.deps import get_session
 from app.core.security import hash_email_token, hash_password, hash_refresh_token
 from app.main import app
-from app.models import AuditEvent, EmailVerificationToken, PasswordResetToken, RefreshToken, TalentProfile, User
+from app.models import (
+    AuditEvent,
+    EmailVerificationToken,
+    Institution,
+    InstitutionMember,
+    Organization,
+    OrganizationMember,
+    PasswordResetToken,
+    RefreshToken,
+    TalentProfile,
+    User,
+)
 from tests._testdb import session_override
 
 
@@ -85,6 +96,119 @@ class TestRegister:
         )
         assert response.status_code == 201
         assert "role" not in response.json()
+
+    def test_register_account_kind_organization_creates_org_with_caller_as_admin(self, client, session):
+        """docs/API.md §2.1 (revize): account_kind=ORGANIZATION → Organization + caller ADMIN'i, aynı transaction."""
+        response = client.post(
+            "/auth/register",
+            json={
+                "email": "org-founder@example.com",
+                "password": "Str0ngPassw0rd!",
+                "full_name": "Kuruluş Kurucusu",
+                "account_kind": "ORGANIZATION",
+                "entity_name": "Test Kuruluşu A.Ş.",
+            },
+        )
+        assert response.status_code == 201
+        user_id = uuid.UUID(response.json()["user_id"])
+
+        org = session.execute(
+            select(Organization).where(Organization.name == "Test Kuruluşu A.Ş.")
+        ).scalars().first()
+        assert org is not None
+        assert org.verification_level == "T1"
+
+        membership = session.execute(
+            select(OrganizationMember).where(
+                OrganizationMember.organization_id == org.id, OrganizationMember.user_id == user_id
+            )
+        ).scalars().first()
+        assert membership is not None
+        assert membership.role == "ADMIN"
+
+        # Still gets a talent profile — account_kind never removes that.
+        profile = session.execute(
+            select(TalentProfile).where(TalentProfile.user_id == user_id)
+        ).scalars().first()
+        assert profile is not None
+
+    def test_register_account_kind_institution_creates_institution_with_caller_as_admin(self, client, session):
+        response = client.post(
+            "/auth/register",
+            json={
+                "email": "inst-founder@example.com",
+                "password": "Str0ngPassw0rd!",
+                "full_name": "Kurum Kurucusu",
+                "account_kind": "INSTITUTION",
+                "entity_name": "Test Üniversitesi",
+            },
+        )
+        assert response.status_code == 201
+        user_id = uuid.UUID(response.json()["user_id"])
+
+        institution = session.execute(
+            select(Institution).where(Institution.name == "Test Üniversitesi")
+        ).scalars().first()
+        assert institution is not None
+        assert institution.verification_level == "T1"
+
+        membership = session.execute(
+            select(InstitutionMember).where(
+                InstitutionMember.institution_id == institution.id, InstitutionMember.user_id == user_id
+            )
+        ).scalars().first()
+        assert membership is not None
+        assert membership.role == "ADMIN"
+
+    def test_register_account_kind_organization_without_entity_name_returns_422(self, client):
+        response = client.post(
+            "/auth/register",
+            json={
+                "email": "missing-name@example.com",
+                "password": "Str0ngPassw0rd!",
+                "full_name": "Biri",
+                "account_kind": "ORGANIZATION",
+            },
+        )
+        assert response.status_code == 422
+
+    def test_register_default_account_kind_talent_creates_no_membership(self, client, session):
+        """account_kind'ın hiç gönderilmemesi (mevcut davranış) hâlâ TALENT'e düşmeli — org/institution satırı açılmamalı."""
+        response = client.post(
+            "/auth/register",
+            json={"email": "plain-talent@example.com", "password": "Str0ngPassw0rd!", "full_name": "Sade Kullanıcı"},
+        )
+        assert response.status_code == 201
+        user_id = uuid.UUID(response.json()["user_id"])
+
+        org_membership = session.execute(
+            select(OrganizationMember).where(OrganizationMember.user_id == user_id)
+        ).scalars().first()
+        inst_membership = session.execute(
+            select(InstitutionMember).where(InstitutionMember.user_id == user_id)
+        ).scalars().first()
+        assert org_membership is None
+        assert inst_membership is None
+
+    def test_register_duplicate_email_with_account_kind_does_not_create_organization(
+        self, client, existing_user, session
+    ):
+        """AC-S1 korunur: kayıtlı e-postayla account_kind=ORGANIZATION gönderilse bile yeni kuruluş açılmaz (fake user_id yolu)."""
+        response = client.post(
+            "/auth/register",
+            json={
+                "email": "existing-auth@example.com",
+                "password": "Str0ngPassw0rd!",
+                "full_name": "Saldırgan",
+                "account_kind": "ORGANIZATION",
+                "entity_name": "Saldırgan Şirketi",
+            },
+        )
+        assert response.status_code == 201
+        org = session.execute(
+            select(Organization).where(Organization.name == "Saldırgan Şirketi")
+        ).scalars().first()
+        assert org is None
 
 
 class TestLogin:

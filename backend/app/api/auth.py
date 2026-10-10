@@ -120,7 +120,14 @@ def register(
     # docs/SECURITY.md §4 senaryo 10: always 201, never leaks whether the
     # email was already registered (see register_user's docstring).
     _throttle(session, request, rate_limit.REGISTER_IP, rate_limit.REGISTER_ACCOUNT, body.email)
-    result = auth_service.register_user(session, body.email, body.password, body.full_name)
+    result = auth_service.register_user(
+        session,
+        body.email,
+        body.password,
+        body.full_name,
+        account_kind=body.account_kind,
+        entity_name=body.entity_name,
+    )
     return RegisterResponse(user_id=result.user_id)
 
 

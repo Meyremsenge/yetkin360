@@ -322,6 +322,21 @@ PLAN maddesi olarak açılmamıştı. Detay: `HATA.md`.**
 - [ ] 3.48 Frontend testleri + CI'da vitest (HATA_DUZELTME_PROMPT B-11, TEST-01) @fe
 - [ ] 3.49 Kurum bağlanma talepleri + admin kuyruğu reddi (HATA_DUZELTME_PROMPT B-12, IS-10, IS-11) @fe
 - [ ] 3.50 Profil düzeltmeleri, skill yönetimi, frontend bağımlılığı (HATA_DUZELTME_PROMPT B-13, IS-09, DEP-02, L-06, L-10) @fe
+- [ ] 3.52 Kayıt ekranına hesap türü seçimi: `register` isteğine opsiyonel
+      `account_kind` (TALENT/ORGANIZATION/INSTITUTION) + `entity_name` eklendi
+      — docs/API.md §2.1 revize edildi, §"Kayıta hesap türü" (kullanıcı
+      kayda derken kuruluş/kurum adı girip kayıt anında o kuruluşun/kurumun
+      ADMIN'i olabiliyor; yeni bir güven sınırı açmıyor çünkü
+      POST /organizations ve POST /institutions zaten davetsiz serbestti).
+      Backend tamamlandı (schemas/auth.py, services/auth.py, api/auth.py).
+      Kalan: frontend /kayit formuna hesap türü segment seçici + koşullu
+      kuruluş/kurum adı alanı, yetkilendirme testi. @be2 @fe
+- [ ] 3.53 /calismalar'da "Yeni Çalışma" giriş noktası yok — öğrenci kendi
+      başına kuruluş seçip çalışma başlatamıyor, yalnız kuruluşun gönderdiği
+      özel linkle (?organization_id=...) gidilebiliyor. Karar: öğrenci tüm
+      kuruluşlardan serbestçe arayıp seçebilsin — yeni bir
+      GET /organizations (liste/arama, authenticated) ucu + /calismalar'da
+      "Yeni Çalışma" butonu + kuruluş seçici ekran gerekiyor. @be1 @fe
 - [ ] 3.51 Outbox worker'a eksik bildirim handler'ları eklenmeli: `attestation.created`
       (öğrenciye tanıklık/doğrulama bildirimi) ve `engagement.pending_approval`
       (koordinatöre onay bekleyen çalışma bildirimi) — ikisi de servis katmanında

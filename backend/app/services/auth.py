@@ -37,6 +37,8 @@ from app.models import (
     User,
 )
 from app.services.audit import log_audit_event
+from app.services.institution import create_institution
+from app.services.organization import create_organization
 from app.services.outbox import enqueue
 
 EMAIL_VERIFICATION_TOKEN_TTL_HOURS = 24
@@ -136,10 +138,24 @@ def summarize_role(session: Session, user: User) -> str:
     return "TALENT"
 
 
-def register_user(session: Session, email: str, password: str, full_name: str) -> RegisteredUser:
+def register_user(
+    session: Session,
+    email: str,
+    password: str,
+    full_name: str,
+    account_kind: str = "TALENT",
+    entity_name: str | None = None,
+) -> RegisteredUser:
     """
     Create a user + empty talent profile in one transaction (docs/API.md §2.1:
-    registration never takes a role — role lives on membership, not on User).
+    registration itself grants no role — role still lives on membership, not
+    on User). account_kind only decides whether an Organization/Institution
+    is created alongside the user, with the caller as its ADMIN — identical
+    to what the caller could already do a moment later via
+    POST /organizations or POST /institutions. It is NOT a new trust
+    boundary: creating an organization has always been self-service (T1,
+    unverified until an admin raises it), and institution creation already
+    required no invitation either.
 
     docs/SECURITY.md §4 senaryo 10: registration must not let an attacker
     enumerate which emails are already registered. If the email is already
@@ -190,6 +206,44 @@ def register_user(session: Session, email: str, password: str, full_name: str) -
         subject_id=user.id,
         result="SUCCESS",
     )
+
+    if account_kind == "ORGANIZATION":
+        assert entity_name is not None  # enforced by RegisterRequest validator
+        organization = create_organization(
+            name=entity_name,
+            domain=None,
+            legal_id=None,
+            caller_user_id=user.id,
+            session=session,
+        )
+        log_audit_event(
+            session=session,
+            actor_user_id=user.id,
+            actor_ip=None,
+            action="CREATE_ORGANIZATION",
+            subject_type="organization",
+            subject_id=organization.id,
+            result="SUCCESS",
+            metadata={"name": entity_name, "via": "register"},
+        )
+    elif account_kind == "INSTITUTION":
+        assert entity_name is not None  # enforced by RegisterRequest validator
+        institution = create_institution(
+            name=entity_name,
+            domain=None,
+            caller_user_id=user.id,
+            session=session,
+        )
+        log_audit_event(
+            session=session,
+            actor_user_id=user.id,
+            actor_ip=None,
+            action="CREATE_INSTITUTION",
+            subject_type="institution",
+            subject_id=institution.id,
+            result="SUCCESS",
+            metadata={"name": entity_name, "via": "register"},
+        )
 
     _issue_email_verification_token(session, user.id)
 
