@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -36,7 +36,7 @@ function errorMessage(err: unknown): string {
 }
 
 /** C8: şikayet formu. Konu (subject_type/subject_id) sorgu parametresinden gelir. */
-export default function YeniSikayetPage() {
+function YeniSikayetContent() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const params = useSearchParams();
@@ -209,5 +209,14 @@ export default function YeniSikayetPage() {
         )}
       </main>
     </AppShell>
+  );
+}
+
+// useSearchParams() needs a Suspense boundary, otherwise `next build` fails while prerendering.
+export default function YeniSikayetPage() {
+  return (
+    <Suspense fallback={null}>
+      <YeniSikayetContent />
+    </Suspense>
   );
 }
