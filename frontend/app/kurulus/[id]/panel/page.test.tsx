@@ -6,6 +6,7 @@ import KurulusPanelPage from "./page";
 import { useParams } from "next/navigation";
 import { useSession } from "@/lib/session/use-session";
 import { getOrganization, inviteOrgMember, verifyDomain } from "@/lib/api/organizations";
+import { listEngagements } from "@/lib/api/engagements";
 import { ApiError } from "@/lib/api/errors";
 
 vi.mock("next/navigation", () => ({
@@ -18,6 +19,10 @@ vi.mock("@/lib/api/organizations", () => ({
   getOrganization: vi.fn(),
   inviteOrgMember: vi.fn(),
   verifyDomain: vi.fn(),
+}));
+
+vi.mock("@/lib/api/engagements", () => ({
+  listEngagements: vi.fn(),
 }));
 
 function renderWithQueryClient(ui: React.ReactElement) {
@@ -49,6 +54,7 @@ describe("KurulusPanelPage (/kurulus/[id]/panel)", () => {
     vi.clearAllMocks();
     vi.mocked(useParams).mockReturnValue({ id: "org-1" });
     vi.mocked(useSession).mockReturnValue(mockSession as unknown as ReturnType<typeof useSession>);
+    vi.mocked(listEngagements).mockResolvedValue({ items: [] });
   });
 
   afterEach(() => {
@@ -251,6 +257,55 @@ describe("KurulusPanelPage (/kurulus/[id]/panel)", () => {
       await waitFor(() => {
         expect(screen.getByText("Davet gönderilemedi.")).toBeTruthy();
       });
+    });
+  });
+
+  describe("Çalışma özeti", () => {
+    const engagement = (id: string, status: string, organization_id = "org-1") => ({
+      id,
+      title: `Çalışma ${id}`,
+      kind: "INTERNSHIP" as const,
+      status: status as never,
+      organization_id,
+      institution_id: null,
+      organization_name: "Acme A.Ş.",
+      version: 1,
+      updated_at: "2026-10-01T10:00:00Z",
+    });
+
+    it("yalnız bu kuruluşun çalışmalarını sayar; değerlendirme bekleyen en üstte ve Değerlendir linki taşır", async () => {
+      vi.mocked(getOrganization).mockResolvedValue(baseOrg);
+      vi.mocked(listEngagements).mockResolvedValue({
+        items: [
+          engagement("a", "VERIFIED"),
+          engagement("b", "PENDING_EVALUATION"),
+          engagement("c", "ACTIVE", "org-2"),
+        ],
+      });
+
+      renderWithQueryClient(<KurulusPanelPage />);
+
+      await waitFor(() => expect(screen.getByText("Çalışma b")).toBeTruthy());
+      expect(screen.queryByText("Çalışma c")).toBeNull();
+
+      const titles = screen.getAllByText(/^Çalışma [ab]$/).map((node) => node.textContent);
+      expect(titles).toEqual(["Çalışma b", "Çalışma a"]);
+
+      const evaluate = screen.getByRole("link", { name: "Değerlendir" });
+      expect(evaluate.getAttribute("href")).toBe("/calismalar/b/degerlendirme");
+      // Ham enum yerine Türkçe etiket
+      expect(screen.queryByText("PENDING_EVALUATION")).toBeNull();
+      expect(screen.getByText("Değerlendirme formunu doldurun")).toBeTruthy();
+    });
+
+    it("çalışma yoksa ne yapılacağını söyleyen boş durum gösterilir", async () => {
+      vi.mocked(getOrganization).mockResolvedValue(baseOrg);
+
+      renderWithQueryClient(<KurulusPanelPage />);
+
+      await waitFor(() =>
+        expect(screen.getByText("Henüz bu kuruluşla yürütülen bir çalışma yok.")).toBeTruthy()
+      );
     });
   });
 });

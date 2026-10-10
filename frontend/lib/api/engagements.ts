@@ -33,6 +33,8 @@ export interface EngagementSummary {
   title: string;
   kind: EngagementKind;
   status: EngagementStatus;
+  organization_id: string;
+  institution_id: string | null;
   organization_name: string;
   version: number;
   updated_at: string;

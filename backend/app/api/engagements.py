@@ -229,6 +229,8 @@ class EngagementSummaryResponse(BaseModel):
     title: str
     kind: str
     status: str
+    organization_id: str
+    institution_id: str | None = None
     organization_name: str
     version: int
     updated_at: datetime
@@ -415,6 +417,8 @@ def get_engagements(
             title=eng.title,
             kind=eng.kind,
             status=eng.status,
+            organization_id=str(eng.organization_id),
+            institution_id=str(eng.institution_id) if eng.institution_id else None,
             organization_name=org_name,
             version=eng.version,
             updated_at=eng.updated_at,

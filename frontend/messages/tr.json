@@ -1022,7 +1022,36 @@
       "T3": "Kimliği doğrulanmış kuruluş",
       "T4": "Kuruluş + üniversite ortak onayı"
     },
-    "txtRecordLabel": "TXT kaydı değeri"
+    "txtRecordLabel": "TXT kaydı değeri",
+    "pageDescription": "Öğrencilerle yürüttüğünüz çalışmaları izleyin, değerlendirin ve tanıklık edin.",
+    "startLinkButton": "Öğrenci bağlantısını kopyala",
+    "startLinkTitle": "Çalışma başlatma bağlantısı",
+    "startLinkHint": "Öğrenciler bu bağlantıyla kuruluşunuzda yeni bir çalışma başlatır.",
+    "summary": {
+      "total": "Toplam çalışma",
+      "awaiting": "Değerlendirmenizi bekleyen",
+      "verified": "Doğrulanan"
+    },
+    "engagementsTitle": "Çalışmalar",
+    "engagementsHint": "Sizden aksiyon bekleyenler en üstte.",
+    "engagementsEmptyTitle": "Henüz bu kuruluşla yürütülen bir çalışma yok.",
+    "engagementsEmptyHint": "Çalışma başlatma bağlantısını öğrencilerle paylaşın; başlattıkları çalışmalar burada listelenir.",
+    "engagementsError": "Çalışmalar yüklenemedi.",
+    "evaluateAction": "Değerlendir",
+    "orgNextStep": {
+      "DRAFT": "Öğrenci taslağı hazırlıyor",
+      "PENDING_APPROVAL": "Kurum onayı bekleniyor",
+      "ACTIVE": "Öğrenci görev ve kanıt ekliyor",
+      "PENDING_EVALUATION": "Değerlendirme formunu doldurun",
+      "EVALUATED": "Tanıklık bekleniyor",
+      "VERIFIED": "Doğrulandı, sicile işlendi",
+      "RESOLVED": "İtiraz çözüldü",
+      "REJECTED": "Reddedildi",
+      "CANCELLED": "Kapatıldı",
+      "DISPUTED": "İtiraz inceleniyor"
+    },
+    "domainHint": "Alan adınızı doğrulamak, verdiğiniz tanıklıklara güven katar.",
+    "inviteHint": "Değerlendirme yapacak ekip arkadaşlarınızı ekleyin."
   },
   "adminVerificationQueue": {
     "title": "Kurum Doğrulama Kuyruğu",
@@ -1147,5 +1176,9 @@
     "UDEMY": "Udemy",
     "BTK": "BTK Akademi",
     "UNKNOWN": "Diğer"
+  },
+  "panel": {
+    "copied": "Kopyalandı",
+    "copyFailed": "Kopyalanamadı. Bağlantıyı elle seçip kopyalayın."
   }
 }
