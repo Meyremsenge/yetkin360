@@ -62,10 +62,12 @@ Kod yazma, dosya değiştirme yok. Yalnız rapor.
    ve sonraki tüm komutları o klasörde mutlak yolla çalıştır.
    Dal adı `sprint/<id>` değilse: `git branch -m sprint/<id>`.
 2. Ortam (SPRINT.md §3.2):
-   - `.env`: `cp <ana>/backend/.env <wt>/backend/.env` (varsa `frontend/.env.local` de). **İçeriği okuma, yazdırma.**
+   - `.env`: **kopyalama** (izin kuralı yasaklıyor; aşmaya çalışma). `.env` repo kökünde. Backend komutlarına
+     `YETKIN360_ENV_FILE=<ana>/.env` öneki ekle (S0 birleştikten sonra çalışır). İçeriği asla okuma/yazdırma.
+   - Önce SPRINT.md'deki "⚠ Güncelleme" bölümünü oku.
    - Frontend paketi ise: `cmd //c mklink //J "<wt>\frontend\node_modules" "<ana>\frontend\node_modules"`;
      `npx vitest --version` çalışmazsa junction'ı kaldır (`cmd //c rmdir`) ve `npm ci`.
-   - Backend testleri her zaman: `TEST_DB_SUFFIX=<id> <venv-python> -m pytest ...` (S0 paketinin kendisi hariç
+   - Backend testleri her zaman: `YETKIN360_ENV_FILE=<ana>/.env TEST_DB_SUFFIX=<id> <venv-python> -m pytest ...` (S0 paketinin kendisi hariç
      — S0 birleşmeden önce suffix desteği yoktur; S0 oturumu suffix'siz koşar ve aynı anda başka backend testi koşulmaz).
    - Sunucu açma (8000/3000 ana klasörün). Zorunluysa 8001/3001 (§3.2).
 3. Tek satır bildir: `Başlıyorum: <ID> — <başlık> (dal sprint/<id>, worktree hazır)`.
