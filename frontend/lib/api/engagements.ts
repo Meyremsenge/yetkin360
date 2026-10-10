@@ -83,6 +83,8 @@ export interface TransitionPayload {
   to_status: EngagementStatus;
   version: number;
   reason?: string;
+  /** DRAFT → PENDING_APPROVAL için zorunlu: onay isteğinin iletileceği kurum koordinatörleri. */
+  notify_emails?: string[];
 }
 
 // ============================================================================

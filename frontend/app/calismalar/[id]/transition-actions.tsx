@@ -13,7 +13,14 @@ import { ApiError } from "@/lib/api/errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MAX_NOTIFY_EMAILS, parseNotifyEmails } from "@/lib/ui/notify-emails";
 import messages from "@/messages/tr.json";
+
+// Sending for approval asks who should receive the request before it goes out.
+const APPROVAL_REQUEST: EngagementStatus = "PENDING_APPROVAL";
+const NOTICE_MS = 2000;
+// The recipient notice explains what happens to the address; give it time to be read.
+const RECIPIENT_NOTICE_MS = 8000;
 
 /**
  * PLAN 2.11/YET-97: Durum geçiş aksiyonları — POST /transitions bağlantısı + hata gösterimi.
@@ -32,23 +39,29 @@ export function TransitionActions({
 }) {
   const [pendingTarget, setPendingTarget] = useState<EngagementStatus | null>(null);
   const [reason, setReason] = useState("");
+  const [notifyInput, setNotifyInput] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const mutation = useMutation({
-    mutationFn: (toStatus: EngagementStatus) =>
+    mutationFn: ({ toStatus, notifyEmails = [] }: { toStatus: EngagementStatus; notifyEmails?: string[] }) =>
       transitionEngagement(engagement.id, {
         to_status: toStatus,
         version: engagement.version,
         reason: reason.trim() || undefined,
+        ...(notifyEmails.length > 0 ? { notify_emails: notifyEmails } : {}),
       }),
-    onSuccess: () => {
+    onSuccess: (_data, { notifyEmails = [] }) => {
+      const addressed = notifyEmails.length > 0;
       setPendingTarget(null);
       setReason("");
+      setNotifyInput("");
       setFormError(null);
-      setSuccessMessage(messages.calismalar.transitionSuccessMessage);
+      setSuccessMessage(
+        addressed ? messages.calismalar.notifyEmailsSentMessage : messages.calismalar.transitionSuccessMessage,
+      );
       onSuccess();
-      setTimeout(() => setSuccessMessage(null), 2000);
+      setTimeout(() => setSuccessMessage(null), addressed ? RECIPIENT_NOTICE_MS : NOTICE_MS);
     },
     onError: (error: unknown) => {
       if (error instanceof ApiError) {
@@ -91,11 +104,32 @@ export function TransitionActions({
   const handleActionClick = (toStatus: EngagementStatus) => {
     setFormError(null);
     setSuccessMessage(null);
-    if (isReasonRequired(toStatus)) {
+    if (isReasonRequired(toStatus) || toStatus === APPROVAL_REQUEST) {
       setPendingTarget(toStatus);
     } else {
-      mutation.mutate(toStatus);
+      mutation.mutate({ toStatus });
     }
+  };
+
+  const handleApprovalRequestSubmit = () => {
+    const parsed = parseNotifyEmails(notifyInput);
+    if (!parsed.ok) {
+      setFormError(
+        parsed.error === "required"
+          ? messages.calismalar.notifyEmailsRequiredError
+          : parsed.error === "tooMany"
+            ? messages.calismalar.notifyEmailsTooManyError.replace("{max}", String(MAX_NOTIFY_EMAILS))
+            : messages.calismalar.notifyEmailsInvalidError.replace("{email}", parsed.email),
+      );
+      return;
+    }
+    setFormError(null);
+    mutation.mutate({ toStatus: APPROVAL_REQUEST, notifyEmails: parsed.emails });
+  };
+
+  const handleCancel = () => {
+    setPendingTarget(null);
+    setFormError(null);
   };
 
   const handleReasonSubmit = (toStatus: EngagementStatus) => {
@@ -103,12 +137,13 @@ export function TransitionActions({
       setFormError(messages.calismalar.reasonRequiredError);
       return;
     }
-    mutation.mutate(toStatus);
+    mutation.mutate({ toStatus });
   };
 
   return (
     <div className="mt-4 border-t border-border pt-4">
-      {candidates.length > 0 && (
+      {/* The approval-request form carries its own submit button. */}
+      {candidates.length > 0 && pendingTarget !== APPROVAL_REQUEST && (
         <div className="flex flex-wrap gap-2">
           {candidates.map((toStatus) => (
             <Button
@@ -129,7 +164,45 @@ export function TransitionActions({
 
       {/* pendingTarget artık geçersiz bir hedefse (ör. başka sekmenin geçişi sonucu
           durum değişti) gerekçe formunu göstermiyoruz — sadece hata mesajı görünür. */}
-      {pendingTarget && candidates.includes(pendingTarget) && (
+      {pendingTarget === APPROVAL_REQUEST && candidates.includes(APPROVAL_REQUEST) && (
+        <form
+          className="mt-4 max-w-xl"
+          noValidate
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleApprovalRequestSubmit();
+          }}
+        >
+          <Label htmlFor="transition-notify-emails">{messages.calismalar.notifyEmailsLabel}</Label>
+          <Input
+            id="transition-notify-emails"
+            type="text"
+            inputMode="email"
+            autoComplete="off"
+            required
+            aria-required="true"
+            value={notifyInput}
+            onChange={(e) => setNotifyInput(e.target.value)}
+            placeholder={messages.calismalar.notifyEmailsPlaceholder}
+            aria-describedby="transition-notify-emails-hint"
+          />
+          <p id="transition-notify-emails-hint" className="mt-1 text-sm text-muted-foreground">
+            {messages.calismalar.notifyEmailsHint.replace("{max}", String(MAX_NOTIFY_EMAILS))}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending
+                ? messages.calismalar.transitionSubmittingButton
+                : messages.calismalar.transitionAction[APPROVAL_REQUEST]}
+            </Button>
+            <Button type="button" variant="secondary" onClick={handleCancel} disabled={mutation.isPending}>
+              {messages.calismalar.transitionCancelButton}
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {pendingTarget && pendingTarget !== APPROVAL_REQUEST && candidates.includes(pendingTarget) && (
         <div className="mt-4 max-w-md">
           <Label htmlFor="transition-reason">{messages.calismalar.reasonLabel}</Label>
           <Input id="transition-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
