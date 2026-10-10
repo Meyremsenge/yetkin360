@@ -56,7 +56,9 @@ export default function ProfileHero({ profile }: { profile: Record<string, unkno
 
   const name = typeof profile.full_name === "string" ? profile.full_name : "";
   const headline = typeof profile.headline === "string" ? profile.headline : "";
-  const visibility = (typeof profile.visibility === "string" ? profile.visibility : "INSTITUTION") as Visibility;
+  const rawVisibility = typeof profile.visibility === "string" ? profile.visibility : "INSTITUTION";
+  // SPRINT H-0: ORGANIZATIONS is not offered and has no effect, so it is shown as private.
+  const visibility = (rawVisibility === "ORGANIZATIONS" ? "PRIVATE" : rawVisibility) as Visibility;
   const slug = typeof profile.public_slug === "string" && profile.public_slug ? profile.public_slug : null;
   const meta = [
     typeof profile.department === "string" ? profile.department : null,
