@@ -129,6 +129,13 @@ Tam tablo ve gerekçeler → [SECURITY.md](SECURITY.md) §3.
 | `COMPETENCE_MIN_WEEKS` | `4` | Minimum engagement süresi |
 | `ATTESTATION_QUOTA_PER_MEMBER_MONTHLY` | `5` | Doğrulanmış üye başına aylık kota |
 
+AI fraud-check (PLAN 3.54, faz 1 — [API.md](API.md) §2.10):
+
+| Değişken | Varsayılan | Açıklama |
+|---|---|---|
+| `OPENROUTER_API_KEY` | `""` | Boşsa handler sessizce no-op (AI opsiyonel, zorunlu bağımlılık değil) |
+| `OPENROUTER_MODEL` | `anthropic/claude-haiku-4.5` | Küçük/hızlı model — çıkarım görevi, akıl yürütme değil |
+
 ## Frontend
 
 > **`NEXT_PUBLIC_*` değişkenleri tarayıcıya gider — asla sır yazmayın.**
@@ -220,6 +227,12 @@ RATE_LIMIT_GENERAL_PER_MINUTE=300
 NEW_ORG_COOLING_PERIOD_DAYS=30
 COMPETENCE_MIN_WEEKS=4
 ATTESTATION_QUOTA_PER_MEMBER_MONTHLY=5
+
+# --- AI fraud-check (PLAN 3.54, faz 1 — opsiyonel, boşsa handler no-op) ---
+# OpenRouter: tanıklık metnini (attestation.statement) şüpheli patern için
+# tarar, flag üretir — karar her zaman admin'de (bkz. docs/API.md §2.10).
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=anthropic/claude-haiku-4.5
 
 # --- Frontend (tarayıcıya gider — sır yazmayın) ---
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1

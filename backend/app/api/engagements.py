@@ -201,9 +201,9 @@ class DeliverableSummaryResponse(BaseModel):
 class AttestationSummaryResponse(BaseModel):
     """YET-202/ENT-01: Simplified attestation schema for detail response.
 
-    private_note KASITLI OLARAK burada yok — statement alanı attestor'un
-    girdiği metin değil (bkz. model), ama yine de dışarı sadece gerekli
-    alanlar veriliyor (D9 ile aynı felsefe: minimum ifşa).
+    statement (PLAN 3.54'ten itibaren serbest metin, attestor'un girdiği)
+    ve private_note KASITLI OLARAK burada yok — minimum ifşa (D9 ile aynı
+    felsefe); AI fraud-check sonucu statement'ı okur ama dışarı vermez.
     """
 
     id: str
@@ -1037,6 +1037,9 @@ class AttestationCreateRequest(BaseModel):
     skill_id: str | None = Field(
         None, description="Optional UUID of skill for SkillSignal creation"
     )
+    statement: str | None = Field(
+        None, max_length=2000, description="Tanıklık metni (opsiyonel, PLAN 3.54)"
+    )
 
     class Config:
         from_attributes = True
@@ -1116,6 +1119,7 @@ def post_engagement_attestation(
             requested_claim_type=payload.claim_type,
             version=payload.version,
             skill_id=payload.skill_id,
+            statement=payload.statement,
         )
     except AttEngagementNotFoundError:
         raise HTTPException(

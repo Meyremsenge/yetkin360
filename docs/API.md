@@ -536,10 +536,18 @@ tek ekrandaki kanıtı:
 | `GET` | `/admin/verification-queue` | `limit?`, `offset?` | `200` — bekleyen kurum doğrulamaları | — |
 | `POST` | `/admin/organizations/{id}/verification-level` | `verification_level`, `note?` | `200` — `verified_at` yalnız seviye yükselince güncellenir | `404`, `422` |
 | `POST` | `/admin/organizations/{id}/verification-reject` | `note?` | `200` — kurum kuyruktan çıkar, seviye değişmez | `404`, `409 NOT_PENDING` |
+| `GET` | `/admin/fraud-queue` | `limit?`, `offset?` | `200` — PENDING fraud flag'leri (AI işareti, karar yok) | — |
+| `POST` | `/admin/fraud-queue/{id}/resolve` | `outcome` (`CONFIRMED`/`DISMISSED`) | `200` — admin kararı kalıcı kaydedilir | `404`, `409 NOT_PENDING` |
 
 - Admin uçları **offset sayfalama** kullanabilir (§1.6).
 - Her doğrulama seviyesi değişikliği `audit_events` üretir.
 - Bu uçlar T3 verilmesi içindir; T1/T2 otomatik, T4 koordinatör onayıyla gelir.
+- **Fraud-queue (PLAN 3.54, faz 1):** AI (`attestation.fraud_check_requested`
+  outbox handler'ı, OpenRouter) tanıklık metnini (`attestation.statement`)
+  tarar ve şüpheliyse `fraud_flags` tablosuna `PENDING` bir satır ekler — AI
+  hiçbir zaman `attestations`'a yazmaz ve hiçbir hesabı etkilemez. Nihai karar
+  (`CONFIRMED`/`DISMISSED`) yalnızca admin'e aittir (final-analiz §11.4.6).
+  `OPENROUTER_API_KEY` boşsa handler sessizce no-op'tur (AI opsiyonel altyapı).
 
 > ❓ AÇIK SORU: Admin skill yönetimi ucu ([PLAN.md](../PLAN.md) 3.6 "skill
 > yönetimi") §34 listesinde yok. Kullanıcı skill önerisi gönderme ucu ve admin

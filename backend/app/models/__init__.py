@@ -7,6 +7,7 @@ from app.models.email_tokens import EmailVerificationToken, PasswordResetToken
 from app.models.engagement import Engagement
 from app.models.evaluation import Evaluation, EvaluationItem
 from app.models.evidence import Evidence
+from app.models.fraud_flag import FraudFlag
 from app.models.identity import (
     Institution,
     InstitutionMember,
@@ -49,4 +50,5 @@ __all__ = [
     "PasswordResetToken",
     "Outbox",
     "Evidence",
+    "FraudFlag",
 ]

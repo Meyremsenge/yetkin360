@@ -85,6 +85,12 @@ class Settings(BaseSettings):
     seed_admin_email: str = "admin@yetkin360.local"
     seed_admin_password: str = ""
 
+    # Fraud flag (PLAN 3.54) — outbox worker'da attestation.statement metnini
+    # OpenRouter'a gönderip şüpheli paternleri işaretler (karar her zaman admin'de).
+    # Boş olabilir: ayarlanmamışsa worker handler'ı sessizce no-op yapar (AI opsiyonel).
+    openrouter_api_key: str = ""
+    openrouter_model: str = "anthropic/claude-haiku-4.5"
+
     @model_validator(mode="after")
     def _validate_environment(self) -> "Settings":
         """YET-207: refuse to start with a cookie/CSRF-weakening production config.
