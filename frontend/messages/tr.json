@@ -938,7 +938,24 @@
     "title": "Yeni Kurum Oluştur",
     "nameLabel": "Ad",
     "submitButton": "Oluştur",
-    "submittingButton": "Oluşturuluyor..."
+    "submittingButton": "Oluşturuluyor...",
+    "eyebrow": "Kurum",
+    "pageDescription": "Üniversitenizi veya bölümünüzü oluşturun; öğrencileriniz bağlantınızla kurumunuza bağlanabilir.",
+    "stepsTitle": "Sonra ne olacak?",
+    "steps": [
+      {
+        "title": "Yönetici olursunuz",
+        "hint": "Kurumu oluşturan hesap otomatik olarak yönetici olur."
+      },
+      {
+        "title": "Koordinatörleri davet edin",
+        "hint": "Staj onayını ve takibini yapacak ekip arkadaşlarınızı ekleyin."
+      },
+      {
+        "title": "Öğrenci bağlantısını paylaşın",
+        "hint": "Öğrenciler bağlanma talebi gönderir; siz onaylarsınız ve çalışmaları panelden izlersiniz."
+      }
+    ]
   },
   "kurumPanel": {
     "title": "Kurum Paneli",
@@ -986,7 +1003,24 @@
     "submitButton": "Oluştur",
     "submittingButton": "Oluşturuluyor...",
     "legalIdTakenError": "Bu ticari sicil numarası zaten kayıtlı.",
-    "validationError": "Ad veya alan adı geçersiz. Lütfen kontrol edin."
+    "validationError": "Ad veya alan adı geçersiz. Lütfen kontrol edin.",
+    "eyebrow": "Kuruluş",
+    "pageDescription": "Kuruluşunuzu oluşturun; alan adınızı daha sonra doğrulayarak güven seviyenizi yükseltebilirsiniz.",
+    "stepsTitle": "Sonra ne olacak?",
+    "steps": [
+      {
+        "title": "Yönetici olursunuz",
+        "hint": "Kuruluşu oluşturan hesap otomatik olarak yönetici olur."
+      },
+      {
+        "title": "Alan adınızı doğrulayın",
+        "hint": "DNS'e bir TXT kaydı ekleyin; tanıklıklarınız daha güvenilir görünür."
+      },
+      {
+        "title": "Öğrenci bağlantısını paylaşın",
+        "hint": "Öğrencilerin başlattığı çalışmalar panelinize düşer; değerlendirip tanıklık edersiniz."
+      }
+    ]
   },
   "kurulusPanel": {
     "title": "Kuruluş paneli",

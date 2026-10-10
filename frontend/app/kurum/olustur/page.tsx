@@ -4,8 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
+import { PageBody, PageHeader } from "@/components/page-layout";
+import { FormLayout, StepsCard, actionClass } from "@/components/panel-kit";
+import { Alert } from "@/components/ui/alert";
 import { createInstitution } from "@/lib/api/institutions";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import messages from "@/messages/tr.json";
@@ -36,28 +38,36 @@ export default function KurumOlusturPage() {
     mutation.mutate();
   };
 
+  const t = messages.kurumOlustur;
+
   return (
     <AppShell>
-      <div className="p-6 max-w-lg mx-auto">
-        <h1 className="text-2xl font-bold mb-6">{messages.kurumOlustur.title}</h1>
+      <PageHeader eyebrow={t.eyebrow} title={t.title} description={t.pageDescription} />
+      <PageBody>
+        <FormLayout
+          form={
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="institution-name">{t.nameLabel}</Label>
+                <Input id="institution-name" value={name} onChange={(e) => setName(e.target.value)} required />
+              </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 bg-slate-50 p-6 rounded-md border border-slate-200">
-          <div>
-            <Label htmlFor="institution-name">{messages.kurumOlustur.nameLabel}</Label>
-            <Input id="institution-name" value={name} onChange={(e) => setName(e.target.value)} required />
-          </div>
+              {formError ? (
+                <Alert variant="error" className="text-sm">
+                  {formError}
+                </Alert>
+              ) : null}
 
-          {formError && (
-            <div role="alert" aria-live="polite" className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-600">
-              {formError}
-            </div>
-          )}
-
-          <Button type="submit" disabled={mutation.isPending} className="w-full">
-            {mutation.isPending ? messages.kurumOlustur.submittingButton : messages.kurumOlustur.submitButton}
-          </Button>
-        </form>
-      </div>
+              <div className="pt-2">
+                <button type="submit" disabled={mutation.isPending} className={actionClass.primary}>
+                  {mutation.isPending ? t.submittingButton : t.submitButton}
+                </button>
+              </div>
+            </form>
+          }
+          aside={<StepsCard title={t.stepsTitle} steps={t.steps} />}
+        />
+      </PageBody>
     </AppShell>
   );
 }

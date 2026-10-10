@@ -414,3 +414,35 @@ export function Initials({ name, className }: { name: string; className?: string
     </span>
   );
 }
+
+/** Numbered "what happens next" steps for onboarding forms. */
+export function StepsCard({ title, steps }: { title: string; steps: { title: string; hint: string }[] }) {
+  return (
+    <div className="rounded-xl border border-border bg-sand/50 p-5">
+      <p className="font-serif text-lg font-semibold text-foreground">{title}</p>
+      <ol className="mt-4 space-y-4">
+        {steps.map((step, index) => (
+          <li key={step.title} className="flex gap-3">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-card font-mono text-xs text-foreground">
+              {index + 1}
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-foreground">{step.title}</span>
+              <span className="block text-[13px] text-muted-foreground">{step.hint}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+/** Form card on the left, steps card on the right (stacked on narrow screens). */
+export function FormLayout({ form, aside }: { form: ReactNode; aside: ReactNode }) {
+  return (
+    <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,560px)_minmax(0,360px)] lg:gap-10">
+      <div className="rounded-xl border border-border bg-card p-5 md:p-6">{form}</div>
+      <aside>{aside}</aside>
+    </div>
+  );
+}
