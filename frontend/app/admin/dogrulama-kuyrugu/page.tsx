@@ -3,9 +3,31 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
+import { PageBody, PageHeader } from "@/components/page-layout";
+import {
+  EmptyState,
+  StatusPill,
+  actionClass,
+  formatDate,
+  formatTemplate,
+} from "@/components/panel-kit";
+import { Alert } from "@/components/ui/alert";
 import * as adminApi from "@/lib/api/admin";
 import { ApiError, NetworkError } from "@/lib/api/errors";
+import { cn } from "@/lib/utils";
 import messages from "@/messages/tr.json";
+
+const q = messages.adminVerificationQueue;
+const TRUST_LABELS = messages.kurulusPanel.trustLevel as Record<string, string>;
+const LEVELS = ["T0", "T1", "T2", "T3"] as const;
+const LEVEL_TONE: Record<string, "default" | "warning" | "success"> = {
+  T0: "default",
+  T1: "warning",
+  T2: "default",
+  T3: "success",
+  T4: "success",
+};
+const SM = "h-8 px-3 text-[13px]";
 
 export default function DogrulamaKuyruguPage() {
   const queryClient = useQueryClient();
@@ -26,7 +48,7 @@ export default function DogrulamaKuyruguPage() {
     onSuccess: (updated: adminApi.Organization | undefined) => {
       if (!updated) return;
       setMutationError(null);
-      setSuccessMessage(messages.adminVerificationQueue.updated);
+      setSuccessMessage(q.updated);
       // Brif §19: işlenen satır kaybolur — onaylanmış kuruluş artık kuyruğun
       // eligibility kriterini (T2 + legal_id dolu) karşılamayabilir, ayrıca
       // sunucu yanıtı (updated) legal_id/domain döndürmüyor; satırı o eksik
@@ -39,13 +61,9 @@ export default function DogrulamaKuyruguPage() {
     },
     onError: (err) => {
       if (err instanceof ApiError) {
-        setMutationError(
-          err.status === 404 ? messages.adminVerificationQueue.notFound : messages.errors.generic
-        );
+        setMutationError(err.status === 404 ? q.notFound : messages.errors.generic);
       } else if (err instanceof NetworkError) {
-        setMutationError(
-          err.kind === "timeout" ? messages.errors.timeout : messages.errors.network
-        );
+        setMutationError(err.kind === "timeout" ? messages.errors.timeout : messages.errors.network);
       }
     },
   });
@@ -55,26 +73,20 @@ export default function DogrulamaKuyruguPage() {
     onSuccess: (rejected: adminApi.Organization | undefined) => {
       if (!rejected) return;
       setMutationError(null);
-      setSuccessMessage(messages.adminVerificationQueue.rejected);
+      setSuccessMessage(q.rejected);
       queryClient.setQueryData(QUEUE_KEY, (prev: adminApi.VerificationQueueResponse | undefined) => {
         if (!prev) return prev;
-        return { items: prev.items.filter(org => org.id !== rejected.id) };
+        return { items: prev.items.filter((org) => org.id !== rejected.id) };
       });
       setTimeout(() => setSuccessMessage(null), 3000);
     },
     onError: (err) => {
       if (err instanceof ApiError) {
         setMutationError(
-          err.status === 404
-            ? messages.adminVerificationQueue.notFound
-            : err.status === 409
-              ? messages.adminVerificationQueue.notPending
-              : messages.errors.generic
+          err.status === 404 ? q.notFound : err.status === 409 ? q.notPending : messages.errors.generic
         );
       } else if (err instanceof NetworkError) {
-        setMutationError(
-          err.kind === "timeout" ? messages.errors.timeout : messages.errors.network
-        );
+        setMutationError(err.kind === "timeout" ? messages.errors.timeout : messages.errors.network);
       }
     },
   });
@@ -90,117 +102,158 @@ export default function DogrulamaKuyruguPage() {
     updateLevel({ orgId, level });
   };
 
+  const count = queue?.items.length ?? 0;
+
   return (
     <AppShell>
-      <main className="p-6 max-w-6xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">{messages.adminVerificationQueue.title}</h1>
+      <main>
+        <PageHeader
+          eyebrow={messages.shell.groupAdmin}
+          title={q.title}
+          description={
+            <span className="flex flex-col items-start gap-2">
+              <span>{q.description}</span>
+              {queue ? (
+                <StatusPill tone={count > 0 ? "warning" : "default"}>
+                  {formatTemplate(q.pendingCount, { n: count })}
+                </StatusPill>
+              ) : null}
+            </span>
+          }
+        />
 
-        {isLoading ? (
-          <p className="text-slate-600">{messages.shell.loading}</p>
-        ) : isError ? (
-          <div
-            role="alert"
-            className="rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-700"
-          >
-            {error instanceof ApiError && error.status === 404
-              ? messages.adminVerificationQueue.notFound
-              : error instanceof NetworkError && error.kind === "timeout"
-                ? messages.errors.timeout
-                : messages.errors.generic}
+        <PageBody>
+          <div className="space-y-6">
+            {
+              isLoading ? (
+                <div role="status">
+                  <span className="sr-only">{messages.shell.loading}</span>
+                  <div aria-hidden="true" className="h-64 animate-pulse rounded-xl bg-muted motion-reduce:animate-none" />
+                </div>
+              ) : isError ? (
+                <Alert variant="error" className="text-sm">
+                  {error instanceof ApiError && error.status === 404
+                    ? q.notFound
+                    : error instanceof NetworkError && error.kind === "timeout"
+                      ? messages.errors.timeout
+                      : messages.errors.generic}
+                </Alert>
+              ) : !queue || queue.items.length === 0 ? (
+                <section className="rounded-xl border border-border bg-card p-5">
+                  <EmptyState icon="shield" title={q.empty} hint={q.emptyHint} />
+                </section>
+              ) : (
+                <>
+                  {successMessage ? (
+                    <div
+                      role="status"
+                      // Stock green scale is mapped to pine in tailwind.config.ts.
+                      className="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700"
+                    >
+                      {successMessage}
+                    </div>
+                  ) : null}
+
+                  {mutationError ? (
+                    <Alert variant="error" className="text-sm">
+                      {mutationError}
+                    </Alert>
+                  ) : null}
+
+                  <div className="overflow-x-auto rounded-xl border border-border bg-card">
+                    <table className="w-full min-w-[760px] border-collapse text-sm">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/70 text-left text-xs text-muted-foreground">
+                          <th className="px-4 py-3 font-medium">{q.headers.name}</th>
+                          <th className="px-4 py-3 font-medium">{q.headers.legalId}</th>
+                          <th className="px-4 py-3 font-medium">{q.headers.domain}</th>
+                          <th className="px-4 py-3 font-medium">{q.headers.verificationLevel}</th>
+                          <th className="px-4 py-3 font-medium">{q.headers.createdAt}</th>
+                          <th className="px-4 py-3 text-right font-medium">{q.actionsHeader}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {queue.items.map((org) => {
+                          const level = selectedLevels[org.id] || org.verification_level;
+                          return (
+                            <tr key={org.id} className="border-b border-border last:border-0 hover:bg-background">
+                              <td className="px-4 py-3.5 font-medium text-foreground">{org.name}</td>
+                              <td className="px-4 py-3.5 whitespace-nowrap font-mono text-[13px] text-muted-foreground">
+                                {org.legal_id || "-"}
+                              </td>
+                              <td className="px-4 py-3.5 whitespace-nowrap font-mono text-[13px] text-muted-foreground">
+                                {org.domain || "-"}
+                              </td>
+                              <td className="px-4 py-3.5">
+                                <div className="flex flex-col items-start gap-1.5">
+                                  <select
+                                    value={level}
+                                    onChange={(e) => handleLevelChange(org.id, e.target.value)}
+                                    disabled={isUpdating}
+                                    aria-label={formatTemplate(q.levelSelectAria, { name: org.name })}
+                                    className="h-8 rounded-md border border-border bg-card px-2 font-mono text-[13px] text-foreground focus:border-success focus:outline-none focus:ring-2 focus:ring-success/25"
+                                  >
+                                    {LEVELS.map((value) => (
+                                      <option key={value} value={value}>
+                                        {value}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <StatusPill tone={LEVEL_TONE[level] ?? "default"}>
+                                    {TRUST_LABELS[level] ?? level}
+                                  </StatusPill>
+                                </div>
+                              </td>
+                              <td className="whitespace-nowrap px-4 py-3.5 font-mono text-xs text-muted-foreground">
+                                {org.verified_at ? formatDate(org.verified_at) : "-"}
+                              </td>
+                              <td className="px-4 py-3.5">
+                                <div className="flex justify-end gap-2">
+                                  <button
+                                    onClick={() => handleSubmit(org.id)}
+                                    disabled={
+                                      isUpdating || isRejecting || selectedLevels[org.id] === org.verification_level
+                                    }
+                                    aria-label={`Onayla ${org.name}`}
+                                    className={cn(actionClass.primary, SM)}
+                                  >
+                                    {q.form.confirm}
+                                  </button>
+                                  <button
+                                    onClick={() => reject(org.id)}
+                                    disabled={isUpdating || isRejecting}
+                                    aria-label={`Reddet ${org.name}`}
+                                    className={cn(actionClass.dangerOutline, SM)}
+                                  >
+                                    {q.form.reject}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )
+            }
+            <section className="rounded-xl border border-border bg-card p-5">
+              <p className="font-serif text-lg font-semibold text-foreground">{q.levelsTitle}</p>
+              <p className="mt-1 text-[13px] text-muted-foreground">{q.levelsHint}</p>
+              <dl className="mt-4 flex flex-wrap gap-x-5 gap-y-2.5">
+                {Object.entries(TRUST_LABELS).map(([value, label]) => (
+                  <div key={value} className="flex items-center gap-2">
+                    <dt className="font-mono text-[13px] text-muted-foreground">{value}</dt>
+                    <dd>
+                      <StatusPill tone={LEVEL_TONE[value] ?? "default"}>{label}</StatusPill>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
           </div>
-        ) : !queue || queue.items.length === 0 ? (
-          <div className="rounded-md bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
-            {messages.adminVerificationQueue.empty}
-          </div>
-        ) : (
-          <>
-            {successMessage && (
-              <div role="status" className="mb-4 rounded-md bg-green-50 border border-green-200 p-4 text-sm text-green-700">
-                {successMessage}
-              </div>
-            )}
-
-            {mutationError && (
-              <div
-                role="alert"
-                className="mb-4 rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-700"
-              >
-                {mutationError}
-              </div>
-            )}
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="text-left p-3 font-medium text-slate-700">
-                      {messages.adminVerificationQueue.headers.name}
-                    </th>
-                    <th className="text-left p-3 font-medium text-slate-700">
-                      {messages.adminVerificationQueue.headers.legalId}
-                    </th>
-                    <th className="text-left p-3 font-medium text-slate-700">
-                      {messages.adminVerificationQueue.headers.domain}
-                    </th>
-                    <th className="text-left p-3 font-medium text-slate-700">
-                      {messages.adminVerificationQueue.headers.verificationLevel}
-                    </th>
-                    <th className="text-left p-3 font-medium text-slate-700">
-                      {messages.adminVerificationQueue.headers.createdAt}
-                    </th>
-                    <th className="text-left p-3 font-medium text-slate-700">İşlem</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {queue.items.map((org) => (
-                    <tr key={org.id} className="border-b border-slate-200 hover:bg-slate-50">
-                      <td className="p-3">{org.name}</td>
-                      <td className="p-3 text-slate-600">{org.legal_id || "-"}</td>
-                      <td className="p-3 text-slate-600">{org.domain || "-"}</td>
-                      <td className="p-3">
-                        <span className="font-medium mr-2">{selectedLevels[org.id] || org.verification_level}</span>
-                        <select
-                          value={selectedLevels[org.id] || org.verification_level}
-                          onChange={(e) => handleLevelChange(org.id, e.target.value)}
-                          disabled={isUpdating}
-                          className="px-2 py-1 border border-slate-300 rounded-md text-sm"
-                        >
-                          <option value="T0">T0</option>
-                          <option value="T1">T1</option>
-                          <option value="T2">T2</option>
-                          <option value="T3">T3</option>
-                        </select>
-                      </td>
-                      <td className="p-3 text-slate-600">
-                        {org.verified_at
-                          ? new Date(org.verified_at).toLocaleString("tr-TR")
-                          : "-"}
-                      </td>
-                      <td className="p-3">
-                        <button
-                          onClick={() => handleSubmit(org.id)}
-                          disabled={isUpdating || isRejecting || selectedLevels[org.id] === org.verification_level}
-                          aria-label={`Onayla ${org.name}`}
-                          className="px-3 py-1 bg-slate-900 text-white text-xs rounded-md hover:bg-slate-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
-                        >
-                          {messages.adminVerificationQueue.form.confirm}
-                        </button>
-                        <button
-                          onClick={() => reject(org.id)}
-                          disabled={isUpdating || isRejecting}
-                          aria-label={`Reddet ${org.name}`}
-                          className="ml-2 px-3 py-1 border border-slate-300 text-slate-700 text-xs rounded-md hover:bg-slate-100 disabled:bg-slate-100 disabled:cursor-not-allowed"
-                        >
-                          {messages.adminVerificationQueue.form.reject}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
+        </PageBody>
       </main>
     </AppShell>
   );

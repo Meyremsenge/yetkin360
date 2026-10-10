@@ -1187,7 +1187,14 @@
       "levelLabel": "Doğrulama Seviyesi",
       "confirm": "Onayla",
       "reject": "Reddet"
-    }
+    },
+    "description": "Ticari sicil numarası girilmiş kuruluşların kimliğini doğrulayıp güven seviyelerini belirleyin.",
+    "pendingCount": "{n} bekleyen istek",
+    "emptyHint": "Yeni başvurular geldiğinde burada listelenir.",
+    "actionsHeader": "İşlem",
+    "levelSelectAria": "{name} için doğrulama seviyesi",
+    "levelsTitle": "Güven seviyeleri",
+    "levelsHint": "Seviye, kuruluşun verdiği tanıklıkların ne kadar güvenilir göründüğünü belirler."
   },
   "adminFraudQueue": {
     "title": "Sahtekarlık İşaretleri",
