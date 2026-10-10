@@ -1,7 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { getMySignals, getMyVerifiedExperiences } from "@/lib/api/client";
+import { useState } from "react";
+import Link from "next/link";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getMySignals, getMyVerifiedExperiences, setMyVerifiedExperienceVisibility } from "@/lib/api/client";
 import messages from "@/messages/tr.json";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +59,59 @@ function getStrengthLabel(strength: string): string {
 }
 
 const STRENGTH_LEVEL: Record<string, number> = { NONE: 0, WEAK: 1, MODERATE: 2, STRONG: 3 };
+
+/** Owner switch: PUBLIC shows the record on /p/[slug] and makes its /v link resolve. */
+function ExperienceVisibilityToggle({ experience }: { experience: VerifiedExperience }) {
+  const queryClient = useQueryClient();
+  const [failed, setFailed] = useState(false);
+  const isPublic = experience.visibility === "PUBLIC";
+  const mutation = useMutation({
+    mutationFn: (next: "PUBLIC" | "PRIVATE") => setMyVerifiedExperienceVisibility(experience.id, next),
+    onMutate: () => setFailed(false),
+    onError: () => setFailed(true),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["talent-verified-experiences"] }),
+  });
+  const labelId = `exp-visibility-${experience.id}`;
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={isPublic}
+          aria-labelledby={labelId}
+          disabled={mutation.isPending}
+          onClick={() => mutation.mutate(isPublic ? "PRIVATE" : "PUBLIC")}
+          className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors disabled:opacity-50 ${
+            isPublic ? "border-success bg-success" : "border-border bg-muted"
+          } ${focusRingClass}`}
+        >
+          <span
+            aria-hidden="true"
+            className={`inline-block h-3.5 w-3.5 rounded-full bg-card shadow-sm transition-transform motion-reduce:transition-none ${
+              isPublic ? "translate-x-[18px]" : "translate-x-[2px]"
+            }`}
+          />
+        </button>
+        <span id={labelId} className="text-sm text-foreground" title={messages.profil.experiencePublicHint}>
+          {messages.profil.experiencePublicLabel}
+        </span>
+      </div>
+      {isPublic && experience.public_token ? (
+        <Link
+          href={`/v/${encodeURIComponent(experience.public_token)}`}
+          className={`text-sm text-success underline-offset-4 hover:underline ${focusRingClass}`}
+        >
+          {messages.profil.experienceVerificationLink} ↗
+        </Link>
+      ) : null}
+      <p aria-live="polite" className="basis-full text-[13px] text-destructive empty:hidden">
+        {failed ? messages.profil.experienceVisibilityError : ""}
+      </p>
+    </div>
+  );
+}
 
 // Signals produced inside an engagement: with no named attester they come from
 // the engagement record, not from the student's own claim.
@@ -258,6 +313,7 @@ export default function EvidenceSection() {
                   <div className="mt-1 font-mono text-xs text-muted-foreground">
                     {exp.started_on_snapshot ? formatDate(exp.started_on_snapshot) : messages.profil.unknownStartLabel} – {exp.ended_on_snapshot ? formatDate(exp.ended_on_snapshot) : messages.profil.ongoingLabel}
                   </div>
+                  <ExperienceVisibilityToggle experience={exp} />
                 </div>
               </li>
             ))}
