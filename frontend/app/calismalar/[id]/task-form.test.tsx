@@ -50,6 +50,7 @@ const activeEngagement: EngagementDetail = {
   tasks: [],
   deliverables: [],
   attestations: [],
+  supervisor: null,
   viewer: makeViewer({ relation: "ORG_ADMIN", can_add_task: true }),
 };
 

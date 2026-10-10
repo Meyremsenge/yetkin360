@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime, timezone, date
 from typing import Any, Callable, Sequence, TypedDict
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -13,8 +13,10 @@ from app.models import (
     EngagementTask,
     Evaluation,
     Engagement,
+    Institution,
     InstitutionMember,
     Organization,
+    OrganizationMember,
     TalentProfile,
     Skill,
     SkillSignal,
@@ -207,6 +209,7 @@ def create_engagement(
     title: str,
     institution_id: str | None = None,
     confidential: bool = False,
+    supervisor_user_id: str | None = None,
 ) -> Engagement:
     """
     Create a new engagement record for a talent.
@@ -227,6 +230,9 @@ def create_engagement(
         title: Engagement title
         institution_id: Optional UUID of institution (string format)
         confidential: Whether engagement is confidential
+        supervisor_user_id: Optional approver (SPRINT D1): an ACTIVE member of the
+            organization whose user is ACTIVE, never the talent themselves.
+            Anything else raises OrganizationNotFoundError (generic 404, GUV-08).
 
     Returns:
         Created Engagement object
@@ -251,6 +257,11 @@ def create_engagement(
         inst_uuid = uuid.UUID(institution_id) if institution_id else None
     except ValueError:
         raise InstitutionMismatchError(f"Invalid institution_id format: {institution_id}")
+
+    try:
+        supervisor_uuid = uuid.UUID(supervisor_user_id) if supervisor_user_id else None
+    except ValueError:
+        raise OrganizationNotFoundError("Invalid supervisor_user_id format")
 
     # Default-deny: check authorization via membership lists, not kind
     # own_talent: principal can create for their own talent_id
@@ -294,6 +305,25 @@ def create_engagement(
             # Generic error message that doesn't reveal whether institution exists
             raise InstitutionMismatchError("institution_id does not match talent's institution")
 
+    # SPRINT D1: the approver must be an active member of THIS organization and never
+    # the talent (self-dealing). Same generic error for every failure: no member oracle.
+    if supervisor_uuid is not None:
+        if supervisor_uuid == talent.user_id:
+            raise OrganizationNotFoundError("Supervisor not available")
+        supervisor_membership = session.execute(
+            select(OrganizationMember.id)
+            .join(User, User.id == OrganizationMember.user_id)
+            .where(
+                OrganizationMember.organization_id == org_uuid,
+                OrganizationMember.user_id == supervisor_uuid,
+                OrganizationMember.status == "ACTIVE",
+                User.status == "ACTIVE",
+                User.deleted_at.is_(None),
+            )
+        ).first()
+        if supervisor_membership is None:
+            raise OrganizationNotFoundError("Supervisor not available")
+
     # Create new engagement (AC-1)
     engagement = Engagement(
         talent_id=talent_uuid,
@@ -304,6 +334,7 @@ def create_engagement(
         status="DRAFT",
         version=1,
         confidential=confidential,
+        supervisor_user_id=supervisor_uuid,
     )
     session.add(engagement)
     try:
@@ -327,6 +358,8 @@ def create_engagement(
             "kind": kind,
             "talent_id": str(talent_uuid),
             "organization_id": str(org_uuid),
+            # Never the approver's id or name (PII): only whether one was chosen.
+            "has_supervisor": supervisor_uuid is not None,
         },
     )
 
@@ -1053,7 +1086,9 @@ def list_engagements(
     principal: Principal,
     limit: int = 50,
     offset: int = 0,
-) -> list[tuple[Engagement, str, str]]:
+    assigned_to_me: bool = False,
+    organization_id: uuid.UUID | None = None,
+) -> list[tuple[Engagement, str, str, str | None]]:
     """
     List engagements scoped to principal with organization and talent name (AC-1, AC-2, AC-3, AC-8).
 
@@ -1065,9 +1100,15 @@ def list_engagements(
         principal: Authorization context
         limit: Number of results per page (default 50)
         offset: Pagination offset (default 0)
+        assigned_to_me: Only engagements whose approver is the principal (SPRINT D1)
+        organization_id: Only engagements of this organization (SPRINT D1)
+
+    Both filters only narrow scoped_engagements(); an organization outside the
+    principal's scope simply yields an empty list (never 404, never wider).
 
     Returns:
-        List of (Engagement, organization_name, talent_name) tuples, sorted by updated_at DESC
+        List of (Engagement, organization_name, talent_name, institution_name) tuples,
+        sorted by updated_at DESC
 
     Implements: AC-1 (TALENT), AC-2 (ORG_MEMBER/ORG_ADMIN), AC-3 (COORDINATOR/INST_ADMIN),
                 AC-8 (limit/offset pagination)
@@ -1075,6 +1116,10 @@ def list_engagements(
     # Build scoped query and extend with Organization JOIN, order by, and pagination
     # scoped_engagements() returns a Select[Engagement] filtered by principal's scope
     scoped = scoped_engagements(session, principal)
+    if assigned_to_me:
+        scoped = scoped.where(Engagement.supervisor_user_id == principal.user_id)
+    if organization_id is not None:
+        scoped = scoped.where(Engagement.organization_id == organization_id)
 
     # Fetch Engagement objects scoped to principal
     stmt = scoped.order_by(Engagement.updated_at.desc()).limit(limit).offset(offset)
@@ -1104,9 +1149,22 @@ def list_engagements(
     else:
         talent_map = {}
 
-    # Return list of (Engagement, organization_name, talent_name) tuples
+    institution_ids = set(e.institution_id for e in engagements if e.institution_id is not None)
+    if institution_ids:
+        institution_rows = session.execute(
+            select(Institution.id, Institution.name).where(Institution.id.in_(institution_ids))
+        ).all()
+        institution_map = {inst_id: name for inst_id, name in institution_rows}
+    else:
+        institution_map = {}
+
     return [
-        (eng, org_map.get(eng.organization_id, ""), talent_map.get(eng.talent_id, ""))
+        (
+            eng,
+            org_map.get(eng.organization_id, ""),
+            talent_map.get(eng.talent_id, ""),
+            institution_map.get(eng.institution_id) if eng.institution_id is not None else None,
+        )
         for eng in engagements
     ]
 
@@ -1178,6 +1236,40 @@ def get_engagement_detail(
     attestations = attestations_query.scalars().all()
 
     return engagement, organization_name, tasks, deliverables, attestations
+
+
+def engagement_supervisor_summary(session: Session, engagement: Engagement) -> dict[str, Any] | None:
+    """
+    SPRINT D1: the approver of an engagement already proven in scope.
+
+    Name and unit only (never the e-mail). The name is the approver's own
+    TalentProfile.full_name; the unit is their label in this engagement's
+    organization (None if they have since left it).
+    """
+    if engagement.supervisor_user_id is None:
+        return None
+    row = session.execute(
+        select(
+            func.coalesce(TalentProfile.full_name, "").label("display_name"),
+            OrganizationMember.unit,
+        )
+        .select_from(User)
+        .outerjoin(
+            TalentProfile,
+            and_(TalentProfile.user_id == User.id, TalentProfile.deleted_at.is_(None)),
+        )
+        .outerjoin(
+            OrganizationMember,
+            and_(
+                OrganizationMember.user_id == User.id,
+                OrganizationMember.organization_id == engagement.organization_id,
+            ),
+        )
+        .where(User.id == engagement.supervisor_user_id)
+    ).first()
+    if row is None:
+        return None
+    return {"user_id": engagement.supervisor_user_id, "display_name": row.display_name, "unit": row.unit}
 
 
 # Verification levels an organization needs for a seal to count as COMPETENCE

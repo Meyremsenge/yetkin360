@@ -30,6 +30,18 @@ describe("lib/api/engagements", () => {
    * Dönen değer AYNEN response'u yansıtır.
    */
   describe("listEngagements (apiFetch mock)", () => {
+    it("SPRINT D1: assigned/organizationId/limit sorgu parametresine çevrilir", async () => {
+      mockApiFetch.mockResolvedValueOnce({ items: [] });
+      await listEngagements({ assigned: "me", organizationId: "org-9", limit: 20 });
+      expect(mockApiFetch).toHaveBeenCalledWith("/engagements?assigned=me&organization_id=org-9&limit=20");
+    });
+
+    it("SPRINT D1: React Query bağlamıyla çağrılınca bağlam yok sayılır", async () => {
+      mockApiFetch.mockResolvedValueOnce({ items: [] });
+      await listEngagements({ queryKey: ["engagements"], signal: new AbortController().signal });
+      expect(mockApiFetch).toHaveBeenCalledWith("/engagements");
+    });
+
     it("AC-1: apiFetch('/engagements') çağrılır ve {items: [...]} döner", async () => {
       const mockResponse: { items: EngagementSummary[] } = {
         items: [
@@ -126,6 +138,7 @@ describe("lib/api/engagements", () => {
     it("AC-4: apiFetch('/engagements/{id}') çağrılır, tasks/deliverables dahil döner", async () => {
       const mockDetail: EngagementDetail = {
         viewer: makeViewer(),
+        supervisor: null,
         id: "eng-1",
         title: "Frontend Staj",
         kind: "INTERNSHIP",
@@ -175,6 +188,7 @@ describe("lib/api/engagements", () => {
     it("AC-4: Detay response'u tüm alanları içerir", async () => {
       const mockDetail: EngagementDetail = {
         viewer: makeViewer(),
+        supervisor: null,
         id: "eng-2",
         title: "Backend Projesi",
         kind: "CAPSTONE",
@@ -279,6 +293,7 @@ describe("lib/api/engagements", () => {
     it("AC-8: apiFetch('/engagements/{id}/transitions') POST çağrısı yapılır, updated detail döner", async () => {
       const updatedDetail: EngagementDetail = {
         viewer: makeViewer(),
+        supervisor: null,
         id: "eng-1",
         title: "Frontend Staj",
         kind: "INTERNSHIP",
@@ -320,6 +335,7 @@ describe("lib/api/engagements", () => {
     it("AC-8: reason alanı ile geçiş (CANCELLED) başarılı olur", async () => {
       const cancelledDetail: EngagementDetail = {
         viewer: makeViewer(),
+        supervisor: null,
         id: "eng-2",
         title: "Backend Projesi",
         kind: "CAPSTONE",

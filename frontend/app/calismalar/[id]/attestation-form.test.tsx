@@ -43,6 +43,7 @@ const evaluatedEngagement: EngagementDetail = {
   tasks: [],
   deliverables: [],
   attestations: [],
+  supervisor: null,
   viewer: makeViewer({ relation: "COORDINATOR", can_attest: true }),
 };
 

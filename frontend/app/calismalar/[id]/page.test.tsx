@@ -50,6 +50,7 @@ const baseEngagement: EngagementDetail = {
   deliverables: [],
   attestations: [],
   // The student on their own ACTIVE engagement (server-computed).
+  supervisor: null,
   viewer: makeViewer({ relation: "SUBJECT", can_add_task: true, can_add_deliverable: true }),
 };
 
@@ -130,6 +131,28 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
       expect(screen.getByText("İptal Et")).toBeTruthy();
       expect(screen.getByText("Değerlendirmeye Gönder")).toBeTruthy();
     });
+  });
+
+  it("SPRINT D1: onaylayıcı varsa başlıkta 'Onaylayıcı: Ad · Birim' gösterilir", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce({
+      ...baseEngagement,
+      supervisor: { user_id: "user-mehmet", display_name: "Mehmet Kaya", unit: "Yazılım" },
+    });
+
+    const { container } = renderWithQueryClient(<CalismaDetayPage />);
+
+    await waitFor(() => {
+      expect(container.textContent).toContain("Onaylayıcı: Mehmet Kaya · Yazılım");
+    });
+  });
+
+  it("SPRINT D1: onaylayıcı yoksa satır gösterilmez", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce(baseEngagement);
+
+    const { container } = renderWithQueryClient(<CalismaDetayPage />);
+
+    await waitFor(() => expect(screen.getByText("Yaz Kısa Projesi")).toBeTruthy());
+    expect(container.textContent).not.toContain("Onaylayıcı:");
   });
 
   it("reddedilmiş/iptal gerekçesi (reason) varsa gösterilir", async () => {

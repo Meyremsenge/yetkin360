@@ -47,6 +47,7 @@ const pendingEvaluationEngagement: EngagementDetail = {
   tasks: [],
   deliverables: [],
   attestations: [],
+  supervisor: null,
   viewer: makeViewer(),
 };
 
