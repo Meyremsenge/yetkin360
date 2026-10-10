@@ -217,6 +217,52 @@ describe("KesfetPage (/kesfet)", () => {
     });
   });
 
+  describe("Tasarım davranışları", () => {
+    it("mühür damgası yalnız doğrulanmış deneyimi olan kartta görünür", async () => {
+      renderPage();
+      const aliceCard = (await screen.findByRole("heading", { name: "Alice Yılmaz" })).closest("article") as HTMLElement;
+      const boraCard = screen.getByRole("heading", { name: "Bora Kaya" }).closest("article") as HTMLElement;
+      expect(within(aliceCard).getByRole("img", { name: t.sealedStamp })).toBeTruthy();
+      expect(within(boraCard).queryByRole("img", { name: t.sealedStamp })).toBeNull();
+    });
+
+    it("altıdan fazla mühürlü yetkinliği '+N yetkinlik daha' olarak özetler", async () => {
+      const skills = ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8"];
+      vi.mocked(listDiscoverTalents).mockResolvedValue(page([{ ...alice, sealed_skills: skills }]));
+      renderPage();
+      const card = (await screen.findByRole("heading", { name: "Alice Yılmaz" })).closest("article") as HTMLElement;
+      expect(within(within(card).getByRole("list", { name: t.sealedSkillsLabel })).getAllByRole("listitem")).toHaveLength(6);
+      expect(within(card).getByText("+2 yetkinlik daha")).toBeTruthy();
+    });
+
+    it("tek karakterlik aramada en az 2 karakter uyarısı gösterir", async () => {
+      renderPage();
+      fireEvent.change(screen.getByRole("searchbox", { name: t.talentSearchLabel }), { target: { value: "a" } });
+      expect(screen.getByText(t.searchTooShort)).toBeTruthy();
+    });
+
+    it("sekmeler ok tuşlarıyla değişir ve odak yeni sekmeye geçer", async () => {
+      renderPage();
+      const talentsTab = screen.getByRole("tab", { name: t.tabTalents });
+      fireEvent.keyDown(talentsTab, { key: "ArrowRight" });
+      const orgTab = screen.getByRole("tab", { name: t.tabOrganizations });
+      expect(orgTab.getAttribute("aria-selected")).toBe("true");
+      expect(document.activeElement).toBe(orgTab);
+      expect(await screen.findByRole("heading", { name: "Acme A.Ş." })).toBeTruthy();
+    });
+
+    it("alan adı dönmeyen kuruluşta doğrulanmadığını söyler", async () => {
+      vi.mocked(listDiscoverOrganizations).mockResolvedValue(
+        page([{ ...acme, verification_level: "T1", domain: null }])
+      );
+      renderPage();
+      fireEvent.click(screen.getByRole("tab", { name: t.tabOrganizations }));
+      const card = (await screen.findByRole("heading", { name: "Acme A.Ş." })).closest("article") as HTMLElement;
+      expect(within(card).getByText(t.domainHidden)).toBeTruthy();
+      expect(within(card).getByText(messages.kurulusSec.verificationLevel.T1)).toBeTruthy();
+    });
+  });
+
   describe("Kuruluşlar sekmesi", () => {
     async function openOrganizations() {
       renderPage();

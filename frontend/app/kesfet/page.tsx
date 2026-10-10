@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
+import { SealMark } from "@/components/brand/brand-mark";
+import { PAGE_CONTAINER } from "@/components/page-layout";
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { listSkills } from "@/lib/api/client";
 import {
@@ -13,24 +14,38 @@ import {
   DISCOVER_MIN_QUERY_LENGTH,
   listDiscoverOrganizations,
   listDiscoverTalents,
-  type DiscoverOrganization,
-  type DiscoverTalent,
 } from "@/lib/api/discover";
 import { ApiError } from "@/lib/api/errors";
 import { useSession } from "@/lib/session/use-session";
+import { cn } from "@/lib/utils";
 import messages from "@/messages/tr.json";
+import {
+  CardSkeleton,
+  EmptyState,
+  FOCUS_RING,
+  Icon,
+  OrganizationCard,
+  TalentCard,
+  type IconName,
+} from "./discover-ui";
 
 const t = messages.kesfet;
 
-const pulse = "animate-pulse rounded-lg bg-muted motion-reduce:animate-none";
-const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success";
-const fieldClass = `block h-10 w-full rounded-md border border-border bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground ${focusRing}`;
+const fieldClass = cn(
+  "block h-10 w-full rounded-md border border-border bg-card px-3 text-sm text-foreground transition-colors duration-150 placeholder:text-muted-foreground/70 hover:border-muted-foreground/40 focus:border-success",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success/25"
+);
+const outlineButton = cn(
+  "inline-flex h-10 items-center justify-center gap-2 rounded-md border border-success px-4 text-sm font-medium text-success transition-colors duration-150 hover:bg-success/10 active:translate-y-px disabled:pointer-events-none disabled:opacity-50",
+  FOCUS_RING
+);
 const SEARCH_DEBOUNCE_MS = 300;
 // Cards step in one after another; later pages should not wait behind a long queue.
 const STEP_MS = 40;
 const MAX_STEPS = 8;
+const TABS = ["talents", "organizations"] as const;
 
-type Tab = "talents" | "organizations";
+type Tab = (typeof TABS)[number];
 
 interface SkillChip {
   id: string;
@@ -50,13 +65,6 @@ function useDebounced<T>(value: T, delayMs: number): T {
 function effectiveQuery(raw: string): string {
   const term = raw.trim();
   return term.length >= DISCOVER_MIN_QUERY_LENGTH ? term : "";
-}
-
-function initials(fullName: string): string {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
-  const first = parts[0]?.[0] ?? "";
-  const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  return (first + last).toLocaleUpperCase("tr");
 }
 
 function stepStyle(index: number) {
@@ -82,76 +90,55 @@ export default function KesfetPage() {
     setSkills([]);
   };
 
+  const chips = [
+    ...skills.map((skill) => ({
+      key: `skill-${skill.id}`,
+      label: skill.name,
+      remove: () => setSkills((current) => current.filter((other) => other.id !== skill.id)),
+    })),
+    ...(department.trim()
+      ? [{ key: "department", label: `${t.departmentLabel}: ${department.trim()}`, remove: () => setDepartment("") }]
+      : []),
+    ...(city.trim() ? [{ key: "city", label: `${t.cityLabel}: ${city.trim()}`, remove: () => setCity("") }] : []),
+  ];
+
   return (
     <AppShell>
-      <div className="max-w-[1120px] px-4 py-8 md:px-6 lg:px-10">
-        <h1 className="font-serif text-[32px] font-semibold leading-10 text-foreground">{t.title}</h1>
-        <p className="mt-2 max-w-[640px] text-sm text-muted-foreground">{t.description}</p>
+      <DiscoverHeader tab={tab} onTabChange={setTab} search={search} onSearchChange={setSearch} />
 
-        <div className="mt-6">
-          <label htmlFor="discover-search" className="sr-only">
-            {tab === "talents" ? t.talentSearchLabel : t.organizationSearchLabel}
-          </label>
-          <input
-            id="discover-search"
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={tab === "talents" ? t.talentSearchPlaceholder : t.organizationSearchPlaceholder}
-            maxLength={64}
-            className={fieldClass}
-          />
-        </div>
-
-        <div role="tablist" aria-label={t.tabsLabel} className="mt-6 flex gap-1 border-b border-border">
-          {(["talents", "organizations"] as const).map((key) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              id={`discover-tab-${key}`}
-              aria-selected={tab === key}
-              aria-controls={`discover-panel-${key}`}
-              onClick={() => setTab(key)}
-              className={`-mb-px rounded-t-md border-b-2 px-4 py-2 text-sm font-medium ${focusRing} ${
-                tab === key
-                  ? "border-success text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {key === "talents" ? t.tabTalents : t.tabOrganizations}
-            </button>
-          ))}
-        </div>
-
+      <div className={cn(PAGE_CONTAINER, "py-8")}>
         {tab === "talents" ? (
-          <div role="tabpanel" id="discover-panel-talents" aria-labelledby="discover-tab-talents" className="mt-6">
-            <TalentFilters
+          <div
+            role="tabpanel"
+            id="discover-panel-talents"
+            aria-labelledby="discover-tab-talents"
+            className="grid gap-6 lg:grid-cols-[264px_minmax(0,1fr)] lg:gap-10"
+          >
+            <FilterPanel
               department={department}
               city={city}
               skills={skills}
               onDepartmentChange={setDepartment}
               onCityChange={setCity}
               onSkillsChange={setSkills}
+              activeCount={chips.length}
               hasFilters={hasTalentFilters}
               onClear={clearFilters}
             />
-            <TalentResults
-              q={q}
-              department={debouncedDepartment}
-              city={debouncedCity}
-              skillIds={skills.map((skill) => skill.id)}
-              hasFilters={hasTalentFilters}
-              onClear={clearFilters}
-            />
+            <div className="min-w-0">
+              <TalentResults
+                q={q}
+                department={debouncedDepartment}
+                city={debouncedCity}
+                skillIds={skills.map((skill) => skill.id)}
+                hasFilters={hasTalentFilters}
+                onClear={clearFilters}
+                chips={<ActiveFilters chips={chips} hasFilters={hasTalentFilters} onClear={clearFilters} />}
+              />
+            </div>
           </div>
         ) : (
-          <div
-            role="tabpanel"
-            id="discover-panel-organizations"
-            aria-labelledby="discover-tab-organizations"
-            className="mt-6"
-          >
+          <div role="tabpanel" id="discover-panel-organizations" aria-labelledby="discover-tab-organizations">
             <OrganizationResults q={q} onClear={() => setSearch("")} />
           </div>
         )}
@@ -160,13 +147,194 @@ export default function KesfetPage() {
   );
 }
 
-function TalentFilters({
+/* ── Header: title, search, the directory's rules, tabs on the bottom edge ── */
+
+function DiscoverHeader({
+  tab,
+  onTabChange,
+  search,
+  onSearchChange,
+}: {
+  tab: Tab;
+  onTabChange: (tab: Tab) => void;
+  search: string;
+  onSearchChange: (value: string) => void;
+}) {
+  const searchRef = useRef<HTMLInputElement>(null);
+  const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ talents: null, organizations: null });
+  const tooShort = search.trim().length > 0 && search.trim().length < DISCOVER_MIN_QUERY_LENGTH;
+
+  // "/" jumps to the search box, as in most directories; ignored while typing elsewhere.
+  useEffect(() => {
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      event.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    const index = TABS.indexOf(tab);
+    let next: Tab | null = null;
+    if (event.key === "ArrowRight") next = TABS[(index + 1) % TABS.length];
+    if (event.key === "ArrowLeft") next = TABS[(index - 1 + TABS.length) % TABS.length];
+    if (event.key === "Home") next = TABS[0];
+    if (event.key === "End") next = TABS[TABS.length - 1];
+    if (!next) return;
+    event.preventDefault();
+    onTabChange(next);
+    tabRefs.current[next]?.focus();
+  };
+
+  return (
+    <header className="relative overflow-hidden border-b border-border bg-card">
+      <div
+        aria-hidden="true"
+        className="y360-dot-grid pointer-events-none absolute inset-y-0 right-0 w-2/3 [mask-image:linear-gradient(to_left,black,transparent)]"
+      />
+      <div className={cn(PAGE_CONTAINER, "relative pt-8 lg:pt-10")}>
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-end lg:gap-12">
+          <div className="min-w-0">
+            <p className="mb-3 font-mono text-xs uppercase tracking-[0.12em] text-success">{t.eyebrow}</p>
+            <h1 className="max-w-[18ch] font-serif text-[34px] font-semibold leading-[1.1] tracking-tight text-foreground md:text-[44px]">
+              {t.heroTitle}
+            </h1>
+            <p className="mt-3 max-w-[60ch] text-[15px] leading-6 text-muted-foreground">{t.heroDescription}</p>
+
+            <div className="mt-6 max-w-[640px]">
+              <label htmlFor="discover-search" className="sr-only">
+                {tab === "talents" ? t.talentSearchLabel : t.organizationSearchLabel}
+              </label>
+              <div className="relative">
+                <Icon
+                  name="search"
+                  className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground"
+                />
+                <input
+                  ref={searchRef}
+                  id="discover-search"
+                  type="search"
+                  value={search}
+                  onChange={(e) => onSearchChange(e.target.value)}
+                  placeholder={tab === "talents" ? t.talentSearchPlaceholder : t.organizationSearchPlaceholder}
+                  maxLength={64}
+                  autoComplete="off"
+                  aria-describedby="discover-search-hint"
+                  className={cn(
+                    "block h-[52px] w-full rounded-lg border border-border bg-background pl-12 pr-4 text-[15px] text-foreground shadow-[inset_0_1px_0_rgba(34,31,27,0.03)] transition-colors duration-150 placeholder:text-muted-foreground/70 hover:border-muted-foreground/40 focus:border-success focus:bg-card sm:pr-14",
+                    "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-success/20"
+                  )}
+                />
+                <kbd
+                  aria-hidden="true"
+                  title={t.searchShortcut}
+                  className="pointer-events-none absolute right-3 top-1/2 hidden h-6 min-w-6 -translate-y-1/2 items-center justify-center rounded border border-border bg-card px-1.5 font-mono text-xs text-muted-foreground sm:flex"
+                >
+                  /
+                </kbd>
+              </div>
+              <p
+                id="discover-search-hint"
+                aria-live="polite"
+                className={cn("mt-2 text-xs", tooShort ? "text-warning" : "text-muted-foreground lg:sr-only")}
+              >
+                {tooShort ? t.searchTooShort : t.principlesCompact}
+              </p>
+            </div>
+          </div>
+
+          <Principles />
+        </div>
+
+        <div
+          role="tablist"
+          aria-label={t.tabsLabel}
+          className="-mx-1 mt-8 flex gap-1 overflow-x-auto px-1 lg:mt-10"
+        >
+          {TABS.map((key) => {
+            const selected = tab === key;
+            const icon: IconName = key === "talents" ? "user" : "building";
+            return (
+              <button
+                key={key}
+                ref={(el) => {
+                  tabRefs.current[key] = el;
+                }}
+                type="button"
+                role="tab"
+                id={`discover-tab-${key}`}
+                aria-selected={selected}
+                aria-controls={`discover-panel-${key}`}
+                tabIndex={selected ? 0 : -1}
+                onClick={() => onTabChange(key)}
+                onKeyDown={onTabKeyDown}
+                className={cn(
+                  "relative inline-flex h-11 shrink-0 items-center gap-2 rounded-t-md px-4 text-sm font-medium transition-colors duration-150",
+                  "after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:transition-colors after:duration-200",
+                  selected
+                    ? "text-foreground after:bg-success"
+                    : "text-muted-foreground after:bg-transparent hover:text-foreground hover:after:bg-border",
+                  FOCUS_RING
+                )}
+              >
+                <Icon name={icon} className={selected ? "text-success" : undefined} />
+                {key === "talents" ? t.tabTalents : t.tabOrganizations}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+const PRINCIPLES: { icon: "globe" | "seal" | "equal"; title: string; body: string }[] = [
+  { icon: "globe", title: t.principlePublicTitle, body: t.principlePublicBody },
+  { icon: "seal", title: t.principleSealTitle, body: t.principleSealBody },
+  { icon: "equal", title: t.principleOrderTitle, body: t.principleOrderBody },
+];
+
+/** The three promises that make the directory trustworthy, on a sand index card. */
+function Principles() {
+  return (
+    <aside
+      aria-labelledby="discover-principles-title"
+      className="relative hidden rounded-lg border border-border bg-sand/70 p-5 lg:block"
+    >
+      <p id="discover-principles-title" className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+        {t.principlesTitle}
+      </p>
+      <ol className="mt-4 space-y-4">
+        {PRINCIPLES.map((item) => (
+          <li key={item.title} className="flex gap-3">
+            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-card text-success">
+              {item.icon === "seal" ? <SealMark className="h-4 w-4" /> : <Icon name={item.icon} className="h-3.5 w-3.5" />}
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-foreground">{item.title}</span>
+              <span className="block text-xs leading-5 text-muted-foreground">{item.body}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </aside>
+  );
+}
+
+/* ── Talent filters: sticky panel on desktop, collapsible on mobile ── */
+
+function FilterPanel({
   department,
   city,
   skills,
   onDepartmentChange,
   onCityChange,
   onSkillsChange,
+  activeCount,
   hasFilters,
   onClear,
 }: {
@@ -176,82 +344,128 @@ function TalentFilters({
   onDepartmentChange: (value: string) => void;
   onCityChange: (value: string) => void;
   onSkillsChange: (skills: SkillChip[]) => void;
+  activeCount: number;
   hasFilters: boolean;
   onClear: () => void;
 }) {
-  const chips = [
-    ...skills.map((skill) => ({
-      key: `skill-${skill.id}`,
-      label: skill.name,
-      remove: () => onSkillsChange(skills.filter((other) => other.id !== skill.id)),
-    })),
-    ...(department.trim()
-      ? [{ key: "department", label: `${t.departmentLabel}: ${department.trim()}`, remove: () => onDepartmentChange("") }]
-      : []),
-    ...(city.trim() ? [{ key: "city", label: `${t.cityLabel}: ${city.trim()}`, remove: () => onCityChange("") }] : []),
-  ];
+  const [open, setOpen] = useState(false);
 
   return (
-    <section aria-label={t.filtersLabel} className="mb-6">
-      <div className="grid gap-3 sm:grid-cols-3">
-        <SkillFilter selected={skills} onChange={onSkillsChange} />
-        <div>
-          <label htmlFor="discover-department" className="mb-1 block text-xs font-medium text-muted-foreground">
-            {t.departmentLabel}
-          </label>
-          <input
-            id="discover-department"
-            value={department}
-            onChange={(e) => onDepartmentChange(e.target.value)}
-            placeholder={t.departmentPlaceholder}
-            maxLength={100}
-            className={fieldClass}
-          />
-        </div>
-        <div>
-          <label htmlFor="discover-city" className="mb-1 block text-xs font-medium text-muted-foreground">
-            {t.cityLabel}
-          </label>
-          <input
-            id="discover-city"
-            value={city}
-            onChange={(e) => onCityChange(e.target.value)}
-            placeholder={t.cityPlaceholder}
-            maxLength={100}
-            className={fieldClass}
-          />
-        </div>
-      </div>
+    <div className="lg:sticky lg:top-24 lg:self-start">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls="discover-filters"
+        onClick={() => setOpen((value) => !value)}
+        className={cn(
+          "flex h-11 w-full items-center justify-between rounded-lg border border-border bg-card px-4 text-sm font-medium text-foreground lg:hidden",
+          FOCUS_RING
+        )}
+      >
+        <span className="inline-flex items-center gap-2">
+          <Icon name="filter" />
+          {t.filtersToggle}
+          {activeCount > 0 ? (
+            <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs text-success">
+              {t.filtersActiveCount.replace("{count}", String(activeCount))}
+            </span>
+          ) : null}
+        </span>
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          className={cn("h-4 w-4 text-muted-foreground transition-transform duration-150", open && "rotate-180")}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.5}
+        >
+          <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
 
-      {chips.length > 0 && (
-        <ul aria-label={t.activeFiltersLabel} className="mt-3 flex flex-wrap items-center gap-2">
-          {chips.map((chip) => (
-            <li key={chip.key}>
-              <button
-                type="button"
-                onClick={chip.remove}
-                aria-label={t.removeFilter.replace("{filter}", chip.label)}
-                className={`inline-flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1 text-xs text-foreground hover:border-muted-foreground/50 ${focusRing}`}
-              >
-                {chip.label}
-                <span aria-hidden="true">×</span>
-              </button>
-            </li>
-          ))}
+      <section
+        id="discover-filters"
+        aria-label={t.filtersLabel}
+        className={cn("mt-3 rounded-lg border border-border bg-card p-5 lg:mt-0 lg:block", open ? "block" : "hidden")}
+      >
+        <div className="mb-5 flex items-baseline justify-between gap-3">
+          <h2 className="font-serif text-lg font-semibold text-foreground">{t.filtersTitle}</h2>
           {hasFilters && (
-            <li>
-              <button
-                type="button"
-                onClick={onClear}
-                className={`rounded-sm text-xs text-muted-foreground underline hover:text-foreground ${focusRing}`}
-              >
-                {t.clearFilters}
-              </button>
-            </li>
+            <button
+              type="button"
+              onClick={onClear}
+              className={cn("rounded-sm text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline", FOCUS_RING)}
+            >
+              {t.clearFilters}
+            </button>
           )}
-        </ul>
-      )}
-    </section>
+        </div>
+
+        <div className="space-y-5">
+          <SkillFilter selected={skills} onChange={onSkillsChange} />
+          <FieldWithIcon
+            id="discover-department"
+            icon="cap"
+            label={t.departmentLabel}
+            value={department}
+            placeholder={t.departmentPlaceholder}
+            onChange={onDepartmentChange}
+          />
+          <FieldWithIcon
+            id="discover-city"
+            icon="pin"
+            label={t.cityLabel}
+            value={city}
+            placeholder={t.cityPlaceholder}
+            onChange={onCityChange}
+          />
+        </div>
+
+        <p className="mt-5 flex gap-2 border-t border-border pt-4 text-xs leading-5 text-muted-foreground">
+          <SealMark className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          {t.filtersNote}
+        </p>
+      </section>
+    </div>
+  );
+}
+
+function FieldWithIcon({
+  id,
+  icon,
+  label,
+  value,
+  placeholder,
+  onChange,
+}: {
+  id: string;
+  icon: IconName;
+  label: string;
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div>
+      <label htmlFor={id} className="mb-1.5 block text-xs font-medium text-foreground">
+        {label}
+      </label>
+      <div className="relative">
+        <Icon
+          name={icon}
+          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+        />
+        <input
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          maxLength={100}
+          autoComplete="off"
+          className={cn(fieldClass, "pl-9")}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -265,45 +479,126 @@ function SkillFilter({ selected, onChange }: { selected: SkillChip[]; onChange: 
     queryFn: () => listSkills(debouncedTerm),
     enabled: debouncedTerm.length > 0 && !full,
   });
-  const options = ((data?.items ?? []) as { id: string; name_tr: string }[]).filter(
-    (option) => !selected.some((skill) => skill.id === option.id)
-  );
+  const options = ((data?.items ?? []) as { id: string; name_tr: string }[])
+    .filter((option) => !selected.some((skill) => skill.id === option.id))
+    .slice(0, 8);
+  const showOptions = Boolean(term.trim() && debouncedTerm && !full && options.length > 0);
+
+  const pick = (option: { id: string; name_tr: string }) => {
+    onChange([...selected, { id: option.id, name: option.name_tr }]);
+    setTerm("");
+  };
 
   return (
     <div>
-      <label htmlFor="discover-skill" className="mb-1 block text-xs font-medium text-muted-foreground">
+      <label htmlFor="discover-skill" className="mb-1.5 block text-xs font-medium text-foreground">
         {t.skillLabel}
       </label>
-      <input
-        id="discover-skill"
-        value={term}
-        onChange={(e) => setTerm(e.target.value)}
-        placeholder={full ? t.skillLimitReached : t.skillPlaceholder}
-        disabled={full}
-        aria-describedby="discover-skill-hint"
-        className={`${fieldClass} disabled:cursor-not-allowed disabled:opacity-60`}
-      />
-      <p id="discover-skill-hint" className="mt-1 text-xs text-muted-foreground">
+      <div className="relative">
+        <SealMark className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" />
+        <input
+          id="discover-skill"
+          value={term}
+          onChange={(e) => setTerm(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setTerm("");
+            if (e.key === "Enter" && showOptions) {
+              e.preventDefault();
+              pick(options[0]);
+            }
+          }}
+          placeholder={full ? t.skillLimitReached : t.skillPlaceholder}
+          disabled={full}
+          autoComplete="off"
+          aria-describedby="discover-skill-hint"
+          className={cn(fieldClass, "pl-9 disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-70")}
+        />
+        {showOptions && (
+          <ul
+            aria-label={t.skillOptionsLabel}
+            className="y360-step-in absolute inset-x-0 top-full z-20 mt-1 max-h-64 overflow-auto rounded-lg border border-border bg-card p-1 shadow-[0_8px_24px_-12px_rgba(34,31,27,0.25)]"
+          >
+            {options.map((option) => (
+              <li key={option.id}>
+                <button
+                  type="button"
+                  onClick={() => pick(option)}
+                  className={cn(
+                    "flex h-9 w-full items-center gap-2 rounded-md px-3 text-left text-sm text-foreground hover:bg-muted",
+                    FOCUS_RING
+                  )}
+                >
+                  <span className="font-mono text-success">+</span> {option.name_tr}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <p id="discover-skill-hint" className="mt-1.5 text-xs text-muted-foreground">
         {t.skillHint}
       </p>
-      {debouncedTerm && !full && options.length > 0 && (
-        <ul aria-label={t.skillOptionsLabel} className="mt-2 flex flex-wrap gap-2">
-          {options.slice(0, 8).map((option) => (
-            <li key={option.id}>
-              <button
-                type="button"
-                onClick={() => {
-                  onChange([...selected, { id: option.id, name: option.name_tr }]);
-                  setTerm("");
-                }}
-                className={`rounded-full border border-border bg-muted px-3 py-1 text-xs text-foreground hover:border-muted-foreground/50 ${focusRing}`}
-              >
-                + {option.name_tr}
-              </button>
-            </li>
-          ))}
-        </ul>
+    </div>
+  );
+}
+
+function ActiveFilters({
+  chips,
+  hasFilters,
+  onClear,
+}: {
+  chips: { key: string; label: string; remove: () => void }[];
+  hasFilters: boolean;
+  onClear: () => void;
+}) {
+  if (chips.length === 0) return null;
+  return (
+    <ul aria-label={t.activeFiltersLabel} className="mb-5 flex flex-wrap items-center gap-2">
+      {chips.map((chip) => (
+        <li key={chip.key} className="y360-step-in">
+          <button
+            type="button"
+            onClick={chip.remove}
+            aria-label={t.removeFilter.replace("{filter}", chip.label)}
+            className={cn(
+              "inline-flex h-8 items-center gap-1.5 rounded-full border border-foreground/15 bg-card pl-3 pr-2 text-xs font-medium text-foreground transition-colors duration-150 hover:border-destructive/40 hover:text-destructive",
+              FOCUS_RING
+            )}
+          >
+            {chip.label}
+            <Icon name="x" className="h-3.5 w-3.5" />
+          </button>
+        </li>
+      ))}
+      {hasFilters && (
+        <li>
+          <button
+            type="button"
+            onClick={onClear}
+            className={cn("rounded-sm px-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground", FOCUS_RING)}
+          >
+            {t.clearFilters}
+          </button>
+        </li>
       )}
+    </ul>
+  );
+}
+
+/* ── Results ── */
+
+function ResultsHeading({ title, count, more, sort }: { title: string; count: string | null; more: boolean; sort: string }) {
+  return (
+    <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border pb-3">
+      <p className="flex items-baseline gap-3" aria-live="polite">
+        <span className="font-serif text-xl font-semibold text-foreground">{title}</span>
+        {count !== null ? (
+          <span className="font-mono text-xs tabular-nums text-muted-foreground">
+            {more ? t.resultCountMore.replace("{count}", count) : count}
+          </span>
+        ) : null}
+      </p>
+      <p className="font-mono text-[11px] text-muted-foreground">{sort}</p>
     </div>
   );
 }
@@ -315,6 +610,7 @@ function TalentResults({
   skillIds,
   hasFilters,
   onClear,
+  chips,
 }: {
   q: string;
   department: string;
@@ -322,7 +618,10 @@ function TalentResults({
   skillIds: string[];
   hasFilters: boolean;
   onClear: () => void;
+  chips: ReactNode;
 }) {
+  const session = useSession();
+  const isStudent = Boolean(session.data?.talent_profile);
   const query = useInfiniteQuery({
     queryKey: ["discover-talents", q, department, city, skillIds],
     queryFn: ({ pageParam }) => listDiscoverTalents({ q, department, city, skillIds, cursor: pageParam }),
@@ -331,82 +630,53 @@ function TalentResults({
     retry: false,
   });
   const items = query.data?.pages.flatMap((page) => page.items) ?? [];
+  const loaded = query.isSuccess;
 
   return (
-    <ResultList
-      query={query}
-      isEmpty={items.length === 0}
-      loadingLabel={t.talentsLoading}
-      errorMessage={t.talentsError}
-      emptyTitle={hasFilters ? t.talentsEmptyFilteredTitle : t.talentsEmptyTitle}
-      emptyBody={hasFilters ? t.talentsEmptyFilteredBody : t.talentsEmptyBody}
-      onClear={hasFilters ? onClear : undefined}
-    >
-      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((talent, index) => (
-          <li key={talent.public_slug} className="y360-step-in" style={stepStyle(index)}>
-            <TalentCard talent={talent} />
-          </li>
-        ))}
-      </ul>
-    </ResultList>
-  );
-}
-
-function TalentCard({ talent }: { talent: DiscoverTalent }) {
-  const meta = [talent.institution_name, talent.department, talent.city].filter(Boolean).join(" · ");
-  return (
-    <article className="flex h-full flex-col rounded-lg border border-border bg-card p-4">
-      <div className="flex items-start gap-3">
-        <span
-          aria-hidden="true"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sand font-serif text-sm font-semibold text-foreground"
-        >
-          {initials(talent.full_name)}
-        </span>
-        <div className="min-w-0">
-          <h2 className="truncate text-base font-semibold text-foreground">{talent.full_name}</h2>
-          {talent.headline ? <p className="text-sm text-foreground">{talent.headline}</p> : null}
-          {meta ? <p className="mt-0.5 text-xs text-muted-foreground">{meta}</p> : null}
-        </div>
-      </div>
-
-      {talent.sealed_skills.length > 0 ? (
-        <ul aria-label={t.sealedSkillsLabel} className="mt-4 flex flex-wrap gap-1.5">
-          {talent.sealed_skills.map((skill) => (
-            <li key={skill}>
-              <Badge variant="success" className="gap-1">
-                <SealIcon />
-                {skill}
-              </Badge>
+    <>
+      <ResultsHeading
+        title={t.tabTalents}
+        count={loaded ? t.talentResultCount.replace("{count}", String(items.length)) : null}
+        more={query.hasNextPage}
+        sort={t.talentSort}
+      />
+      {chips}
+      <ResultList
+        query={query}
+        isEmpty={items.length === 0}
+        variant="talent"
+        loadingLabel={t.talentsLoading}
+        errorMessage={t.talentsError}
+        empty={
+          <EmptyState
+            icon={hasFilters ? "search" : "compass"}
+            title={hasFilters ? t.talentsEmptyFilteredTitle : t.talentsEmptyTitle}
+            body={hasFilters ? t.talentsEmptyFilteredBody : t.talentsEmptyBody}
+          >
+            {hasFilters ? (
+              <Button variant="secondary" size="sm" onClick={onClear}>
+                {t.clearFilters}
+              </Button>
+            ) : isStudent ? (
+              <>
+                <span className="text-sm text-muted-foreground">{t.emptyStudentHint}</span>
+                <Link href="/profil" className={cn(outlineButton, "h-8 px-3")}>
+                  {t.emptyStudentAction}
+                </Link>
+              </>
+            ) : null}
+          </EmptyState>
+        }
+      >
+        <ul className="grid gap-5 sm:grid-cols-2">
+          {items.map((talent, index) => (
+            <li key={talent.public_slug} className="y360-step-in" style={stepStyle(index)}>
+              <TalentCard talent={talent} />
             </li>
           ))}
         </ul>
-      ) : (
-        <p className="mt-4 text-xs text-muted-foreground">{t.noSealedSkills}</p>
-      )}
-
-      <div className="mt-auto flex items-center justify-between gap-3 pt-4">
-        <span className="text-xs text-muted-foreground">
-          {t.verifiedExperienceCount.replace("{count}", String(talent.verified_experience_count))}
-        </span>
-        <Link
-          href={`/p/${encodeURIComponent(talent.public_slug)}`}
-          aria-label={t.viewProfileOf.replace("{name}", talent.full_name)}
-          className={`rounded-sm text-sm font-medium text-success underline-offset-4 hover:underline ${focusRing}`}
-        >
-          {t.viewProfile}
-        </Link>
-      </div>
-    </article>
-  );
-}
-
-function SealIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="3">
-      <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+      </ResultList>
+    </>
   );
 }
 
@@ -424,63 +694,42 @@ function OrganizationResults({ q, onClear }: { q: string; onClear: () => void })
   const items = query.data?.pages.flatMap((page) => page.items) ?? [];
 
   return (
-    <ResultList
-      query={query}
-      isEmpty={items.length === 0}
-      loadingLabel={t.organizationsLoading}
-      errorMessage={t.organizationsError}
-      emptyTitle={q ? t.organizationsEmptyFilteredTitle : t.organizationsEmptyTitle}
-      emptyBody={q ? t.organizationsEmptyFilteredBody : t.organizationsEmptyBody}
-      onClear={q ? onClear : undefined}
-    >
-      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((organization, index) => (
-          <li key={organization.id} className="y360-step-in" style={stepStyle(index)}>
-            <OrganizationCard organization={organization} canStartEngagement={canStartEngagement} />
-          </li>
-        ))}
-      </ul>
-    </ResultList>
-  );
-}
-
-function OrganizationCard({
-  organization,
-  canStartEngagement,
-}: {
-  organization: DiscoverOrganization;
-  canStartEngagement: boolean;
-}) {
-  const levels = messages.kurulusSec.verificationLevel;
-  return (
-    <article className="flex h-full flex-col rounded-lg border border-border bg-card p-4">
-      <div className="flex items-start gap-3">
-        <span
-          aria-hidden="true"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-sand font-serif text-sm font-semibold text-foreground"
-        >
-          {initials(organization.name)}
-        </span>
-        <div className="min-w-0">
-          <h2 className="truncate text-base font-semibold text-foreground">{organization.name}</h2>
-          {organization.domain ? <p className="text-xs text-muted-foreground">{organization.domain}</p> : null}
-        </div>
-      </div>
-      <div className="mt-auto flex items-center justify-between gap-3 pt-4">
-        <span className="text-xs text-muted-foreground">
-          {levels[organization.verification_level as keyof typeof levels] ?? organization.verification_level}
-        </span>
-        {canStartEngagement && (
-          <Link
-            href={`/calismalar/olustur?organization_id=${encodeURIComponent(organization.id)}`}
-            aria-label={t.startEngagementWith.replace("{name}", organization.name)}
-            className={`rounded-sm text-sm font-medium text-success underline-offset-4 hover:underline ${focusRing}`}
+    <>
+      <ResultsHeading
+        title={t.tabOrganizations}
+        count={query.isSuccess ? t.organizationResultCount.replace("{count}", String(items.length)) : null}
+        more={query.hasNextPage}
+        sort={t.organizationSort}
+      />
+      <ResultList
+        query={query}
+        isEmpty={items.length === 0}
+        variant="organization"
+        loadingLabel={t.organizationsLoading}
+        errorMessage={t.organizationsError}
+        empty={
+          <EmptyState
+            icon={q ? "search" : "building"}
+            title={q ? t.organizationsEmptyFilteredTitle : t.organizationsEmptyTitle}
+            body={q ? t.organizationsEmptyFilteredBody : t.organizationsEmptyBody}
           >
-            {t.startEngagement}
-          </Link>
-        )}
-      </div>
-    </article>
+            {q ? (
+              <Button variant="secondary" size="sm" onClick={onClear}>
+                {t.clearFilters}
+              </Button>
+            ) : null}
+          </EmptyState>
+        }
+      >
+        <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((organization, index) => (
+            <li key={organization.id} className="y360-step-in" style={stepStyle(index)}>
+              <OrganizationCard organization={organization} canStartEngagement={canStartEngagement} />
+            </li>
+          ))}
+        </ul>
+      </ResultList>
+    </>
   );
 }
 
@@ -488,11 +737,10 @@ function OrganizationCard({
 function ResultList({
   query,
   isEmpty,
+  variant,
   loadingLabel,
   errorMessage,
-  emptyTitle,
-  emptyBody,
-  onClear,
+  empty,
   children,
 }: {
   query: {
@@ -505,12 +753,11 @@ function ResultList({
     fetchNextPage: () => unknown;
   };
   isEmpty: boolean;
+  variant: "talent" | "organization";
   loadingLabel: string;
   errorMessage: string;
-  emptyTitle: string;
-  emptyBody: string;
-  onClear?: () => void;
-  children: React.ReactNode;
+  empty: ReactNode;
+  children: ReactNode;
 }) {
   if (query.isLoading) {
     return (
@@ -518,10 +765,10 @@ function ResultList({
         role="status"
         aria-busy="true"
         aria-label={loadingLabel}
-        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+        className={cn("grid gap-5 sm:grid-cols-2", variant === "organization" && "lg:grid-cols-3")}
       >
-        {[0, 1, 2, 3, 4, 5].map((n) => (
-          <div key={n} aria-hidden="true" className={`h-40 w-full ${pulse}`} />
+        {[0, 1, 2, 3].concat(variant === "organization" ? [4, 5] : []).map((n) => (
+          <CardSkeleton key={n} variant={variant} />
         ))}
       </div>
     );
@@ -539,32 +786,21 @@ function ResultList({
     );
   }
 
-  if (isEmpty) {
-    return (
-      <div className="rounded-lg border border-dashed border-border bg-card px-6 py-10 text-center">
-        <p className="font-medium text-foreground">{emptyTitle}</p>
-        <p className="mx-auto mt-1 max-w-[440px] text-sm text-muted-foreground">{emptyBody}</p>
-        {onClear && (
-          <Button variant="secondary" size="sm" className="mt-4" onClick={onClear}>
-            {t.clearFilters}
-          </Button>
-        )}
-      </div>
-    );
-  }
+  if (isEmpty) return <>{empty}</>;
 
   return (
     <>
       {children}
       {query.hasNextPage && (
-        <div className="mt-6 flex justify-center">
-          <Button
-            variant="secondary"
+        <div className="mt-8 flex justify-center">
+          <button
+            type="button"
+            className={outlineButton}
             onClick={() => void query.fetchNextPage()}
             disabled={query.isFetchingNextPage}
           >
             {query.isFetchingNextPage ? t.loadingMore : t.loadMore}
-          </Button>
+          </button>
         </div>
       )}
     </>
