@@ -466,7 +466,36 @@
     "successBackLink": "Profiline dön",
     "alreadyPendingError": "Bu kuruma zaten bekleyen bir talebiniz var.",
     "notFoundError": "Kurum bulunamadı.",
-    "genericError": "Talep gönderilirken bir hata oluştu."
+    "genericError": "Talep gönderilirken bir hata oluştu.",
+    "eyebrow": "Kurum bağlantısı",
+    "pageDescription": "Üniversitenize bağlanın; staj ve projeleriniz kurum onayıyla ilerlesin.",
+    "sharesTitle": "Kurumunuz neyi görür?",
+    "sharesItems": [
+      "Adınız, bölümünüz ve sınıfınız",
+      "Bu kurum üzerinden yürüttüğünüz çalışmalar ve durumları"
+    ],
+    "notSharedTitle": "Neyi görmez?",
+    "notSharedItems": [
+      "E-posta adresiniz",
+      "Başka kurumlarla veya kurumsuz yürüttüğünüz çalışmalar"
+    ],
+    "privateNote": "Profil görünürlüğünüz \"Özel\" ise kurumun öğrenci listesinde yer almazsınız.",
+    "cancelButton": "Vazgeç",
+    "stepsTitle": "Bağlandıktan sonra",
+    "steps": [
+      {
+        "title": "Koordinatör onaylar",
+        "hint": "Talebiniz kurum koordinatörünün onayına düşer."
+      },
+      {
+        "title": "Çalışmalarınız kurumdan geçer",
+        "hint": "Kurum bağlantılı staj ve projeler başlamadan önce koordinatör onayı alır."
+      },
+      {
+        "title": "Deneyimler kurum adıyla mühürlenir",
+        "hint": "Doğrulanan deneyimlerinizde kurumunuzun adı da yer alır."
+      }
+    ]
   },
   "calismalar": {
     "listTitle": "Çalışmalarım",
