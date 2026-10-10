@@ -41,12 +41,11 @@ export interface PendingItem {
   title: string;
   started_on?: string | null;
   ended_on?: string | null;
-  // Always sent by the server; optional only so existing panel fixtures still type-check
-  // (package E makes them required together with its fixtures).
-  talent_full_name?: string;
-  organization_name?: string;
-  kind?: string;
-  version?: number;
+  talent_full_name: string;
+  organization_name: string;
+  kind: string;
+  /** Optimistic-lock version; sent back with an inline approve/reject transition. */
+  version: number;
 }
 
 export interface DashboardMemberItem {

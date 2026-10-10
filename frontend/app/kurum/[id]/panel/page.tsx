@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -35,6 +34,7 @@ import {
   listInstitutionStudents,
   listPendingLinkRequests,
   rejectLinkRequest,
+  reportCsvUrl,
   type InstitutionMemberRole,
   type InstitutionStudentItem,
   type PendingItem,
@@ -44,9 +44,10 @@ import { ApiError, NetworkError, SessionExpiredError } from "@/lib/api/errors";
 import { useSession } from "@/lib/session/use-session";
 import { cn } from "@/lib/utils";
 import messages from "@/messages/tr.json";
+import { ApprovalSection, AttestationSection, EngagementRow } from "./approval-queue";
+import { PartnersSection } from "./partners-section";
 
 const t = messages.kurumPanel;
-const c = messages.calismalar;
 
 const REMINDER_TEMPLATE = "evaluation_pending";
 
@@ -58,15 +59,22 @@ function errorMessage(error: unknown): string {
   return messages.errors.generic;
 }
 
-function institutionNameFrom(items: unknown[] | undefined, id: string): string | undefined {
+type InstitutionRole = "ADMIN" | "COORDINATOR" | "SUPERVISOR";
+
+/** The caller's entry for this institution in /me (name; role once the server sends it). */
+function institutionFrom(
+  items: unknown[] | undefined,
+  id: string
+): { name?: string; role: InstitutionRole | null } {
   const match = (items ?? []).find(
-    (item): item is { id: string; name: string } =>
-      typeof item === "object" &&
-      item !== null &&
-      (item as { id?: unknown }).id === id &&
-      typeof (item as { name?: unknown }).name === "string"
+    (item): item is { id: string; name?: unknown; role?: unknown } =>
+      typeof item === "object" && item !== null && (item as { id?: unknown }).id === id
   );
-  return match?.name;
+  const role = match?.role;
+  return {
+    name: typeof match?.name === "string" ? match.name : undefined,
+    role: role === "ADMIN" || role === "COORDINATOR" || role === "SUPERVISOR" ? role : null,
+  };
 }
 
 export default function KurumPanelPage() {
@@ -91,8 +99,13 @@ export default function KurumPanelPage() {
     queryFn: () => listInstitutionStudents(institutionId),
   });
 
-  // The dashboard has no name; the session lists the caller's institutions.
-  const institutionName = institutionNameFrom(session.data?.institutions, institutionId);
+  // The dashboard has no name; the session lists the caller's institutions and roles.
+  // UX only: the server decides every action (a hidden button grants nothing).
+  const { name: institutionName, role } = institutionFrom(session.data?.institutions, institutionId);
+  const isAdmin = role === "ADMIN";
+  // An unknown role (older /me) keeps the previous panel: actions shown, server decides.
+  const canInvite = role === null || isAdmin;
+  const canApprove = !isAdmin && role !== "SUPERVISOR";
   const joinLink = () => `${window.location.origin}/kurum/${institutionId}/baglan`;
 
   const students = studentsQuery.data?.items ?? [];
@@ -103,8 +116,25 @@ export default function KurumPanelPage() {
       <PageHeader
         eyebrow={t.title}
         title={institutionName ?? t.title}
-        description={t.pageDescription}
-        actions={<CopyButton value={joinLink} label={t.joinLinkButton} />}
+        description={
+          role ? (
+            <span className="flex flex-wrap items-center gap-2">
+              <StatusPill tone={isAdmin ? "success" : "default"}>{t.roleLabel[role]}</StatusPill>
+              <span>{t.roleDescription[role]}</span>
+            </span>
+          ) : (
+            t.pageDescription
+          )
+        }
+        actions={
+          <>
+            <CopyButton value={joinLink} label={t.joinLinkButton} />
+            <a href={reportCsvUrl(institutionId)} download className={actionClass.outline}>
+              <PanelIcon name="clipboard" className="h-4 w-4" />
+              {t.reportCsvButton}
+            </a>
+          </>
+        }
       />
 
       <PageBody>
@@ -141,92 +171,37 @@ export default function KurumPanelPage() {
                     href="#degerlendirme-bekleyen"
                   />
                   <StatTile
-                    label={t.summary.linkedStudents}
-                    value={students.length}
+                    label={t.pendingAttestationLabel}
+                    value={data.summary.pending_attestation ?? 0}
                     tone="ink"
-                    icon="users"
-                    href="#ogrenciler"
+                    icon="shield"
+                    href="#muhur-bekleyen"
                   />
                   <StatTile label={t.summary.verifiedExperiences} value={verifiedTotal} tone="pine" icon="check" />
                 </div>
 
                 <LinkRequestsSection institutionId={institutionId} query={linkRequestsQuery} />
 
-                <PanelSection
-                  id="onay-bekleyen"
-                  icon="clock"
-                  title={t.pendingApprovalTitle}
-                  hint={t.pendingApprovalHint}
-                  flush={data.pending_approval.length > 0}
-                >
-                  {data.pending_approval.length === 0 ? (
-                    <EmptyState icon="inbox" title={t.emptyPendingApprovalMessage} hint={t.emptyPendingApprovalHint} />
-                  ) : (
-                    <ul className="divide-y divide-border">
-                      {data.pending_approval.map((item) => (
-                        <EngagementRow
-                          key={item.id}
-                          item={item}
-                          date={item.started_on ? formatTemplate(t.startedOn, { date: formatDate(item.started_on) }) : null}
-                          status="PENDING_APPROVAL"
-                        />
-                      ))}
-                    </ul>
-                  )}
-                </PanelSection>
+                <ApprovalSection
+                  institutionId={institutionId}
+                  items={data.pending_approval}
+                  canApprove={canApprove}
+                />
 
                 <EvaluationSection institutionId={institutionId} items={data.pending_evaluation} />
+
+                <AttestationSection items={data.pending_attestation ?? []} canSeal={canApprove} />
+
+                <PartnersSection institutionId={institutionId} />
 
                 <StudentsSection query={studentsQuery} students={students} />
               </>
             }
-            aside={<MembersCard institutionId={institutionId} members={data.members} />}
+            aside={<MembersCard institutionId={institutionId} members={data.members} canInvite={canInvite} />}
           />
         ) : null}
       </PageBody>
     </AppShell>
-  );
-}
-
-function EngagementRow({
-  item,
-  date,
-  status,
-  leading,
-  selected,
-}: {
-  item: PendingItem;
-  date: string | null;
-  status: "PENDING_APPROVAL" | "PENDING_EVALUATION";
-  leading?: React.ReactNode;
-  selected?: boolean;
-}) {
-  return (
-    <li
-      className={cn(
-        "flex items-center gap-3 px-5 py-3.5 transition-colors",
-        selected ? "bg-success/[0.06]" : "hover:bg-background"
-      )}
-    >
-      {leading}
-      <Link
-        href={`/calismalar/${item.id}`}
-        className="group flex min-w-0 flex-1 items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success"
-      >
-        <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium text-foreground group-hover:underline group-hover:underline-offset-4">
-            {item.title}
-          </span>
-          {date ? <span className="mt-0.5 block font-mono text-xs text-muted-foreground">{date}</span> : null}
-        </span>
-        <StatusPill tone="warning" className="hidden sm:inline-flex">
-          {c.status[status]}
-        </StatusPill>
-        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-muted-foreground" fill="none" stroke="currentColor" strokeWidth={1.75} aria-hidden="true">
-          <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </Link>
-    </li>
   );
 }
 
@@ -471,6 +446,7 @@ function StudentsSection({
       icon="users"
       title={t.studentsTitle}
       hint={t.studentsHint}
+      count={query.isLoading || query.isError ? undefined : students.length}
       flush={students.length > 0}
     >
       {query.isLoading ? (
@@ -545,9 +521,11 @@ function StudentsSection({
 function MembersCard({
   institutionId,
   members,
+  canInvite,
 }: {
   institutionId: string;
   members: { user_id: string; email: string; role: string }[];
+  canInvite: boolean;
 }) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<InstitutionMemberRole>("COORDINATOR");
@@ -588,61 +566,63 @@ function MembersCard({
                 {member.email}
               </span>
               <StatusPill tone={member.role === "ADMIN" ? "success" : "default"}>
-                {t.memberRole[member.role as "ADMIN" | "COORDINATOR"] ?? member.role}
+                {(t.roleLabel as Record<string, string>)[member.role] ?? member.role}
               </StatusPill>
             </li>
           ))}
         </ul>
       )}
 
-      <form onSubmit={handleInviteSubmit} className="mt-5 space-y-3 rounded-lg border border-border bg-sand/50 p-4">
-        <p className="text-sm font-semibold text-foreground">{t.inviteMemberTitle}</p>
-        <div>
-          <Label htmlFor="invite-email" className="text-xs">
-            {t.inviteEmailLabel}
-          </Label>
-          <Input
-            id="invite-email"
-            type="email"
-            value={inviteEmail}
-            onChange={(e) => setInviteEmail(e.target.value)}
-            required
-          />
-        </div>
-        <div>
-          <Label htmlFor="invite-role" className="text-xs">
-            {t.inviteRoleLabel}
-          </Label>
-          <select
-            id="invite-role"
-            value={inviteRole}
-            onChange={(e) => setInviteRole(e.target.value as InstitutionMemberRole)}
-            className="block h-10 w-full rounded-md border border-border bg-card px-3 text-sm text-foreground focus:border-success focus:outline-none focus:ring-2 focus:ring-success/25"
-          >
-            <option value="COORDINATOR">{t.memberRole.COORDINATOR}</option>
-            <option value="ADMIN">{t.memberRole.ADMIN}</option>
-          </select>
-        </div>
-        <button type="submit" disabled={inviteMutation.isPending} className={cn(actionClass.neutral, "w-full bg-card")}>
-          <PanelIcon name="userPlus" className="h-4 w-4" />
-          {inviteMutation.isPending ? t.invitingButton : t.inviteButton}
-        </button>
-
-        {inviteError ? (
-          <Alert variant="error" className="text-sm">
-            {inviteError}
-          </Alert>
-        ) : null}
-        {inviteMessage ? (
-          <div
-            role="status"
-            aria-live="polite"
-            className="rounded-md border border-success/30 bg-success/10 px-3 py-2.5 text-sm text-success"
-          >
-            {inviteMessage}
+      {canInvite ? (
+        <form onSubmit={handleInviteSubmit} className="mt-5 space-y-3 rounded-lg border border-border bg-sand/50 p-4">
+          <p className="text-sm font-semibold text-foreground">{t.inviteMemberTitle}</p>
+          <div>
+            <Label htmlFor="invite-email" className="text-xs">
+              {t.inviteEmailLabel}
+            </Label>
+            <Input
+              id="invite-email"
+              type="email"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              required
+            />
           </div>
-        ) : null}
-      </form>
+          <div>
+            <Label htmlFor="invite-role" className="text-xs">
+              {t.inviteRoleLabel}
+            </Label>
+            <select
+              id="invite-role"
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value as InstitutionMemberRole)}
+              className="block h-10 w-full rounded-md border border-border bg-card px-3 text-sm text-foreground focus:border-success focus:outline-none focus:ring-2 focus:ring-success/25"
+            >
+              <option value="COORDINATOR">{t.memberRole.COORDINATOR}</option>
+              <option value="ADMIN">{t.memberRole.ADMIN}</option>
+            </select>
+          </div>
+          <button type="submit" disabled={inviteMutation.isPending} className={cn(actionClass.neutral, "w-full bg-card")}>
+            <PanelIcon name="userPlus" className="h-4 w-4" />
+            {inviteMutation.isPending ? t.invitingButton : t.inviteButton}
+          </button>
+
+          {inviteError ? (
+            <Alert variant="error" className="text-sm">
+              {inviteError}
+            </Alert>
+          ) : null}
+          {inviteMessage ? (
+            <div
+              role="status"
+              aria-live="polite"
+              className="rounded-md border border-success/30 bg-success/10 px-3 py-2.5 text-sm text-success"
+            >
+              {inviteMessage}
+            </div>
+          ) : null}
+        </form>
+      ) : null}
     </SideCard>
   );
 }
