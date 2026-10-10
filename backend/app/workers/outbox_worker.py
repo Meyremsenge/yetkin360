@@ -653,47 +653,98 @@ def _decode_qr(image_bytes: bytes) -> str | None:
     return data or None
 
 
-def _reencode_as_png(image_bytes: bytes) -> bytes | None:
+# Long-edge sizes (px) the certificate is rendered at for the vision model.
+# Live finding (PLAN 3.55): the same certificate's small-print credential id
+# was misread on one rendering and read correctly on others — so no single
+# resolution is trusted; see _extract_with_consensus.
+_CERTIFICATE_VIEW_LONG_EDGES = (1568, 2200, 3000)
+
+
+def _certificate_views(file_bytes: bytes, mime_type: str) -> list[bytes]:
     """
-    Decodes any uploaded image format (JPEG/PNG) and re-encodes it as real PNG
-    bytes. Needed because the model's provider validates the declared media
-    type against the ACTUAL bytes (Anthropic rejects a JPEG mislabeled as
-    PNG) — passing an uploaded JPEG straight through under a hardcoded
-    "image/png" label would 400 forever. Returns None if the bytes aren't a
-    decodable image (handler records this as FAILED, not a retry).
+    Renders the certificate (PDF: first page via PyMuPDF — pure-pip, no
+    poppler/system binary) as up to three real PNGs at different resolutions,
+    smallest first; identical renderings are dropped.
+
+    Uploaded images are always decoded and re-encoded: the model's provider
+    validates the declared media type against the ACTUAL bytes (Anthropic
+    rejects a JPEG mislabeled as PNG) — passing an uploaded JPEG straight
+    through under a hardcoded "image/png" label would 400 forever. Returns []
+    if the bytes aren't a decodable image (handler records FAILED, not a retry).
     """
+    views: list[bytes] = []
+
+    if mime_type == "application/pdf":
+        import fitz
+
+        doc = fitz.open(stream=file_bytes, filetype="pdf")
+        try:
+            page = doc.load_page(0)
+            long_edge_pt = max(page.rect.width, page.rect.height)
+            for dpi in dict.fromkeys(
+                min(300, max(72, round(72 * edge / long_edge_pt))) for edge in _CERTIFICATE_VIEW_LONG_EDGES
+            ):
+                views.append(page.get_pixmap(dpi=dpi).tobytes("png"))
+        finally:
+            doc.close()
+        return views
+
     import cv2
     import numpy as np
 
-    array = np.frombuffer(image_bytes, dtype=np.uint8)
-    decoded = cv2.imdecode(array, cv2.IMREAD_COLOR)
+    decoded = cv2.imdecode(np.frombuffer(file_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
     if decoded is None:
-        return None
-    ok, buf = cv2.imencode(".png", decoded)
-    return bytes(buf) if ok else None
+        return []
+    height, width = decoded.shape[:2]
+    for edge in _CERTIFICATE_VIEW_LONG_EDGES:
+        scale = edge / max(height, width)
+        image = (
+            decoded
+            if scale >= 1
+            else cv2.resize(decoded, (round(width * scale), round(height * scale)), interpolation=cv2.INTER_AREA)
+        )
+        ok, buf = cv2.imencode(".png", image)
+        if ok and bytes(buf) not in views:
+            views.append(bytes(buf))
+    return views
 
 
-def _render_first_page_to_png(file_bytes: bytes) -> bytes:
-    """PDF → PNG (first page only) via PyMuPDF — pure-pip, no poppler/system binary."""
-    import fitz
+# Letters NFKD can't decompose — without this table the ASCII step below drops
+# them entirely ("Kılıç" would become "klc" instead of "kilic").
+_NAME_LETTER_FOLD = str.maketrans(
+    {"ı": "i", "ø": "o", "Ø": "o", "ł": "l", "Ł": "l", "đ": "d", "Đ": "d", "ß": "ss", "æ": "ae", "Æ": "ae", "œ": "oe", "Œ": "oe"}
+)
 
-    doc = fitz.open(stream=file_bytes, filetype="pdf")
-    try:
-        page = doc.load_page(0)
-        return page.get_pixmap(dpi=200).tobytes("png")
-    finally:
-        doc.close()
+# Glyphs OCR/vision transcription commonly swaps (I/l/1, O/0, rn/m, vv/w),
+# folded to one canonical form on BOTH sides before comparing.
+_OCR_CONFUSABLE_PAIRS = (("rn", "m"), ("vv", "w"))
+_OCR_CONFUSABLE_CHARS = str.maketrans({"0": "o", "1": "l", "i": "l"})
+
+_NAME_MATCH_THRESHOLD = 0.85
 
 
 def _normalize_name(name: str) -> str:
-    """Lowercase, strip, collapse whitespace — for a deterministic (non-AI) name
-    comparison; the LLM only transcribes the printed text, this function decides
-    whether it matches the talent's profile name."""
+    """Lowercase, strip accents/punctuation, collapse whitespace — for a
+    deterministic (non-AI) name comparison; the LLM only transcribes the printed
+    text, this function decides whether it matches the talent's profile name."""
     import re as _re
     import unicodedata
 
-    normalized = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
-    return _re.sub(r"\s+", " ", normalized.strip().lower())
+    folded = name.translate(_NAME_LETTER_FOLD)
+    normalized = unicodedata.normalize("NFKD", folded).encode("ascii", "ignore").decode("ascii").lower()
+    normalized = _re.sub(r"[.'`]", "", normalized)
+    return _re.sub(r"[^a-z0-9]+", " ", normalized).strip()
+
+
+def _ocr_tolerant_key(normalized_name: str) -> str:
+    """Order-insensitive, confusable-folded form of an already normalized name
+    ("YILMAZ Ahmet" and "Ahmet Yilmaz" share a key; so do "KiIic" and "Kilic")."""
+    tokens = []
+    for token in normalized_name.split():
+        for confusable, canonical in _OCR_CONFUSABLE_PAIRS:
+            token = token.replace(confusable, canonical)
+        tokens.append(token.translate(_OCR_CONFUSABLE_CHARS))
+    return " ".join(sorted(tokens))
 
 
 def _names_match(extracted_name: str, profile_name: str) -> bool:
@@ -702,49 +753,135 @@ def _names_match(extracted_name: str, profile_name: str) -> bool:
     a, b = _normalize_name(extracted_name), _normalize_name(profile_name)
     if not a or not b:
         return False
-    return difflib.SequenceMatcher(a=a, b=b).ratio() >= 0.85
+    if difflib.SequenceMatcher(a=a, b=b).ratio() >= _NAME_MATCH_THRESHOLD:
+        return True
+    return (
+        difflib.SequenceMatcher(a=_ocr_tolerant_key(a), b=_ocr_tolerant_key(b)).ratio()
+        >= _NAME_MATCH_THRESHOLD
+    )
 
 
 # PLAN 3.55b: yalnız bu domainlere otomatik istek atılır — AI'nin ürettiği
 # verify_url'e kör güvenilmez, SSRF/keyfi-URL riskine karşı allowlist.
-_VERIFY_PAGE_ALLOWED_HOSTS = {"coursera.org", "www.coursera.org"}
+_COURSERA_HOSTS = {"coursera.org", "www.coursera.org"}
+_BTK_HOSTS = {"btkakademi.gov.tr", "www.btkakademi.gov.tr"}
+_VERIFY_PAGE_ALLOWED_HOSTS = _COURSERA_HOSTS | _BTK_HOSTS
 
 
-def _fetch_official_page_name(verify_url: str) -> str | None:
+def _fetch_official_page(verify_url: str) -> tuple[str | None, str | None]:
     """
-    Resmi doğrulama sayfasından ismi DETERMİNİSTİK olarak çeker (regex, AI
-    değil) — yalnız Coursera (sunucu taraflı render edilir, düz HTTP yeterli).
+    Resmi doğrulama sayfasından ismi ve kurs adını DETERMİNİSTİK olarak çeker (regex, AI
+    değil) — Coursera ve BTK Akademi (sunucu taraflı render edilir, düz HTTP yeterli).
     Udemy bilerek desteklenmiyor: sayfası Cloudflare bot korumasının arkasında
     (canlı test: düz istek 403 "Just a moment..." döner) — bypass denemek
     uygun değil, link koordinatöre gösterilmeye devam eder (manuel tıklama).
 
-    Sayfa parse edilemezse None döner (hata değil — "bilinmiyor" anlamına
-    gelir, "eşleşmiyor" değil). Ağ hatası/timeout'ta da None döner: bu
+    (name, course_name) döner. Parse edilemeyen alan None olur (hata değil —
+    "bilinmiyor" anlamına gelir, "eşleşmiyor" değil). Ağ hatası/timeout'ta
+    ikisi de None döner: bu
     doğrulama tamamen opsiyonel bir öneri, outbox retry'ını tetiklemeye
     değmez (ana çıkarım zaten tamamlanmış olur).
     """
+    import html
     import re
     from urllib.parse import urlparse
 
     import httpx
 
-    host = (urlparse(verify_url).hostname or "").lower()
+    host =(urlparse(verify_url).hostname or "").lower()
     if host not in _VERIFY_PAGE_ALLOWED_HOSTS:
-        return None
+        return None, None
 
     try:
         response = httpx.get(
             verify_url, timeout=15, follow_redirects=True, headers={"User-Agent": "Mozilla/5.0"}
         )
         if response.status_code != 200:
-            return None
+            return None, None
     except Exception:
         # Opsiyonel bir ek öneri — network/SSL/DNS hatası ana çıkarımı (zaten
         # bellekte hazır) FAILED'e düşürmemeli, outbox retry'ını da tetiklememeli.
-        return None
+        return None, None
 
-    match = re.search(r"Completed by\s*<strong>([^<]+)</strong>", response.text)
-    return match.group(1).strip() if match else None
+    if host in _BTK_HOSTS:
+        return _parse_btk_certificate_page(response.text)
+
+    # The page HTML-escapes its text (O&#x27;Brien) — compare the real text.
+    name = re.search(r"Completed by\s*<strong>([^<]+)</strong>", response.text)
+    course = re.search(
+        r'property="og:title"\s+content="Completion Certificate for ([^"]+)"', response.text
+    )
+    return (
+        html.unescape(name.group(1)).strip() if name else None,
+        html.unescape(course.group(1)).strip() if course else None,
+    )
+
+
+def _parse_btk_certificate_page(page_html: str) -> tuple[str | None, str | None]:
+    """
+    BTK Akademi's validate page is server-rendered: the certificate's own HTML
+    sits as a string in the page's __NEXT_DATA__ JSON (pageProps.certificate).
+    Returns (name, course_name); anything unparseable — including an unknown
+    certificate id, where that string is absent — is None, never a guess.
+    """
+    import html
+    import json
+    import re
+
+    data = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', page_html, re.S)
+    if not data:
+        return None, None
+    try:
+        certificate_html = json.loads(data.group(1))["props"]["pageProps"]["certificate"]
+    except (json.JSONDecodeError, KeyError, TypeError):
+        return None, None
+    if not isinstance(certificate_html, str):
+        return None, None
+
+    name = re.search(r"<h3[^>]*>([^<]+)</h3>", certificate_html)
+    course = re.search(r'class="course-name"[^>]*>\s*<strong>([^<]+)</strong>', certificate_html)
+    return (
+        html.unescape(name.group(1)).strip() if name else None,
+        html.unescape(course.group(1)).strip().strip('"“”').strip() if course else None,
+    )
+
+
+def _btk_verify_url(credential_id: object) -> str | None:
+    """Builds BTK Akademi's validate link from the certificate number — same
+    strict-shape rule as _udemy_verify_url (only [A-Za-z0-9] reaches the URL)."""
+    import re
+
+    if not isinstance(credential_id, str):
+        return None
+    candidate = credential_id.strip()
+    if not re.fullmatch(r"[A-Za-z0-9]{6,20}", candidate):
+        return None
+    return f"https://www.btkakademi.gov.tr/portal/certificate/validate?certificateId={candidate}"
+
+
+def _generated_verify_url(provider: str, credential_id: object) -> str | None:
+    if provider == "BTK":
+        return _btk_verify_url(credential_id)
+    if provider == "COURSERA":
+        return None
+    return _udemy_verify_url(credential_id)
+
+
+def _udemy_verify_url(credential_id: object) -> str | None:
+    """
+    Builds Udemy's short verify link (the one printed on the certificate) from
+    the credential id, so the coordinator's link doesn't depend on the model
+    transcribing a long URL correctly. Returns None unless the id has Udemy's
+    exact "UC-..." shape — nothing else from the model output reaches the URL.
+    """
+    import re
+
+    if not isinstance(credential_id, str):
+        return None
+    candidate = credential_id.strip()
+    if not re.fullmatch(r"UC-[A-Za-z0-9-]{8,40}", candidate):
+        return None
+    return f"https://ude.my/{candidate}"
 
 
 def _extract_certificate_fields(image_png: bytes, api_key: str, model: str) -> dict | None:
@@ -767,13 +904,14 @@ def _extract_certificate_fields(image_png: bytes, api_key: str, model: str) -> d
 
     b64 = base64.b64encode(image_png).decode("ascii")
     prompt = (
-        "Bu bir Udemy veya Coursera kurs tamamlama sertifikası görseli. GÖREVİN SADECE "
+        "Bu bir Udemy, Coursera veya BTK Akademi kurs tamamlama sertifikası görseli. GÖREVİN SADECE "
         "görselde YAZILI OLAN metni aktarmak — hiçbir alanı tahmin etme veya uydurma, "
         "görünmüyorsa null yaz. GÖREVİN ASLA ŞU DEĞİL: bu sertifikanın gerçek olup "
         "olmadığına karar vermek — bu bilgiyi bilemezsin, sadece metni okuyabilirsin.\n\n"
         "Yalnızca şu JSON ile cevap ver, başka hiçbir metin ekleme:\n"
-        '{"provider": "UDEMY"|"COURSERA"|"UNKNOWN", "credential_id": "<görünen sertifika/kimlik numarası veya null>", '
-        '"extracted_name": "<sertifikada yazılı alıcı adı veya null>", "verify_url": "<görünen doğrulama linki veya null>"}'
+        '{"provider": "UDEMY"|"COURSERA"|"BTK"|"UNKNOWN", "credential_id": "<görünen sertifika/kimlik numarası veya null>", '
+        '"extracted_name": "<sertifikada yazılı alıcı adı veya null>", "course_name": "<sertifikada yazılı kurs adı veya null>", '
+        '"verify_url": "<görünen doğrulama linki veya null>"}'
     )
 
     response = httpx.post(
@@ -807,11 +945,42 @@ def _extract_certificate_fields(image_png: bytes, api_key: str, model: str) -> d
         return None
     if not isinstance(fields, dict):
         return None
-    for key in ("provider", "credential_id", "extracted_name", "verify_url"):
+    for key in ("provider", "credential_id", "extracted_name", "course_name", "verify_url"):
         fields.setdefault(key, None)
-    if fields["provider"] not in ("UDEMY", "COURSERA", "UNKNOWN"):
+    if fields["provider"] not in ("UDEMY", "COURSERA", "BTK", "UNKNOWN"):
         fields["provider"] = "UNKNOWN"
     return fields
+
+
+# Fields a single wrong character silently breaks (they become the verify link).
+_CONSENSUS_FIELDS = ("credential_id", "verify_url")
+
+
+def _extract_with_consensus(views: list[bytes], api_key: str, model: str) -> dict | None:
+    """
+    Transcribes the certificate from two renderings and keeps credential_id /
+    verify_url only when independent readings agree; on disagreement a third
+    rendering breaks the tie, and without a majority the field becomes None —
+    an unreadable number is reported as unknown, never as a guess. Other
+    fields (name, course) come from the first reading: they are compared
+    fuzzily downstream, so one misread character doesn't matter there.
+    """
+    first = _extract_certificate_fields(views[0], api_key, model)
+    if first is None or len(views) == 1:
+        return first
+
+    readings = [first]
+    for view in views[1:]:
+        reading = _extract_certificate_fields(view, api_key, model)
+        if reading is not None:
+            readings.append(reading)
+        if len(readings) == 2 and all(readings[0][key] == readings[1][key] for key in _CONSENSUS_FIELDS):
+            return first
+
+    for key in _CONSENSUS_FIELDS:
+        values = [reading[key] for reading in readings]
+        first[key] = next((value for value in values if values.count(value) >= 2), None)
+    return first
 
 
 def certificate_check_requested_handler(payload: dict, outbox_id: int) -> None:
@@ -820,7 +989,8 @@ def certificate_check_requested_handler(payload: dict, outbox_id: int) -> None:
 
     Three phases (read → network calls outside any transaction → write), same
     shape as evidence_scan_requested_handler/attestation_fraud_check_handler.
-    Renders the first page (PDF) or uses the image directly, decodes any QR
+    Renders the first page (PDF) or the image at several resolutions (the
+    credential id needs agreeing readings — _extract_with_consensus), decodes any QR
     code deterministically (OpenCV, no AI), and asks the vision model to
     transcribe the printed name/credential id/verify url (transformation, not
     judgment). Name-match is computed by this function with a plain string
@@ -873,12 +1043,8 @@ def certificate_check_requested_handler(payload: dict, outbox_id: int) -> None:
                 session.commit()
             return
 
-        image_png = (
-            _render_first_page_to_png(stored.data)
-            if evidence_row.mime_type == "application/pdf"
-            else _reencode_as_png(stored.data)
-        )
-        if image_png is None:
+        views = _certificate_views(stored.data, evidence_row.mime_type)
+        if not views:
             with Session(engine) as session:
                 session.execute(
                     update(CertificateCheck).where(CertificateCheck.id == check_id, CertificateCheck.status == "PENDING")
@@ -887,8 +1053,9 @@ def certificate_check_requested_handler(payload: dict, outbox_id: int) -> None:
                 session.commit()
             return
 
-        qr_data = _decode_qr(image_png)
-        fields = _extract_certificate_fields(image_png, settings.openrouter_api_key, settings.openrouter_model)
+        # QR modules survive best at the highest resolution — try that first.
+        qr_data = next((data for view in reversed(views) if (data := _decode_qr(view))), None)
+        fields = _extract_with_consensus(views, settings.openrouter_api_key, settings.openrouter_model)
 
         with Session(engine) as session:
             if fields is None:
@@ -901,10 +1068,16 @@ def certificate_check_requested_handler(payload: dict, outbox_id: int) -> None:
 
             extracted_name = fields["extracted_name"]
             name_match = _names_match(extracted_name, talent_name) if extracted_name else None
-            verify_url = qr_data or fields["verify_url"]
+            generated_url = _generated_verify_url(fields["provider"], fields["credential_id"])
+            verify_url = qr_data or generated_url or fields["verify_url"]
 
-            page_name = _fetch_official_page_name(verify_url) if verify_url else None
+            course_name = fields["course_name"] if isinstance(fields["course_name"], str) else None
+            page_name, page_course_name = _fetch_official_page(verify_url) if verify_url else (None, None)
             page_match = _names_match(extracted_name, page_name) if extracted_name and page_name else None
+            # Same deterministic comparison as the name — never the model's opinion.
+            course_match = (
+                _names_match(course_name, page_course_name) if course_name and page_course_name else None
+            )
 
             session.execute(
                 update(CertificateCheck).where(CertificateCheck.id == check_id, CertificateCheck.status == "PENDING")
@@ -918,6 +1091,9 @@ def certificate_check_requested_handler(payload: dict, outbox_id: int) -> None:
                     name_match=name_match,
                     page_name=page_name,
                     page_match=page_match,
+                    extracted_course_name=course_name,
+                    page_course_name=page_course_name,
+                    course_match=course_match,
                     model=settings.openrouter_model,
                 )
             )
