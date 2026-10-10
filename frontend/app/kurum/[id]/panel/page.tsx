@@ -26,6 +26,7 @@ import { SealMark } from "@/components/brand/brand-mark";
 import { Alert } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { UpheldComplaintBadge } from "@/components/upheld-complaint-badge";
 import {
   approveLinkRequest,
   createReminders,
@@ -117,14 +118,17 @@ export default function KurumPanelPage() {
         eyebrow={t.title}
         title={institutionName ?? t.title}
         description={
-          role ? (
-            <span className="flex flex-wrap items-center gap-2">
-              <StatusPill tone={isAdmin ? "success" : "default"}>{t.roleLabel[role]}</StatusPill>
-              <span>{t.roleDescription[role]}</span>
-            </span>
-          ) : (
-            t.pageDescription
-          )
+          <span className="flex flex-wrap items-center gap-2">
+            {role ? (
+              <>
+                <StatusPill tone={isAdmin ? "success" : "default"}>{t.roleLabel[role]}</StatusPill>
+                <span>{t.roleDescription[role]}</span>
+              </>
+            ) : (
+              <span>{t.pageDescription}</span>
+            )}
+            <UpheldComplaintBadge count={data?.upheld_complaint_count} />
+          </span>
         }
         actions={
           <>
