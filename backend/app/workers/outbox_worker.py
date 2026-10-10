@@ -639,6 +639,293 @@ def attestation_fraud_check_handler(payload: dict, outbox_id: int) -> None:
         engine.dispose()
 
 
+def _decode_qr(image_bytes: bytes) -> str | None:
+    """Deterministic QR decode (OpenCV, no AI) — Coursera certificates embed a
+    verify-page QR; this never guesses, it either reads a code or finds none."""
+    import cv2
+    import numpy as np
+
+    array = np.frombuffer(image_bytes, dtype=np.uint8)
+    image = cv2.imdecode(array, cv2.IMREAD_COLOR)
+    if image is None:
+        return None
+    data, points, _ = cv2.QRCodeDetector().detectAndDecode(image)
+    return data or None
+
+
+def _reencode_as_png(image_bytes: bytes) -> bytes | None:
+    """
+    Decodes any uploaded image format (JPEG/PNG) and re-encodes it as real PNG
+    bytes. Needed because the model's provider validates the declared media
+    type against the ACTUAL bytes (Anthropic rejects a JPEG mislabeled as
+    PNG) — passing an uploaded JPEG straight through under a hardcoded
+    "image/png" label would 400 forever. Returns None if the bytes aren't a
+    decodable image (handler records this as FAILED, not a retry).
+    """
+    import cv2
+    import numpy as np
+
+    array = np.frombuffer(image_bytes, dtype=np.uint8)
+    decoded = cv2.imdecode(array, cv2.IMREAD_COLOR)
+    if decoded is None:
+        return None
+    ok, buf = cv2.imencode(".png", decoded)
+    return bytes(buf) if ok else None
+
+
+def _render_first_page_to_png(file_bytes: bytes) -> bytes:
+    """PDF → PNG (first page only) via PyMuPDF — pure-pip, no poppler/system binary."""
+    import fitz
+
+    doc = fitz.open(stream=file_bytes, filetype="pdf")
+    try:
+        page = doc.load_page(0)
+        return page.get_pixmap(dpi=200).tobytes("png")
+    finally:
+        doc.close()
+
+
+def _normalize_name(name: str) -> str:
+    """Lowercase, strip, collapse whitespace — for a deterministic (non-AI) name
+    comparison; the LLM only transcribes the printed text, this function decides
+    whether it matches the talent's profile name."""
+    import re as _re
+    import unicodedata
+
+    normalized = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
+    return _re.sub(r"\s+", " ", normalized.strip().lower())
+
+
+def _names_match(extracted_name: str, profile_name: str) -> bool:
+    import difflib
+
+    a, b = _normalize_name(extracted_name), _normalize_name(profile_name)
+    if not a or not b:
+        return False
+    return difflib.SequenceMatcher(a=a, b=b).ratio() >= 0.85
+
+
+# PLAN 3.55b: yalnız bu domainlere otomatik istek atılır — AI'nin ürettiği
+# verify_url'e kör güvenilmez, SSRF/keyfi-URL riskine karşı allowlist.
+_VERIFY_PAGE_ALLOWED_HOSTS = {"coursera.org", "www.coursera.org"}
+
+
+def _fetch_official_page_name(verify_url: str) -> str | None:
+    """
+    Resmi doğrulama sayfasından ismi DETERMİNİSTİK olarak çeker (regex, AI
+    değil) — yalnız Coursera (sunucu taraflı render edilir, düz HTTP yeterli).
+    Udemy bilerek desteklenmiyor: sayfası Cloudflare bot korumasının arkasında
+    (canlı test: düz istek 403 "Just a moment..." döner) — bypass denemek
+    uygun değil, link koordinatöre gösterilmeye devam eder (manuel tıklama).
+
+    Sayfa parse edilemezse None döner (hata değil — "bilinmiyor" anlamına
+    gelir, "eşleşmiyor" değil). Ağ hatası/timeout'ta da None döner: bu
+    doğrulama tamamen opsiyonel bir öneri, outbox retry'ını tetiklemeye
+    değmez (ana çıkarım zaten tamamlanmış olur).
+    """
+    import re
+    from urllib.parse import urlparse
+
+    import httpx
+
+    host = (urlparse(verify_url).hostname or "").lower()
+    if host not in _VERIFY_PAGE_ALLOWED_HOSTS:
+        return None
+
+    try:
+        response = httpx.get(
+            verify_url, timeout=15, follow_redirects=True, headers={"User-Agent": "Mozilla/5.0"}
+        )
+        if response.status_code != 200:
+            return None
+    except Exception:
+        # Opsiyonel bir ek öneri — network/SSL/DNS hatası ana çıkarımı (zaten
+        # bellekte hazır) FAILED'e düşürmemeli, outbox retry'ını da tetiklememeli.
+        return None
+
+    match = re.search(r"Completed by\s*<strong>([^<]+)</strong>", response.text)
+    return match.group(1).strip() if match else None
+
+
+def _extract_certificate_fields(image_png: bytes, api_key: str, model: str) -> dict | None:
+    """
+    Calls OpenRouter's vision-capable model to TRANSFORM the certificate image
+    into structured text — never to judge authenticity (final-analiz §11.4.2/§39:
+    AI deciding evidence authenticity is explicitly forbidden). The only thing
+    this function's caller computes itself (not the model) is the name match —
+    see _names_match. A human (the engagement's coordinator) makes the actual
+    CONFIRMED/REJECTED call via /certificate-checks/{id}/resolve.
+
+    Returns None on malformed model output (treated as "extraction failed, no
+    guess" — never a fabricated field). Raises on HTTP/network errors so the
+    outbox row retries.
+    """
+    import base64
+    import json
+
+    import httpx
+
+    b64 = base64.b64encode(image_png).decode("ascii")
+    prompt = (
+        "Bu bir Udemy veya Coursera kurs tamamlama sertifikası görseli. GÖREVİN SADECE "
+        "görselde YAZILI OLAN metni aktarmak — hiçbir alanı tahmin etme veya uydurma, "
+        "görünmüyorsa null yaz. GÖREVİN ASLA ŞU DEĞİL: bu sertifikanın gerçek olup "
+        "olmadığına karar vermek — bu bilgiyi bilemezsin, sadece metni okuyabilirsin.\n\n"
+        "Yalnızca şu JSON ile cevap ver, başka hiçbir metin ekleme:\n"
+        '{"provider": "UDEMY"|"COURSERA"|"UNKNOWN", "credential_id": "<görünen sertifika/kimlik numarası veya null>", '
+        '"extracted_name": "<sertifikada yazılı alıcı adı veya null>", "verify_url": "<görünen doğrulama linki veya null>"}'
+    )
+
+    response = httpx.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={
+            "model": model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
+                    ],
+                }
+            ],
+            "temperature": 0,
+            "max_tokens": 400,
+        },
+        timeout=30,
+    )
+    response.raise_for_status()
+    content = response.json()["choices"][0]["message"]["content"].strip()
+    if content.startswith("```"):
+        content = content.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+
+    try:
+        fields = json.loads(content)
+    except (json.JSONDecodeError, KeyError, IndexError):
+        logger.warning("Certificate extraction model output wasn't valid JSON; skipping this attempt.")
+        return None
+    if not isinstance(fields, dict):
+        return None
+    for key in ("provider", "credential_id", "extracted_name", "verify_url"):
+        fields.setdefault(key, None)
+    if fields["provider"] not in ("UDEMY", "COURSERA", "UNKNOWN"):
+        fields["provider"] = "UNKNOWN"
+    return fields
+
+
+def certificate_check_requested_handler(payload: dict, outbox_id: int) -> None:
+    """
+    Handler for evidence.certificate_check_requested topic (PLAN 3.55).
+
+    Three phases (read → network calls outside any transaction → write), same
+    shape as evidence_scan_requested_handler/attestation_fraud_check_handler.
+    Renders the first page (PDF) or uses the image directly, decodes any QR
+    code deterministically (OpenCV, no AI), and asks the vision model to
+    transcribe the printed name/credential id/verify url (transformation, not
+    judgment). Name-match is computed by this function with a plain string
+    comparison — never by the model. The row's `decision` stays PENDING; only
+    the engagement's coordinator can set CONFIRMED/REJECTED
+    (app/services/certificate_check.py's resolve_certificate_check).
+
+    Args:
+      - payload: {"certificate_check_id": "..."} — evidence content is re-read
+        from storage, never trusted from the payload.
+      - outbox_id: row ID in outbox table
+    """
+    import uuid as _uuid
+
+    from sqlalchemy import create_engine
+
+    from app.core.config import settings
+    from app.models import CertificateCheck, Evidence, TalentProfile
+    from app.services.storage import fetch_object
+
+    if not settings.openrouter_api_key:
+        return
+
+    check_id = _uuid.UUID(payload["certificate_check_id"])
+    engine = create_engine(settings.database_url)
+    try:
+        with Session(engine) as session:
+            row = session.execute(
+                select(CertificateCheck.status, CertificateCheck.evidence_id).where(CertificateCheck.id == check_id)
+            ).first()
+            if row is None or row.status != "PENDING":
+                return
+            evidence_row = session.execute(
+                select(Evidence.storage_key, Evidence.mime_type, Evidence.owner_talent_id)
+                .where(Evidence.id == row.evidence_id)
+            ).first()
+            if evidence_row is None:
+                return
+            talent_name = session.execute(
+                select(TalentProfile.full_name).where(TalentProfile.id == evidence_row.owner_talent_id)
+            ).scalar_one()
+
+        stored = fetch_object(settings.s3_bucket, evidence_row.storage_key, settings.evidence_max_size_bytes)
+        if stored is None:
+            with Session(engine) as session:
+                session.execute(
+                    update(CertificateCheck).where(CertificateCheck.id == check_id, CertificateCheck.status == "PENDING")
+                    .values(status="FAILED")
+                )
+                session.commit()
+            return
+
+        image_png = (
+            _render_first_page_to_png(stored.data)
+            if evidence_row.mime_type == "application/pdf"
+            else _reencode_as_png(stored.data)
+        )
+        if image_png is None:
+            with Session(engine) as session:
+                session.execute(
+                    update(CertificateCheck).where(CertificateCheck.id == check_id, CertificateCheck.status == "PENDING")
+                    .values(status="FAILED")
+                )
+                session.commit()
+            return
+
+        qr_data = _decode_qr(image_png)
+        fields = _extract_certificate_fields(image_png, settings.openrouter_api_key, settings.openrouter_model)
+
+        with Session(engine) as session:
+            if fields is None:
+                session.execute(
+                    update(CertificateCheck).where(CertificateCheck.id == check_id, CertificateCheck.status == "PENDING")
+                    .values(status="FAILED", qr_raw_data=qr_data)
+                )
+                session.commit()
+                return
+
+            extracted_name = fields["extracted_name"]
+            name_match = _names_match(extracted_name, talent_name) if extracted_name else None
+            verify_url = qr_data or fields["verify_url"]
+
+            page_name = _fetch_official_page_name(verify_url) if verify_url else None
+            page_match = _names_match(extracted_name, page_name) if extracted_name and page_name else None
+
+            session.execute(
+                update(CertificateCheck).where(CertificateCheck.id == check_id, CertificateCheck.status == "PENDING")
+                .values(
+                    status="DONE",
+                    provider=fields["provider"],
+                    credential_id=fields["credential_id"],
+                    verify_url=verify_url,
+                    qr_raw_data=qr_data,
+                    extracted_name=extracted_name,
+                    name_match=name_match,
+                    page_name=page_name,
+                    page_match=page_match,
+                    model=settings.openrouter_model,
+                )
+            )
+            session.commit()
+    finally:
+        engine.dispose()
+
+
 # Handler dispatch table (expanded as new topics are introduced)
 DEFAULT_HANDLERS = {
     "evidence.scan_requested": evidence_scan_requested_handler,
@@ -649,6 +936,7 @@ DEFAULT_HANDLERS = {
     "attestation.fraud_check_requested": attestation_fraud_check_handler,
     "attestation.created": attestation_created_handler,
     "engagement.pending_approval": engagement_pending_approval_handler,
+    "evidence.certificate_check_requested": certificate_check_requested_handler,
 }
 
 

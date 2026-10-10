@@ -20,6 +20,7 @@ from app.api.deps import get_current_principal, get_session, get_verified_princi
 from app.core.deps import require_csrf
 from app.core.config import settings
 from app.core.errors import ApiError
+from app.schemas.certificate_check import CertificateCheckResponse
 from app.schemas.evidence import (
     EvidenceUploadUrlRequest,
     EvidenceUploadUrlResponse,
@@ -28,6 +29,13 @@ from app.schemas.evidence import (
     EvidenceDownloadUrlResponse,
 )
 from app.services.authorization import Principal
+from app.services.certificate_check import (
+    CheckAlreadyRequestedError,
+    EvidenceNotCleanError,
+    EvidenceNotFoundError as CertCheckEvidenceNotFoundError,
+    NotCertificateKindError,
+    request_certificate_check,
+)
 from app.services.evidence import create_evidence, get_download_url, list_evidence
 from app.services.storage import (
     build_object_key,
@@ -338,3 +346,45 @@ def get_evidence_download_url(
     session.commit()
 
     return response
+
+
+@router.post(
+    "/{evidence_id}/request-certificate-check",
+    response_model=CertificateCheckResponse,
+    status_code=201,
+)
+def request_certificate_check_endpoint(
+    evidence_id: uuid.UUID = Path(..., description="Evidence UUID"),
+    principal: Principal = Depends(get_verified_principal),
+    session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
+) -> CertificateCheckResponse:
+    """
+    PLAN 3.55: öğrencinin AÇIK RIZASIYLA tetiklediği sertifika çıkarımı — KVKK
+    gereği ayrı bir rıza eylemi olarak tasarlandı (final-analiz §11.2), upload
+    anında otomatik tetiklenmez. Sadece evidence'ın sahibi çağırabilir.
+
+    AI hiçbir "doğrulandı" kararı vermez — yalnız metin çıkarır (outbox worker,
+    app/workers/outbox_worker.py:certificate_check_requested_handler). Nihai
+    karar engagement'ın koordinatörüne aittir
+    (POST /certificate-checks/{id}/resolve).
+
+    Errors:
+        404 NOT_FOUND: evidence yok veya sahibi değil
+        422 NOT_CERTIFICATE_KIND: evidence.kind != CERTIFICATE
+        409 EVIDENCE_NOT_CLEAN: virüs taraması henüz CLEAN değil
+        409 ALREADY_REQUESTED: bu evidence için zaten bir talep var
+    """
+    try:
+        check = request_certificate_check(session, principal, evidence_id)
+    except CertCheckEvidenceNotFoundError:
+        raise ApiError(404, "NOT_FOUND", "Kanıt bulunamadı.")
+    except NotCertificateKindError:
+        raise ApiError(422, "NOT_CERTIFICATE_KIND", "Bu işlem yalnız sertifika türü kanıtlar için geçerli.")
+    except EvidenceNotCleanError:
+        raise ApiError(409, "EVIDENCE_NOT_CLEAN", "Kanıt henüz tarama sürecinde.")
+    except CheckAlreadyRequestedError:
+        raise ApiError(409, "ALREADY_REQUESTED", "Bu kanıt için zaten bir kontrol talebi var.")
+
+    session.commit()
+    return CertificateCheckResponse.model_validate(check)

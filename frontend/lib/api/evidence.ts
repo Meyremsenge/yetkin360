@@ -12,7 +12,7 @@
 import { apiFetch } from "./client";
 import { ApiError } from "./errors";
 
-export type EvidenceKind = "DOCUMENT" | "IMAGE";
+export type EvidenceKind = "DOCUMENT" | "IMAGE" | "CERTIFICATE";
 export type ScanStatus = "PENDING" | "CLEAN" | "INFECTED" | "FAILED";
 
 export interface EvidenceRecord {
@@ -168,4 +168,59 @@ export async function listEvidenceForDeliverable(deliverableId: string): Promise
   );
   if (!response) throw unexpectedResponse();
   return response.map(toRecord);
+}
+
+// ============================================================================
+// PLAN 3.55: sertifika kontrolü (öğrencinin açık rızasıyla, AI karar vermez)
+// ============================================================================
+
+export type CertificateCheckStatus = "PENDING" | "DONE" | "FAILED";
+export type CertificateCheckDecision = "PENDING" | "CONFIRMED" | "REJECTED";
+
+export interface CertificateCheck {
+  id: string;
+  evidence_id: string;
+  status: CertificateCheckStatus;
+  provider: "UDEMY" | "COURSERA" | "UNKNOWN" | null;
+  credential_id: string | null;
+  verify_url: string | null;
+  qr_raw_data: string | null;
+  extracted_name: string | null;
+  name_match: boolean | null;
+  page_name: string | null;
+  page_match: boolean | null;
+  decision: CertificateCheckDecision;
+  decided_by_user_id: string | null;
+  decided_at: string | null;
+  created_at: string;
+}
+
+/** Öğrencinin açık rızasıyla tetiklenir — upload anında otomatik değil (KVKK). */
+export async function requestCertificateCheck(evidenceId: string): Promise<CertificateCheck> {
+  const response = await apiFetch<CertificateCheck>(`/evidence/${evidenceId}/request-certificate-check`, {
+    method: "POST",
+  });
+  if (!response) throw unexpectedResponse();
+  return response;
+}
+
+export async function listCertificateChecksForEngagement(engagementId: string): Promise<CertificateCheck[]> {
+  const response = await apiFetch<{ items: CertificateCheck[] }>(
+    `/engagements/${engagementId}/certificate-checks`
+  );
+  if (!response) throw unexpectedResponse();
+  return response.items;
+}
+
+/** Koordinatör/supervisor kararı — AI bu kararı asla vermez. */
+export async function resolveCertificateCheck(
+  checkId: string,
+  decision: "CONFIRMED" | "REJECTED"
+): Promise<CertificateCheck> {
+  const response = await apiFetch<CertificateCheck>(`/certificate-checks/${checkId}/resolve`, {
+    method: "POST",
+    body: { decision },
+  });
+  if (!response) throw unexpectedResponse();
+  return response;
 }

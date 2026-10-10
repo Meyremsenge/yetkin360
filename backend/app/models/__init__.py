@@ -6,6 +6,7 @@ from app.models.base import Base
 from app.models.email_tokens import EmailVerificationToken, PasswordResetToken
 from app.models.engagement import Engagement
 from app.models.evaluation import Evaluation, EvaluationItem
+from app.models.certificate_check import CertificateCheck
 from app.models.evidence import Evidence
 from app.models.fraud_flag import FraudFlag
 from app.models.identity import (
@@ -51,4 +52,5 @@ __all__ = [
     "Outbox",
     "Evidence",
     "FraudFlag",
+    "CertificateCheck",
 ]

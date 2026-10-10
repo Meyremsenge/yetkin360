@@ -354,6 +354,21 @@ PLAN maddesi olarak açılmamıştı. Detay: `HATA.md`.**
       (hardcoded `None`) — bu iş onu gerçek bir request alanı yaptı. Faz 2
       (evidence dosya içeriği — PDF/OCR metin çıkarımı gerektirir) ayrı onay
       bekliyor. @be2
+- [x] 3.55 AI sertifika çıkarımı — faz 2 (Udemy/Coursera, `evidence.kind=CERTIFICATE`):
+      öğrencinin açık rızasıyla (upload anında otomatik DEĞİL, KVKK) tetiklenir.
+      Literal Tesseract/zbar yerine (bu makinede sistem binary'si yok, kurulumu
+      kırılgan) OpenRouter görsel modeli (metin/isim/kimlik no çıkarımı,
+      final-analiz §11.2'nin sandıkladığı desen) + OpenCV QR dedektörü
+      (deterministik, pip-only) kombinasyonu kullanıldı. AI hiçbir zaman
+      "doğrulandı" kararı vermez (final-analiz §11.4.2/§39) — isim eşleşmesi
+      kod tarafında düz string karşılaştırmasıyla hesaplanır, nihai
+      CONFIRMED/REJECTED kararı `POST /certificate-checks/{id}/resolve` ile
+      engagement'ın koordinatörüne/supervisor'una aittir. `scoped_evidence()`'ın
+      "sadece sahibi görür" kuralına (final-analiz §21.2) kasıtlı ve dar bir
+      istisna açıldı — yalnız CertificateCheck özeti, ham dosya değil. Canlı
+      doğrulandı: gerçek sertifika görseli + gerçek OpenRouter çağrısıyla
+      provider/kimlik no/isim doğru çıkarıldı. Yeni bağımlılık:
+      opencv-python-headless, pymupdf (ikisi de pip-only, sistem binary yok). @be2
 - [ ] 3.16 Kod dondurma — Faz 4'e yeni özellik girmez @all
 
 ---
