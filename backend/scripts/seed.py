@@ -371,6 +371,10 @@ ENGAGEMENTS_DATA = [
 # how an unverified organization's record is flagged.
 VERIFIED_ORG_LEGAL_IDS = ("ORG1", "ORG3", "ORG4")
 
+# Institutions shown as verified (T3) in the demo: seed domain -> level. Galata is the
+# demo story's university.
+VERIFIED_INSTITUTION_DOMAINS = ("inst1.seed.local",)
+
 # Public profile showcase (/p/ayse-yilmaz): extra verified engagements for ogrenci1,
 # each with a different organization, kind, attested skill and task/deliverable skills.
 # (org legal_id, spec as in ENGAGEMENTS_DATA, task skill slug, deliverable skill slug,
@@ -439,14 +443,14 @@ PIPELINE_STUDENT_TASK = "Haftalık ilerleme notlarını derlemek"
 # exist and only get a unit (full name None). (org legal_id, e-mail, full name, role, unit)
 ORG_TEAM = [
     ("ORG1", "org1-admin@seed.local", None, "ADMIN", "Yönetim"),
-    ("ORG1", "org1-yazilim@seed.local", "Mehmet Kaya", "MEMBER", "Yazılım"),
+    ("ORG1", "org1-yazilim@seed.local", "Mehmet Karaca", "MEMBER", "Yazılım"),
     ("ORG1", "org1-tasarim@seed.local", "Zeynep Arı", "MEMBER", "Tasarım"),
     ("ORG3", "org3-ik@seed.local", "Elif Çınar", "MEMBER", "İnsan Kaynakları"),
 ]
 SHOWCASE_ORG_LEGAL_IDS = ("ORG1", "ORG4")
 
 # SPRINT J demo story (SPRINT.md §0): Ayşe (ogrenci1, Galata) with Lale Yazılım,
-# approver Mehmet Kaya (Yazılım). One finished with both signatures (Mehmet
+# approver Mehmet Karaca (Yazılım). One finished with both signatures (Mehmet
 # evaluates, the Galata coordinator seals), one waiting for Mehmet's evaluation
 # (live demo), one waiting for the coordinator's approval (live demo).
 # (spec as in ENGAGEMENTS_DATA, stage, last activity N days ago)
@@ -801,6 +805,14 @@ def seed_institutions_and_organizations(session: Session) -> None:
             inst_inserted += 1
 
         _ensure_institution_coordinator(session, i, inst_domain)
+
+        if inst_domain in VERIFIED_INSTITUTION_DOMAINS:
+            inst = session.execute(
+                select(Institution).where(Institution.domain == inst_domain)
+            ).scalars().first()
+            if inst is not None and inst.verification_level != "T3":
+                inst.verification_level = "T3"
+                session.flush()
 
     # Seed 5 organizations
     for i in range(1, 6):
@@ -1687,7 +1699,7 @@ def seed_org_team(session: Session) -> int:
 def seed_demo_story(session: Session) -> int:
     """
     SPRINT J: DEMO_STORY_ENGAGEMENTS for the showcase student through the real
-    state machine, with Mehmet Kaya as the chosen approver. Needs seed_org_team
+    state machine, with Mehmet Karaca as the chosen approver. Needs seed_org_team
     (the approver must be an active member) and seed_verified_organizations
     (COMPETENCE needs a T3 organization). Idempotent per title. Returns rows inserted.
     """

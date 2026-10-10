@@ -723,7 +723,7 @@ def test_sprint_j_org_team_members_units_and_showcase(session):
         ).filter(User.email.in_(["org1-yazilim@seed.local", "org1-tasarim@seed.local", "org3-ik@seed.local"]))
     }
     assert names == {
-        "org1-yazilim@seed.local": "Mehmet Kaya",
+        "org1-yazilim@seed.local": "Mehmet Karaca",
         "org1-tasarim@seed.local": "Zeynep Arı",
         "org3-ik@seed.local": "Elif Çınar",
     }
