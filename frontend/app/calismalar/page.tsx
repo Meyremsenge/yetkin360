@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
-import { ChainLegend, PageBody, PageHeader } from "@/components/page-layout";
+import { PageBody, PageHeader } from "@/components/page-layout";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -256,9 +256,7 @@ export default function CalismalarPage() {
             {messages.calismalar.newEngagementButton}
           </Link>
         }
-      >
-        <ChainLegend />
-      </PageHeader>
+      />
 
       <PageBody>
         {isLoading ? (

@@ -2,7 +2,6 @@ import Link from "next/link";
 import messages from "@/messages/tr.json";
 import { BrandLockup } from "@/components/brand/brand-mark";
 import { ParticleSeal } from "@/components/brand/particle-seal";
-import { ChainProgress } from "./chain-progress";
 
 const { home, authLayout } = messages;
 
@@ -40,8 +39,33 @@ export function AuthLayout({ brandSentence, links, children }: AuthLayoutProps) 
           <p className="mt-3 hidden text-sm text-muted-foreground md:block">{authLayout.panelCaption}</p>
         </div>
 
-        <div className="hidden border-t border-foreground/10 pt-6 md:block">
-          <ChainProgress steps={CHAIN_STEPS} />
+        {/* Compact chain: one line of chips joined by arrows; last step sealed. */}
+        <div className="hidden border-t border-foreground/10 pt-5 md:block">
+          <ol aria-label={home.chainTitle} className="flex flex-wrap items-center gap-x-1.5 gap-y-2">
+            {CHAIN_STEPS.map((step, index) => (
+              <li key={step.label} className="flex items-center gap-1.5">
+                {index > 0 ? (
+                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-muted-foreground/60" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                    <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                ) : null}
+                <span
+                  className={
+                    step.completed
+                      ? "inline-flex items-center gap-1.5 rounded-full bg-success px-3 py-1 text-[13px] font-medium text-background"
+                      : "inline-flex items-center rounded-full border border-foreground/15 bg-card/70 px-3 py-1 text-[13px] text-foreground"
+                  }
+                >
+                  {step.completed ? (
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
+                      <path d="M5 12.5l4.5 4.5L19 7.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  ) : null}
+                  <span className="whitespace-nowrap">{step.label}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
         </div>
 
         {links && links.length > 0 && (

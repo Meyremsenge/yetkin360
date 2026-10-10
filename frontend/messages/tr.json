@@ -210,7 +210,8 @@
     "passwordLabel": "Şifre",
     "invalidCredentials": "E-posta veya şifre hatalı.",
     "accountLocked": "Hesabınız geçici olarak kilitlendi.",
-    "subtitle": "Sicil kaydınıza erişmek için e-posta ve şifrenizle giriş yapın."
+    "subtitle": "Sicil kaydınıza erişmek için e-posta ve şifrenizle giriş yapın.",
+    "backHome": "Ana sayfaya dön"
   },
   "kayit": {
     "title": "Kayıt Ol",
