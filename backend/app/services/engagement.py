@@ -82,6 +82,14 @@ class VersionConflictError(Exception):
     pass
 
 
+class TaskNotFoundError(Exception):
+    """Task not found in this engagement (→ 404)."""
+
+
+class TaskAlreadyVerifiedError(Exception):
+    """Task is already verified (→ 409)."""
+
+
 class InvalidSkillError(Exception):
     """Raised when skill_id does not exist in skills table or is not ACTIVE."""
 
@@ -90,6 +98,12 @@ class InvalidSkillError(Exception):
 
 # Strength constants for SkillSignal generation (YET-71)
 TASK_SIGNAL_STRENGTH = "WEAK"
+# The talent may plan tasks as soon as the engagement exists; they stay
+# unverified (no SkillSignal) until the organization side verifies them.
+TALENT_TASK_STATUSES = ("DRAFT", "ACTIVE")
+VERIFIER_TASK_STATUSES = ("ACTIVE",)
+# Verifying needs an engagement the organization has accepted and not closed off.
+TASK_VERIFICATION_BLOCKED_STATUSES = ("DRAFT", "PENDING_APPROVAL", "REJECTED", "CANCELLED")
 DELIVERABLE_SIGNAL_STRENGTH = "MODERATE"
 
 
@@ -513,6 +527,12 @@ def create_engagement_task(
     PLAN 2.4 (AC-1): POST /engagements/{id}/tasks.
     PLAN 2.9 (YET-71): Optional skill_id triggers SkillSignal generation (AC-1, AC-6, AC-7).
 
+    Who may create, and what it produces:
+      - organization member / coordinator: ACTIVE engagements only; the task is
+        verified on creation and a skill_id produces a SkillSignal (unchanged).
+      - the talent, on their own engagement: DRAFT or ACTIVE; the task is
+        unverified and produces no SkillSignal until verify_engagement_task().
+
     Args:
         session: Database session
         principal: Authorization context
@@ -527,8 +547,8 @@ def create_engagement_task(
 
     Raises:
         EngagementNotFoundError: Engagement not found or not accessible
-        PreconditionFailedError: Engagement not ACTIVE
-        TransitionForbiddenError: Principal not authorized (e.g., TALENT trying to create task)
+        PreconditionFailedError: Engagement status does not accept tasks from this principal
+        TransitionForbiddenError: Principal can see the engagement but may not create tasks
         InvalidSkillError: skill_id provided but does not exist or is not ACTIVE (AC-7)
     """
     # Parse UUID
@@ -544,19 +564,19 @@ def create_engagement_task(
     if engagement is None:
         raise EngagementNotFoundError(f"Engagement {engagement_id} not found")
 
-    # AC-5: Only ACTIVE engagements can receive tasks
-    if engagement.status != "ACTIVE":
-        raise PreconditionFailedError("Task can only be created on ACTIVE engagements")
-
-    # AC-S1: relation is masked for the subject (self-dealing prevention)
+    # AC-S1: relation is masked for the subject (self-dealing prevention), so a
+    # talent who is also a member of the organization is treated as the talent.
     rel = engagement_relation(principal, engagement)
+    is_verifier = rel.is_org_member or rel.is_coordinator
+    as_talent = rel.is_subject and not is_verifier
 
-    # Only org members and coordinators can create tasks
-    if not (rel.is_org_member or rel.is_coordinator):
-        if rel.is_subject:
-            raise TransitionForbiddenError("Talent cannot create tasks")
-        else:
-            raise TransitionForbiddenError("Not authorized to create tasks")
+    # AC-5: status gate (checked before the role, as before)
+    allowed_statuses = TALENT_TASK_STATUSES if as_talent else VERIFIER_TASK_STATUSES
+    if engagement.status not in allowed_statuses:
+        raise PreconditionFailedError("Task cannot be created in this engagement status")
+
+    if not (is_verifier or as_talent):
+        raise TransitionForbiddenError("Not authorized to create tasks")
 
     # AC-7: Validate skill_id BEFORE writing anything
     skill_id_uuid = None
@@ -582,6 +602,9 @@ def create_engagement_task(
         description=description,
         status="PLANNED",
         due_at=due_at,
+        created_by_user_id=principal.user_id,
+        verified_at=datetime.now(timezone.utc) if is_verifier else None,
+        verified_by_user_id=principal.user_id if is_verifier else None,
     )
     session.add(task)
     try:
@@ -591,20 +614,10 @@ def create_engagement_task(
             raise EngagementNotFoundError("Engagement not found")
         raise
 
-    # AC-1, AC-6: Generate SkillSignal if skill_id provided
-    if skill_id_uuid is not None:
-        signal = SkillSignal(
-            talent_id=engagement.talent_id,
-            skill_id=skill_id_uuid,
-            source_type="TASK",
-            source_id=task.id,
-            strength=TASK_SIGNAL_STRENGTH,
-            attested_by_org_id=None,
-            occurred_at=task.created_at,
-            superseded_by_id=None,
-        )
-        session.add(signal)
-        session.flush()
+    # AC-1, AC-6: a verified task with a skill produces a SkillSignal. A task
+    # the talent added is unverified, so its signal waits for verification.
+    if is_verifier:
+        _add_task_signal(session, engagement, task, occurred_at=task.created_at)
 
     # Log audit event
     log_audit_event(
@@ -618,7 +631,105 @@ def create_engagement_task(
         metadata={
             "engagement_id": str(engagement_uuid),
             "title": title,
+            "verified": is_verifier,
         },
+    )
+
+    return task
+
+
+def _add_task_signal(
+    session: Session, engagement: Engagement, task: EngagementTask, occurred_at: datetime
+) -> None:
+    if task.skill_id is None:
+        return
+    session.add(
+        SkillSignal(
+            talent_id=engagement.talent_id,
+            skill_id=task.skill_id,
+            source_type="TASK",
+            source_id=task.id,
+            strength=TASK_SIGNAL_STRENGTH,
+            attested_by_org_id=None,
+            occurred_at=occurred_at,
+            superseded_by_id=None,
+        )
+    )
+    session.flush()
+
+
+def verify_engagement_task(
+    session: Session,
+    principal: Principal,
+    engagement_id: str,
+    task_id: str,
+) -> EngagementTask:
+    """
+    Verify a task the talent added: POST /engagements/{id}/tasks/{task_id}/verify.
+
+    Only an organization member of the engagement or the institution's
+    coordinator may verify; the talent can never verify their own task
+    (engagement_relation masks org/coordinator flags for the subject). The
+    task's SkillSignal, if it has a skill, is written here.
+
+    Raises:
+        EngagementNotFoundError: Engagement not found or not accessible (→ 404)
+        TaskNotFoundError: No such task in this engagement (→ 404)
+        TransitionForbiddenError: Principal can see the engagement but may not verify (→ 403)
+        PreconditionFailedError: Engagement status does not allow verification (→ 422)
+        TaskAlreadyVerifiedError: Task is already verified (→ 409)
+    """
+    try:
+        engagement_uuid = uuid.UUID(engagement_id)
+    except ValueError:
+        raise EngagementNotFoundError(f"Invalid engagement_id format: {engagement_id}")
+
+    engagement = get_scoped_or_404(
+        scoped_engagements(session, principal).where(Engagement.id == engagement_uuid), session
+    )
+    if engagement is None:
+        raise EngagementNotFoundError(f"Engagement {engagement_id} not found")
+
+    try:
+        task_uuid = uuid.UUID(task_id)
+    except ValueError:
+        raise TaskNotFoundError(f"Invalid task_id format: {task_id}")
+
+    # Locked: two verifiers at once must not write the signal twice.
+    task = session.execute(
+        select(EngagementTask)
+        .where(EngagementTask.id == task_uuid, EngagementTask.engagement_id == engagement.id)
+        .with_for_update()
+    ).scalar_one_or_none()
+    if task is None:
+        raise TaskNotFoundError(f"Task {task_id} not found")
+
+    rel = engagement_relation(principal, engagement)
+    if not (rel.is_org_member or rel.is_coordinator):
+        raise TransitionForbiddenError("Not authorized to verify tasks")
+
+    if engagement.status in TASK_VERIFICATION_BLOCKED_STATUSES:
+        raise PreconditionFailedError("Task cannot be verified in this engagement status")
+
+    if task.verified_at is not None:
+        raise TaskAlreadyVerifiedError(f"Task {task_id} is already verified")
+
+    now = datetime.now(timezone.utc)
+    task.verified_at = now
+    task.verified_by_user_id = principal.user_id
+    session.flush()
+
+    _add_task_signal(session, engagement, task, occurred_at=now)
+
+    log_audit_event(
+        session=session,
+        actor_user_id=principal.user_id,
+        actor_ip=None,
+        action="TASK_VERIFIED",
+        subject_type="task",
+        subject_id=task.id,
+        result="SUCCESS",
+        metadata={"engagement_id": str(engagement.id)},
     )
 
     return task

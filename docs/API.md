@@ -382,12 +382,23 @@ Yetkisiz çağıran her zaman `404` alır ve kota harcamaz.
 | `GET` | `/engagements/{id}` | taraflardan biri | — | `200` — engagement + `available_transitions[]` | `404` |
 | `GET` | `/engagements` | `AUTH` | `status?`, `role?`, `limit?`, `cursor?` | `200` — **yalnız erişilebilir olanlar** | — |
 | `POST` | `/engagements/{id}/transitions` | duruma göre | `to_status`, `version`, `reason?` | `200` — güncel engagement | `403`, `404`, `409`, `422 ILLEGAL_TRANSITION`, `422 PRECONDITION_FAILED` |
-| `POST` | `/engagements/{id}/tasks` | `ORG:SUPERVISOR` veya `TALENT` | `title`, `status?` | `201` | `404`, `403` |
+| `POST` | `/engagements/{id}/tasks` | Kuruluş üyesi / koordinatör (yalnız `ACTIVE`) veya `TALENT` (kendi çalışması; `DRAFT`, `ACTIVE`) | `title`, `description?`, `due_at?`, `skill_id?` | `201` — görev (`verified`, `verified_at`) | `404`, `403`, `422 PRECONDITION_FAILED` |
+| `POST` | `/engagements/{id}/tasks/{task_id}/verify` | Kuruluş üyesi / koordinatör — **öğrenci kendi görevini doğrulayamaz** | — | `200` — görev (`verified: true`) | `404`, `403`, `409 TASK_ALREADY_VERIFIED`, `422 PRECONDITION_FAILED` |
 | `POST` | `/engagements/{id}/deliverables` | `TALENT` | `title`, `description?`, `task_id?`, `evidence_ids[]` | `201` | `404`, `403`, `422 EVIDENCE_REQUIRED` |
 
 **`GET /engagements` listesinde `org_id` parametresi yoktur** (§1.2).
 Kapsam oturumdan çıkarılır; `role` parametresi yalnız **kendi** erişilebilir
 kayıtlarını filtreler (`talent` / `organization` / `institution`).
+
+#### Görev doğrulama
+
+Görevi kimin eklediği, doğrulanmış sayılıp sayılmayacağını belirler:
+
+- **Kuruluş üyesi ya da koordinatör eklerse** görev doğrulanmış oluşur; `skill_id` varsa `TASK` kaynaklı yetkinlik sinyali hemen yazılır.
+- **Öğrenci kendi çalışmasına eklerse** görev **doğrulanmamış** oluşur (`verified: false`) ve sinyal üretmez. Sinyal, `…/tasks/{task_id}/verify` çağrıldığında yazılır.
+- Doğrulamayı yalnız çalışmanın kuruluş üyesi ya da kurum koordinatörü yapabilir. Öğrenci, aynı zamanda o kuruluşun üyesi ya da koordinatör olsa bile kendi görevini doğrulayamaz (`403`).
+- Doğrulama `DRAFT`, `PENDING_APPROVAL`, `REJECTED` ve `CANCELLED` durumlarında yapılamaz (`422`).
+- `GET /engagements/{id}` yanıtındaki her görev `verified` alanını taşır.
 
 #### Tek geçiş ucu: `POST /engagements/{id}/transitions`
 
@@ -640,7 +651,7 @@ aksi halde `null`). Yalnız `status = 'ACTIVE'` ve silinmemiş kuruluşlar.
 
 ## 3. Uç özeti
 
-Toplam **40 uç**. Hackathon fazlarına dağılımı → [PLAN.md](../PLAN.md).
+Toplam **41 uç**. Hackathon fazlarına dağılımı → [PLAN.md](../PLAN.md).
 
 | Grup | Uç sayısı | Faz |
 |---|---|---|
@@ -649,7 +660,7 @@ Toplam **40 uç**. Hackathon fazlarına dağılımı → [PLAN.md](../PLAN.md).
 | `/skills` | 1 | 1 |
 | `/organizations` | 4 | 1 |
 | `/institutions` | 3 | 3 |
-| `/engagements` | 6 | 2 |
+| `/engagements` | 7 | 2 |
 | `/evidence` | 3 | 2 |
 | Değerlendirme / tanıklık / itiraz | 4 | 2 |
 | `/public` | 2 | 3 |

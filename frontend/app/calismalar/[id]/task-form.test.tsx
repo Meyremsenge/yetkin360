@@ -6,6 +6,7 @@ import { TaskForm } from "./task-form";
 import { createTask } from "@/lib/api/tasks";
 import { ApiError } from "@/lib/api/errors";
 import type { EngagementDetail } from "@/lib/api/engagements";
+import messages from "@/messages/tr.json";
 
 vi.mock("@/lib/api/tasks", () => ({
   createTask: vi.fn(),
@@ -76,7 +77,7 @@ describe("TaskForm", () => {
 
   it("happy path: başlık girilip gönderilince createTask çağrılır, başarı mesajı gösterilir, onSuccess tetiklenir", async () => {
     const onSuccess = vi.fn();
-    vi.mocked(createTask).mockResolvedValueOnce({ id: "task-1", title: "API şeması", status: "PLANNED" });
+    vi.mocked(createTask).mockResolvedValueOnce({ id: "task-1", title: "API şeması", status: "PLANNED", verified: true });
 
     const user = userEvent.setup();
     renderWithQueryClient(<TaskForm engagement={activeEngagement} onSuccess={onSuccess} />);
@@ -97,7 +98,7 @@ describe("TaskForm", () => {
   });
 
   it("skill seçilirse payload'a skill_id dahil edilir", async () => {
-    vi.mocked(createTask).mockResolvedValueOnce({ id: "task-2", title: "Test yazma", status: "PLANNED" });
+    vi.mocked(createTask).mockResolvedValueOnce({ id: "task-2", title: "Test yazma", status: "PLANNED", verified: true });
 
     const user = userEvent.setup();
     renderWithQueryClient(<TaskForm engagement={activeEngagement} onSuccess={vi.fn()} />);
@@ -117,7 +118,7 @@ describe("TaskForm", () => {
   });
 
   it("son tarih girilirse ISO string olarak gönderilir", async () => {
-    vi.mocked(createTask).mockResolvedValueOnce({ id: "task-3", title: "x", status: "PLANNED" });
+    vi.mocked(createTask).mockResolvedValueOnce({ id: "task-3", title: "x", status: "PLANNED", verified: true });
 
     const user = userEvent.setup();
     renderWithQueryClient(<TaskForm engagement={activeEngagement} onSuccess={vi.fn()} />);
@@ -186,7 +187,7 @@ describe("TaskForm", () => {
 
   it("başarı mesajı, durum ACTIVE'den çıksa bile bir an görünür kalır (early-return deseni)", async () => {
     const onSuccess = vi.fn();
-    vi.mocked(createTask).mockResolvedValueOnce({ id: "task-1", title: "x", status: "PLANNED" });
+    vi.mocked(createTask).mockResolvedValueOnce({ id: "task-1", title: "x", status: "PLANNED", verified: true });
 
     const user = userEvent.setup();
     const { rerender } = renderWithQueryClient(<TaskForm engagement={activeEngagement} onSuccess={onSuccess} />);
@@ -198,5 +199,45 @@ describe("TaskForm", () => {
 
     rerender(<TaskForm engagement={{ ...activeEngagement, status: "PENDING_EVALUATION" }} onSuccess={onSuccess} />);
     expect(screen.getByText("Görev eklendi.")).toBeTruthy();
+  });
+
+  describe("öğrenci (isSubject)", () => {
+    const draftEngagement: EngagementDetail = { ...activeEngagement, status: "DRAFT" };
+
+    it("taslak çalışmada formu ve doğrulanmamış uyarısını gösterir", () => {
+      renderWithQueryClient(<TaskForm engagement={draftEngagement} onSuccess={vi.fn()} isSubject />);
+      expect(screen.getByLabelText("Başlık")).toBeTruthy();
+      expect(screen.getByText(messages.calismalar.taskUnverifiedHint)).toBeTruthy();
+    });
+
+    it("öğrenci değilse taslak çalışmada form gösterilmez", () => {
+      renderWithQueryClient(<TaskForm engagement={draftEngagement} onSuccess={vi.fn()} />);
+      expect(screen.queryByLabelText("Başlık")).toBeNull();
+    });
+
+    it("öğrenci değilse aktif çalışmada doğrulanmamış uyarısı gösterilmez", () => {
+      renderWithQueryClient(<TaskForm engagement={activeEngagement} onSuccess={vi.fn()} />);
+      expect(screen.queryByText(messages.calismalar.taskUnverifiedHint)).toBeNull();
+    });
+
+    it("onay bekleyen çalışmada öğrenciye de form gösterilmez", () => {
+      renderWithQueryClient(
+        <TaskForm engagement={{ ...activeEngagement, status: "PENDING_APPROVAL" }} onSuccess={vi.fn()} isSubject />
+      );
+      expect(screen.queryByLabelText("Başlık")).toBeNull();
+    });
+
+    it("görev eklenince doğrulanmamış olduğunu söyleyen mesajı gösterir", async () => {
+      vi.mocked(createTask).mockResolvedValueOnce({ id: "task-9", title: "x", status: "PLANNED", verified: false });
+      const onSuccess = vi.fn();
+      const user = userEvent.setup();
+      renderWithQueryClient(<TaskForm engagement={draftEngagement} onSuccess={onSuccess} isSubject />);
+
+      await user.type(screen.getByLabelText("Başlık"), "Kendi görevim");
+      await user.click(screen.getByText("Görev Ekle"));
+
+      expect(await screen.findByText(messages.calismalar.taskAddedUnverifiedMessage)).toBeTruthy();
+      expect(onSuccess).toHaveBeenCalled();
+    });
   });
 });
