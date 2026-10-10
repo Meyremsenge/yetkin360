@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 
 from app.models import Engagement, EngagementTask, Institution, Organization, User, VerifiedExperience
 from scripts.seed import (
+    INSTITUTION_DOMAINS,
     PIPELINE_ENGAGEMENTS,
     PIPELINE_STUDENT_TASK,
     seed_engagements,
@@ -52,7 +53,7 @@ def test_every_institution_and_organization_has_something_waiting(session):
     engagements = _pipeline(session)
 
     institutions = session.execute(
-        select(Institution).where(Institution.domain.like("inst%.seed.local"))
+        select(Institution).where(Institution.domain.in_(INSTITUTION_DOMAINS))
     ).scalars().all()
     organizations = session.execute(
         select(Organization).where(Organization.legal_id.like("ORG%"))
@@ -107,7 +108,7 @@ def test_pipeline_seed_is_idempotent(session):
 def test_coordinator_list_shows_the_waiting_student(client, session):
     _run_seed(session)
     coordinator = session.execute(
-        select(User).where(User.email == "kurum1-koordinator@seed.local")
+        select(User).where(User.email == "kerem.taskin@cinaralti.edu.test")
     ).scalar_one()
 
     response = client.get("/engagements?limit=200", headers={"X-Debug-User-Id": str(coordinator.id)})

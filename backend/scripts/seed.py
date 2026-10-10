@@ -3,7 +3,7 @@ Skill taxonomy seed script (YET-10) + PLAN 3.11 seed data (20 students, 5 instit
 
 Populates database with:
 - ~30-50 representative skills across 5 categories (YET-10)
-- 20 student accounts (ogrenci1-20@seed.local)
+- 20 student accounts (ad.soyad@posta.test)
 - 5 institutions + N organizations
 - 15 complete VERIFIED engagements with Attestation/VerifiedExperience
 
@@ -16,7 +16,7 @@ DO NOT run in production without careful consideration.
 import sys
 import uuid
 from datetime import date, datetime, timedelta, timezone
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -304,16 +304,17 @@ SKILLS_DATA = [
 # PLAN 3.28: realistic (fictional) Turkish demo data — shown to the jury on every
 # screen (panels, /v/[token] certificate, /p/[slug] public profile).
 
-# (full_name, public_slug, department, study_year, headline, city) — ogrenci{i}@seed.local
+# (full_name, public_slug, department, study_year, headline, city) — STUDENT_EMAILS.
+# study_year None = graduate / working profile; the headline is then a job title.
 STUDENTS_DATA = [
     ("Ayşe Yılmaz", "ayse-yilmaz", "Bilgisayar Mühendisliği", 4, "Backend geliştirmeye odaklı mühendislik öğrencisi", "İstanbul"),
-    ("Mehmet Kaya", "mehmet-kaya", "Yazılım Mühendisliği", 3, "Web uygulamaları ve arayüz geliştirme", "İstanbul"),
+    ("Furkan Tekeli", "furkan-tekeli", "Yazılım Mühendisliği", 3, "Web uygulamaları ve arayüz geliştirme", "İstanbul"),
     ("Zeynep Demir", "zeynep-demir", "Endüstri Mühendisliği", 4, "Veri analizi ve süreç iyileştirme", "İstanbul"),
     ("Emre Çelik", "emre-celik", "Elektrik-Elektronik Mühendisliği", 3, "Gömülü sistemler ve donanım prototipleme", "Kocaeli"),
     ("Elif Şahin", "elif-sahin", "Grafik Tasarım", 2, "Kullanıcı arayüzü ve marka tasarımı", "İstanbul"),
     ("Burak Arslan", "burak-arslan", "Bilgisayar Programcılığı", 2, "Frontend geliştirme meraklısı", "İstanbul"),
     ("Merve Koç", "merve-koc", "İşletme", 4, "Proje yönetimi ve operasyon", "İstanbul"),
-    ("Can Aydın", "can-aydin", "Bilgisayar Mühendisliği", 4, "Bulut altyapısı ve DevOps", "İstanbul"),
+    ("Can Aydın", "can-aydin", "Bilgisayar Mühendisliği", None, "DevOps Mühendisi", "İstanbul"),
     ("Selin Öztürk", "selin-ozturk", "İstatistik", 3, "Makine öğrenmesi ve veri bilimi", "İstanbul"),
     ("Ahmet Yıldız", "ahmet-yildiz", "Lojistik Yönetimi", 3, "Tedarik zinciri ve planlama", "Tekirdağ"),
     ("Deniz Aksoy", "deniz-aksoy", "Yönetim Bilişim Sistemleri", 3, "İş analizi ve raporlama", "İstanbul"),
@@ -323,28 +324,65 @@ STUDENTS_DATA = [
     ("Kaan Özdemir", "kaan-ozdemir", "Yazılım Mühendisliği", 4, "Siber güvenlik ve sistem yönetimi", "İstanbul"),
     ("Buse Çınar", "buse-cinar", "Endüstriyel Tasarım", 3, "Ürün tasarımı ve prototipleme", "İstanbul"),
     ("Yusuf Güneş", "yusuf-gunes", "Elektrik-Elektronik Mühendisliği", 4, "Yenilenebilir enerji sistemleri", "İstanbul"),
-    ("Nisa Karaca", "nisa-karaca", "İşletme", 2, "Dijital pazarlama ve iletişim", "İstanbul"),
+    ("Nisa Kartal", "nisa-kartal", "İşletme", 2, "Dijital pazarlama ve iletişim", "İstanbul"),
     ("Berk Doğan", "berk-dogan", "Bilgisayar Programcılığı", 2, "Python ile otomasyon", "İstanbul"),
-    ("Melis Aydemir", "melis-aydemir", "Yönetim Bilişim Sistemleri", 4, "Veri tabanı ve iş zekâsı", "İstanbul"),
+    ("Melis Aydemir", "melis-aydemir", "Yönetim Bilişim Sistemleri", None, "İş Zekâsı Uzmanı", "İstanbul"),
 ]
 
-# (name, admin full_name, coordinator full_name) — kurum{i}-admin / kurum{i}-koordinator
+# (name, domain, admin full_name, coordinator full_name). Fictional names, not
+# in the YÖK list; domains use the reserved .test TLD (RFC 2606).
 INSTITUTIONS_DATA = [
-    ("Galata Teknik Üniversitesi", "Nermin Aksoy", "Kerem Taşkın"),
-    ("Sarıyer Teknoloji Enstitüsü", "Haluk Erdem", "Selin Karaca"),
-    ("Kadıköy Uygulamalı Bilimler Üniversitesi", "Leyla Önal", "Burak Yalçın"),
-    ("Levent İşletme ve Bilişim Yüksekokulu", "Cemal Arslan", "Deniz Kurt"),
-    ("Moda Sanat ve Tasarım Akademisi", "Füsun Tekin", "Onur Çelik"),
+    ("Çınaraltı Teknik Üniversitesi", "cinaralti.edu.test", "Nermin Başaran", "Kerem Taşkın"),
+    ("Poyraz Teknoloji Üniversitesi", "poyraz.edu.test", "Haluk Sezer", "Gülşen Oral"),
+    ("Sarıdere Uygulamalı Bilimler Üniversitesi", "saridere.edu.test", "Leyla Önal", "Volkan Yalçın"),
+    ("Ardıçlı İşletme ve Bilişim Meslek Yüksekokulu", "ardicli.edu.test", "Cemal Bilgin", "Pınar Keskin"),
+    ("Mimoza Sanat ve Tasarım Üniversitesi", "mimoza.edu.test", "Füsun Altay", "Serkan Uslu"),
 ]
 
-# (name, admin full_name) — org{i}-admin
+# (name, domain, admin full_name) — legal_id ORG{i}
 ORGANIZATIONS_DATA = [
-    ("Lale Yazılım A.Ş.", "Murat Demirci"),
-    ("Mavi Liman Lojistik", "Ebru Şahin"),
-    ("Kuzey Enerji Teknolojileri", "Tolga Aydın"),
-    ("Pusula Veri Analitiği", "Gizem Polat"),
-    ("Atölye 34 Tasarım Stüdyosu", "Can Özkan"),
+    ("Yelkovan Yazılım A.Ş.", "yelkovanyazilim.test", "Murat Demirci"),
+    ("Mendirek Lojistik Ltd. Şti.", "mendireklojistik.test", "Ebru Tunç"),
+    ("Gündoğusu Enerji Teknolojileri A.Ş.", "gundogusuenerji.test", "Tolga Erkan"),
+    ("Usturlap Veri Analitiği A.Ş.", "usturlapveri.test", "Gizem Ünlü"),
+    ("Kalemtıraş Tasarım Ajansı Ltd. Şti.", "kalemtiras.test", "Levent Özkan"),
 ]
+
+# Seed e-mail addresses: ad.soyad@<fictional domain>. Students look like personal
+# mail, members use their organization's / university's domain. Every domain ends
+# in .test, so no address can reach a real mailbox.
+STUDENT_EMAIL_DOMAIN = "posta.test"
+INSTITUTION_DOMAINS = tuple(row[1] for row in INSTITUTIONS_DATA)
+# Single source for "is this a seed account" (seed_verify_users touches only these).
+SEED_EMAIL_DOMAINS = (STUDENT_EMAIL_DOMAIN, *INSTITUTION_DOMAINS, *(row[1] for row in ORGANIZATIONS_DATA))
+_ASCII = str.maketrans("çğıöşüâîûÇĞİÖŞÜÂÎÛ", "cgiosuaiuCGIOSUAIU")
+
+
+def seed_email(full_name: str, domain: str) -> str:
+    """'Ayşe Yılmaz', 'posta.test' -> 'ayse.yilmaz@posta.test' (Turkish letters to ASCII)."""
+    return f"{'.'.join(full_name.translate(_ASCII).lower().split())}@{domain}"
+
+
+def seed_institution_admin_email(no: int) -> str:
+    _name, domain, admin, _coordinator = INSTITUTIONS_DATA[no - 1]
+    return seed_email(admin, domain)
+
+
+def seed_coordinator_email(no: int) -> str:
+    _name, domain, _admin, coordinator = INSTITUTIONS_DATA[no - 1]
+    return seed_email(coordinator, domain)
+
+
+def seed_org_admin_email(legal_id: str) -> str:
+    _name, domain, admin = ORGANIZATIONS_DATA[int(legal_id.removeprefix("ORG")) - 1]
+    return seed_email(admin, domain)
+
+
+def seed_org_member_email(legal_id: str, full_name: str) -> str:
+    return seed_email(full_name, ORGANIZATIONS_DATA[int(legal_id.removeprefix("ORG")) - 1][1])
+
+
+STUDENT_EMAILS = tuple(seed_email(row[0], STUDENT_EMAIL_DOMAIN) for row in STUDENTS_DATA)
 
 # One entry per seeded engagement (index = eng_idx): matches the student/organization
 # picked in seed_engagements. (title, kind, skill_slug, task, deliverable, evaluation comment)
@@ -367,19 +405,19 @@ ENGAGEMENTS_DATA = [
 ]
 
 # Organizations raised to T3 by the platform admin (ORG{i} legal_id), so attestations
-# can reach COMPETENCE. Mavi Liman (ORG2) stays T1 on purpose: the demo also shows
+# can reach COMPETENCE. Mendirek Lojistik (ORG2) stays T1 on purpose: the demo also shows
 # how an unverified organization's record is flagged.
 VERIFIED_ORG_LEGAL_IDS = ("ORG1", "ORG3", "ORG4")
 
-# Institutions shown as verified (T3) in the demo: seed domain -> level. Galata is the
+# Institutions shown as verified (T3) in the demo: seed domain -> level. Çınaraltı is the
 # demo story's university.
-VERIFIED_INSTITUTION_DOMAINS = ("inst1.seed.local",)
+VERIFIED_INSTITUTION_DOMAINS = (INSTITUTION_DOMAINS[0],)
 
-# Public profile showcase (/p/ayse-yilmaz): extra verified engagements for ogrenci1,
+# Public profile showcase (/p/ayse-yilmaz): extra verified engagements for STUDENT_EMAILS[0],
 # each with a different organization, kind, attested skill and task/deliverable skills.
 # (org legal_id, spec as in ENGAGEMENTS_DATA, task skill slug, deliverable skill slug,
 #  (ended N days ago, duration days))
-SHOWCASE_STUDENT_EMAIL = "ogrenci1@seed.local"
+SHOWCASE_STUDENT_EMAIL = STUDENT_EMAILS[0]
 SHOWCASE_ENGAGEMENTS = [
     (
         "ORG4",
@@ -442,20 +480,20 @@ PIPELINE_STUDENT_TASK = "Haftalık ilerleme notlarını derlemek"
 # person (D1/D2) and the panel shows who handles what. The org admins already
 # exist and only get a unit (full name None). (org legal_id, e-mail, full name, role, unit)
 ORG_TEAM = [
-    ("ORG1", "org1-admin@seed.local", None, "ADMIN", "Yönetim"),
-    ("ORG1", "org1-yazilim@seed.local", "Mehmet Karaca", "MEMBER", "Yazılım"),
-    ("ORG1", "org1-tasarim@seed.local", "Zeynep Arı", "MEMBER", "Tasarım"),
-    ("ORG3", "org3-ik@seed.local", "Elif Çınar", "MEMBER", "İnsan Kaynakları"),
+    ("ORG1", seed_org_admin_email("ORG1"), None, "ADMIN", "Yönetim"),
+    ("ORG1", seed_org_member_email("ORG1", "Mehmet Karaca"), "Mehmet Karaca", "MEMBER", "Yazılım"),
+    ("ORG1", seed_org_member_email("ORG1", "Zeynep Arı"), "Zeynep Arı", "MEMBER", "Tasarım"),
+    ("ORG3", seed_org_member_email("ORG3", "Seda Gürbüz"), "Seda Gürbüz", "MEMBER", "İnsan Kaynakları"),
 ]
 SHOWCASE_ORG_LEGAL_IDS = ("ORG1", "ORG4")
 
-# SPRINT J demo story (SPRINT.md §0): Ayşe (ogrenci1, Galata) with Lale Yazılım,
-# approver Mehmet Karaca (Yazılım). One finished with both signatures (Mehmet
-# evaluates, the Galata coordinator seals), one waiting for Mehmet's evaluation
+# SPRINT J demo story (SPRINT.md §0): Ayşe (STUDENT_EMAILS[0], Çınaraltı) with
+# Yelkovan Yazılım, approver Mehmet Karaca (Yazılım). One finished with both
+# signatures (Mehmet evaluates, the Çınaraltı coordinator seals), one waiting for Mehmet's evaluation
 # (live demo), one waiting for the coordinator's approval (live demo).
 # (spec as in ENGAGEMENTS_DATA, stage, last activity N days ago)
 DEMO_STORY_ORG_LEGAL_ID = "ORG1"
-DEMO_STORY_APPROVER_EMAIL = "org1-yazilim@seed.local"
+DEMO_STORY_APPROVER_EMAIL = seed_org_member_email("ORG1", "Mehmet Karaca")
 DEMO_STORY_ENGAGEMENTS = [
     (
         ("Mobil Bankacılık API Stajı", "INTERNSHIP", "fastapi",
@@ -477,14 +515,14 @@ DEMO_STORY_ENGAGEMENTS = [
 
 
 # Keşfet directory (PLAN R.1): extra public students so the directory has a
-# realistic size (20 + 32 = 52) and pagination. Separate e-mail prefix
-# (dizin{i}@seed.local) keeps the original 20-student / 15-engagement demo and
+# realistic size (20 + 32 = 52) and pagination. A separate e-mail
+# list (DIRECTORY_EMAILS) keeps the original 20-student / 15-engagement demo and
 # its tests untouched. Engagements go to T3 organizations only, so the fraud
 # rules' "unverified organization volume" signal is not tripped by seed data.
 # (full_name, slug, department, study_year, headline, city, institution no,
 #  [(org legal_id, spec as in ENGAGEMENTS_DATA, (ended N days ago, duration days))])
 DIRECTORY_STUDENTS = [
-    ("Arda Yücel", "arda-yucel", "Bilgisayar Mühendisliği", 4, "Dağıtık sistemler ve Go", "Ankara", 1, [
+    ("Arda Yücel", "arda-yucel", "Bilgisayar Mühendisliği", None, "Backend Geliştirici", "Ankara", 1, [
         ("ORG1", ("Mikroservis Göç Projesi", "INTERNSHIP", "go", "Ödeme servisini Go'ya taşımak", "Servis kodu ve yük testi raporu", "Kodlama disiplini ve test kapsamı çok iyiydi."), (40, 90)),
         ("ORG4", ("Olay Akışı İzleme Paneli", "SHORT_PROJECT", "postgresql", "Olay tablolarını modellemek", "Sorgu kataloğu", "Veri modelini sade ve doğru kurdu."), (200, 30)),
     ]),
@@ -495,7 +533,7 @@ DIRECTORY_STUDENTS = [
         ("ORG3", ("Saha Servisleri Kubernetes Geçişi", "INTERNSHIP", "kubernetes", "Servisleri kümeye taşımak", "Helm şemaları ve işletim kılavuzu", "Geçişi kesintisiz tamamladı."), (60, 100)),
         ("ORG1", ("CI Hattı Hızlandırma", "SHORT_PROJECT", "devops", "Derleme adımlarını önbelleğe almak", "Yeni CI yapılandırması", "Derleme süresini yarıya indirdi."), (180, 21)),
     ]),
-    ("Ilgın Tekin", "ilgin-tekin", "İstatistik", 4, "Zaman serisi ve tahminleme", "Ankara", 4, [
+    ("Ilgın Tekin", "ilgin-tekin", "İstatistik", None, "Veri Bilimci", "Ankara", 4, [
         ("ORG4", ("Talep Tahmini Modeli", "CAPSTONE", "ml", "Satış verisinden talep modeli kurmak", "Model ve doğrulama raporu", "Model hatalarını dürüstçe raporladı."), (90, 120)),
     ]),
     ("Mert Şimşek", "mert-simsek", "Bilgisayar Programcılığı", 2, "PHP ve Laravel ile web", "Bursa", 5, [
@@ -511,7 +549,7 @@ DIRECTORY_STUDENTS = [
         ("ORG3", ("Bakım Planı Optimizasyonu", "INTERNSHIP", "data-analysis", "Arıza kayıtlarını analiz etmek", "Bakım takvimi önerisi", "Analizi plana dönüştürmede başarılıydı."), (45, 60)),
         ("ORG4", ("Kapasite Raporu Otomasyonu", "PART_TIME", "python", "Haftalık raporu otomatikleştirmek", "Rapor betikleri", "Ekibin haftalık yükünü azalttı."), (160, 50)),
     ]),
-    ("Alp Erdoğan", "alp-erdogan", "Yazılım Mühendisliği", 4, "Java ve Spring Boot ile backend", "Ankara", 3, [
+    ("Alp Erdoğan", "alp-erdogan", "Yazılım Mühendisliği", None, "Java Geliştirici", "Ankara", 3, [
         ("ORG1", ("Fatura Servisi Geliştirme", "INTERNSHIP", "springboot", "Fatura uç noktalarını yazmak", "Servis ve entegrasyon testleri", "Katmanlı mimariyi doğru uyguladı."), (30, 90)),
     ]),
     ("Sude Korkmaz", "sude-korkmaz", "Yönetim Bilişim Sistemleri", 3, "İş zekâsı ve raporlama", "İstanbul", 4, [
@@ -526,7 +564,7 @@ DIRECTORY_STUDENTS = [
     ("Onur Bayram", "onur-bayram", "Bilgisayar Programcılığı", 2, "React ile arayüz geliştirme", "Antalya", 2, [
         ("ORG1", ("Yönetim Paneli Bileşenleri", "PART_TIME", "react", "Tablo ve form bileşenleri yazmak", "Bileşen kütüphanesi", "Bileşenleri yeniden kullanılabilir tasarladı."), (15, 60)),
     ]),
-    ("Lara Sevim", "lara-sevim", "İşletme", 4, "Ürün yönetimi ve kullanıcı araştırması", "İstanbul", 4, [
+    ("Lara Sevim", "lara-sevim", "İşletme", None, "Ürün Yöneticisi", "İstanbul", 4, [
         ("ORG1", ("Mobil Uygulama Ürün Keşfi", "SHORT_PROJECT", "project-mgmt", "Kullanıcı görüşmeleri planlamak", "Ürün keşif raporu", "Bulguları yol haritasına bağladı."), (65, 40)),
         ("ORG4", ("Müşteri Segmentasyonu Sunumu", "SHORT_PROJECT", "presentation", "Segment bulgularını sunmak", "Yönetim sunumu", "Sunumu açık ve etkileyiciydi."), (210, 14)),
     ]),
@@ -534,7 +572,7 @@ DIRECTORY_STUDENTS = [
         ("ORG3", ("Batarya İzleme Kartı Testleri", "INTERNSHIP", "problem-solving", "Test düzeneği kurmak", "Test raporu", "Arızaları sistematik biçimde ayıkladı."), (80, 60)),
     ]),
     ("Beril Yavuz", "beril-yavuz", "Endüstriyel Tasarım", 4, "Ürün ve ambalaj tasarımı", "İstanbul", 5, []),
-    ("Emir Coşkun", "emir-coskun", "Bilgisayar Mühendisliği", 4, "Bulut mimarisi ve AWS", "Ankara", 1, [
+    ("Emir Coşkun", "emir-coskun", "Bilgisayar Mühendisliği", None, "Bulut Mühendisi", "Ankara", 1, [
         ("ORG4", ("Veri Gölü Altyapısı", "INTERNSHIP", "aws", "Depolama katmanını kurmak", "Altyapı kodu ve maliyet raporu", "Maliyeti göz önünde tutan bir tasarım yaptı."), (50, 90)),
         ("ORG3", ("Saha Verisi Bulut Mimarisi", "SHORT_PROJECT", "cloud-arch", "Mimari seçenekleri karşılaştırmak", "Mimari karar belgesi", "Seçenekleri gerekçeleriyle değerlendirdi."), (190, 30)),
     ]),
@@ -544,7 +582,7 @@ DIRECTORY_STUDENTS = [
     ("Kaan Uçar", "kaan-ucar", "Yazılım Mühendisliği", 2, "Python ve Django ile web", "Konya", 3, [
         ("ORG1", ("İç Talep Sistemi", "SHORT_PROJECT", "django", "Talep formu ve onay akışı yazmak", "Çalışan uygulama", "Basit ve sağlam bir çözüm üretti."), (40, 35)),
     ]),
-    ("Pelin Acar", "pelin-acar", "Grafik Tasarım", 4, "Kullanıcı deneyimi ve arayüz tasarımı", "İzmir", 5, []),
+    ("Pelin Acar", "pelin-acar", "Grafik Tasarım", None, "Kullanıcı Deneyimi Tasarımcısı", "İzmir", 5, []),
     ("Bora Kaplan", "bora-kaplan", "Lojistik Yönetimi", 4, "Depo yönetimi ve süreç analizi", "Mersin", 4, [
         ("ORG4", ("Depo Verimlilik Analizi", "INTERNSHIP", "data-analysis", "Toplama sürelerini ölçmek", "Verimlilik raporu", "Önerileri ölçülebilir sonuç verdi."), (110, 60)),
     ]),
@@ -580,6 +618,7 @@ DIRECTORY_STUDENTS = [
         ("ORG3", ("Çevik Dönüşüm Pilotu", "PART_TIME", "leadership", "Ekip ritüellerini kurmak", "Süreç raporu", "Ekibi motive ederek yönetti."), (120, 90)),
     ]),
 ]
+DIRECTORY_EMAILS = tuple(seed_email(row[0], STUDENT_EMAIL_DOMAIN) for row in DIRECTORY_STUDENTS)
 
 
 def seed_skills(session: Session) -> None:
@@ -668,12 +707,12 @@ def seed_admin(session: Session) -> None:
 
 def seed_talents(session: Session) -> None:
     """
-    Seed 20 student accounts (ogrenci1-20@seed.local), idempotently.
+    Seed 20 student accounts (STUDENT_EMAILS), idempotently.
 
     AC-1, AC-2, AC-5: Production guard, idempotency, registration via register_user.
     Each call to register_user() automatically creates a TalentProfile.
 
-    Test filters by User.email LIKE 'ogrenci%@seed.local' to count students only.
+    Tests filter by User.email IN STUDENT_EMAILS to count students only.
     """
     if settings.environment == "production":
         raise RuntimeError("Seed script cannot run in production environment")
@@ -681,8 +720,7 @@ def seed_talents(session: Session) -> None:
     inserted_count = 0
     skipped_count = 0
 
-    for i, (full_name, slug, department, study_year, headline, city) in enumerate(STUDENTS_DATA, start=1):
-        email = f"ogrenci{i}@seed.local"
+    for email, (full_name, slug, department, study_year, headline, city) in zip(STUDENT_EMAILS, STUDENTS_DATA):
 
         # Check if email already exists
         existing = session.execute(
@@ -722,12 +760,12 @@ def seed_talents(session: Session) -> None:
 
 def _ensure_institution_coordinator(session: Session, index: int, inst_domain: str) -> None:
     """
-    Ensure institution `index` has a real COORDINATOR member (kurum{i}-koordinator@seed.local).
+    Ensure institution `index` has a real COORDINATOR member (seed_coordinator_email).
 
     YET-190 / K3: only COORDINATOR members approve engagements and attest; the
     institution ADMIN does not. Idempotent, also repairs databases seeded earlier.
     """
-    coord_email = f"kurum{index}-koordinator@seed.local"
+    coord_email = seed_coordinator_email(index)
 
     institution = session.execute(
         select(Institution).where(Institution.domain == inst_domain)
@@ -742,7 +780,7 @@ def _ensure_institution_coordinator(session: Session, index: int, inst_domain: s
             session=session,
             email=coord_email,
             password="SeedTest123!",
-            full_name=INSTITUTIONS_DATA[index - 1][2],
+            full_name=INSTITUTIONS_DATA[index - 1][3],
         )
 
     try:
@@ -760,11 +798,11 @@ def seed_institutions_and_organizations(session: Session) -> None:
     """
     Seed 5 institutions + 5 organizations with admin accounts, idempotently.
 
-    AC-1, AC-2, AC-5: Each institution gets an admin (kurum{i}-admin@seed.local).
-    Each organization gets an admin (org{i}-admin@seed.local).
+    AC-1, AC-2, AC-5: Each institution and organization gets an admin
+    (ad.soyad@ its own domain, see seed_email).
 
-    Institutions: domain = f"inst{i}.seed.local"
-    Organizations: legal_id = f"ORG{i}" (for uniqueness), domain = f"org{i}.seed.local"
+    Institutions: domain from INSTITUTIONS_DATA
+    Organizations: legal_id = f"ORG{i}" (for uniqueness), domain from ORGANIZATIONS_DATA
     """
     if settings.environment == "production":
         raise RuntimeError("Seed script cannot run in production environment")
@@ -776,8 +814,8 @@ def seed_institutions_and_organizations(session: Session) -> None:
 
     # Seed 5 institutions
     for i in range(1, 6):
-        inst_email = f"kurum{i}-admin@seed.local"
-        inst_domain = f"inst{i}.seed.local"
+        inst_email = seed_institution_admin_email(i)
+        inst_domain = INSTITUTIONS_DATA[i - 1][1]
 
         # Check if institution domain already exists
         existing_inst = session.execute(
@@ -792,7 +830,7 @@ def seed_institutions_and_organizations(session: Session) -> None:
                 session=session,
                 email=inst_email,
                 password="SeedTest123!",
-                full_name=INSTITUTIONS_DATA[i - 1][1]
+                full_name=INSTITUTIONS_DATA[i - 1][2]
             )
 
             # Create institution (caller becomes ADMIN)
@@ -816,9 +854,9 @@ def seed_institutions_and_organizations(session: Session) -> None:
 
     # Seed 5 organizations
     for i in range(1, 6):
-        org_email = f"org{i}-admin@seed.local"
         org_legal_id = f"ORG{i}"
-        org_domain = f"org{i}.seed.local"
+        org_email = seed_org_admin_email(org_legal_id)
+        org_domain = ORGANIZATIONS_DATA[i - 1][1]
 
         # Check if organization legal_id already exists
         existing_org = session.execute(
@@ -833,7 +871,7 @@ def seed_institutions_and_organizations(session: Session) -> None:
                 session=session,
                 email=org_email,
                 password="SeedTest123!",
-                full_name=ORGANIZATIONS_DATA[i - 1][1]
+                full_name=ORGANIZATIONS_DATA[i - 1][2]
             )
 
             # Create organization (caller becomes ADMIN)
@@ -932,7 +970,7 @@ def _create_verified_engagement(
     )
 
     # Get org admin user
-    org_admin_email = org_admin_email or f"org{(eng_idx % 5) + 1}-admin@seed.local"
+    org_admin_email = org_admin_email or seed_org_admin_email(f"ORG{(eng_idx % 5) + 1}")
     org_admin_user = session.execute(
         select(User).where(User.email == org_admin_email)
     ).scalars().first()
@@ -1106,24 +1144,22 @@ def seed_engagements(session: Session) -> None:
         print("Engagements seed: 0 inserted, 15 already exist (idempotent)")
         return
 
-    # Fetch seed students (ogrenci1..20), institutions and organizations in seed order:
+    # Fetch seed students (STUDENT_EMAILS order), institutions and organizations in seed order:
     # ENGAGEMENTS_DATA[eng_idx] is written for the student/organization picked below.
     student_rows = session.execute(
         select(User.email, TalentProfile).join(
             User, TalentProfile.user_id == User.id
         ).where(
-            User.email.like("ogrenci%@seed.local")
+            User.email.in_(STUDENT_EMAILS)
         )
     ).all()
-    students = [
-        tp for _, tp in sorted(student_rows, key=lambda r: int(r[0].removeprefix("ogrenci").split("@")[0]))
-    ]
+    students = [tp for _, tp in sorted(student_rows, key=lambda r: STUDENT_EMAILS.index(r[0]))]
 
     inst_by_domain = {
         inst.domain: inst
-        for inst in session.execute(select(Institution).where(Institution.domain.like("inst%.seed.local"))).scalars()
+        for inst in session.execute(select(Institution).where(Institution.domain.in_(INSTITUTION_DOMAINS))).scalars()
     }
-    institutions = [inst_by_domain[f"inst{i}.seed.local"] for i in range(1, 6) if f"inst{i}.seed.local" in inst_by_domain]
+    institutions = [inst_by_domain[d] for d in INSTITUTION_DOMAINS if d in inst_by_domain]
     org_by_legal_id = {
         org.legal_id: org
         for org in session.execute(select(Organization).where(Organization.legal_id.like("ORG%"))).scalars()
@@ -1195,7 +1231,7 @@ def seed_verified_organizations(session: Session) -> None:
 
 def seed_showcase_profile(session: Session) -> None:
     """
-    Give the showcase student (ogrenci1, /p/ayse-yilmaz) extra verified engagements
+    Give the showcase student (STUDENT_EMAILS[0], /p/ayse-yilmaz) extra verified engagements
     through the real state machine, so the public profile has several organizations,
     kinds, attested and evidenced skills. Idempotent per engagement title.
     """
@@ -1236,7 +1272,7 @@ def seed_showcase_profile(session: Session) -> None:
             skill=skills[spec[2]],
             eng_idx=0,
             spec=spec,
-            org_admin_email=f"{legal_id.lower()}-admin@seed.local",
+            org_admin_email=seed_org_admin_email(legal_id),
             task_skill=skills[task_slug],
             deliverable_skill=skills[deliverable_slug],
             period=period,
@@ -1297,10 +1333,10 @@ def seed_pipeline_engagements(session: Session) -> int:
     student_rows = session.execute(
         select(User.email, TalentProfile)
         .join(User, TalentProfile.user_id == User.id)
-        .where(User.email.like("ogrenci%@seed.local"))
+        .where(User.email.in_(STUDENT_EMAILS))
     ).all()
     students_by_institution: dict[uuid.UUID, list[TalentProfile]] = {}
-    for _, talent in sorted(student_rows, key=lambda r: int(r[0].removeprefix("ogrenci").split("@")[0])):
+    for _, talent in sorted(student_rows, key=lambda r: STUDENT_EMAILS.index(r[0])):
         if talent.institution_id is not None:
             students_by_institution.setdefault(talent.institution_id, []).append(talent)
 
@@ -1321,7 +1357,7 @@ def seed_pipeline_engagements(session: Session) -> int:
     picked: dict[uuid.UUID, int] = {}
     for inst_no, org_no, title, kind, skill_slug, task_title, deliverable_title, stage, days_ago in PIPELINE_ENGAGEMENTS:
         institution = session.execute(
-            select(Institution).where(Institution.domain == f"inst{inst_no}.seed.local")
+            select(Institution).where(Institution.domain == INSTITUTION_DOMAINS[inst_no - 1])
         ).scalars().first()
         organization = session.execute(
             select(Organization).where(Organization.legal_id == f"ORG{org_no}")
@@ -1339,10 +1375,10 @@ def seed_pipeline_engagements(session: Session) -> int:
             continue
 
         org_admin = session.execute(
-            select(User).where(User.email == f"org{org_no}-admin@seed.local")
+            select(User).where(User.email == seed_org_admin_email(f"ORG{org_no}"))
         ).scalars().first()
         coordinator = session.execute(
-            select(User).where(User.email == f"kurum{inst_no}-koordinator@seed.local")
+            select(User).where(User.email == seed_coordinator_email(inst_no))
         ).scalars().first()
         assert org_admin is not None and coordinator is not None, f"Seed members missing for: {title}"
 
@@ -1430,7 +1466,7 @@ def seed_pipeline_engagements(session: Session) -> int:
     return inserted
 
 
-# Showcase "Hakkımda" + certificate/work showcase for ogrenci1 (docs/arastirma-ogrenci-profili.md).
+# Showcase "Hakkımda" + certificate/work showcase for STUDENT_EMAILS[0] (docs/arastirma-ogrenci-profili.md).
 # No external links: a made-up verify/project URL would 404 in a live demo, so none are seeded.
 SHOWCASE_ABOUT = (
     "Bilgisayar mühendisliği 4. sınıf öğrencisiyim. Backend geliştirme ve veritabanı performansıyla "
@@ -1483,7 +1519,7 @@ def seed_showcase_portfolio(session: Session) -> None:
         .where(Engagement.talent_id == talent.id, Engagement.title == engagement_title)
     ).scalars().first()
     coordinator = session.execute(
-        select(User).where(User.email == f"{legal_id.lower()}-admin@seed.local")
+        select(User).where(User.email == seed_org_admin_email(legal_id))
     ).scalars().first()
     inserted = 0
     if deliverable is not None and coordinator is not None:
@@ -1547,7 +1583,7 @@ def seed_showcase_portfolio(session: Session) -> None:
 
 def seed_directory_students(session: Session) -> int:
     """
-    Seed the Keşfet directory students (dizin{i}@seed.local), idempotently: an
+    Seed the Keşfet directory students (DIRECTORY_EMAILS), idempotently: an
     existing account is skipped with its engagements. Each new student gets a
     PUBLIC profile, an institution link and the VERIFIED engagements listed in
     DIRECTORY_STUDENTS (full state machine, as in seed_engagements). Returns
@@ -1558,7 +1594,7 @@ def seed_directory_students(session: Session) -> int:
 
     institutions = {
         inst.domain: inst
-        for inst in session.execute(select(Institution).where(Institution.domain.like("inst%.seed.local"))).scalars()
+        for inst in session.execute(select(Institution).where(Institution.domain.in_(INSTITUTION_DOMAINS))).scalars()
     }
     organizations = {
         org.legal_id: org
@@ -1567,10 +1603,9 @@ def seed_directory_students(session: Session) -> int:
     skills = {skill.slug: skill for skill in session.execute(select(Skill)).scalars()}
 
     inserted = 0
-    for i, (full_name, slug, department, study_year, headline, city, inst_no, engagements) in enumerate(
-        DIRECTORY_STUDENTS, start=1
+    for email, (full_name, slug, department, study_year, headline, city, inst_no, engagements) in zip(
+        DIRECTORY_EMAILS, DIRECTORY_STUDENTS
     ):
-        email = f"dizin{i}@seed.local"
         if session.execute(select(User).where(User.email == email)).scalars().first():
             continue
 
@@ -1591,7 +1626,7 @@ def seed_directory_students(session: Session) -> int:
             session,
         )
 
-        institution = institutions[f"inst{inst_no}.seed.local"]
+        institution = institutions[INSTITUTION_DOMAINS[inst_no - 1]]
         _link_to_institution(session, profile, institution)
         for legal_id, spec, period in engagements:
             _create_verified_engagement(
@@ -1602,7 +1637,7 @@ def seed_directory_students(session: Session) -> int:
                 skill=skills[spec[2]],
                 eng_idx=0,
                 spec=spec,
-                org_admin_email=f"org{legal_id.removeprefix('ORG')}-admin@seed.local",
+                org_admin_email=seed_org_admin_email(legal_id),
                 period=period,
             )
         inserted += 1
@@ -1624,7 +1659,7 @@ def seed_public_experiences(session: Session) -> int:
     seed_talent_ids = (
         select(TalentProfile.id)
         .join(User, TalentProfile.user_id == User.id)
-        .where(User.email.like("ogrenci%@seed.local") | User.email.like("dizin%@seed.local"))
+        .where(User.email.in_(STUDENT_EMAILS + DIRECTORY_EMAILS))
     )
     result = session.execute(
         update(VerifiedExperience)
@@ -1640,7 +1675,7 @@ def seed_public_experiences(session: Session) -> int:
 def seed_verify_users(session: Session) -> int:
     """
     YET-196: write endpoints require a verified e-mail, and seed users never
-    receive their verification mail. Mark every @seed.local user verified so the
+    receive their verification mail. Mark every SEED_EMAIL_DOMAINS user verified so the
     demo accounts can write. Also repairs seed users created before this existed
     (the seed is idempotent and skips existing users). Returns rows updated.
     """
@@ -1649,7 +1684,7 @@ def seed_verify_users(session: Session) -> int:
 
     result = session.execute(
         update(User)
-        .where(User.email.like("%@seed.local"))
+        .where(or_(*(User.email.like(f"%@{domain}") for domain in SEED_EMAIL_DOMAINS)))
         .where(User.email_verified_at.is_(None))
         .values(email_verified_at=datetime.now(timezone.utc))
     )

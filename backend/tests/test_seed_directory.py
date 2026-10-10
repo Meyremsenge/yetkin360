@@ -1,5 +1,5 @@
 """
-Keşfet directory seed (PLAN R.1): 32 extra public students (dizin{i}@seed.local)
+Keşfet directory seed (PLAN R.1): 32 extra public students (DIRECTORY_EMAILS)
 next to the original 20, so the directory shows a realistic size and paging.
 """
 
@@ -7,7 +7,9 @@ from sqlalchemy import func, select
 
 from app.models import Engagement, Organization, TalentProfile, User, VerifiedExperience
 from scripts.seed import (
+    DIRECTORY_EMAILS,
     DIRECTORY_STUDENTS,
+    STUDENT_EMAILS,
     seed_directory_students,
     seed_engagements,
     seed_institutions_and_organizations,
@@ -32,7 +34,7 @@ def _directory_profiles(session) -> list[TalentProfile]:
         session.execute(
             select(TalentProfile)
             .join(User, TalentProfile.user_id == User.id)
-            .where(User.email.like("dizin%@seed.local"))
+            .where(User.email.in_(DIRECTORY_EMAILS))
         ).scalars()
     )
 
@@ -61,11 +63,11 @@ def test_directory_seed_adds_public_students_with_verified_engagements(session):
     assert len(experiences) == expected_engagements
     assert all(e.visibility == "PUBLIC" for e in experiences)
 
-    # The original demo is unchanged: still exactly 20 ogrenci accounts.
+    # The original demo is unchanged: still exactly 20 STUDENT_EMAILS accounts.
     students = session.scalar(
         select(func.count(TalentProfile.id))
         .join(User, TalentProfile.user_id == User.id)
-        .where(User.email.like("ogrenci%@seed.local"))
+        .where(User.email.in_(STUDENT_EMAILS))
     )
     assert students == 20
 
@@ -84,7 +86,7 @@ def test_directory_seed_is_idempotent(session):
 
 def test_directory_seed_engagements_avoid_unverified_volume(session):
     """Directory engagements go to verified (T3) organizations, except a single
-    one at Atölye 34, so seed data alone never trips the unverified-volume rule."""
+    one at Kalemtıraş Tasarım, so seed data alone never trips the unverified-volume rule."""
     unverified = {
         org.legal_id
         for org in session.execute(select(Organization)).scalars()

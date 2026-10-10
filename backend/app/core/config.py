@@ -92,7 +92,7 @@ class Settings(BaseSettings):
     # Self-servis admin-olma ucu yoktur. Parola için bilerek varsayılan yok (YET-229):
     # tahmin edilebilir bir fallback admin hesabına dönüşebilir; seed_admin boş,
     # placeholder veya kısa parolayı reddeder, .env'de SEED_ADMIN_PASSWORD verilmeli.
-    seed_admin_email: str = "admin@yetkin360.local"
+    seed_admin_email: str = "admin@yetkin360.test"
     seed_admin_password: str = ""
 
     # Fraud flag (PLAN 3.54) — outbox worker'da attestation.statement metnini
