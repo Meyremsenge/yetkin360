@@ -102,6 +102,24 @@ class PublicSkillResponse(BaseModel):
     experience_count: int
 
 
+class PublicCertificateResponse(BaseModel):
+    """A consented portfolio item. No file, no OCR output (extracted_name/qr_raw_data/page_name)."""
+
+    kind: str
+    title: str
+    issuer: str | None
+    issued_on: date | None
+    credential_id: str | None
+    # COORDINATOR_CONFIRMED (certificate_checks decision) | SELF_DECLARED — never mixed on the page
+    badge: str
+    provider: str | None
+    # Confirmed only, https on the provider's own domain
+    verify_url: str | None
+    # Self-declared only: student's https link, shown with its host
+    link_url: str | None
+    link_host: str | None
+
+
 class PublicTalentProfileResponse(BaseModel):
     """Response schema for GET /public/talents/{slug}. No e-mail, no internal ids."""
 
@@ -112,9 +130,11 @@ class PublicTalentProfileResponse(BaseModel):
     city: str | None
     institution_name: str | None
     institution_trust_level: str | None
+    about: str | None
     verified_experiences: list[PublicVerifiedExperienceResponse]
     skills: list[PublicSkillResponse]
     attesting_organization_count: int
+    certificates: list[PublicCertificateResponse]
 
     class Config:
         from_attributes = True
@@ -140,8 +160,8 @@ def get_public_profile(
 
     Returns (200):
       - {display_name, headline, department, study_year, city, institution_name,
-         institution_trust_level, verified_experiences[], skills[],
-         attesting_organization_count} (no internal talent_id: YET-230, no e-mail)
+         institution_trust_level, about, verified_experiences[], skills[],
+         attesting_organization_count, certificates[]} (no internal talent_id: YET-230, no e-mail)
       - verified_experiences filtered to visibility='PUBLIC' only; skills derived
         from those experiences' attestations only
 

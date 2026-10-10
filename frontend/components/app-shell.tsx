@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
+import { ReactNode, RefObject, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useSession, useLogout } from "@/lib/session/use-session";
 import { ErrorBanner } from "@/components/error-banner";
@@ -13,21 +13,18 @@ import {
 } from "@/lib/api/errors";
 import { cn } from "@/lib/utils";
 import { SealMark } from "@/components/brand/brand-mark";
+import { PAGE_CONTAINER } from "@/components/page-layout";
 import messages from "@/messages/tr.json";
 
 const FOCUS_RING =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-1 focus-visible:ring-offset-card";
-const CONTENT_GUTTER = "px-4 md:px-6 lg:px-10";
 const OVERLAY_SHADOW = "shadow-[0_8px_24px_-12px_rgba(34,31,27,0.25)]";
+
+// Discover page (/kesfet) is live.
+const DISCOVER_ENABLED = true;
 
 // Inline lucide paths (no icon dependency, brief §1.5).
 const ICON_PATHS = {
-  compass: (
-    <>
-      <circle cx="12" cy="12" r="10" />
-      <path d="m16.24 7.76-1.8 5.4a2 2 0 0 1-1.27 1.27l-5.4 1.8 1.8-5.4a2 2 0 0 1 1.27-1.27z" />
-    </>
-  ),
   briefcase: (
     <>
       <path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
@@ -45,6 +42,12 @@ const ICON_PATHS = {
       <circle cx="12" cy="12" r="10" />
       <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
       <path d="M2 12h20" />
+    </>
+  ),
+  compass: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z" />
     </>
   ),
   building: (
@@ -81,12 +84,7 @@ const ICON_PATHS = {
   ),
   menu: <path d="M4 6h16M4 12h16M4 18h16" />,
   close: <path d="M18 6 6 18M6 6l12 12" />,
-  chevronsUpDown: (
-    <>
-      <path d="m7 15 5 5 5-5" />
-      <path d="m7 9 5-5 5 5" />
-    </>
-  ),
+  chevronDown: <path d="m6 9 6 6 6-6" />,
   logOut: (
     <>
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -141,7 +139,6 @@ type Identity = {
   /** Second line under the name: role or organisation. */
   subtitle: string;
   email: string | undefined;
-  publicSlug: string | null;
 };
 
 type NamedRef = { id: string; name: string };
@@ -171,6 +168,37 @@ function useCurrentPath(): string {
   );
 }
 
+function isActivePath(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/** Closes a popover on outside click or Escape (focus returns to the trigger). */
+function useDismiss(
+  open: boolean,
+  close: () => void,
+  rootRef: RefObject<HTMLElement | null>,
+  triggerRef: RefObject<HTMLElement | null>
+) {
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) close();
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        close();
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, close, rootRef, triggerRef]);
+}
+
 function describeError(error: unknown): { message: string; requestId?: string } {
   if (error instanceof NetworkError) {
     return {
@@ -188,7 +216,7 @@ function Logo({ size = "md" }: { size?: "md" | "sm" }) {
     <Link
       href="/calismalar"
       className={cn(
-        "inline-flex items-center gap-2 rounded-md font-serif font-bold text-foreground",
+        "inline-flex shrink-0 items-center gap-2 rounded-md font-serif font-bold text-foreground",
         size === "md" ? "text-xl" : "text-lg",
         FOCUS_RING
       )}
@@ -221,20 +249,278 @@ function Avatar({
   );
 }
 
-function NavItem({
-  href,
-  icon,
-  label,
+type NavData = {
+  organizations: NamedRef[];
+  institutions: NamedRef[];
+  publicSlug: string | null;
+  isAdmin: boolean;
+};
+
+type NavEntry = { href: string; icon: IconName; label: string };
+
+const PRIMARY_LINKS: NavEntry[] = [
+  { href: "/calismalar", icon: "briefcase", label: messages.shell.engagementsLink },
+  { href: "/profil", icon: "user", label: messages.shell.profileLink },
+  ...(DISCOVER_ENABLED ? [{ href: "/kesfet", icon: "compass" as const, label: messages.shell.discoverLink }] : []),
+];
+
+const ADMIN_LINKS: NavEntry[] = [
+  { href: "/admin/dogrulama-kuyrugu", icon: "shield", label: messages.shell.adminVerificationQueueLink },
+  { href: "/admin/skiller", icon: "tag", label: messages.shell.adminSkillsLink },
+  { href: "/admin/sahtekarlik-isaretleri", icon: "shield", label: messages.shell.adminFraudQueueLink },
+];
+
+/** Role-specific destinations, grouped: organisations, institutions, admin. */
+function contextGroups(data: NavData): { label: string; entries: NavEntry[] }[] {
+  const groups = [
+    {
+      label: messages.shell.groupOrganizations,
+      entries: data.organizations.map((org) => ({
+        href: `/kurulus/${org.id}/panel`,
+        icon: "building" as const,
+        label: org.name,
+      })),
+    },
+    {
+      label: messages.shell.groupInstitutions,
+      entries: data.institutions.map((inst) => ({
+        href: `/kurum/${inst.id}/panel`,
+        icon: "landmark" as const,
+        label: inst.name,
+      })),
+    },
+    { label: messages.shell.groupAdmin, entries: data.isAdmin ? ADMIN_LINKS : [] },
+  ];
+  return groups.filter((group) => group.entries.length > 0);
+}
+
+// "/kurulus/{id}/panel" is active for every page under "/kurulus/{id}".
+function sectionOf(href: string): string {
+  return href.replace(/\/panel$/, "");
+}
+
+/* ------------------------------------------------------------------ */
+/* Desktop top bar (≥1024px)                                           */
+/* ------------------------------------------------------------------ */
+
+function TopNavLink({ entry, active }: { entry: NavEntry; active: boolean }) {
+  return (
+    <li className="flex">
+      <Link
+        href={entry.href}
+        aria-current={active ? "page" : undefined}
+        className={cn(
+          "relative flex items-center gap-2 rounded-md px-3 text-sm transition-colors duration-[120ms]",
+          "after:absolute after:inset-x-3 after:-bottom-px after:h-0.5 after:rounded-full after:transition-colors",
+          active
+            ? "font-medium text-foreground after:bg-success"
+            : "text-muted-foreground after:bg-transparent hover:text-foreground hover:after:bg-border",
+          FOCUS_RING
+        )}
+      >
+        <Icon name={entry.icon} className={active ? "text-success" : undefined} />
+        {entry.label}
+      </Link>
+    </li>
+  );
+}
+
+/**
+ * Organisation/institution members can belong to several entities: one
+ * switcher lists them all plus admin screens. The list stays mounted and is
+ * toggled with CSS so its links are real DOM nodes.
+ */
+function ContextSwitcher({ data, pathname }: { data: NavData; pathname: string }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const listId = useId();
+  useDismiss(open, () => setOpen(false), rootRef, triggerRef);
+
+  const groups = contextGroups(data);
+  if (groups.length === 0) return null;
+
+  const current = groups
+    .flatMap((group) => group.entries)
+    .find((entry) => isActivePath(pathname, sectionOf(entry.href)));
+
+  return (
+    <div ref={rootRef} className="relative flex items-center">
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-controls={listId}
+        onClick={() => setOpen((value) => !value)}
+        className={cn(
+          "flex h-9 max-w-[240px] items-center gap-2 rounded-md border px-3 text-sm transition-colors duration-[120ms]",
+          current
+            ? "border-success/25 bg-success/[0.06] font-medium text-foreground"
+            : "border-border bg-background text-muted-foreground hover:text-foreground",
+          FOCUS_RING
+        )}
+      >
+        <span className="sr-only">{messages.shell.contextSwitcher}: </span>
+        <Icon name={current?.icon ?? "building"} className={current ? "text-success" : undefined} />
+        <span className="min-w-0 truncate">{current?.label ?? messages.shell.contextPanels}</span>
+        <Icon
+          name="chevronDown"
+          className={cn("h-3.5 w-3.5 transition-transform duration-[120ms]", open && "rotate-180")}
+        />
+      </button>
+
+      <div
+        id={listId}
+        className={cn(
+          "y360-step-in absolute left-0 top-full z-50 mt-2 max-h-[70vh] w-[300px] overflow-y-auto rounded-xl border border-border bg-card p-1.5",
+          OVERLAY_SHADOW,
+          !open && "hidden"
+        )}
+      >
+        {groups.map((group) => (
+          <ContextGroup key={group.label} label={group.label}>
+            {group.entries.map((entry) => {
+              const active = isActivePath(pathname, sectionOf(entry.href));
+              return (
+                <li key={entry.href}>
+                  <Link
+                    href={entry.href}
+                    title={entry.label}
+                    aria-current={active ? "page" : undefined}
+                    onClick={() => setOpen(false)}
+                    className={cn(
+                      "flex h-10 items-center gap-2.5 rounded-md px-3 text-sm transition-colors duration-[120ms]",
+                      active
+                        ? "bg-success/[0.08] font-medium text-success"
+                        : "text-foreground hover:bg-muted/60",
+                      FOCUS_RING
+                    )}
+                  >
+                    <Icon name={entry.icon} className={active ? "text-success" : "text-muted-foreground"} />
+                    <span className="min-w-0 flex-1 truncate">{entry.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ContextGroup>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ContextGroup({ label, children }: { label: string; children: ReactNode }) {
+  const id = useId();
+  return (
+    <div className="py-1 [&+&]:border-t [&+&]:border-border">
+      <p id={id} className="px-3 pb-1 pt-1.5 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+        {label}
+      </p>
+      <ul aria-labelledby={id}>{children}</ul>
+    </div>
+  );
+}
+
+/** Avatar + menu. The list stays mounted and is toggled with CSS. */
+function UserMenu({ identity, onLogout }: { identity: Identity; onLogout: () => void }) {
+  const { name, subtitle, email } = identity;
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
+  const masked = maskEmail(email);
+  useDismiss(open, () => setOpen(false), rootRef, triggerRef);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={messages.shell.userMenu}
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-controls={menuId}
+        onClick={() => setOpen((value) => !value)}
+        className={cn(
+          "flex h-10 items-center gap-1.5 rounded-full p-0.5 transition-colors duration-[120ms] lg:pr-2",
+          open ? "bg-muted" : "hover:bg-muted/60",
+          FOCUS_RING
+        )}
+      >
+        <Avatar name={name} email={email} />
+        <Icon name="chevronDown" className="hidden h-3.5 w-3.5 text-muted-foreground lg:block" />
+      </button>
+
+      <div
+        id={menuId}
+        className={cn(
+          "y360-step-in absolute right-0 top-full z-50 mt-2 w-[260px] overflow-hidden rounded-xl border border-border bg-card",
+          OVERLAY_SHADOW,
+          !open && "hidden"
+        )}
+      >
+        <div className="flex items-center gap-3 border-b border-border bg-sand/50 px-4 py-3.5">
+          <Avatar name={name} email={email} size="lg" />
+          <div className="min-w-0">
+            <p className="truncate font-serif text-[15px] font-semibold text-foreground">{name ?? masked}</p>
+            <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
+            <p className="truncate font-mono text-[11px] text-muted-foreground">{masked}</p>
+          </div>
+        </div>
+        <div className="p-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onLogout();
+            }}
+            className={cn(
+              "flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm text-destructive transition-colors duration-[120ms] hover:bg-destructive/10",
+              FOCUS_RING
+            )}
+          >
+            <Icon name="logOut" />
+            {messages.session.logout}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PublicProfileLink({ slug }: { slug: string }) {
+  return (
+    <Link
+      href={`/p/${encodeURIComponent(slug)}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(
+        "hidden h-9 items-center gap-1.5 rounded-md border border-border px-3 text-sm font-medium text-foreground transition-colors duration-[120ms] hover:border-success/40 hover:bg-success/[0.06] md:inline-flex",
+        FOCUS_RING
+      )}
+    >
+      {messages.shell.viewPublicProfile}
+      <Icon name="arrowUpRight" className="h-3.5 w-3.5 text-success" />
+      <span className="sr-only">{messages.shell.newTab}</span>
+    </Link>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Mobile drawer (<1024px)                                             */
+/* ------------------------------------------------------------------ */
+
+function DrawerItem({
+  entry,
   active,
   external,
   onNavigate,
 }: {
-  href: string;
-  icon: IconName;
-  label: string;
+  entry: NavEntry;
   active: boolean;
   external?: boolean;
-  onNavigate?: () => void;
+  onNavigate: () => void;
 }) {
   return (
     <li className="relative">
@@ -242,22 +528,22 @@ function NavItem({
         <span aria-hidden="true" className="absolute -left-2 top-1/2 h-5 w-0.5 -translate-y-1/2 bg-success" />
       )}
       <Link
-        href={href}
+        href={entry.href}
         onClick={onNavigate}
-        title={label}
+        title={entry.label}
         aria-current={active ? "page" : undefined}
         target={external ? "_blank" : undefined}
         rel={external ? "noopener noreferrer" : undefined}
         className={cn(
-          "flex h-9 items-center gap-2.5 rounded-md border px-3 text-sm transition-colors duration-[120ms]",
+          "flex h-10 items-center gap-2.5 rounded-md border px-3 text-sm transition-colors duration-[120ms]",
           active
             ? "border-success/15 bg-success/[0.08] font-medium text-success"
             : "border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
           FOCUS_RING
         )}
       >
-        <Icon name={icon} className={active ? "text-success" : undefined} />
-        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <Icon name={entry.icon} className={active ? "text-success" : undefined} />
+        <span className="min-w-0 flex-1 truncate">{entry.label}</span>
         {external && (
           <>
             <Icon name="arrowUpRight" className="h-3.5 w-3.5" />
@@ -269,7 +555,7 @@ function NavItem({
   );
 }
 
-function NavGroup({ label, children }: { label: string; children: ReactNode }) {
+function DrawerGroup({ label, children }: { label: string; children: ReactNode }) {
   const id = useId();
   return (
     <div className="mt-6">
@@ -279,243 +565,6 @@ function NavGroup({ label, children }: { label: string; children: ReactNode }) {
       <ul aria-labelledby={id} className="space-y-0.5 px-2">
         {children}
       </ul>
-    </div>
-  );
-}
-
-type NavData = {
-  organizations: NamedRef[];
-  institutions: NamedRef[];
-  publicSlug: string | null;
-  isAdmin: boolean;
-};
-
-function NavLinks({
-  data,
-  pathname,
-  onNavigate,
-}: {
-  data: NavData;
-  pathname: string;
-  onNavigate?: () => void;
-}) {
-  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
-  return (
-    <>
-      <NavGroup label={messages.shell.groupWork}>
-        <NavItem
-          href="/calismalar"
-          icon="briefcase"
-          label={messages.shell.engagementsLink}
-          active={isActive("/calismalar")}
-          onNavigate={onNavigate}
-        />
-        <NavItem
-          href="/kesfet"
-          icon="compass"
-          label={messages.shell.discoverLink}
-          active={isActive("/kesfet")}
-          onNavigate={onNavigate}
-        />
-        <NavItem
-          href="/profil"
-          icon="user"
-          label={messages.shell.profileLink}
-          active={isActive("/profil")}
-          onNavigate={onNavigate}
-        />
-        {data.publicSlug && (
-          <NavItem
-            href={`/p/${encodeURIComponent(data.publicSlug)}`}
-            icon="globe"
-            label={messages.shell.publicProfileLink}
-            active={false}
-            external
-            onNavigate={onNavigate}
-          />
-        )}
-      </NavGroup>
-
-      {data.organizations.length > 0 && (
-        <NavGroup label={messages.shell.groupOrganizations}>
-          {data.organizations.map((org) => (
-            <NavItem
-              key={org.id}
-              href={`/kurulus/${org.id}/panel`}
-              icon="building"
-              label={org.name}
-              active={isActive(`/kurulus/${org.id}`)}
-              onNavigate={onNavigate}
-            />
-          ))}
-        </NavGroup>
-      )}
-
-      {data.institutions.length > 0 && (
-        <NavGroup label={messages.shell.groupInstitutions}>
-          {data.institutions.map((inst) => (
-            <NavItem
-              key={inst.id}
-              href={`/kurum/${inst.id}/panel`}
-              icon="landmark"
-              label={inst.name}
-              active={isActive(`/kurum/${inst.id}`)}
-              onNavigate={onNavigate}
-            />
-          ))}
-        </NavGroup>
-      )}
-
-      {data.isAdmin && (
-        <NavGroup label={messages.shell.groupAdmin}>
-          <NavItem
-            href="/admin/dogrulama-kuyrugu"
-            icon="shield"
-            label={messages.shell.adminVerificationQueueLink}
-            active={isActive("/admin/dogrulama-kuyrugu")}
-            onNavigate={onNavigate}
-          />
-          <NavItem
-            href="/admin/skiller"
-            icon="tag"
-            label={messages.shell.adminSkillsLink}
-            active={isActive("/admin/skiller")}
-            onNavigate={onNavigate}
-          />
-          <NavItem
-            href="/admin/sahtekarlik-isaretleri"
-            icon="shield"
-            label={messages.shell.adminFraudQueueLink}
-            active={isActive("/admin/sahtekarlik-isaretleri")}
-            onNavigate={onNavigate}
-          />
-        </NavGroup>
-      )}
-    </>
-  );
-}
-
-function SidebarHeader({ trailing }: { trailing?: ReactNode }) {
-  return (
-    <div className="px-5 pb-5 pt-6">
-      <div className="flex items-center justify-between gap-2">
-        <Logo />
-        {trailing}
-      </div>
-    </div>
-  );
-}
-
-/**
- * User card + menu. `variant="sidebar"` keeps the list mounted and toggles it
- * with CSS so it is a real DOM node; `variant="topbar"` mounts it on open.
- */
-function UserMenu({
-  identity,
-  onLogout,
-  variant,
-}: {
-  identity: Identity;
-  onLogout: () => void;
-  variant: "sidebar" | "topbar";
-}) {
-  const { name, subtitle, email } = identity;
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuId = useId();
-  const masked = maskEmail(email);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointer = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-        triggerRef.current?.focus();
-      }
-    };
-    document.addEventListener("mousedown", onPointer);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onPointer);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  const itemClass = cn(
-    "flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm transition-colors duration-[120ms]",
-    FOCUS_RING
-  );
-
-  const list = (
-    <div
-      id={menuId}
-      className={cn(
-        "y360-step-in absolute z-50 min-w-[232px] overflow-hidden rounded-xl border border-border bg-card",
-        OVERLAY_SHADOW,
-        variant === "sidebar" ? "bottom-full left-0 right-0 mb-2" : "right-0 top-full mt-2",
-        variant === "sidebar" && !open && "hidden"
-      )}
-    >
-      <div className="flex items-center gap-3 border-b border-border bg-sand/50 px-4 py-3.5">
-        <Avatar name={name} email={email} size="lg" />
-        <div className="min-w-0">
-          <p className="truncate font-serif text-[15px] font-semibold text-foreground">{name ?? masked}</p>
-          <p className="truncate font-mono text-[11px] text-muted-foreground">{masked}</p>
-        </div>
-      </div>
-      <div className="p-1.5">
-        <button
-          type="button"
-          onClick={() => {
-            setOpen(false);
-            onLogout();
-          }}
-          className={cn(itemClass, "text-destructive hover:bg-destructive/10")}
-        >
-          <Icon name="logOut" />
-          {messages.session.logout}
-        </button>
-      </div>
-    </div>
-  );
-
-  return (
-    <div ref={rootRef} className="relative">
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-label={variant === "topbar" ? messages.shell.userMenu : undefined}
-        aria-haspopup="true"
-        aria-expanded={open}
-        aria-controls={menuId}
-        onClick={() => setOpen((value) => !value)}
-        className={cn(
-          variant === "sidebar"
-            ? cn(
-                "flex h-14 w-full items-center gap-3 rounded-lg border px-2.5 text-left transition-colors duration-[120ms]",
-                open ? "border-border bg-muted/60" : "border-transparent hover:border-border hover:bg-muted/40"
-              )
-            : "flex h-10 w-10 items-center justify-center rounded-full",
-          FOCUS_RING
-        )}
-      >
-        <Avatar name={name} email={email} />
-        {variant === "sidebar" && (
-          <>
-            <span className="min-w-0 flex-1">
-              <span className="sr-only">{messages.shell.userMenu}: </span>
-              <span className="block truncate text-sm font-semibold text-foreground">{name ?? masked}</span>
-              <span className="block truncate text-xs text-muted-foreground">{subtitle}</span>
-            </span>
-            <Icon name="chevronsUpDown" className="text-muted-foreground" />
-          </>
-        )}
-      </button>
-      {(variant === "sidebar" || open) && list}
     </div>
   );
 }
@@ -570,30 +619,66 @@ function MobileDrawer({
           OVERLAY_SHADOW
         )}
       >
-        <SidebarHeader
-          trailing={
-            <button
-              ref={closeRef}
-              type="button"
-              aria-label={messages.shell.closeMenu}
-              onClick={onClose}
-              className={cn(
-                "-mr-2 -mt-1 flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground",
-                FOCUS_RING
-              )}
-            >
-              <Icon name="close" />
-            </button>
-          }
-        />
+        <div className="flex items-center justify-between gap-2 px-5 pb-5 pt-6">
+          <Logo />
+          <button
+            ref={closeRef}
+            type="button"
+            aria-label={messages.shell.closeMenu}
+            onClick={onClose}
+            className={cn(
+              "-mr-2 -mt-1 flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground",
+              FOCUS_RING
+            )}
+          >
+            <Icon name="close" />
+          </button>
+        </div>
         <div aria-hidden="true" className="mx-5 h-px bg-border" />
         <nav aria-label={messages.shell.mainNav} className="pb-6">
-          <NavLinks data={data} pathname={pathname} onNavigate={onClose} />
+          <DrawerGroup label={messages.shell.groupWork}>
+            {PRIMARY_LINKS.map((entry) => (
+              <DrawerItem
+                key={entry.href}
+                entry={entry}
+                active={isActivePath(pathname, entry.href)}
+                onNavigate={onClose}
+              />
+            ))}
+            {data.publicSlug && (
+              <DrawerItem
+                entry={{
+                  href: `/p/${encodeURIComponent(data.publicSlug)}`,
+                  icon: "globe",
+                  label: messages.shell.publicProfileLink,
+                }}
+                active={false}
+                external
+                onNavigate={onClose}
+              />
+            )}
+          </DrawerGroup>
+          {contextGroups(data).map((group) => (
+            <DrawerGroup key={group.label} label={group.label}>
+              {group.entries.map((entry) => (
+                <DrawerItem
+                  key={entry.href}
+                  entry={entry}
+                  active={isActivePath(pathname, sectionOf(entry.href))}
+                  onNavigate={onClose}
+                />
+              ))}
+            </DrawerGroup>
+          ))}
         </nav>
       </div>
     </div>
   );
 }
+
+/* ------------------------------------------------------------------ */
+/* Shell states                                                        */
+/* ------------------------------------------------------------------ */
 
 function SkeletonBar({ className }: { className?: string }) {
   return <div aria-hidden="true" className={cn("animate-pulse rounded-md bg-muted", className)} />;
@@ -605,29 +690,27 @@ function ShellLoading() {
       <span role="status" className="sr-only">
         {messages.shell.loading}
       </span>
-      <aside className="fixed inset-y-0 left-0 hidden w-[248px] flex-col border-r border-border bg-card px-5 pb-3 pt-6 lg:flex">
-        <SkeletonBar className="h-6 w-28 bg-background" />
-        <SkeletonBar className="mt-2 h-3 w-40 bg-background" />
-        <div className="mt-10 space-y-3">
-          {[0, 1, 2, 3].map((i) => (
-            <SkeletonBar key={i} className="h-7 w-full bg-background" />
-          ))}
-        </div>
-        <div className="mt-auto flex items-center gap-3 border-t border-border pt-3">
-          <SkeletonBar className="h-8 w-8 rounded-full bg-background" />
-          <SkeletonBar className="h-3 w-24 bg-background" />
-        </div>
-      </aside>
-      <div className="h-14 border-b border-border lg:hidden" />
-      <div className={cn("lg:pl-[248px]")}>
-        <div className={cn(CONTENT_GUTTER, "max-w-[1040px] pt-8")}>
-          <SkeletonBar className="h-8 w-64" />
-          <div className="mt-8 space-y-4">
+      <div className="border-b border-border bg-card">
+        <div className={cn(PAGE_CONTAINER, "flex h-14 items-center gap-6 lg:h-16")}>
+          <SkeletonBar className="h-7 w-32" />
+          <div className="hidden items-center gap-4 lg:flex">
             {[0, 1, 2].map((i) => (
-              <SkeletonBar key={i} className="h-24 w-full" />
+              <SkeletonBar key={i} className="h-4 w-24" />
             ))}
           </div>
+          <SkeletonBar className="ml-auto h-9 w-9 rounded-full" />
         </div>
+      </div>
+      <div className="border-b border-border bg-card">
+        <div className={cn(PAGE_CONTAINER, "py-8")}>
+          <SkeletonBar className="h-3 w-24" />
+          <SkeletonBar className="mt-3 h-8 w-64" />
+        </div>
+      </div>
+      <div className={cn(PAGE_CONTAINER, "space-y-4 pt-8")}>
+        {[0, 1, 2].map((i) => (
+          <SkeletonBar key={i} className="h-24 w-full" />
+        ))}
       </div>
     </div>
   );
@@ -637,10 +720,14 @@ function ShellLoading() {
 function ShellErrorFrame({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-background">
-      <header className={cn(CONTENT_GUTTER, "flex h-14 items-center border-b border-border bg-card lg:h-16")}>
-        <Logo />
+      <header className="border-b border-border bg-card">
+        <div className={cn(PAGE_CONTAINER, "flex h-14 items-center lg:h-16")}>
+          <Logo />
+        </div>
       </header>
-      <main className={cn(CONTENT_GUTTER, "max-w-[600px] pt-8")}>{children}</main>
+      <main className={PAGE_CONTAINER}>
+        <div className="max-w-[600px] pt-8">{children}</div>
+      </main>
     </div>
   );
 }
@@ -703,12 +790,16 @@ export function AppShell({ children }: { children: ReactNode }) {
   const firstEntity = data ? namedRefs(data.organizations)[0] ?? namedRefs(data.institutions)[0] : undefined;
   const identity: Identity = {
     name: displayName,
-    subtitle: data?.talent_profile
-      ? messages.shell.roleStudent
-      : firstEntity?.name ??
-        (data?.user.is_platform_admin ? messages.shell.roleAdmin : maskEmail(data?.user.email)),
+    // An entity membership says more than "student" (seed org admins also
+    // have a talent profile).
+    subtitle:
+      firstEntity?.name ??
+      (data?.talent_profile
+        ? messages.shell.roleStudent
+        : data?.user.is_platform_admin
+          ? messages.shell.roleAdmin
+          : maskEmail(data?.user.email)),
     email: data?.user.email,
-    publicSlug: data?.talent_profile?.public_slug ?? null,
   };
   const navData: NavData | null = data
     ? {
@@ -742,21 +833,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-background">
       {data && navData && (
         <>
-          {/* Desktop sidebar (≥1024px) */}
-          <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col border-r border-border bg-card lg:flex">
-            <SidebarHeader />
-            <div aria-hidden="true" className="mx-5 h-px bg-border" />
-            <nav aria-label={messages.shell.mainNav} className="flex-1 overflow-y-auto pb-6">
-              <NavLinks data={navData} pathname={pathname} />
-            </nav>
-            <div className="border-t border-border p-3">
-              <UserMenu identity={identity} onLogout={() => logoutState.logout()} variant="sidebar" />
-            </div>
-          </aside>
-
-          {/* Mobile/tablet top bar (<1024px) */}
-          <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-background px-4 lg:hidden">
-            <div className="flex items-center gap-3">
+          <header className="sticky top-0 z-40 border-b border-border bg-card">
+            <div className={cn(PAGE_CONTAINER, "flex h-14 items-center gap-3 lg:h-16 lg:gap-6")}>
               <button
                 ref={menuButtonRef}
                 type="button"
@@ -764,49 +842,65 @@ export function AppShell({ children }: { children: ReactNode }) {
                 aria-expanded={drawerOpen}
                 onClick={() => setDrawerOpen(true)}
                 className={cn(
-                  "-ml-2 flex h-10 w-10 items-center justify-center rounded-md text-foreground hover:bg-muted",
+                  "-ml-2 flex h-10 w-10 items-center justify-center rounded-md text-foreground hover:bg-muted lg:hidden",
                   FOCUS_RING
                 )}
               >
                 <Icon name="menu" className="h-5 w-5" />
               </button>
-              <Logo size="sm" />
+              <Logo />
+
+              <nav aria-label={messages.shell.mainNav} className="hidden h-full items-stretch gap-4 lg:flex">
+                <ul className="flex items-stretch">
+                  {PRIMARY_LINKS.map((entry) => (
+                    <TopNavLink key={entry.href} entry={entry} active={isActivePath(pathname, entry.href)} />
+                  ))}
+                </ul>
+                {contextGroups(navData).length > 0 && (
+                  <>
+                    <span aria-hidden="true" className="my-5 w-px bg-border" />
+                    <ContextSwitcher data={navData} pathname={pathname} />
+                  </>
+                )}
+              </nav>
+
+              <div className="ml-auto flex items-center gap-3">
+                {navData.publicSlug && <PublicProfileLink slug={navData.publicSlug} />}
+                <UserMenu identity={identity} onLogout={() => logoutState.logout()} />
+              </div>
             </div>
-            <UserMenu identity={identity} onLogout={() => logoutState.logout()} variant="topbar" />
           </header>
 
           {drawerOpen && <MobileDrawer data={navData} pathname={pathname} onClose={closeDrawer} />}
         </>
       )}
 
-      <div className={cn(data && "lg:pl-[248px]")}>
-        {hasBanners && (
-          <div className={cn(CONTENT_GUTTER, "mx-auto max-w-[1200px] space-y-2 pt-6")}>
-            {cachedError && (
-              <ErrorBanner
-                message={cachedError.message}
-                requestId={cachedError.requestId}
-                onRetry={() => session.refetch()}
-              />
-            )}
+      {hasBanners && (
+        <div className={cn(PAGE_CONTAINER, "space-y-2 pt-6")}>
+          {cachedError && (
+            <ErrorBanner
+              message={cachedError.message}
+              requestId={cachedError.requestId}
+              onRetry={() => session.refetch()}
+            />
+          )}
 
-            {/* YET-196: unverified e-mail -> explain the 401 and offer a new link */}
-            {showEmailBanner && <EmailVerificationBanner />}
+          {/* YET-196: unverified e-mail -> explain the 401 and offer a new link */}
+          {showEmailBanner && <EmailVerificationBanner />}
 
-            {showNoOrganizations && (
-              <p className="rounded-md border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
-                {messages.shell.noOrganizations}
-              </p>
-            )}
+          {showNoOrganizations && (
+            <p className="rounded-md border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
+              {messages.shell.noOrganizations}
+            </p>
+          )}
 
-            {/* AC-8: Logout error */}
-            {showLogoutError && <ErrorBanner message={messages.session.logoutFailed} />}
-          </div>
-        )}
+          {/* AC-8: Logout error */}
+          {showLogoutError && <ErrorBanner message={messages.session.logoutFailed} />}
+        </div>
+      )}
 
-        {/* AC-1: Children render */}
-        <div>{children}</div>
-      </div>
+      {/* AC-1: Children render */}
+      <div>{children}</div>
     </div>
   );
 }

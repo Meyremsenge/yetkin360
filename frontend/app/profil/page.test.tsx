@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import ProfilePage from "@/app/profil/page";
 import { useSession } from "@/lib/session/use-session";
 
@@ -10,14 +10,18 @@ vi.mock("@/app/profil/profile-form", () => ({
 vi.mock("@/app/profil/profile-hero", () => ({
   default: () => <div data-testid="profile-hero">Profile Hero</div>,
 }));
-vi.mock("@/app/profil/skills-section", () => ({
-  default: () => <div data-testid="skills-section">Skills Section</div>,
-}));
 vi.mock("@/app/profil/evidence-section", () => ({
   default: () => <div data-testid="evidence-section">Evidence Section</div>,
 }));
 vi.mock("@/app/profil/institution-link-section", () => ({
   default: () => <div data-testid="institution-link-section">Institution Link Section</div>,
+}));
+// Sections with their own tests (about-section.test.tsx, portfolio-section.test.tsx).
+vi.mock("@/app/profil/about-section", () => ({
+  default: () => <div data-testid="about-section">About Section</div>,
+}));
+vi.mock("@/app/profil/portfolio-section", () => ({
+  default: () => <div data-testid="portfolio-section">Portfolio Section</div>,
 }));
 
 /**
@@ -57,7 +61,6 @@ describe("ProfilePage (/profil)", () => {
 
       // AppShell ve bileşenleri render edilir
       expect(screen.getByTestId("profile-form")).toBeTruthy();
-      expect(screen.getByTestId("skills-section")).toBeTruthy();
       expect(screen.getByTestId("institution-link-section")).toBeTruthy();
     });
 
@@ -172,6 +175,79 @@ describe("ProfilePage (/profil)", () => {
       );
       expect(errorElement).toBeTruthy();
       expect(errorElement.textContent?.length).toBeGreaterThan(10);
+    });
+  });
+
+  describe("Sekmeler (?sekme=)", () => {
+    function mockProfile() {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { id: "user-1", email: "user@test.com" },
+          organizations: [],
+          institutions: [],
+          talent_profile: { full_name: "Ayşe", visibility: "PUBLIC", public_slug: "ayse" },
+        },
+        error: null,
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useSession>);
+    }
+
+    function panelOf(testId: string) {
+      return screen.getAllByTestId(testId)[0].closest('[role="tabpanel"]') as HTMLElement;
+    }
+
+    afterEach(() => {
+      window.history.replaceState(null, "", "/");
+    });
+
+    it("varsayılan sekme Hakkımda; diğer paneller gizli ama DOM'da (form verisi korunur)", () => {
+      window.history.replaceState(null, "", "/profil");
+      mockProfile();
+      render(<ProfilePage />);
+
+      expect(screen.getByRole("tab", { name: "Hakkımda" }).getAttribute("aria-selected")).toBe("true");
+      expect(panelOf("profile-form").hidden).toBe(false);
+      expect(panelOf("evidence-section").hidden).toBe(true);
+      expect(panelOf("portfolio-section").hidden).toBe(true);
+    });
+
+    it("sekmeye tıklamak paneli açar ve ?sekme= adresine yazar", () => {
+      window.history.replaceState(null, "", "/profil");
+      mockProfile();
+      render(<ProfilePage />);
+
+      fireEvent.click(screen.getByRole("tab", { name: "Sertifikalar ve çalışmalar" }));
+
+      expect(window.location.search).toBe("?sekme=sertifikalar");
+      expect(panelOf("portfolio-section").hidden).toBe(false);
+      expect(panelOf("profile-form").hidden).toBe(true);
+    });
+
+    it("adresteki ?sekme= ilgili sekmeyi açar; geçersiz değer Hakkımda'ya düşer", () => {
+      window.history.replaceState(null, "", "/profil?sekme=yetkinlik");
+      mockProfile();
+      const { unmount } = render(<ProfilePage />);
+      expect(screen.getByRole("tab", { name: "Yetkinlik ve kanıt" }).getAttribute("aria-selected")).toBe("true");
+      expect(panelOf("evidence-section").hidden).toBe(false);
+      unmount();
+
+      window.history.replaceState(null, "", "/profil?sekme=yok");
+      render(<ProfilePage />);
+      expect(screen.getByRole("tab", { name: "Hakkımda" }).getAttribute("aria-selected")).toBe("true");
+    });
+
+    it("ok tuşlarıyla sekmeler arasında gezilir", () => {
+      window.history.replaceState(null, "", "/profil");
+      mockProfile();
+      render(<ProfilePage />);
+
+      const first = screen.getByRole("tab", { name: "Hakkımda" });
+      fireEvent.keyDown(first, { key: "ArrowLeft" });
+      const last = screen.getByRole("tab", { name: "Sertifikalar ve çalışmalar" });
+      expect(last.getAttribute("aria-selected")).toBe("true");
+      expect(document.activeElement).toBe(last);
     });
   });
 });

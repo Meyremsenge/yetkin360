@@ -83,6 +83,8 @@ def test_public_profile_does_not_expose_talent_or_user_id(client, profile, user,
         "display_name", "headline", "department", "study_year", "city",
         "institution_name", "institution_trust_level",
         "verified_experiences", "skills", "attesting_organization_count",
+            # docs/arastirma-ogrenci-profili.md §4.4: self-declared about + consented certificates
+            "about", "certificates",
     }
     assert str(profile.id) not in response.text
     assert str(user.id) not in response.text

@@ -10,6 +10,7 @@ from sqlalchemy import (
     Integer,
     SmallInteger,
     String,
+    Text,
     UniqueConstraint,
     text,
 )
@@ -81,6 +82,9 @@ class TalentProfile(Base, TimestampMixin):
     __table_args__ = (
         CheckConstraint("study_year BETWEEN 1 AND 8", name="ck_talent_profiles_study_year"),
         CheckConstraint(
+            "about IS NULL OR char_length(about) <= 1000", name="ck_talent_profiles_about_length"
+        ),
+        CheckConstraint(
             "visibility IN ('PRIVATE','INSTITUTION','ORGANIZATIONS','PUBLIC')",
             name="ck_talent_profiles_visibility",
         ),
@@ -103,6 +107,8 @@ class TalentProfile(Base, TimestampMixin):
     department: Mapped[str | None] = mapped_column(String)
     study_year: Mapped[int | None] = mapped_column(SmallInteger)
     city: Mapped[str | None] = mapped_column(String)
+    # Self-written "about me" text: a claim, never shown as verified (plain text, no markup).
+    about: Mapped[str | None] = mapped_column(Text)
     visibility: Mapped[str] = mapped_column(String, nullable=False, server_default="INSTITUTION")
     public_slug: Mapped[str | None] = mapped_column(CITEXT, unique=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
