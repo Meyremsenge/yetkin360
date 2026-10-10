@@ -7,10 +7,10 @@ Implements access control and data scoping per atdd.md (yet-2-yetkilendirme-ceki
 import uuid
 from dataclasses import dataclass, field
 
-from sqlalchemy import Select, select, or_
+from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import Attestation, Engagement, Evidence, Institution, InstitutionLinkRequest, Organization, SkillClaim, SkillSignal, TalentProfile, User, VerifiedExperience
+from app.models import Attestation, Deliverable, Engagement, EngagementTask, Evidence, Institution, InstitutionLinkRequest, Organization, SkillClaim, SkillSignal, TalentProfile, User, VerifiedExperience
 
 
 @dataclass
@@ -595,4 +595,54 @@ def scoped_attestations_for_engagement(session: Session, engagement_id: uuid.UUI
         Attestation.engagement_id == engagement_id,
         Attestation.skill_id.isnot(None),
         Attestation.revoked_at.is_(None),  # GUV-05: exclude revoked attestations
+    )
+
+
+
+def scoped_public_skill_signals(
+    session: Session, talent_id: uuid.UUID, engagement_ids: list[uuid.UUID]
+) -> Select:
+    """
+    Return (SkillSignal, engagement_id) rows backing the public skill map.
+
+    Used only by the public profile, after the talent was resolved via
+    scoped_public_talent_profile() and engagement_ids were taken from its PUBLIC
+    experiences (scoped_public_verified_experiences + visibility filter). Signals
+    are resolved to their engagement through their source row:
+      - ATTESTATION → attestations (revoked ones excluded)
+      - TASK        → engagement_tasks
+      - DELIVERABLE → deliverables
+    and kept only when that engagement is in engagement_ids, so a PRIVATE
+    experience can never leak a skill or strength onto the public page.
+    Superseded signals (revocation tombstones' predecessors) are excluded.
+    """
+    if not engagement_ids:
+        return select(SkillSignal, Attestation.engagement_id).where(SkillSignal.id.in_([]))
+    source_engagement = func.coalesce(
+        Attestation.engagement_id, EngagementTask.engagement_id, Deliverable.engagement_id
+    ).label("engagement_id")
+    return (
+        select(SkillSignal, source_engagement)
+        .outerjoin(
+            Attestation,
+            and_(
+                SkillSignal.source_type == "ATTESTATION",
+                Attestation.id == SkillSignal.source_id,
+                Attestation.revoked_at.is_(None),
+            ),
+        )
+        .outerjoin(
+            EngagementTask,
+            and_(SkillSignal.source_type == "TASK", EngagementTask.id == SkillSignal.source_id),
+        )
+        .outerjoin(
+            Deliverable,
+            and_(SkillSignal.source_type == "DELIVERABLE", Deliverable.id == SkillSignal.source_id),
+        )
+        .where(
+            SkillSignal.talent_id == talent_id,
+            SkillSignal.superseded_by_id.is_(None),
+            SkillSignal.strength != "NONE",
+            source_engagement.in_(engagement_ids),
+        )
     )

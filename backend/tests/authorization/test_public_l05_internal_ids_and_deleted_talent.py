@@ -79,7 +79,11 @@ def test_public_profile_does_not_expose_talent_or_user_id(client, profile, user,
 
     assert response.status_code == 200
     data = response.json()
-    assert set(data.keys()) == {"display_name", "verified_experiences"}
+    assert set(data.keys()) == {
+        "display_name", "headline", "department", "study_year", "city",
+        "institution_name", "institution_trust_level",
+        "verified_experiences", "skills", "attesting_organization_count",
+    }
     assert str(profile.id) not in response.text
     assert str(user.id) not in response.text
 

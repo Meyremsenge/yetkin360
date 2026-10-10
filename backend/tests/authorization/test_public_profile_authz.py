@@ -448,9 +448,14 @@ class TestSecurityMatrixRow5PublicTalent:
 
         data = response.json()
 
-        # Response keys should be ONLY: display_name, verified_experiences
         response_keys = set(data.keys())
-        expected_keys = {"display_name", "verified_experiences"}
+        # Public showcase allowlist (public profil vitrini): identity line + derived
+        # skill map were added deliberately; anything else is a leak.
+        expected_keys = {
+            "display_name", "headline", "department", "study_year", "city",
+            "institution_name", "institution_trust_level",
+            "verified_experiences", "skills", "attesting_organization_count",
+        }
 
         assert response_keys == expected_keys, (
             f"AC-S2 VIOLATION: Unexpected keys in response. "
