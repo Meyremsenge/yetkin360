@@ -13,6 +13,7 @@ import {
   inviteMember,
   createReminders,
   listInstitutionStudents,
+  listInstitutionPartners,
 } from "@/lib/api/institutions";
 import { ApiError, NetworkError, SessionExpiredError } from "@/lib/api/errors";
 
@@ -33,6 +34,7 @@ vi.mock("@/lib/api/institutions", async (importOriginal) => {
     inviteMember: vi.fn(),
     createReminders: vi.fn(),
     listInstitutionStudents: vi.fn(),
+    listInstitutionPartners: vi.fn(),
   };
 });
 
@@ -70,6 +72,10 @@ const validDashboardData = {
       id: "eng-1",
       talent_id: "talent-1",
       organization_id: "org-1",
+      talent_full_name: "Öğrenci 1",
+      organization_name: "Kuruluş 1",
+      kind: "INTERNSHIP",
+      version: 1,
       title: "Yazılım Geliştirme Stajı",
       started_on: "2026-09-01",
     },
@@ -77,6 +83,10 @@ const validDashboardData = {
       id: "eng-2",
       talent_id: "talent-2",
       organization_id: "org-2",
+      talent_full_name: "Öğrenci 2",
+      organization_name: "Kuruluş 2",
+      kind: "INTERNSHIP",
+      version: 1,
       title: "Veri Analiz Projesi",
       started_on: "2026-09-05",
     },
@@ -84,6 +94,10 @@ const validDashboardData = {
       id: "eng-3",
       talent_id: "talent-3",
       organization_id: "org-1",
+      talent_full_name: "Öğrenci 3",
+      organization_name: "Kuruluş 1",
+      kind: "INTERNSHIP",
+      version: 1,
       title: "Sistem Admin Stajı",
       started_on: "2026-09-10",
     },
@@ -93,6 +107,10 @@ const validDashboardData = {
       id: "eng-4",
       talent_id: "talent-4",
       organization_id: "org-3",
+      talent_full_name: "Öğrenci 4",
+      organization_name: "Kuruluş 3",
+      kind: "INTERNSHIP",
+      version: 1,
       title: "Ürün Tasarım Projesi",
       ended_on: "2026-08-15",
     },
@@ -100,6 +118,10 @@ const validDashboardData = {
       id: "eng-5",
       talent_id: "talent-5",
       organization_id: "org-1",
+      talent_full_name: "Öğrenci 5",
+      organization_name: "Kuruluş 1",
+      kind: "INTERNSHIP",
+      version: 1,
       title: "Finans Analizi",
       ended_on: "2026-08-20",
     },
@@ -107,6 +129,10 @@ const validDashboardData = {
       id: "eng-6",
       talent_id: "talent-6",
       organization_id: "org-2",
+      talent_full_name: "Öğrenci 6",
+      organization_name: "Kuruluş 2",
+      kind: "INTERNSHIP",
+      version: 1,
       title: "Pazarlama Araştırması",
       ended_on: "2026-08-25",
     },
@@ -114,6 +140,10 @@ const validDashboardData = {
       id: "eng-7",
       talent_id: "talent-7",
       organization_id: "org-4",
+      talent_full_name: "Öğrenci 7",
+      organization_name: "Kuruluş 4",
+      kind: "INTERNSHIP",
+      version: 1,
       title: "İnsan Kaynakları",
       ended_on: "2026-08-28",
     },
@@ -121,6 +151,10 @@ const validDashboardData = {
       id: "eng-8",
       talent_id: "talent-8",
       organization_id: "org-1",
+      talent_full_name: "Öğrenci 8",
+      organization_name: "Kuruluş 1",
+      kind: "INTERNSHIP",
+      version: 1,
       title: "Muhasebe Stajı",
       ended_on: "2026-09-01",
     },
@@ -128,6 +162,10 @@ const validDashboardData = {
       id: "eng-9",
       talent_id: "talent-9",
       organization_id: "org-3",
+      talent_full_name: "Öğrenci 9",
+      organization_name: "Kuruluş 3",
+      kind: "INTERNSHIP",
+      version: 1,
       title: "İş Analiz",
       ended_on: "2026-09-05",
     },
@@ -135,6 +173,10 @@ const validDashboardData = {
       id: "eng-10",
       talent_id: "talent-10",
       organization_id: "org-2",
+      talent_full_name: "Öğrenci 10",
+      organization_name: "Kuruluş 2",
+      kind: "INTERNSHIP",
+      version: 1,
       title: "Yazılım Test",
       ended_on: "2026-09-08",
     },
@@ -157,6 +199,7 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
     // YET-197/IS-10: default to an empty pending-link-requests list unless a test overrides it.
     vi.mocked(listPendingLinkRequests).mockResolvedValue({ items: [] });
     vi.mocked(listInstitutionStudents).mockResolvedValue({ items: [] });
+    vi.mocked(listInstitutionPartners).mockResolvedValue({ items: [] });
   });
 
   afterEach(() => {
@@ -175,8 +218,9 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
     renderWithQueryClient(<KurumPanelPage />);
 
     await waitFor(() => {
-      // Sayaç 1: Onay bekleyen (3)
-      expect(screen.getByText("3")).toBeTruthy();
+      // Sayaç 1: Onay bekleyen (3) — the section header repeats the count, so read the tile
+      const approvalTile = document.querySelector('a[href="#onay-bekleyen"]') as HTMLElement;
+      expect(within(approvalTile).getByText("3")).toBeTruthy();
       // Sayaç 2: Değerlendirme bekleyen (7)
       expect(screen.getByText("7")).toBeTruthy();
 
@@ -348,6 +392,10 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
           id: "eng-20",
           talent_id: "talent-20",
           organization_id: "org-20",
+          talent_full_name: "Öğrenci 20",
+          organization_name: "Kuruluş 20",
+          kind: "INTERNSHIP",
+          version: 1,
           title: "Farklı Kurum Stajı",
           started_on: "2026-09-15",
         },
@@ -389,6 +437,10 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
           id: "eng-xss",
           talent_id: "t-xss",
           organization_id: "o-xss",
+          talent_full_name: "<img src=x onerror=alert(1)>",
+          organization_name: "Kuruluş xss",
+          kind: "INTERNSHIP",
+          version: 1,
           title: "<script>alert('xss')</script> Stajı",
           started_on: "2026-09-01",
         },
@@ -478,8 +530,8 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
 
       await waitFor(() => {
         expect(screen.getByText("Ayşe Yılmaz")).toBeTruthy();
-        expect(screen.getByText("Onayla")).toBeTruthy();
-        expect(screen.getByText("Reddet")).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Onayla" })).toBeTruthy();
+        expect(screen.getByRole("button", { name: "Reddet" })).toBeTruthy();
       });
     });
 
@@ -506,8 +558,8 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
 
       renderWithQueryClient(<KurumPanelPage />);
 
-      await waitFor(() => expect(screen.getByText("Onayla")).toBeTruthy());
-      await user.click(screen.getByText("Onayla"));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Onayla" })).toBeTruthy());
+      await user.click(screen.getByRole("button", { name: "Onayla" }));
 
       await waitFor(() => {
         expect(approveLinkRequest).toHaveBeenCalledWith("inst-1", "req-1");
@@ -527,8 +579,8 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
 
       renderWithQueryClient(<KurumPanelPage />);
 
-      await waitFor(() => expect(screen.getByText("Reddet")).toBeTruthy());
-      await user.click(screen.getByText("Reddet"));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Reddet" })).toBeTruthy());
+      await user.click(screen.getByRole("button", { name: "Reddet" }));
 
       await waitFor(() => {
         expect(rejectLinkRequest).toHaveBeenCalledWith("inst-1", "req-1");
@@ -548,8 +600,8 @@ describe("KurumPanelPage (/kurum/[id]/panel)", () => {
 
       renderWithQueryClient(<KurumPanelPage />);
 
-      await waitFor(() => expect(screen.getByText("Onayla")).toBeTruthy());
-      await user.click(screen.getByText("Onayla"));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Onayla" })).toBeTruthy());
+      await user.click(screen.getByRole("button", { name: "Onayla" }));
 
       await waitFor(() => {
         expect(screen.getByText("İşlem sırasında bir hata oluştu.")).toBeTruthy();
