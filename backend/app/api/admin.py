@@ -19,6 +19,7 @@ from app.core.errors import ApiError
 from app.services.audit import log_audit_event
 from app.services.authorization import Principal
 from app.services.fraud_flag import NotPendingError as FraudFlagNotPendingError, list_fraud_queue, resolve_fraud_flag
+from app.services.fraud_signals import subject_labels
 from app.services.organization import (
     DomainAlreadyVerifiedError,
     NotPendingError,
@@ -130,11 +131,15 @@ class SkillsListResponse(BaseModel):
 
 class FraudFlagItem(BaseModel):
     """PLAN 3.54: AI-generated flag — reason/confidence are the model's output,
-    never a verdict; subject_id/subject_type let the admin open the attestation."""
+    never a verdict; subject_id/subject_type let the admin open the attestation.
+    PLAN 3.56: `signal` is the rule/check code (null for 3.54 statement flags);
+    `subject_label` is the organization/institution name, when the subject is one."""
 
     id: uuid.UUID
     subject_type: str
     subject_id: uuid.UUID
+    subject_label: str | None = None
+    signal: str | None = None
     reason: str
     confidence: Literal["LOW", "MEDIUM", "HIGH"]
     model: str
@@ -408,7 +413,12 @@ def get_fraud_queue(
     """PENDING fraud_flags — AI'nin ürettiği işaretler, henüz admin kararı yok."""
     _require_admin(principal)
     flags = list_fraud_queue(session, limit=limit, offset=offset)
-    return FraudQueueResponse(items=[FraudFlagItem.model_validate(f) for f in flags])
+    labels = subject_labels(session, flags)
+    return FraudQueueResponse(
+        items=[
+            FraudFlagItem.model_validate(f).model_copy(update={"subject_label": labels.get(f.id)}) for f in flags
+        ]
+    )
 
 
 @router.post("/fraud-queue/{flag_id}/resolve", response_model=FraudFlagItem)

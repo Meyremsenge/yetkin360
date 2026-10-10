@@ -12,7 +12,7 @@ import uuid
 
 import pytest
 
-from app.models import AuditEvent, FraudFlag, User
+from app.models import AuditEvent, FraudFlag, Organization, User
 
 
 @pytest.fixture
@@ -75,6 +75,53 @@ class TestFraudQueuePositive:
         assert response.status_code == 200, response.text
         ids = {item["id"] for item in response.json()["items"]}
         assert str(pending_flag.id) in ids
+
+    def test_admin_sees_organization_flag_with_name_and_signal(self, client, session, platform_admin_ff, pending_flag):
+        """PLAN 3.56: kuruluş işaretinde kuruluş adı ve sinyal kodu döner;
+        3.54 tanıklık işaretinde ikisi de null kalır."""
+        org = Organization(name="Şüpheli Kuruluş Ltd.", verification_level="T1")
+        session.add(org)
+        session.flush()
+        org_flag = FraudFlag(
+            subject_type="ORGANIZATION",
+            subject_id=org.id,
+            signal="NEW_ORG_BURST",
+            reason="Kuruluş 7 günden yeni ve şimdiden 3 çalışmasına tanıklık verilmiş.",
+            confidence="HIGH",
+            model="rules-v1",
+        )
+        session.add(org_flag)
+        session.flush()
+
+        response = client.get("/admin/fraud-queue", headers={"X-Debug-User-Id": str(platform_admin_ff.id)})
+
+        assert response.status_code == 200, response.text
+        items = {item["id"]: item for item in response.json()["items"]}
+        assert items[str(org_flag.id)]["subject_label"] == "Şüpheli Kuruluş Ltd."
+        assert items[str(org_flag.id)]["signal"] == "NEW_ORG_BURST"
+        assert items[str(pending_flag.id)]["subject_label"] is None
+        assert items[str(pending_flag.id)]["signal"] is None
+
+    def test_non_admin_cannot_see_organization_flags_404(self, client, session, non_admin_talent_ff):
+        org = Organization(name="Gizli Kalmalı A.Ş.", verification_level="T1")
+        session.add(org)
+        session.flush()
+        session.add(
+            FraudFlag(
+                subject_type="ORGANIZATION",
+                subject_id=org.id,
+                signal="NEW_ORG_BURST",
+                reason="x",
+                confidence="HIGH",
+                model="rules-v1",
+            )
+        )
+        session.flush()
+
+        response = client.get("/admin/fraud-queue", headers={"X-Debug-User-Id": str(non_admin_talent_ff.id)})
+
+        assert response.status_code == 404
+        assert "Gizli Kalmalı" not in response.text
 
     def test_admin_confirms_flag_and_audit_logged(self, client, session, platform_admin_ff, pending_flag):
         response = client.post(

@@ -12,10 +12,16 @@ const CONFIDENCE_BADGE: Record<string, string> = {
   HIGH: "bg-red-100 text-red-800",
 };
 
+// fraud_flags.model değeri: backend'deki fraud_signals.RULES_MODEL ile aynı.
+const RULES_MODEL = "rules-v1";
+
+const signalLabels: Record<string, string> = messages.adminFraudQueue.signalLabel;
+
 /**
- * PLAN 3.54: AI'nin ürettiği fraud flag'leri (attestation.statement üzerinden)
- * admin'in inceleyip CONFIRMED/DISMISSED ile karara bağladığı ekran.
- * AI hiçbir hesabı etkilemez — bu ekran yalnız bir öneri listesi, karar admin'de.
+ * PLAN 3.54 / 3.56: tanıklık, kuruluş ve kurum onayları için üretilen
+ * işaretleri admin'in inceleyip CONFIRMED/DISMISSED ile karara bağladığı ekran.
+ * İşaretleri sabit kurallar ve AI üretir; hiçbiri bir hesabı etkilemez — bu
+ * ekran yalnız bir öneri listesi, karar admin'de.
  */
 export default function SahtekarlikIsaretleriPage() {
   const queryClient = useQueryClient();
@@ -77,6 +83,16 @@ export default function SahtekarlikIsaretleriPage() {
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${CONFIDENCE_BADGE[flag.confidence]}`}>
                           {messages.adminFraudQueue.confidenceLabel[flag.confidence]}
                         </span>
+                        {flag.signal && (
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
+                            {signalLabels[flag.signal] ?? flag.signal}
+                          </span>
+                        )}
+                        <span className="text-xs text-slate-600">
+                          {flag.model === RULES_MODEL
+                            ? messages.adminFraudQueue.sourceLabel.rule
+                            : messages.adminFraudQueue.sourceLabel.ai}
+                        </span>
                         <span className="text-xs text-slate-500">{flag.model}</span>
                         <span className="text-xs text-slate-400">
                           {new Date(flag.created_at).toLocaleString("tr-TR")}
@@ -84,7 +100,8 @@ export default function SahtekarlikIsaretleriPage() {
                       </div>
                       <p className="text-sm text-slate-800">{flag.reason}</p>
                       <p className="mt-1 text-xs text-slate-500">
-                        {messages.adminFraudQueue.headers.subject}: {flag.subject_type} #{flag.subject_id.slice(0, 8)}
+                        {messages.adminFraudQueue.subjectTypeLabel[flag.subject_type] ?? flag.subject_type}:{" "}
+                        {flag.subject_label ?? `#${flag.subject_id.slice(0, 8)}`}
                       </p>
                     </div>
                     <div className="flex shrink-0 gap-2">

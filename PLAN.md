@@ -369,6 +369,17 @@ PLAN maddesi olarak açılmamıştı. Detay: `HATA.md`.**
       doğrulandı: gerçek sertifika görseli + gerçek OpenRouter çağrısıyla
       provider/kimlik no/isim doğru çıkarıldı. Yeni bağımlılık:
       opencv-python-headless, pymupdf (ikisi de pip-only, sistem binary yok). @be2
+- [x] 3.56 Şüpheli kuruluş/kurum ve danışıklı tanıklık işaretleme: 3.54'ün
+      `fraud_flags` kuyruğu `ORGANIZATION` ve `INSTITUTION` öznelerine genişletildi.
+      İşaretlerin çoğu DETERMİNİSTİK kuraldır (`app/services/fraud_signals.py`,
+      AI yok, `OPENROUTER_API_KEY` olmadan çalışır): kendi kendine tanıklık, tanık
+      ile öğrencinin aynı e-posta alan adı, kopya tanıklık metni, dakikalar içinde
+      doğrulama; doğrulanmamış kuruluşta yoğun tanıklık, yeni kuruluşta ani artış,
+      tüm tanıklıkların tek öğrenciye gitmesi; onaylayan koordinatörün kuruluş
+      üyesi olması, toplu ve hızlı onay. Tek AI çağrısı kuruluş kimliği
+      (ad/alan adı tutarlılığı) kontrolüdür ve yalnız kuruluş düzeyinde veri
+      gönderir (kişi adı/e-posta yok). Hiçbir işaret karar değildir — nihai
+      `CONFIRMED`/`DISMISSED` kararı admin'e aittir (final-analiz §11.4.6). @be2 @fe
 - [ ] 3.16 Kod dondurma — Faz 4'e yeni özellik girmez @all
 
 ---

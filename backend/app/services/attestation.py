@@ -397,6 +397,10 @@ def create_attestation(
     if attestation.statement:
         session.add(Outbox(topic="attestation.fraud_check_requested", payload={"attestation_id": str(attestation.id)}))
 
+    # PLAN 3.56: deterministic collusion / organization risk rules run for every
+    # attestation (no AI, no statement needed) — they only raise admin-review flags.
+    session.add(Outbox(topic="fraud.attestation_risk_scan_requested", payload={"attestation_id": str(attestation.id)}))
+
     # Transaction is committed by caller (route layer)
     return attestation, verified_exp
 

@@ -572,6 +572,24 @@ tek ekrandaki kanıtı:
   hiçbir zaman `attestations`'a yazmaz ve hiçbir hesabı etkilemez. Nihai karar
   (`CONFIRMED`/`DISMISSED`) yalnızca admin'e aittir (final-analiz §11.4.6).
   `OPENROUTER_API_KEY` boşsa handler sessizce no-op'tur (AI opsiyonel altyapı).
+- **Fraud-queue (PLAN 3.56) — kuruluş, kurum ve danışıklı tanıklık:** kuyruk
+  öğesinde `subject_type` artık `ATTESTATION` / `ORGANIZATION` / `INSTITUTION`
+  olabilir; `signal` işareti üreten kuralın kodu (3.54 işaretlerinde `null`),
+  `subject_label` kuruluş/kurum adıdır (tanıklıkta `null`). `model = rules-v1`
+  olan işaretler sabit eşikli kurallardan gelir (AI yok, anahtar gerekmez):
+
+  | Özne | `signal` | Tetikleyen olay |
+  |---|---|---|
+  | Tanıklık | `SELF_ATTESTATION`, `SHARED_EMAIL_DOMAIN`, `DUPLICATE_STATEMENT`, `RAPID_VERIFICATION` | her yeni tanıklık |
+  | Kuruluş | `UNVERIFIED_HIGH_VOLUME`, `NEW_ORG_BURST`, `SINGLE_TALENT_ONLY` | her yeni tanıklık |
+  | Kurum | `APPROVER_IS_ORG_MEMBER`, `RAPID_BULK_APPROVAL` | koordinatör onayı (T2) |
+  | Kuruluş | `AI_ORG_IDENTITY` (AI) | kuruluş oluşturma |
+
+  `AI_ORG_IDENTITY` tek AI çağrısıdır ve yalnız kuruluş düzeyinde veri gönderir
+  (ad, alan adı, doğrulama seviyesi, vergi no **verilip verilmediği**) — kişi
+  adı, e-posta ve tanıklık metni gitmez. Aynı (özne, sinyal) kuyrukta beklerken
+  veya son 30 günde üretilmişse yeniden satır açılmaz. Kural gerekçeleri yalnız
+  sayı içerir; ad/e-posta/metin içermez.
 
 > ❓ AÇIK SORU: Admin skill yönetimi ucu ([PLAN.md](../PLAN.md) 3.6 "skill
 > yönetimi") §34 listesinde yok. Kullanıcı skill önerisi gönderme ucu ve admin

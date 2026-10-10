@@ -176,8 +176,12 @@ export async function getSkills(): Promise<SkillsListResponse | undefined> {
 
 export interface FraudFlag {
   id: string;
-  subject_type: string; // "ATTESTATION"
+  subject_type: "ATTESTATION" | "ORGANIZATION" | "INSTITUTION";
   subject_id: string;
+  /** PLAN 3.56: kuruluş/kurum adı; tanıklık işaretlerinde null. */
+  subject_label: string | null;
+  /** PLAN 3.56: işareti üreten kural/kontrol kodu; 3.54 tanıklık metni işaretlerinde null. */
+  signal: string | null;
   reason: string;
   confidence: "LOW" | "MEDIUM" | "HIGH";
   model: string;
