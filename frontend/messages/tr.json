@@ -160,7 +160,11 @@
     "signIn": "Giriş yap",
     "roleStudent": "Öğrenci",
     "roleAdmin": "Platform yöneticisi",
-    "signedInAs": "Oturum açık"
+    "signedInAs": "Oturum açık",
+    "discoverLink": "Keşfet",
+    "contextSwitcher": "Panel seç",
+    "contextPanels": "Paneller",
+    "viewPublicProfile": "Profilimi gör"
   },
   "emailVerificationBanner": {
     "message": "E-posta adresiniz doğrulanmadı. Doğrulanana kadar kayıt oluşturamaz veya değişiklik yapamazsınız.",
