@@ -1,7 +1,9 @@
 """Institution service: core business logic for institution management."""
 
+import csv
+import io
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
@@ -11,8 +13,10 @@ from app.models import (
     Institution,
     InstitutionLinkRequest,
     InstitutionMember,
+    Organization,
     TalentProfile,
     User,
+    VerifiedExperience,
 )
 from app.services.authorization import (
     Principal,
@@ -467,3 +471,181 @@ def list_institution_students(
             }
         )
     return result
+
+
+def list_institution_partners(
+    session: Session, principal: Principal, institution_id: uuid.UUID
+) -> list[dict]:
+    """
+    Organizations the institution's students work with (coordinator "iş birlikleri").
+
+    Counts are computed only over engagements of THIS institution that belong to
+    students in scoped_institution_students (approved link, not PRIVATE), so a PRIVATE
+    student never contributes to a count. Non-members get an empty result (the
+    endpoint answers 404 before calling this).
+
+    Returns:
+        List of dicts ordered by engagement_count desc, then name: organization_id,
+        organization_name, verification_level, student_count, engagement_count,
+        verified_count.
+    """
+    students = scoped_institution_students(session, principal, institution_id).with_only_columns(
+        TalentProfile.id
+    )
+    engagements = (
+        scoped_engagements(session, principal)
+        .where(
+            Engagement.institution_id == institution_id,
+            Engagement.talent_id.in_(students),
+        )
+        .subquery()
+    )
+    rows = session.execute(
+        select(
+            Organization.id,
+            Organization.name,
+            Organization.verification_level,
+            func.count(func.distinct(engagements.c.talent_id)).label("student_count"),
+            func.count().label("engagement_count"),
+            func.count().filter(engagements.c.status.in_(_VERIFIED_STATUSES)).label("verified_count"),
+        )
+        .join(engagements, engagements.c.organization_id == Organization.id)
+        .group_by(Organization.id, Organization.name, Organization.verification_level)
+        .order_by(func.count().desc(), Organization.name.asc())
+    ).all()
+    return [
+        {
+            "organization_id": str(row.id),
+            "organization_name": row.name,
+            "verification_level": row.verification_level,
+            "student_count": row.student_count,
+            "engagement_count": row.engagement_count,
+            "verified_count": row.verified_count,
+        }
+        for row in rows
+    ]
+
+
+REPORT_HEADERS = (
+    "Ad Soyad",
+    "Bölüm",
+    "Sınıf",
+    "Kuruluş",
+    "Çalışma",
+    "Tür",
+    "Durum",
+    "Başlangıç",
+    "Bitiş",
+    "Doğrulama tarihi",
+    "Doğrulama bağlantısı",
+)
+
+# Report-only Turkish labels (the CSV header set itself is fixed by the product spec).
+_KIND_LABELS = {
+    "INTERNSHIP": "Staj",
+    "CAPSTONE": "Bitirme projesi",
+    "SHORT_PROJECT": "Kısa proje",
+    "PART_TIME": "Yarı zamanlı",
+}
+_STATUS_LABELS = {
+    "DRAFT": "Taslak",
+    "PENDING_APPROVAL": "Onay bekliyor",
+    "REJECTED": "Reddedildi",
+    "ACTIVE": "Devam ediyor",
+    "CANCELLED": "İptal edildi",
+    "PENDING_EVALUATION": "Değerlendirme bekliyor",
+    "EVALUATED": "Değerlendirildi",
+    "VERIFIED": "Doğrulandı",
+    "DISPUTED": "İtiraz var",
+    "RESOLVED": "İtiraz çözüldü",
+}
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def csv_safe(value: object) -> str:
+    """Render a cell; neutralise spreadsheet formulas by prefixing a single quote."""
+    if value is None:
+        return ""
+    text = str(value)
+    if text.startswith(_FORMULA_PREFIXES):
+        return "'" + text
+    return text
+
+
+def build_institution_report(
+    session: Session,
+    principal: Principal,
+    institution_id: uuid.UUID,
+    frontend_origin: str,
+) -> tuple[bytes, int]:
+    """
+    CSV report (UTF-8 with BOM, ';' delimiter — opens correctly in Turkish Excel).
+
+    Scope is the same as list_institution_students: students from
+    scoped_institution_students (approved link, not PRIVATE) and only this
+    institution's engagements seen through scoped_engagements. The verification link
+    is emitted only for PUBLIC verified experiences. Every cell goes through csv_safe.
+
+    Returns:
+        (csv bytes, number of data rows)
+    """
+    students = scoped_institution_students(session, principal, institution_id).with_only_columns(
+        TalentProfile.id
+    )
+    rows = session.execute(
+        scoped_engagements(session, principal)
+        .join(TalentProfile, TalentProfile.id == Engagement.talent_id)
+        .join(Organization, Organization.id == Engagement.organization_id)
+        .outerjoin(VerifiedExperience, VerifiedExperience.engagement_id == Engagement.id)
+        .where(
+            Engagement.institution_id == institution_id,
+            Engagement.talent_id.in_(students),
+        )
+        .with_only_columns(
+            Engagement,
+            TalentProfile.full_name,
+            TalentProfile.department,
+            TalentProfile.study_year,
+            Organization.name,
+            VerifiedExperience.created_at,
+            VerifiedExperience.visibility,
+            VerifiedExperience.public_token,
+        )
+        .order_by(
+            TalentProfile.full_name.asc(),
+            Engagement.created_at.asc(),
+            VerifiedExperience.created_at.desc(),
+        )
+    ).all()
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, delimiter=";", lineterminator="\r\n")
+    writer.writerow(REPORT_HEADERS)
+    seen: set[uuid.UUID] = set()
+    count = 0
+    origin = frontend_origin.rstrip("/")
+    for eng, name, department, study_year, org_name, verified_at, visibility, token in rows:
+        if eng.id in seen:  # several verified experiences per engagement: keep the latest
+            continue
+        seen.add(eng.id)
+        link = f"{origin}/v/{token}" if visibility == "PUBLIC" and token else ""
+        writer.writerow(
+            [
+                csv_safe(cell)
+                for cell in (
+                    name,
+                    department,
+                    study_year,
+                    org_name,
+                    eng.title,
+                    _KIND_LABELS.get(eng.kind, eng.kind),
+                    _STATUS_LABELS.get(eng.status, eng.status),
+                    eng.started_on.isoformat() if isinstance(eng.started_on, date) else None,
+                    eng.ended_on.isoformat() if isinstance(eng.ended_on, date) else None,
+                    verified_at.date().isoformat() if verified_at else None,
+                    link,
+                )
+            ]
+        )
+        count += 1
+    return ("\ufeff" + buffer.getvalue()).encode("utf-8"), count

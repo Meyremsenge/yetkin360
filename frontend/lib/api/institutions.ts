@@ -41,6 +41,12 @@ export interface PendingItem {
   title: string;
   started_on?: string | null;
   ended_on?: string | null;
+  // Always sent by the server; optional only so existing panel fixtures still type-check
+  // (package E makes them required together with its fixtures).
+  talent_full_name?: string;
+  organization_name?: string;
+  kind?: string;
+  version?: number;
 }
 
 export interface DashboardMemberItem {
@@ -55,9 +61,12 @@ export interface DashboardResponse {
   summary: {
     pending_approval: number;
     pending_evaluation: number;
+    pending_attestation?: number;
   };
   pending_approval: PendingItem[];
   pending_evaluation: PendingItem[];
+  /** Engagements in EVALUATED: waiting for the attestation. */
+  pending_attestation?: PendingItem[];
   members: DashboardMemberItem[];
 }
 
@@ -178,4 +187,32 @@ export async function listInstitutionStudents(
   institutionId: string
 ): Promise<{ items: InstitutionStudentItem[] } | undefined> {
   return apiFetch<{ items: InstitutionStudentItem[] }>(`/institutions/${institutionId}/students`);
+}
+
+export interface InstitutionPartnerItem {
+  organization_id: string;
+  organization_name: string;
+  verification_level: string;
+  student_count: number;
+  engagement_count: number;
+  verified_count: number;
+}
+
+/**
+ * Organizations the institution's students work with. Any institution member may call;
+ * others get 404.
+ */
+export async function listInstitutionPartners(
+  institutionId: string
+): Promise<{ items: InstitutionPartnerItem[] } | undefined> {
+  return apiFetch<{ items: InstitutionPartnerItem[] }>(`/institutions/${institutionId}/partners`);
+}
+
+/**
+ * Download URL of the CSV report (UTF-8 BOM, ';' delimiter). Plain link: the browser sends
+ * the auth cookie; the server answers 404 for non-members.
+ */
+export function reportCsvUrl(institutionId: string): string {
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+  return `${base}/institutions/${encodeURIComponent(institutionId)}/report.csv`;
 }

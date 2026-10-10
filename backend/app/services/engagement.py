@@ -946,33 +946,40 @@ def get_coordinator_dashboard(
     if institution is None:
         raise ValueError("Institution not found")
 
-    # Query PENDING_APPROVAL engagements for this institution
-    pending_approval = (
-        session.execute(
-            scoped_engagements(session, principal)
-            .where(
-                Engagement.institution_id == inst_uuid,
-                Engagement.status == "PENDING_APPROVAL",
-            )
-            .order_by(Engagement.created_at.desc())
-        )
-        .scalars()
-        .all()
-    )
+    # One scoped query per status; names come from joins on the same rows (no N+1).
+    from app.models import Organization, TalentProfile
 
-    # Query PENDING_EVALUATION engagements for this institution
-    pending_evaluation = (
-        session.execute(
+    def _rows_with_names(status: str) -> Sequence[Any]:
+        return session.execute(
             scoped_engagements(session, principal)
+            .join(TalentProfile, TalentProfile.id == Engagement.talent_id)
+            .join(Organization, Organization.id == Engagement.organization_id)
             .where(
                 Engagement.institution_id == inst_uuid,
-                Engagement.status == "PENDING_EVALUATION",
+                Engagement.status == status,
             )
+            .with_only_columns(Engagement, TalentProfile.full_name, Organization.name)
             .order_by(Engagement.created_at.desc())
-        )
-        .scalars()
-        .all()
-    )
+        ).all()
+
+    pending_approval = _rows_with_names("PENDING_APPROVAL")
+    pending_evaluation = _rows_with_names("PENDING_EVALUATION")
+    pending_attestation = _rows_with_names("EVALUATED")
+
+    def _item(row) -> dict:
+        eng, talent_name, org_name = row
+        return {
+            "id": str(eng.id),
+            "talent_id": str(eng.talent_id),
+            "talent_full_name": talent_name,
+            "organization_id": str(eng.organization_id),
+            "organization_name": org_name,
+            "kind": eng.kind,
+            "version": eng.version,
+            "title": eng.title,
+            "started_on": eng.started_on.isoformat() if eng.started_on else None,
+            "ended_on": eng.ended_on.isoformat() if eng.ended_on else None,
+        }
 
     # Query institution members (PLAN 3.5 — üye listesi)
     # AC-S1: Critical security filter — institution_id must be in WHERE clause
@@ -989,27 +996,11 @@ def get_coordinator_dashboard(
         "summary": {
             "pending_approval": len(pending_approval),
             "pending_evaluation": len(pending_evaluation),
+            "pending_attestation": len(pending_attestation),
         },
-        "pending_approval": [
-            {
-                "id": str(eng.id),
-                "talent_id": str(eng.talent_id),
-                "organization_id": str(eng.organization_id),
-                "title": eng.title,
-                "started_on": eng.started_on.isoformat() if eng.started_on else None,
-            }
-            for eng in pending_approval
-        ],
-        "pending_evaluation": [
-            {
-                "id": str(eng.id),
-                "talent_id": str(eng.talent_id),
-                "organization_id": str(eng.organization_id),
-                "title": eng.title,
-                "ended_on": eng.ended_on.isoformat() if eng.ended_on else None,
-            }
-            for eng in pending_evaluation
-        ],
+        "pending_approval": [_item(row) for row in pending_approval],
+        "pending_evaluation": [_item(row) for row in pending_evaluation],
+        "pending_attestation": [_item(row) for row in pending_attestation],
         "members": [
             {
                 "user_id": str(member.user_id),
