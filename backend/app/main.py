@@ -17,6 +17,7 @@ from app.api.institution_link_requests import router as institution_link_request
 from app.api.institutions import router as institutions_router
 from app.api.me import router as me_router
 from app.api.organizations import router as organizations_router
+from app.api.portfolio_items import router as portfolio_items_router
 from app.api.public import router as public_router
 from app.api.skills import router as skills_router
 from app.api.skill_signals import router as skill_signals_router, signals_alias_router
@@ -75,6 +76,7 @@ def create_app(environment: str) -> FastAPI:
     application.include_router(institutions_router)
     application.include_router(me_router)
     application.include_router(organizations_router)
+    application.include_router(portfolio_items_router)
     application.include_router(public_router)
     application.include_router(skills_router)
     application.include_router(skill_signals_router)

@@ -347,7 +347,8 @@ hangi uca karşılık geldiğini gösterir.
 | `POST /engagements` | `ORG:MEMBER` / `TALENT` | — |
 | `GET /engagements/{id}` | taraflardan biri | A1, B4, E1, E2 |
 | `POST /engagements/{id}/transitions` | duruma göre → [STATE_MACHINE.md](STATE_MACHINE.md) | D1, D2, E4 |
-| `POST /engagements/{id}/tasks` | `ORG:SUPERVISOR` / `TALENT` | A2 |
+| `POST /engagements/{id}/tasks` | Kuruluş üyesi / koordinatör (doğrulanmış görev) · `TALENT` kendi çalışması (doğrulanmamış görev, sinyal yok) | A2, `tests/test_engagement_tasks.py` |
+| `POST /engagements/{id}/tasks/{task_id}/verify` | Kuruluş üyesi / koordinatör; öğrenci (çoklu rolde dahi) `403`, kapsam dışı `404` | `tests/authorization/test_task_verification_authz.py` |
 | `POST /engagements/{id}/deliverables` | `TALENT` (taraf) | A4 |
 | `POST /evidence/upload-url` | `TALENT` | — |
 | `POST /evidence` | `TALENT` | B3 |

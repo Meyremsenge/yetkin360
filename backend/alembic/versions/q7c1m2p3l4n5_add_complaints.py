@@ -11,7 +11,7 @@ Row triggers also fire for ON DELETE CASCADE; TRUNCATE (scripts/reset_demo) does
 not fire them, which is the intended demo-reset escape hatch.
 
 Revision ID: q7c1m2p3l4n5
-Revises: e7b1d9a3c604
+Revises: 53d336a5a854
 Create Date: 2026-10-10
 
 """
@@ -22,7 +22,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "q7c1m2p3l4n5"
-down_revision: Union[str, None] = "e7b1d9a3c604"
+down_revision: Union[str, None] = "53d336a5a854"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

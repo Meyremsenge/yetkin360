@@ -374,6 +374,33 @@ def _resolve_institution_coordinator_emails(institution_id: str) -> list[str]:
         engine.dispose()
 
 
+def _resolve_selected_coordinator_emails(institution_id: str, user_ids: list[str]) -> list[str]:
+    """The chosen COORDINATOR members of the institution. Membership is checked
+    again here: someone removed from the institution after the request no longer
+    receives the mail."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session as _Session
+
+    from app.core.config import settings
+    from app.models import InstitutionMember, User
+
+    engine = create_engine(settings.database_url)
+    try:
+        with _Session(engine) as session:
+            emails = session.execute(
+                select(User.email)
+                .join(InstitutionMember, InstitutionMember.user_id == User.id)
+                .where(
+                    InstitutionMember.institution_id == institution_id,
+                    InstitutionMember.role == "COORDINATOR",
+                    User.id.in_(user_ids),
+                )
+            ).scalars().all()
+            return list(emails)
+    finally:
+        engine.dispose()
+
+
 def attestation_created_handler(payload: dict, outbox_id: int) -> None:
     """
     Handler for attestation.created topic (PLAN 3.51 — was enqueued since
@@ -411,10 +438,14 @@ def engagement_pending_approval_handler(payload: dict, outbox_id: int) -> None:
     """
     Handler for engagement.pending_approval topic (PLAN 3.51 — same
     never-registered gap as attestation_created_handler above). Notifies every
-    COORDINATOR of the engagement's institution that an engagement awaits approval.
+    COORDINATOR of the engagement's institution that an engagement awaits approval,
+    or only the coordinators the sender chose (payload "notify_user_ids"). If none
+    of the chosen ones is a coordinator any more, every coordinator is notified so
+    the request is never lost.
 
     Args:
-      - payload: {"engagement_id", "talent_id", "organization_id", "institution_id"}
+      - payload: {"engagement_id", "talent_id", "organization_id", "institution_id",
+        "notify_user_ids"?}
       - outbox_id: row ID in outbox table
     """
     from app.core.config import settings
@@ -426,7 +457,13 @@ def engagement_pending_approval_handler(payload: dict, outbox_id: int) -> None:
         print(f"[EMAIL] Engagement pending-approval email (outbox_id={outbox_id}): {engagement_url}")
         return
 
-    for to_email in _resolve_institution_coordinator_emails(payload["institution_id"]):
+    recipients: list[str] = []
+    if payload.get("notify_user_ids"):
+        recipients = _resolve_selected_coordinator_emails(payload["institution_id"], payload["notify_user_ids"])
+    if not recipients:
+        recipients = _resolve_institution_coordinator_emails(payload["institution_id"])
+
+    for to_email in recipients:
         _send_smtp_email(
             to_email=to_email,
             subject=ENGAGEMENT_PENDING_APPROVAL_SUBJECT,

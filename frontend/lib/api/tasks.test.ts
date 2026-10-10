@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createTask } from "./tasks";
+import { createTask, verifyTask } from "./tasks";
 import * as client from "./client";
 import { ApiError, NetworkError } from "./errors";
 
@@ -14,7 +14,7 @@ describe("lib/api/tasks", () => {
 
   describe("createTask", () => {
     it("happy path - POST /engagements/{id}/tasks çağırır, 201 döner", async () => {
-      const response = { id: "task-1", title: "API şeması", status: "PLANNED" };
+      const response = { id: "task-1", title: "API şeması", status: "PLANNED", verified: true };
       mockApiFetch.mockResolvedValueOnce(response);
 
       const result = await createTask("eng-1", { title: "API şeması" });
@@ -27,7 +27,7 @@ describe("lib/api/tasks", () => {
     });
 
     it("opsiyonel alanlarla (description, due_at, skill_id) çağrılabilir", async () => {
-      const response = { id: "task-2", title: "Test yazma", status: "PLANNED" };
+      const response = { id: "task-2", title: "Test yazma", status: "PLANNED", verified: true };
       mockApiFetch.mockResolvedValueOnce(response);
 
       await createTask("eng-1", {
@@ -80,6 +80,27 @@ describe("lib/api/tasks", () => {
       mockApiFetch.mockRejectedValueOnce(new NetworkError("network"));
 
       await expect(createTask("eng-1", { title: "x" })).rejects.toBeInstanceOf(NetworkError);
+    });
+  });
+
+  describe("verifyTask", () => {
+    it("POST /engagements/{id}/tasks/{taskId}/verify çağırır", async () => {
+      const response = { id: "task-1", title: "Görev", status: "PLANNED", verified: true };
+      mockApiFetch.mockResolvedValueOnce(response);
+
+      await expect(verifyTask("eng-1", "task-1")).resolves.toEqual(response);
+      expect(mockApiFetch).toHaveBeenCalledWith("/engagements/eng-1/tasks/task-1/verify", { method: "POST" });
+    });
+
+    it("403 FORBIDDEN - öğrenci kendi görevini onaylayamaz", async () => {
+      const error = new ApiError({ status: 403, code: "FORBIDDEN", message: "x", requestId: null });
+      mockApiFetch.mockRejectedValueOnce(error);
+      await expect(verifyTask("eng-1", "task-1")).rejects.toBe(error);
+    });
+
+    it("boş yanıtı hata olarak fırlatır", async () => {
+      mockApiFetch.mockResolvedValueOnce(undefined);
+      await expect(verifyTask("eng-1", "task-1")).rejects.toBeInstanceOf(ApiError);
     });
   });
 });

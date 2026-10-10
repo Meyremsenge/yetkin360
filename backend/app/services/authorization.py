@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import Attestation, Complaint, Deliverable, Engagement, EngagementTask, Evidence, Institution, InstitutionLinkRequest, Organization, SkillClaim, SkillSignal, TalentProfile, User, VerifiedExperience
+from app.models import Attestation, CertificateCheck, Complaint, Deliverable, Engagement, EngagementTask, Evidence, Institution, InstitutionLinkRequest, Organization, PortfolioItem, SkillClaim, SkillSignal, TalentProfile, User, VerifiedExperience
 
 
 @dataclass
@@ -386,6 +386,52 @@ def scoped_own_institution_link_requests(session: Session, principal: Principal)
         return select(InstitutionLinkRequest).where(InstitutionLinkRequest.talent_profile_id == principal.talent_id)
     # All other kinds: no link requests in scope
     return select(InstitutionLinkRequest).where(InstitutionLinkRequest.id.in_([]))
+
+
+def scoped_own_portfolio_items(session: Session, principal: Principal) -> Select:
+    """
+    The principal's own, not soft-deleted portfolio items (docs/arastirma-ogrenci-profili.md §4.3).
+
+    Ownership comes from principal.talent_id (the session), never from the URL or body.
+    Another talent's item, an unknown id and a talent-less principal are all out of
+    scope, so callers answer an identical 404.
+    """
+    if principal.talent_id is not None:
+        return select(PortfolioItem).where(
+            PortfolioItem.talent_id == principal.talent_id,
+            PortfolioItem.deleted_at.is_(None),
+        )
+    return select(PortfolioItem).where(PortfolioItem.id.in_([]))
+
+
+def scoped_public_portfolio_items(session: Session, talent_id: uuid.UUID) -> Select:
+    """
+    (PortfolioItem, CertificateCheck | None) rows the owner consented to show publicly.
+
+    Used only by the public profile, after the talent was resolved via
+    scoped_public_talent_profile() — talent visibility is not re-checked here.
+    Kept: show_on_profile AND not deleted. The certificate check is joined only
+    through evidence that is the same talent's and not deleted, so a badge can
+    never be borrowed from someone else's file. Callers must not expose the
+    check's extracted_name/qr_raw_data/page_name or the evidence file.
+    """
+    return (
+        select(PortfolioItem, CertificateCheck)
+        .outerjoin(
+            Evidence,
+            and_(
+                Evidence.id == PortfolioItem.evidence_id,
+                Evidence.owner_talent_id == PortfolioItem.talent_id,
+                Evidence.deleted_at.is_(None),
+            ),
+        )
+        .outerjoin(CertificateCheck, CertificateCheck.evidence_id == Evidence.id)
+        .where(
+            PortfolioItem.talent_id == talent_id,
+            PortfolioItem.show_on_profile.is_(True),
+            PortfolioItem.deleted_at.is_(None),
+        )
+    )
 
 
 def get_scoped_or_404(scoped_select: Select, session: Session):

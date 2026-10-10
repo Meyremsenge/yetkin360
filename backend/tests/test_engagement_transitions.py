@@ -421,6 +421,7 @@ class TestTransitionHappyPathT1:
         """
         payload = {
             "to_status": "PENDING_APPROVAL",
+            "notify_emails": ["approver@example.com"],
             "version": 1,
         }
 
@@ -524,6 +525,7 @@ class TestTransitionPreconditionFailed:
         """
         payload = {
             "to_status": "PENDING_APPROVAL",
+            "notify_emails": ["approver@example.com"],
             "version": 1,
         }
 
@@ -687,6 +689,7 @@ class TestTransitionVersionConflict:
         """
         payload = {
             "to_status": "PENDING_APPROVAL",
+            "notify_emails": ["approver@example.com"],
             "version": 0,  # Old version
         }
 
@@ -724,6 +727,7 @@ class TestTransitionVersionConflict:
         """
         payload_first = {
             "to_status": "PENDING_APPROVAL",
+            "notify_emails": ["approver@example.com"],
             "version": 1,
         }
 
@@ -741,6 +745,7 @@ class TestTransitionVersionConflict:
         # Second request with old version=1 (while DB now has version=2)
         payload_second = {
             "to_status": "PENDING_APPROVAL",  # Already PENDING_APPROVAL now, but client tries again
+            "notify_emails": ["approver@example.com"],
             "version": 1,
         }
 
@@ -815,6 +820,7 @@ class TestTransitionNotFound:
 
         payload = {
             "to_status": "PENDING_APPROVAL",
+            "notify_emails": ["approver@example.com"],
             "version": 1,
         }
 
@@ -860,6 +866,7 @@ class TestTransitionNoAccess:
         """
         payload = {
             "to_status": "PENDING_APPROVAL",
+            "notify_emails": ["approver@example.com"],
             "version": 1,
         }
 
@@ -889,6 +896,7 @@ class TestTransitionNoAccess:
         """
         payload = {
             "to_status": "PENDING_APPROVAL",
+            "notify_emails": ["approver@example.com"],
             "version": 1,
         }
 
@@ -1100,6 +1108,7 @@ class TestTransitionResponseSchema:
         """200 response must have engagement object with required fields."""
         payload = {
             "to_status": "PENDING_APPROVAL",
+            "notify_emails": ["approver@example.com"],
             "version": 1,
         }
 
@@ -1437,6 +1446,7 @@ class TestExtraFieldsIgnored:
         """
         payload = {
             "to_status": "PENDING_APPROVAL",
+            "notify_emails": ["approver@example.com"],
             "version": 1,
             "organization_id": "550e8400-e29b-41d4-a716-446655440999",  # Extra field
         }
@@ -1489,3 +1499,139 @@ class TestExtraFieldsIgnored:
 
         data = response.json()
         assert data.get("status") == "ACTIVE"
+
+
+# ============================================================================
+# Approval request recipients (notify_emails on DRAFT → PENDING_APPROVAL)
+# ============================================================================
+
+
+class TestApprovalRequestRecipients:
+    """
+    The sender must address the approval request to someone at the engagement's
+    institution. Addresses of its coordinators receive it alone; anything else is
+    ignored without an error (every coordinator is notified then), so the
+    response never tells who is (or is not) a member.
+    """
+
+    def _send(self, client, user, engagement, notify_emails):
+        return client.post(
+            f"/engagements/{engagement.id}/transitions",
+            json={"to_status": "PENDING_APPROVAL", "version": 1, "notify_emails": notify_emails},
+            headers={"X-Debug-User-Id": str(user.id)},
+        )
+
+    def _payload(self, session):
+        from app.models import Outbox
+
+        return session.query(Outbox).filter_by(topic="engagement.pending_approval").one().payload
+
+    def test_coordinator_email_narrows_the_notification_to_that_member(
+        self, client, session, user_talent_alice, engagement_draft_alice, institution_a,
+        user_inst_coord_diana, inst_coord_diana,
+    ):
+        other = User(email="omer.coord@example.com", password_hash="hash_omer")
+        session.add(other)
+        session.flush()
+        session.add(InstitutionMember(institution_id=institution_a.id, user_id=other.id, role="COORDINATOR"))
+        session.flush()
+
+        response = self._send(client, user_talent_alice, engagement_draft_alice, ["Diana.Coord@Example.com"])
+
+        assert response.status_code == 200, response.text
+        payload = self._payload(session)
+        assert payload["notify_user_ids"] == [str(user_inst_coord_diana.id)]
+        # PII guard: the address itself never reaches the outbox.
+        assert "diana" not in str(payload).lower()
+
+    @pytest.mark.parametrize("body", [{}, {"notify_emails": []}, {"notify_emails": None}], ids=["missing", "empty", "null"])
+    def test_recipient_is_required_and_nothing_changes_without_it(
+        self, body, client, session, user_talent_alice, engagement_draft_alice, inst_coord_diana
+    ):
+        from app.models import Outbox
+
+        response = client.post(
+            f"/engagements/{engagement_draft_alice.id}/transitions",
+            json={"to_status": "PENDING_APPROVAL", "version": 1, **body},
+            headers={"X-Debug-User-Id": str(user_talent_alice.id)},
+        )
+
+        assert response.status_code == 422, response.text
+        assert response.json()["code"] == "PRECONDITION_FAILED"
+        session.refresh(engagement_draft_alice)
+        assert engagement_draft_alice.status == "DRAFT"
+        assert engagement_draft_alice.version == 1
+        assert session.query(Outbox).filter_by(topic="engagement.pending_approval").count() == 0
+
+    @pytest.mark.parametrize(
+        "case",
+        ["other_institution_coordinator", "institution_admin", "organization_member", "unknown_address"],
+    )
+    def test_address_outside_the_institutions_coordinators_is_ignored_silently(
+        self, case, client, session, user_talent_alice, engagement_draft_alice, institution_a,
+        inst_coord_diana, user_inst_coord_fiona, inst_coord_fiona, user_org_member_charlie, org_member_charlie,
+    ):
+        if case == "institution_admin":
+            admin = User(email="inst.admin@example.com", password_hash="hash_admin")
+            session.add(admin)
+            session.flush()
+            session.add(InstitutionMember(institution_id=institution_a.id, user_id=admin.id, role="ADMIN"))
+            session.flush()
+        email = {
+            "other_institution_coordinator": user_inst_coord_fiona.email,
+            "institution_admin": "inst.admin@example.com",
+            "organization_member": user_org_member_charlie.email,
+            "unknown_address": "nobody@example.com",
+        }[case]
+
+        response = self._send(client, user_talent_alice, engagement_draft_alice, [email])
+
+        # Same answer as a matching address: no membership oracle.
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] == "PENDING_APPROVAL"
+        assert "notify_user_ids" not in self._payload(session)
+
+    def test_mixed_list_keeps_only_the_institutions_coordinators(
+        self, client, session, user_talent_alice, engagement_draft_alice,
+        user_inst_coord_diana, inst_coord_diana, user_inst_coord_fiona, inst_coord_fiona,
+    ):
+        response = self._send(
+            client,
+            user_talent_alice,
+            engagement_draft_alice,
+            [user_inst_coord_fiona.email, user_inst_coord_diana.email, "nobody@example.com"],
+        )
+
+        assert response.status_code == 200, response.text
+        assert self._payload(session)["notify_user_ids"] == [str(user_inst_coord_diana.id)]
+
+    @pytest.mark.parametrize(
+        "notify_emails",
+        [["not-an-email"], [f"c{n}@example.com" for n in range(6)]],
+        ids=["malformed", "too_many"],
+    )
+    def test_invalid_recipient_list_is_rejected_and_nothing_changes(
+        self, notify_emails, client, session, user_talent_alice, engagement_draft_alice
+    ):
+        from app.models import Outbox
+
+        response = self._send(client, user_talent_alice, engagement_draft_alice, notify_emails)
+
+        assert response.status_code in (400, 422), response.text
+        session.refresh(engagement_draft_alice)
+        assert engagement_draft_alice.status == "DRAFT"
+        assert session.query(Outbox).filter_by(topic="engagement.pending_approval").count() == 0
+
+    def test_recipients_are_ignored_on_other_transitions(
+        self, client, session, user_inst_coord_diana, inst_coord_diana, engagement_pending_approval_alice
+    ):
+        from app.models import Outbox
+
+        response = client.post(
+            f"/engagements/{engagement_pending_approval_alice.id}/transitions",
+            json={"to_status": "ACTIVE", "version": 2, "notify_emails": [user_inst_coord_diana.email]},
+            headers={"X-Debug-User-Id": str(user_inst_coord_diana.id)},
+        )
+
+        assert response.status_code == 200, response.text
+        assert session.query(Outbox).filter_by(topic="engagement.pending_approval").count() == 0

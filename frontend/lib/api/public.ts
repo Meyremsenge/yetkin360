@@ -104,6 +104,22 @@ export interface PublicSkill {
   experience_count: number;
 }
 
+/** A consented showcase item. Confirmed and self-declared are never rendered alike. */
+export interface PublicCertificate {
+  kind: "CERTIFICATE" | "WORK";
+  title: string;
+  issuer: string | null;
+  issued_on: string | null;
+  credential_id: string | null;
+  badge: "COORDINATOR_CONFIRMED" | "SELF_DECLARED";
+  provider: string | null;
+  /** Confirmed only; https on the provider's own domain (checked server-side). */
+  verify_url: string | null;
+  /** Self-declared only; rendered with its host visible. */
+  link_url: string | null;
+  link_host: string | null;
+}
+
 export interface PublicProfile {
   display_name: string;
   headline?: string | null;
@@ -115,6 +131,9 @@ export interface PublicProfile {
   verified_experiences: PublicVerifiedExperience[];
   skills?: PublicSkill[];
   attesting_organization_count?: number;
+  /** Self-declared "about me"; labelled as such on the page. */
+  about?: string | null;
+  certificates?: PublicCertificate[];
 }
 
 /**

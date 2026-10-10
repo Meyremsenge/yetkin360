@@ -6,7 +6,15 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { register as registerUser } from "@/lib/api/client";
-import { accountKinds, registerSchema, requireEntityNameForNonTalent, type AccountKind } from "@/lib/auth/schemas";
+import {
+  accountKinds,
+  registerSchema,
+  requireCorporateEmailForOrganization,
+  requireEntityNameForNonTalent,
+  requireValidMersisWhenGiven,
+  type AccountKind,
+} from "@/lib/auth/schemas";
+import { OrganizationDocumentCheck } from "./organization-document-check";
 import { cn } from "@/lib/utils";
 import messages from "@/messages/tr.json";
 import { Input } from "@/components/ui/input";
@@ -40,6 +48,14 @@ const registerFormSchema = registerSchema
   .refine(requireEntityNameForNonTalent, {
     message: "Kuruluş/kurum adı gereklidir",
     path: ["entity_name"],
+  })
+  .refine(requireCorporateEmailForOrganization, {
+    message: messages.kayit.corporateEmailRequired,
+    path: ["email"],
+  })
+  .refine(requireValidMersisWhenGiven, {
+    message: messages.kayit.mersisInvalid,
+    path: ["legal_id"],
   });
 
 type RegisterFormData = z.infer<typeof registerFormSchema>;
@@ -59,19 +75,25 @@ export default function RegisterForm() {
   });
 
   const accountKind = watch("account_kind");
+  const entityName = watch("entity_name") ?? "";
+  const legalId = watch("legal_id") ?? "";
 
   const onSubmit = async (data: RegisterFormData) => {
     try {
+      const mersis = data.account_kind === "ORGANIZATION" ? data.legal_id?.trim() : undefined;
       await registerUser(
         data.email,
         data.password,
         data.full_name,
         data.account_kind,
-        data.account_kind === "TALENT" ? undefined : data.entity_name
+        data.account_kind === "TALENT" ? undefined : data.entity_name,
+        ...(mersis ? [mersis] : [])
       );
 
       // Success: show message and redirect
-      setSuccessMessage(messages.kayit.success);
+      setSuccessMessage(
+        data.account_kind === "ORGANIZATION" ? messages.kayit.successOrganization : messages.kayit.success
+      );
       setTimeout(() => router.push("/giris"), 800);
     } catch (error) {
       // Duck-typing: check for error object with status property
@@ -86,6 +108,8 @@ export default function RegisterForm() {
               message,
             });
           });
+        } else if (errObj.status === 409 && errObj.code === "LEGAL_ID_TAKEN") {
+          setError("legal_id", { message: messages.kayit.mersisTaken });
         } else if (errObj.status === 429) {
           setError("root", {
             message: messages.errors.rateLimited,
@@ -161,6 +185,33 @@ export default function RegisterForm() {
         </div>
       )}
 
+      {accountKind === "ORGANIZATION" && (
+        <>
+          <div>
+            <Label htmlFor="legal_id">{messages.kayit.mersisLabel}</Label>
+            <Input
+              {...register("legal_id")}
+              id="legal_id"
+              type="text"
+              inputMode="numeric"
+              maxLength={16}
+              autoComplete="off"
+              aria-describedby="legal_id_hint"
+            />
+            <p id="legal_id_hint" className="text-xs text-muted-foreground mt-1">
+              {messages.kayit.mersisHint}
+            </p>
+            {errors.legal_id && (
+              <div aria-live="polite" className="text-xs text-red-600 mt-1">
+                {errors.legal_id.message}
+              </div>
+            )}
+          </div>
+
+          <OrganizationDocumentCheck entityName={entityName} legalId={legalId} />
+        </>
+      )}
+
       <div>
         <Label htmlFor="email">{messages.kayit.emailLabel}</Label>
         <Input
@@ -170,6 +221,9 @@ export default function RegisterForm() {
           placeholder={messages.giris.placeholder}
           autoComplete="email"
         />
+        {accountKind === "ORGANIZATION" && (
+          <p className="text-xs text-muted-foreground mt-1">{messages.kayit.corporateEmailHint}</p>
+        )}
         {errors.email && (
           <div className="text-xs text-red-600 mt-1">{errors.email.message}</div>
         )}

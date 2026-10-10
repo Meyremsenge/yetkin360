@@ -33,15 +33,22 @@ export interface EngagementSummary {
   title: string;
   kind: EngagementKind;
   status: EngagementStatus;
+  organization_id: string;
+  institution_id: string | null;
   organization_name: string;
   version: number;
   updated_at: string;
+  /** Çalışmanın sahibi öğrenci; kuruluş/kurum listesi öğrenciye göre gösterilir. */
+  talent_id: string;
+  talent_name: string;
 }
 
 export interface EngagementTask {
   id: string;
   title: string;
   status: string;
+  /** false: öğrencinin eklediği, kuruluş/kurum henüz onaylamadığı görev. */
+  verified: boolean;
 }
 
 export interface EngagementDeliverable {
@@ -60,7 +67,8 @@ export interface EngagementAttestation {
   revoke_reason: string | null;
 }
 
-export interface EngagementDetail extends EngagementSummary {
+// The detail response identifies the student by id only.
+export interface EngagementDetail extends Omit<EngagementSummary, "talent_name"> {
   talent_id: string;
   organization_id: string;
   institution_id: string | null;
@@ -75,6 +83,8 @@ export interface TransitionPayload {
   to_status: EngagementStatus;
   version: number;
   reason?: string;
+  /** DRAFT → PENDING_APPROVAL için zorunlu: onay isteğinin iletileceği kurum koordinatörleri. */
+  notify_emails?: string[];
 }
 
 // ============================================================================

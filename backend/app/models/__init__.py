@@ -20,6 +20,7 @@ from app.models.identity import (
 )
 from app.models.institution_link_request import InstitutionLinkRequest
 from app.models.outbox import Outbox
+from app.models.portfolio_item import PortfolioItem
 from app.models.skill import Skill
 from app.models.skill_claim import SkillClaim
 from app.models.skill_signal import SkillSignal
@@ -57,4 +58,5 @@ __all__ = [
     "Complaint",
     "ComplaintEvent",
     "ComplaintAttachment",
+    "PortfolioItem",
 ]

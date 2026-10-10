@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { AppShell } from "@/components/app-shell";
 import { useSession, useLogout } from "@/lib/session/use-session";
 import {
@@ -760,6 +760,135 @@ describe("AppShell", () => {
       const html = container.innerHTML;
       expect(html).toContain(messages.shell.engagementsLink);
       expect(html).toContain(messages.shell.profileLink);
+    });
+  });
+
+  describe("Üst gezinme çubuğu", () => {
+    function renderAt(path: string, data: Record<string, unknown>) {
+      window.history.pushState({}, "", path);
+      vi.mocked(useSession).mockReturnValue({
+        data: { organizations: [], institutions: [], ...data },
+        error: null,
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useSession>);
+      vi.mocked(useLogout).mockReturnValue({ logout: vi.fn(), isPending: false, isError: false });
+      return render(<AppShell><p>İçerik</p></AppShell>);
+    }
+
+    afterEach(() => {
+      window.history.pushState({}, "", "/");
+    });
+
+    it("bulunulan sayfanın menü öğesi aria-current=page alır (alt sayfalar dahil)", () => {
+      renderAt("/calismalar/abc/degerlendirme", { user: { id: "u1" }, talent_profile: { public_slug: null } });
+      const nav = screen.getByRole("navigation", { name: messages.shell.mainNav });
+      const active = within(nav).getByRole("link", { name: messages.shell.engagementsLink });
+      expect(active.getAttribute("aria-current")).toBe("page");
+      const profile = within(nav).getByRole("link", { name: messages.shell.profileLink });
+      expect(profile.getAttribute("aria-current")).toBeNull();
+    });
+
+    it("öğrenci profili olmayan kuruluş üyesinde çalışma bağlantısı 'Öğrenci çalışmaları' olur", () => {
+      renderAt("/calismalar", {
+        user: { id: "u1" },
+        talent_profile: null,
+        organizations: [{ id: "org-1", name: "Acme A.Ş." }],
+      });
+      const nav = screen.getByRole("navigation", { name: messages.shell.mainNav });
+      const link = within(nav).getByRole("link", { name: messages.shell.studentEngagementsLink });
+      expect(link.getAttribute("href")).toBe("/calismalar");
+      expect(within(nav).queryByRole("link", { name: messages.shell.engagementsLink })).toBeNull();
+    });
+
+    it("hem öğrenci hem kuruluş üyesi olan kullanıcıda bağlantı 'Çalışmalarım' kalır", () => {
+      renderAt("/calismalar", {
+        user: { id: "u1" },
+        talent_profile: { public_slug: null },
+        organizations: [{ id: "org-1", name: "Acme A.Ş." }],
+      });
+      const nav = screen.getByRole("navigation", { name: messages.shell.mainNav });
+      expect(within(nav).getByRole("link", { name: messages.shell.engagementsLink })).toBeTruthy();
+    });
+
+    it("öğrencide bağlam seçici görünmez", () => {
+      renderAt("/calismalar", { user: { id: "u1" }, talent_profile: { public_slug: null } });
+      expect(screen.queryByRole("button", { name: new RegExp(messages.shell.contextSwitcher) })).toBeNull();
+    });
+
+    it("bağlam seçici kuruluş ve kurumları listeler; bulunulan varlığın adını gösterir", () => {
+      renderAt("/kurum/inst-1/panel", {
+        user: { id: "u1" },
+        organizations: [{ id: "org-1", name: "Lale Yazılım A.Ş." }],
+        institutions: [{ id: "inst-1", name: "Bilgi Üniversitesi" }],
+      });
+      const trigger = screen.getByRole("button", { name: new RegExp(messages.shell.contextSwitcher) });
+      expect(trigger.textContent).toContain("Bilgi Üniversitesi");
+      expect(trigger.getAttribute("aria-expanded")).toBe("false");
+
+      fireEvent.click(trigger);
+      expect(trigger.getAttribute("aria-expanded")).toBe("true");
+      const list = document.getElementById(trigger.getAttribute("aria-controls") ?? "");
+      expect(list).toBeTruthy();
+      const org = within(list as HTMLElement).getByRole("link", { name: "Lale Yazılım A.Ş." });
+      expect(org.getAttribute("href")).toBe("/kurulus/org-1/panel");
+      const inst = within(list as HTMLElement).getByRole("link", { name: "Bilgi Üniversitesi" });
+      expect(inst.getAttribute("aria-current")).toBe("page");
+    });
+
+    it("bağlam seçici Esc ile kapanır ve odak düğmeye döner", () => {
+      renderAt("/calismalar", {
+        user: { id: "u1" },
+        organizations: [{ id: "org-1", name: "Lale Yazılım A.Ş." }],
+      });
+      const trigger = screen.getByRole("button", { name: new RegExp(messages.shell.contextSwitcher) });
+      fireEvent.click(trigger);
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(trigger.getAttribute("aria-expanded")).toBe("false");
+      expect(document.activeElement).toBe(trigger);
+    });
+
+    it("'Profilimi gör' yalnız public slug varsa ve yeni sekmede açılır", () => {
+      const { unmount } = renderAt("/profil", { user: { id: "u1" }, talent_profile: { public_slug: "ayse-yilmaz" } });
+      const link = screen.getByRole("link", { name: new RegExp(messages.shell.viewPublicProfile) });
+      expect(link.getAttribute("href")).toBe("/p/ayse-yilmaz");
+      expect(link.getAttribute("target")).toBe("_blank");
+      expect(link.getAttribute("rel")).toContain("noopener");
+      unmount();
+
+      renderAt("/profil", { user: { id: "u1" }, talent_profile: { public_slug: null } });
+      expect(screen.queryByRole("link", { name: new RegExp(messages.shell.viewPublicProfile) })).toBeNull();
+    });
+
+    it("Keşfet ana menüde görünür ve /kesfet'te aktif olur", () => {
+      renderAt("/kesfet", { user: { id: "u1" }, talent_profile: { public_slug: null } });
+      const nav = screen.getByRole("navigation", { name: messages.shell.mainNav });
+      const link = within(nav).getByRole("link", { name: messages.shell.discoverLink });
+      expect(link.getAttribute("href")).toBe("/kesfet");
+      expect(link.getAttribute("aria-current")).toBe("page");
+    });
+
+    it("kullanıcı menüsü ad, rol başlığı ve maskeli e-postayı gösterir; tam e-posta yok", () => {
+      const { container } = renderAt("/calismalar", {
+        user: { id: "u1", email: "ayse.yilmaz@ornek.edu.tr", full_name: "Ayşe Yılmaz" },
+        talent_profile: { public_slug: null },
+      });
+      fireEvent.click(screen.getByRole("button", { name: messages.shell.userMenu }));
+      expect(screen.getByText("Ayşe Yılmaz")).toBeTruthy();
+      expect(screen.getByText(messages.shell.roleStudent)).toBeTruthy();
+      expect(container.innerHTML).not.toContain("ayse.yilmaz@ornek.edu.tr");
+    });
+
+    it("mobil çekmece açılınca odak kapat düğmesine gider, Esc ile kapanır", () => {
+      renderAt("/calismalar", { user: { id: "u1" }, talent_profile: { public_slug: null } });
+      const open = screen.getByRole("button", { name: messages.shell.openMenu });
+      fireEvent.click(open);
+      const dialog = screen.getByRole("dialog", { name: messages.shell.mainNav });
+      expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: messages.shell.closeMenu }));
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(document.activeElement).toBe(open);
     });
   });
 });

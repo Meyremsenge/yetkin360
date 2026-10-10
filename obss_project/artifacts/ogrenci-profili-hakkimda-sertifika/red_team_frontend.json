@@ -1,0 +1,55 @@
+{
+  "task": "ogrenci-profili-hakkimda-sertifika",
+  "reviewed_at": "2026-10-10T19:10:00+03:00",
+  "summary": "Frontend, onaylı ile kendi beyanını görsel olarak ayırıyor (çerçeve, zemin, etiket, ayrı liste); linkler yalnız sunucunun onayladığı alanlardan üretiliyor; metinler düz metin. Engelleyici bulgu yok; iki düşük önemli eksik var.",
+  "findings": [
+    {
+      "severity": "low",
+      "category": "scope",
+      "file": "frontend/app/profil/portfolio-section.tsx",
+      "issue": "Mevcut bir kaydın başlık/kuruluş/tarih alanlarını düzenleme arayüzü yok; yalnız rıza anahtarı ve kaldırma var. Backend PATCH bu alanları destekliyor.",
+      "better_approach": "MVP'de kaldır + yeniden ekle yeterli; düzenleme gerekirse satır içi form ayrı bir iş olarak eklenir.",
+      "reason": "atdd AC-3 yönetimi uç düzeyinde tanımlıyor; arayüzde düzenleme zorunlu değil. Kapsamı büyütmemek için bırakıldı."
+    },
+    {
+      "severity": "low",
+      "category": "readability",
+      "file": "frontend/app/profil/portfolio-section.tsx",
+      "issue": "(Düzeltildi — portfolioDateFormat mesajı eklendi.) issued_month biçim doğrulaması hata durumunda 'Tarih gelecekte olamaz' mesajını gösteriyor; biçim hatası yalnız type=month desteklemeyen tarayıcıda (eski Safari) oluşur.",
+      "better_approach": "Ayrı bir 'Tarih YYYY-AA biçiminde olmalı' mesajı eklemek.",
+      "reason": "Nadir yol; yanlış mesaj kullanıcıyı yanıltabilir ama veri bozulmaz (sunucu da doğrular)."
+    }
+  ],
+  "strengths": [
+    "Rozet hiçbir yerde istemcide hesaplanmıyor; sunucudan gelen badge'e göre stil seçiliyor.",
+    "Public dış link: alan adı görünür, rel=nofollow ugc noopener noreferrer, 'Doğrulanmamış bağlantı' notu; onaylı kartta yalnız sunucu allowlist'inden gelen verify_url.",
+    "about/title düz metin (dangerouslySetInnerHTML yok) — testle sabitlendi.",
+    "Dosya yükleme mevcut güvenli akışı (validateFile → presigned POST → record) yeniden kullanıyor; dosya profilde yayınlanmaz.",
+    "Sicil kartı yalnız koordinatör onaylı sertifikaları sayıyor.",
+    "Şerit klavyeyle (odak + ok tuşları), dokunmayla ve masaüstü ok düğmeleriyle geziliyor; reduced-motion'da yumuşak kaydırma kapalı; yazdırmada ızgara."
+  ],
+  "risks": [
+    "Görsel kontrol onaylı kart için tarayıcıda enjekte edilmiş 'ÖRNEK' veriyle yapıldı; dev DB'de gerçek CONFIRMED kontrol yok."
+  ],
+  "caveman_review": {
+    "complexity": "low",
+    "unnecessary_files": 0,
+    "unnecessary_helpers": 0,
+    "unnecessary_abstractions": 0
+  },
+  "scope_review": {
+    "matches_atdd": true,
+    "scope_expansion": false
+  },
+  "ready_to_commit": {
+    "atdd_satisfied": true,
+    "tests_passed": true,
+    "no_critical_findings": true,
+    "scope_respected": true,
+    "caveman_satisfied": true,
+    "security_acceptable": true,
+    "maintainability_acceptable": true,
+    "no_blocking_risks": true
+  },
+  "verdict": "approve"
+}

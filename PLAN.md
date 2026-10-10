@@ -391,6 +391,14 @@ PLAN maddesi olarak açılmamıştı. Detay: `HATA.md`.**
       (ad/alan adı tutarlılığı) kontrolüdür ve yalnız kuruluş düzeyinde veri
       gönderir (kişi adı/e-posta yok). Hiçbir işaret karar değildir — nihai
       `CONFIRMED`/`DISMISSED` kararı admin'e aittir (final-analiz §11.4.6). @be2 @fe
+- [x] 3.57 Kuruluş kaydında kurumsal kimlik: `POST /auth/register`,
+      `account_kind=ORGANIZATION` iken ücretsiz e-posta adreslerini sunucuda
+      reddeder (doğrulama e-postası her zaman kurumsal adrese gider) ve 16 haneli
+      MERSİS numarasını (`legal_id`) kuruluşa yazar. Kayıt formuna MERSİS alanı ve
+      sicil/faaliyet belgesi adımı eklendi. **Belge adımı MOCK'tur** (backend ucu
+      yok): belge sunucuya gitmez, karekod okunmaz, sonuç yalnız formdaki beyana
+      bağlıdır ve hiçbir doğrulama seviyesini etkilemez — bkz.
+      `obss_project/artifacts/kurulus-kayit-dogrulama/ENTEGRASYON_NOTU.md`. @fe @be2
 - [ ] 3.16 Kod dondurma — Faz 4'e yeni özellik girmez @all
 
 ---

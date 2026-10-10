@@ -17,6 +17,8 @@ export function ProfileCard({ profile, url }: { profile: PublicProfile; url: str
     { value: profile.skills?.length ?? 0, label: t.statSkills },
     { value: profile.attesting_organization_count ?? 0, label: t.statOrganizations },
   ];
+  // Only coordinator-confirmed certificates are counted; self-declared ones never inflate the card.
+  const confirmedCertificates = (profile.certificates ?? []).filter((c) => c.badge === "COORDINATOR_CONFIRMED").length;
 
   return (
     <div className="y360-rise rounded-xl border border-border bg-card print:hidden">
@@ -36,6 +38,15 @@ export function ProfileCard({ profile, url }: { profile: PublicProfile; url: str
             </div>
           ))}
         </dl>
+      ) : null}
+
+      {confirmedCertificates > 0 ? (
+        <p className="flex items-baseline gap-3 border-b border-border px-5 py-3">
+          <span className="font-serif text-[22px] font-semibold leading-none tabular-nums text-foreground lg:w-10">
+            {confirmedCertificates}
+          </span>
+          <span className="text-[13px] text-muted-foreground">{t.statCertificates}</span>
+        </p>
       ) : null}
 
       <div className="flex items-center gap-4 px-5 py-4 lg:flex-col lg:items-stretch">

@@ -33,6 +33,7 @@ from app.models import (
     EngagementTask,
     Evaluation,
     Attestation,
+    SkillSignal,
 )
 
 
@@ -672,37 +673,35 @@ class TestMultiRoleSelfDealingScenario19:
         assert engagement_after.status == "ACTIVE", "Status should not change"
         assert engagement_after.version == version_before, "Version should not change"
 
-    def test_s_create_task_on_own_e2_active_403(
+    def test_s_task_on_own_e2_is_unverified_and_s_cannot_verify_it(
         self, client, session, sd_user_s, sd_engagement_e2_active,
         sd_s_membership_org_admin, sd_s_membership_coordinator
     ):
         """
-        Scenario 19c: S tries to create a task on own E2 as ORG_ADMIN → 403.
+        Scenario 19c: S is the talent of E2 and also ORG_ADMIN + COORDINATOR.
+
+        A talent may add tasks to their own engagement, so the task is created —
+        but as the talent's: unverified, no SkillSignal. S's organization and
+        coordinator roles must not let S verify it (self-dealing, AC-S1).
         """
-        payload = {
-            "title": "Self-dealing task",
-            "description": "Test task creation",
-        }
-
-        # Before request
-        task_count_before = session.query(EngagementTask).filter_by(
-            engagement_id=sd_engagement_e2_active.id
-        ).count()
-
         response = client.post(
             f"/engagements/{sd_engagement_e2_active.id}/tasks",
-            json=payload,
+            json={"title": "Self-dealing task", "description": "Test task creation"},
             headers={"X-Debug-User-Id": str(sd_user_s.id)},
         )
+        assert response.status_code == 201, f"Expected 201, got {response.status_code}: {response.text}"
+        assert response.json()["verified"] is False
 
-        assert response.status_code == 403, f"Expected 403, got {response.status_code}: {response.text}"
+        verify = client.post(
+            f"/engagements/{sd_engagement_e2_active.id}/tasks/{response.json()['id']}/verify",
+            headers={"X-Debug-User-Id": str(sd_user_s.id)},
+        )
+        assert verify.status_code == 403, f"Expected 403, got {verify.status_code}: {verify.text}"
 
-        # Verify no task created
         session.expire_all()
-        task_count_after = session.query(EngagementTask).filter_by(
-            engagement_id=sd_engagement_e2_active.id
-        ).count()
-        assert task_count_after == task_count_before, "Task should not be created"
+        task = session.query(EngagementTask).filter_by(engagement_id=sd_engagement_e2_active.id).one()
+        assert task.verified_at is None and task.verified_by_user_id is None
+        assert session.query(SkillSignal).filter_by(source_id=task.id).count() == 0
 
 
 # ============================================================================
@@ -730,6 +729,7 @@ class TestMultiRoleSelfDealingScenario20:
         """
         payload = {
             "to_status": "PENDING_APPROVAL",
+            "notify_emails": ["approver@example.com"],
             "version": 1,
         }
 
@@ -930,36 +930,32 @@ class TestMultiRoleSelfDealingScenario22:
     Expected: 403 TransitionForbidden for both task creation and PENDING_EVALUATION transition.
     """
 
-    def test_m_create_task_member_not_admin_403(
+    def test_m_task_on_own_e2_is_unverified_and_m_cannot_verify_it(
         self, client, session, sd_user_org_member_only, sd_engagement_e2_member_active
     ):
         """
-        Scenario 22a: M (ORG_MEMBER, not ADMIN) tries to create task on own E2 → 403.
+        Scenario 22a: M is the talent of E2 and also ORG_MEMBER of its organization.
+
+        The task is created as the talent's (unverified); M's organization
+        membership must not let M verify it (self-dealing, AC-S1).
         """
-        payload = {
-            "title": "Member task (should fail)",
-            "description": "ORG_MEMBER attempting task creation",
-        }
-
-        # Before request
-        task_count_before = session.query(EngagementTask).filter_by(
-            engagement_id=sd_engagement_e2_member_active.id
-        ).count()
-
         response = client.post(
             f"/engagements/{sd_engagement_e2_member_active.id}/tasks",
-            json=payload,
+            json={"title": "Member task", "description": "ORG_MEMBER who is also the talent"},
             headers={"X-Debug-User-Id": str(sd_user_org_member_only.id)},
         )
+        assert response.status_code == 201, f"Expected 201, got {response.status_code}: {response.text}"
+        assert response.json()["verified"] is False
 
-        assert response.status_code == 403, f"Expected 403, got {response.status_code}: {response.text}"
+        verify = client.post(
+            f"/engagements/{sd_engagement_e2_member_active.id}/tasks/{response.json()['id']}/verify",
+            headers={"X-Debug-User-Id": str(sd_user_org_member_only.id)},
+        )
+        assert verify.status_code == 403, f"Expected 403, got {verify.status_code}: {verify.text}"
 
-        # Verify no task created
         session.expire_all()
-        task_count_after = session.query(EngagementTask).filter_by(
-            engagement_id=sd_engagement_e2_member_active.id
-        ).count()
-        assert task_count_after == task_count_before, "Task should not be created"
+        task = session.query(EngagementTask).filter_by(engagement_id=sd_engagement_e2_member_active.id).one()
+        assert task.verified_at is None and task.verified_by_user_id is None
 
     def test_m_transition_active_to_pending_evaluation_member_not_admin_403(
         self, client, session, sd_user_org_member_only, sd_engagement_e2_member_active

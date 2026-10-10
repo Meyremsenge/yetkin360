@@ -38,6 +38,7 @@ class TalentProfileResponse(BaseModel):
     department: str | None
     study_year: int | None
     city: str | None
+    about: str | None
     visibility: str
     public_slug: str | None
     updated_at: datetime
@@ -98,8 +99,19 @@ class UpdateTalentProfileRequest(BaseModel):
     city: str | None = Field(None, max_length=100)
     department: str | None = Field(None, max_length=100)
     study_year: int | None = None
+    # Plain text "about me" (self-declared); DB CHECK mirrors the 1000-char limit.
+    about: str | None = Field(None, max_length=1000)
     visibility: str | None = None
     public_slug: str | None = Field(None, max_length=100)
+
+    @field_validator("about")
+    @classmethod
+    def normalize_about(cls, v):
+        """Whitespace-only about clears the field instead of storing blanks."""
+        if v is None:
+            return v
+        v = v.strip()
+        return v or None
 
     @field_validator("full_name")
     @classmethod
@@ -201,10 +213,10 @@ def patch_talents_me(
     AC-3 through AC-7: Update current user's talent profile.
 
     Accepts:
-        - full_name, headline, city, department, study_year, visibility, public_slug
+        - full_name, headline, city, department, study_year, about, visibility, public_slug
         - Ignores: institution_id, user_id, id, talent_profile_id (if sent)
         - Explicit null on a clearable field (headline/city/department/study_year/
-          public_slug) clears it; full_name/visibility cannot be cleared (NOT NULL)
+          about/public_slug) clears it; full_name/visibility cannot be cleared (NOT NULL)
 
     Returns:
         200 + updated TalentProfile
@@ -231,7 +243,7 @@ def patch_talents_me(
     required_fields = {"full_name", "visibility"}
     set_fields = payload.model_fields_set
     updates = {}
-    for field in ["full_name", "headline", "city", "department", "study_year", "visibility", "public_slug"]:
+    for field in ["full_name", "headline", "city", "department", "study_year", "about", "visibility", "public_slug"]:
         if field not in set_fields:
             continue
         value = getattr(payload, field)

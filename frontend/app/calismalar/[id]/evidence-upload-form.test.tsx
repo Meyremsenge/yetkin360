@@ -353,6 +353,43 @@ describe("EvidenceUploadForm", () => {
       expect(screen.getByText(new RegExp(messages.calismalar.certificateCheckPageMatchYes))).toBeTruthy();
     });
 
+    it("BTK sertifikasında sağlayıcı Türkçe etiketle, kurs adı ve kurs eşleşmesi öğrenciye de gösterilir", async () => {
+      vi.mocked(listEvidenceForDeliverable).mockResolvedValue([mockCertificateRecord]);
+      vi.mocked(listCertificateChecksForEngagement).mockResolvedValue([
+        {
+          id: "check-1",
+          evidence_id: mockCertificateRecord.id,
+          status: "DONE",
+          provider: "BTK",
+          credential_id: "AbC123",
+          verify_url: "https://www.btkakademi.gov.tr/portal/certificate/validate?certificateId=AbC123",
+          qr_raw_data: null,
+          extracted_name: "Ahmet Yılmaz",
+          name_match: true,
+          page_name: "Ahmet Yılmaz",
+          page_match: true,
+          extracted_course_name: "Siber Güvenliğe Giriş",
+          page_course_name: "Siber Güvenliğe Giriş",
+          course_match: true,
+          decision: "PENDING",
+          decided_by_user_id: null,
+          decided_at: null,
+          created_at: "2026-10-10T00:00:00Z",
+        },
+      ]);
+
+      render(<EvidenceUploadForm deliverableId="del-1" engagementId="eng-1" />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/BTK Akademi/)).toBeTruthy();
+      });
+      expect(screen.queryByText(/: BTK$/)).toBeNull();
+      expect(screen.getByText(new RegExp(messages.calismalar.certificateCheckCourseLabel))).toBeTruthy();
+      expect(screen.getByText(new RegExp(messages.calismalar.certificateCheckCourseMatchYes))).toBeTruthy();
+      // Coordinator-only guidance is not shown to the student.
+      expect(screen.queryByText(messages.calismalar.certificateCheckManualVerifyNotice)).toBeNull();
+    });
+
     it("409 ALREADY_REQUESTED hatasında uyarı mesajı gösterilir", async () => {
       const user = userEvent.setup();
       vi.mocked(listEvidenceForDeliverable).mockResolvedValue([mockCertificateRecord]);
