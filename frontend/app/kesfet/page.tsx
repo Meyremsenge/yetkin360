@@ -7,6 +7,7 @@ import { AppShell } from "@/components/app-shell";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { UpheldComplaintBadge } from "@/components/upheld-complaint-badge";
 import { listSkills } from "@/lib/api/client";
 import {
   DISCOVER_MAX_SKILL_FILTERS,
@@ -466,6 +467,7 @@ function OrganizationCard({
           {organization.domain ? <p className="text-xs text-muted-foreground">{organization.domain}</p> : null}
         </div>
       </div>
+      <UpheldComplaintBadge count={organization.upheld_complaint_count} />
       <div className="mt-auto flex items-center justify-between gap-3 pt-4">
         <span className="text-xs text-muted-foreground">
           {levels[organization.verification_level as keyof typeof levels] ?? organization.verification_level}

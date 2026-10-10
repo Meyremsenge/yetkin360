@@ -145,6 +145,11 @@
     "adminVerificationQueueLink": "Kurum Doğrulama",
     "adminSkillsLink": "Yetkinlik Yönetimi",
     "adminFraudQueueLink": "Sahtekarlık İşaretleri",
+    "adminUsersLink": "Kullanıcılar",
+    "adminOrganizationsLink": "Kuruluşlar",
+    "adminInstitutionsLink": "Kurumlar",
+    "adminAuditLink": "Denetim Kayıtları",
+    "adminFraudHistoryLink": "İşaret Geçmişi",
     "engagementsLink": "Çalışmalarım",
     "profileLink": "Profil",
     "discoverLink": "Keşfet",
@@ -332,7 +337,7 @@
         "PUBLIC": "Herkese açık"
       },
       "studyYear": "{n}. sınıf",
-    "institutionVerified": "Doğrulanmış eğitim kurumu",
+      "institutionVerified": "Doğrulanmış eğitim kurumu",
       "publicLinkTitle": "Herkese açık profil bağlantınız",
       "copy": "Kopyala",
       "copied": "Kopyalandı",
@@ -967,14 +972,368 @@
       "LANGUAGE": "Dil",
       "DOMAIN": "Alan",
       "TOOL": "Araç",
-      "FRAMEWORK": "Framework"
+      "FRAMEWORK": "Framework",
+      "SOFT": "Sosyal beceri"
     },
     "parentLabel": "Kök seviye"
+  },
+  "adminPagination": {
+    "nav": "Sayfalama",
+    "previous": "Önceki",
+    "next": "Sonraki",
+    "page": "Sayfa"
+  },
+  "adminAudit": {
+    "title": "Denetim Kayıtları",
+    "description": "Platformdaki işlemlerin değiştirilemez kaydı. En yeni olay en üstte görünür.",
+    "loading": "Denetim kayıtları yükleniyor...",
+    "empty": "Bu filtreyle eşleşen kayıt yok. Filtreleri temizleyip tekrar deneyin.",
+    "notFound": "Kaynak bulunamadı.",
+    "retry": "Tekrar dene",
+    "filters": {
+      "action": "İşlem kodu",
+      "actionPlaceholder": "ör. ADMIN_SET_VERIFICATION_LEVEL",
+      "subjectType": "Konu türü",
+      "subjectTypePlaceholder": "ör. organization",
+      "actorUserId": "İşlemi yapan kullanıcı kimliği",
+      "actorPlaceholder": "UUID",
+      "apply": "Filtrele",
+      "clear": "Temizle",
+      "invalidActor": "Kullanıcı kimliği geçerli bir UUID olmalı."
+    },
+    "columns": {
+      "time": "Zaman",
+      "action": "İşlem",
+      "subject": "Konu",
+      "actor": "İşlemi yapan",
+      "result": "Sonuç",
+      "ip": "IP",
+      "details": "Ayrıntı"
+    },
+    "none": "—",
+    "systemActor": "Sistem / anonim"
+  },
+  "adminFraudHistory": {
+    "title": "İşaret Geçmişi",
+    "description": "Karara bağlanmış sahtekarlık işaretleri. En son incelenen en üstte görünür.",
+    "loading": "İşaret geçmişi yükleniyor...",
+    "empty": "Henüz karara bağlanmış işaret yok. Bekleyen işaretleri Sahtekarlık İşaretleri ekranından inceleyebilirsin.",
+    "notFound": "Kaynak bulunamadı.",
+    "retry": "Tekrar dene",
+    "backToQueue": "Bekleyen işaretlere dön",
+    "filterLabel": "Karar",
+    "filterAll": "Tümü",
+    "status": {
+      "CONFIRMED": "Onaylandı",
+      "DISMISSED": "Yanlış alarm"
+    },
+    "reviewedAt": "İncelendi",
+    "reviewedBy": "İnceleyen",
+    "notReviewed": "—"
+  },
+  "adminHome": {
+    "title": "Yönetim paneli",
+    "description": "Platform yönetimi ekranlarına buradan ulaşabilirsiniz.",
+    "verificationQueueDescription": "Kurum doğrulama başvurularını onayla veya reddet.",
+    "skillsDescription": "Yetkinlik taksonomisini oluştur, devre dışı bırak veya birleştir.",
+    "fraudQueueDescription": "Şüpheli işaretleri incele ve karara bağla.",
+    "auditDescription": "Yönetici işlemlerinin ve sistem olaylarının değiştirilemez kaydını incele.",
+    "fraudHistoryDescription": "Daha önce karara bağlanmış sahtekarlık işaretlerini gözden geçir.",
+    "checking": "Yetki kontrol ediliyor..."
+  },
+  "adminUsers": {
+    "title": "Kullanıcılar",
+    "intro": "Platformdaki hesapları e-posta ile arayın; kötüye kullanan bir hesabı askıya alın.",
+    "searchLabel": "E-posta ara",
+    "searchPlaceholder": "ornek@alan.com",
+    "searchButton": "Ara",
+    "filterStatus": "Durum",
+    "filterAll": "Tümü",
+    "empty": "Henüz kayıtlı kullanıcı yok. Kullanıcılar kayıt oldukça burada listelenir.",
+    "emptyFiltered": "Aramanızla eşleşen kullanıcı yok. Aramayı değiştirin veya durum filtresini \"Tümü\" yapın.",
+    "loadError": "Kullanıcı listesi yüklenemedi.",
+    "prev": "Önceki",
+    "next": "Sonraki",
+    "pageInfo": "Sayfa",
+    "actions": "İşlem",
+    "suspend": "Askıya al",
+    "reactivate": "Geri aç",
+    "confirmSuspendTitle": "Hesap askıya alınsın mı?",
+    "confirmSuspendBody": "Kullanıcının açık oturumları kapanır ve geri açılana kadar giriş yapamaz.",
+    "confirmReactivateTitle": "Hesap geri açılsın mı?",
+    "confirmReactivateBody": "Kullanıcı yeniden giriş yapabilir.",
+    "confirm": "Onayla",
+    "cancel": "Vazgeç",
+    "suspended": "Hesap askıya alındı.",
+    "reactivated": "Hesap geri açıldı.",
+    "notFound": "Kullanıcı bulunamadı. Liste yenilendi.",
+    "lastAdmin": "Kendi hesabınızı veya son aktif platform yöneticisini askıya alamazsınız.",
+    "roleAdmin": "Platform yöneticisi",
+    "roleUser": "Kullanıcı",
+    "yes": "Evet",
+    "no": "Hayır",
+    "headers": {
+      "email": "E-posta",
+      "status": "Durum",
+      "role": "Rol",
+      "emailVerified": "E-posta doğrulandı",
+      "createdAt": "Kayıt tarihi"
+    },
+    "statusLabels": {
+      "PENDING": "Beklemede",
+      "ACTIVE": "Aktif",
+      "SUSPENDED": "Askıda",
+      "DELETED": "Silinmiş"
+    }
+  },
+  "adminOrganizations": {
+    "title": "Kuruluşlar",
+    "intro": "Tüm kuruluşları ad, alan adı veya vergi/MERSİS numarasıyla arayın. Askıdaki kuruluş Keşfet'te ve kuruluş seçiminde görünmez.",
+    "searchLabel": "Ad, alan adı veya numara",
+    "searchPlaceholder": "Kuruluş adı",
+    "searchButton": "Ara",
+    "filterStatus": "Durum",
+    "filterLevel": "Doğrulama seviyesi",
+    "filterAll": "Tümü",
+    "empty": "Henüz kayıtlı kuruluş yok. Kuruluşlar oluşturuldukça burada listelenir.",
+    "emptyFiltered": "Aramanızla eşleşen kuruluş yok. Aramayı veya filtreleri değiştirin.",
+    "loadError": "Kuruluş listesi yüklenemedi.",
+    "prev": "Önceki",
+    "next": "Sonraki",
+    "pageInfo": "Sayfa",
+    "actions": "İşlem",
+    "suspend": "Askıya al",
+    "reactivate": "Geri aç",
+    "confirmSuspendTitle": "Kuruluş askıya alınsın mı?",
+    "confirmSuspendBody": "Kuruluş Keşfet'ten ve kuruluş seçiminden kalkar, doğrulama kuyruğuna girmez.",
+    "confirmReactivateTitle": "Kuruluş geri açılsın mı?",
+    "confirmReactivateBody": "Kuruluş yeniden listelerde görünür.",
+    "confirm": "Onayla",
+    "cancel": "Vazgeç",
+    "suspended": "Kuruluş askıya alındı.",
+    "reactivated": "Kuruluş geri açıldı.",
+    "notFound": "Kuruluş bulunamadı. Liste yenilendi.",
+    "notVerified": "Doğrulanmadı",
+    "headers": {
+      "name": "Ad",
+      "legalId": "Vergi/MERSİS no",
+      "domain": "Alan adı",
+      "verificationLevel": "Seviye",
+      "verifiedAt": "Doğrulama tarihi",
+      "status": "Durum",
+      "createdAt": "Oluşturulma"
+    },
+    "statusLabels": {
+      "ACTIVE": "Aktif",
+      "SUSPENDED": "Askıda"
+    }
+  },
+  "adminInstitutions": {
+    "title": "Kurumlar",
+    "intro": "Üniversite ve okulları arayın, doğrulama seviyesini belirleyin.",
+    "searchLabel": "Ad veya alan adı",
+    "searchPlaceholder": "Kurum adı",
+    "searchButton": "Ara",
+    "filterStatus": "Durum",
+    "filterAll": "Tümü",
+    "empty": "Henüz kayıtlı kurum yok. Kurumlar oluşturuldukça burada listelenir.",
+    "emptyFiltered": "Aramanızla eşleşen kurum yok. Aramayı değiştirin.",
+    "loadError": "Kurum listesi yüklenemedi.",
+    "prev": "Önceki",
+    "next": "Sonraki",
+    "pageInfo": "Sayfa",
+    "actions": "İşlem",
+    "suspend": "Askıya al",
+    "reactivate": "Geri aç",
+    "confirmSuspendTitle": "Kurum askıya alınsın mı?",
+    "confirmSuspendBody": "Kurum askıda olarak işaretlenir.",
+    "confirmReactivateTitle": "Kurum geri açılsın mı?",
+    "confirmReactivateBody": "Kurum yeniden aktif olarak işaretlenir.",
+    "confirm": "Onayla",
+    "cancel": "Vazgeç",
+    "suspended": "Kurum askıya alındı.",
+    "reactivated": "Kurum geri açıldı.",
+    "notFound": "Kurum bulunamadı. Liste yenilendi.",
+    "levelLabel": "Doğrulama seviyesi",
+    "saveLevel": "Kaydet",
+    "levelUpdated": "Doğrulama seviyesi güncellendi.",
+    "headers": {
+      "name": "Ad",
+      "domain": "Alan adı",
+      "verificationLevel": "Seviye",
+      "status": "Durum",
+      "createdAt": "Oluşturulma"
+    },
+    "statusLabels": {
+      "ACTIVE": "Aktif",
+      "SUSPENDED": "Askıda"
+    }
   },
   "loginDialog": {
     "title": "Tekrar hoş geldiniz",
     "subtitle": "Sicil kaydınıza erişmek için giriş yapın.",
     "close": "Kapat",
     "noAccount": "Hesabınız yok mu?"
+  },
+  "complaints": {
+    "navLink": "Şikayetlerim",
+    "title": "Şikayetlerim",
+    "description": "Onayınız uzun süre yanıtsız kalan çalışma ve sertifika kontrolleri için açtığınız şikayetler.",
+    "loading": "Şikayetler yükleniyor...",
+    "loadError": "Şikayetler yüklenemedi. Lütfen daha sonra tekrar deneyin.",
+    "notFound": "Şikayet bulunamadı.",
+    "empty": {
+      "title": "Henüz şikayetiniz yok",
+      "body": "Onaya gönderdiğiniz bir çalışma veya sertifika kontrolü uzun süredir yanıtsız kalırsa, çalışma sayfasından şikayet açabilirsiniz."
+    },
+    "statusLabel": {
+      "IN_PROGRESS": "İşlem devam etmekte",
+      "DISMISSED": "Kapatıldı",
+      "RESOLVED": "Çözüldü",
+      "UPHELD": "Haklı bulundu"
+    },
+    "subjectType": {
+      "ENGAGEMENT": "Çalışma onayı",
+      "CERTIFICATE_CHECK": "Sertifika kontrolü"
+    },
+    "reportAction": "Şikayet et",
+    "reportHint": "Onayınız uzun süredir yanıtsız mı? Bekleme süresi dolduysa platform yöneticisine şikayet edebilirsiniz.",
+    "newComplaint": "Yeni şikayet",
+    "form": {
+      "title": "Şikayet et",
+      "intro": "Şikayetiniz platform yöneticisine iletilir. Sonuç belirlenene kadar bu ekranda yalnızca \"İşlem devam etmekte\" görünür.",
+      "subjectLabel": "Şikayet konusu",
+      "descriptionLabel": "Açıklama",
+      "descriptionHint": "Ne zamandır yanıt beklediğinizi ve neyi denediğinizi kısaca yazın (en az 10 karakter).",
+      "attachmentsLabel": "Belge ekle (isteğe bağlı)",
+      "attachmentsHint": "PDF, JPG veya PNG; dosya başına en çok 10 MB, en çok 5 dosya.",
+      "submit": "Şikayeti gönder",
+      "submitting": "Gönderiliyor...",
+      "missingSubject": "Şikayet konusu belirlenemedi. Lütfen çalışma sayfasından yeniden deneyin.",
+      "removeFile": "Dosyayı kaldır",
+      "back": "Şikayetlerime dön"
+    },
+    "validation": {
+      "descriptionMin": "Açıklama en az 10 karakter olmalı.",
+      "descriptionMax": "Açıklama en çok 2000 karakter olabilir.",
+      "fileType": "Yalnızca PDF, JPG veya PNG dosyaları eklenebilir.",
+      "fileSize": "Dosya 10 MB'tan büyük olamaz.",
+      "fileCount": "En çok 5 dosya eklenebilir."
+    },
+    "errors": {
+      "TOO_EARLY": "Bekleme süresi henüz dolmadı. Onay talebiniz üzerinden yeterli süre geçtikten sonra şikayet edebilirsiniz.",
+      "ALREADY_OPEN": "Bu konu için zaten açık bir şikayetiniz var.",
+      "NOT_PENDING": "Bu konu artık onay beklemiyor; şikayet açılamaz.",
+      "rateLimited": "Çok fazla şikayet gönderdiniz. Lütfen daha sonra tekrar deneyin.",
+      "notFound": "Şikayet konusu bulunamadı.",
+      "attachmentFailed": "Şikayetiniz alındı ancak bazı belgeler yüklenemedi.",
+      "downloadFailed": "Belge açılamadı. Lütfen tekrar deneyin."
+    },
+    "detail": {
+      "createdAt": "Oluşturulma",
+      "closedAt": "Sonuçlanma",
+      "description": "Açıklamanız",
+      "resultReason": "Yönetici gerekçesi",
+      "adminNote": "Yönetici notu",
+      "attachments": "Ekler",
+      "noAttachments": "Ek yok.",
+      "download": "İndir",
+      "back": "Şikayetlerime dön",
+      "viewDetail": "Ayrıntı",
+      "inProgressNote": "İşleminiz inceleniyor. Sonuç belirlendiğinde burada görünecek."
+    },
+    "explanation": {
+      "title": "Gerekçe yazın",
+      "hint": "Platform yöneticisi bu şikayet için sizden gerekçe istedi. Yanıtınız yalnızca yöneticiye iletilir.",
+      "label": "Gerekçeniz",
+      "submit": "Gerekçeyi gönder",
+      "submitting": "Gönderiliyor...",
+      "success": "Gerekçeniz iletildi.",
+      "minError": "Gerekçe en az 10 karakter olmalı.",
+      "waiting": "Gerekçeniz yönetici tarafından değerlendiriliyor.",
+      "respondentBadge": "Hakkınızdaki şikayet"
+    },
+    "badge": {
+      "text": "{count} doğrulama talebini yanıtsız bıraktı",
+      "label": "Şikayet damgası"
+    }
+  },
+  "adminComplaints": {
+    "navLink": "Şikayetler",
+    "title": "Şikayetler",
+    "description": "Öğrencilerin yanıtsız kalan onay talepleri için açtığı şikayetler. Kararlar geri alınamaz olabilir; gerekçe yazarak ilerleyin.",
+    "loading": "Şikayetler yükleniyor...",
+    "loadError": "Şikayetler yüklenemedi.",
+    "notFound": "Şikayet bulunamadı.",
+    "empty": {
+      "title": "Bekleyen şikayet yok",
+      "body": "Yeni şikayetler geldiğinde burada listelenir."
+    },
+    "statusLabel": {
+      "OPEN": "Açık",
+      "UNDER_REVIEW": "İncelemede",
+      "EXPLANATION_REQUESTED": "Gerekçe istendi",
+      "EXPLANATION_SUBMITTED": "Gerekçe geldi",
+      "ESCALATED": "Yükseltildi",
+      "DISMISSED": "Kapatıldı",
+      "RESOLVED": "Çözüldü",
+      "UPHELD": "Haklı bulundu"
+    },
+    "subjectType": {
+      "ENGAGEMENT": "Çalışma onayı",
+      "CERTIFICATE_CHECK": "Sertifika kontrolü"
+    },
+    "pagination": {
+      "previous": "Önceki",
+      "next": "Sonraki",
+      "page": "Sayfa {page}"
+    },
+    "stalePending": "Konu artık beklemiyor",
+    "detail": {
+      "back": "Kuyruğa dön",
+      "view": "Ayrıntı",
+      "status": "Durum",
+      "subject": "Konu",
+      "createdAt": "Oluşturulma",
+      "description": "Öğrenci açıklaması",
+      "attachments": "Ekler",
+      "noAttachments": "Ek yok.",
+      "attachmentOpen": "Aç / indir",
+      "explanation": "Yetkilinin gerekçesi",
+      "noExplanation": "Henüz gerekçe yazılmadı.",
+      "history": "Geçmiş",
+      "noHistory": "Kayıt yok.",
+      "actions": "Karar",
+      "noActions": "Bu durumda yapılabilecek işlem yok."
+    },
+    "actions": {
+      "START_REVIEW": "İncelemeye al",
+      "DISMISS": "Haksız bul ve kapat",
+      "REQUEST_EXPLANATION": "Gerekçe iste",
+      "ACCEPT_EXPLANATION": "Gerekçeyi kabul et",
+      "REJECT_EXPLANATION": "Gerekçeyi reddet ve yükselt",
+      "RESOLVE": "Çözüldü olarak kapat",
+      "UPHOLD": "Haklı bul"
+    },
+    "form": {
+      "reasonLabel": "Gerekçe",
+      "noteLabel": "Not (yetkiliye iletilir)",
+      "optionalLabel": "Not (isteğe bağlı)",
+      "required": "Bu işlem için gerekçe zorunludur.",
+      "submit": "Uygula",
+      "submitting": "Uygulanıyor..."
+    },
+    "confirm": {
+      "title": "Şikayeti haklı bulmak üzeresiniz",
+      "body": "Bu karar geri alınamaz: kuruluşun haklı bulunan şikayet sayacı artar ve herkese açık damga görünür. Devam etmek istiyor musunuz?",
+      "confirm": "Evet, haklı bul",
+      "cancel": "Vazgeç"
+    },
+    "errors": {
+      "INVALID_TRANSITION": "Bu işlem şikayetin mevcut durumunda yapılamaz. Başka bir yönetici karar vermiş olabilir; sayfa yenilendi.",
+      "generic": "İşlem uygulanamadı. Lütfen tekrar deneyin.",
+      "downloadFailed": "Belge açılamadı. Lütfen tekrar deneyin."
+    },
+    "success": "İşlem uygulandı."
   }
 }

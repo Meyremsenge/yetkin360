@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   listCertificateChecksForEngagement,
@@ -17,7 +18,14 @@ import messages from "@/messages/tr.json";
  * (final-analiz: frontend'de gizlemek yetkilendirme değildir) — yetkisiz bir
  * tıklama sunucudan 404 alır.
  */
-export function CertificateChecksSection({ engagementId }: { engagementId: string }) {
+export function CertificateChecksSection({
+  engagementId,
+  canComplain = false,
+}: {
+  engagementId: string;
+  /** UX only: show the student's "Şikayet et" entry on pending checks. */
+  canComplain?: boolean;
+}) {
   const queryClient = useQueryClient();
   const QUERY_KEY = ["certificate-checks", engagementId] as const;
   const [resolveError, setResolveError] = useState<string | null>(null);
@@ -140,6 +148,15 @@ export function CertificateChecksSection({ engagementId }: { engagementId: strin
                   </p>
                 )}
               </div>
+            )}
+
+            {check.decision === "PENDING" && canComplain && (
+              <Link
+                href={`/sikayetlerim/yeni?subject_type=CERTIFICATE_CHECK&subject_id=${encodeURIComponent(check.id)}`}
+                className="mt-2 inline-block text-xs font-medium text-success underline underline-offset-4"
+              >
+                {messages.complaints.reportAction}
+              </Link>
             )}
 
             {check.decision === "PENDING" ? (

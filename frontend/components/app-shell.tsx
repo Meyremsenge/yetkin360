@@ -311,6 +311,13 @@ function NavLinks({
           onNavigate={onNavigate}
         />
         <NavItem
+          href="/sikayetlerim"
+          icon="shield"
+          label={messages.complaints.navLink}
+          active={isActive("/sikayetlerim")}
+          onNavigate={onNavigate}
+        />
+        <NavItem
           href="/kesfet"
           icon="compass"
           label={messages.shell.discoverLink}
@@ -376,6 +383,13 @@ function NavLinks({
             onNavigate={onNavigate}
           />
           <NavItem
+            href="/admin/sikayetler"
+            icon="shield"
+            label={messages.adminComplaints.navLink}
+            active={isActive("/admin/sikayetler")}
+            onNavigate={onNavigate}
+          />
+          <NavItem
             href="/admin/skiller"
             icon="tag"
             label={messages.shell.adminSkillsLink}
@@ -387,6 +401,41 @@ function NavLinks({
             icon="shield"
             label={messages.shell.adminFraudQueueLink}
             active={isActive("/admin/sahtekarlik-isaretleri")}
+            onNavigate={onNavigate}
+          />
+          <NavItem
+            href="/admin/sahtekarlik-isaretleri/gecmis"
+            icon="shield"
+            label={messages.shell.adminFraudHistoryLink}
+            active={isActive("/admin/sahtekarlik-isaretleri/gecmis")}
+            onNavigate={onNavigate}
+          />
+          <NavItem
+            href="/admin/denetim-kayitlari"
+            icon="shield"
+            label={messages.shell.adminAuditLink}
+            active={isActive("/admin/denetim-kayitlari")}
+            onNavigate={onNavigate}
+          />
+          <NavItem
+            href="/admin/kullanicilar"
+            icon="shield"
+            label={messages.shell.adminUsersLink}
+            active={isActive("/admin/kullanicilar")}
+            onNavigate={onNavigate}
+          />
+          <NavItem
+            href="/admin/kuruluslar"
+            icon="shield"
+            label={messages.shell.adminOrganizationsLink}
+            active={isActive("/admin/kuruluslar")}
+            onNavigate={onNavigate}
+          />
+          <NavItem
+            href="/admin/kurumlar"
+            icon="landmark"
+            label={messages.shell.adminInstitutionsLink}
+            active={isActive("/admin/kurumlar")}
             onNavigate={onNavigate}
           />
         </NavGroup>

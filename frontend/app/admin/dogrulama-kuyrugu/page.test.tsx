@@ -42,13 +42,14 @@ const mockOrganizationWithNulls = {
   created_at: "2026-09-21T00:00:00Z",
 };
 
-const mockVerificationQueue = {
-  items: [mockOrganization, mockOrganizationWithNulls],
-};
 
-const mockEmptyQueue = {
-  items: [],
-};
+function paged<T>(items: T[], extra: Partial<{ limit: number; offset: number; has_more: boolean }> = {}) {
+  return { items, limit: 50, offset: 0, has_more: false, ...extra };
+}
+
+const mockVerificationQueue = paged([mockOrganization, mockOrganizationWithNulls]);
+
+const mockEmptyQueue = paged([]);
 
 /**
  * PLAN 3.6 — Admin kurum doğrulama kuyruğu sayfası testi.
@@ -604,6 +605,85 @@ describe("DogrulamaKuyruguPage (/admin/dogrulama-kuyrugu)", () => {
       expect(successDiv?.className).toContain("bg-green-50");
       expect(successDiv?.className).toContain("border-green-200");
       expect(successDiv?.className).toContain("text-green-700");
+    });
+  });
+});
+
+
+/**
+ * admin-sayfalama-ve-kabuk — AC-1/AC-8/AC-9: Önceki/Sonraki sayfalama + hata/tekrar dene.
+ */
+describe("DogrulamaKuyruguPage — sayfalama", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: { id: "admin-1", email: "admin@test.com", is_platform_admin: true },
+        organizations: [],
+        institutions: [],
+        talent_profile: null,
+      },
+      error: null,
+      isPending: false,
+      isError: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useSession>);
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("has_more=true ise Sonraki etkin; tıklanınca offset=50 ile istek atılır", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    vi.mocked(adminApi.getVerificationQueue)
+      .mockResolvedValueOnce({ items: [mockOrganization], limit: 50, offset: 0, has_more: true })
+      .mockResolvedValueOnce({ items: [], limit: 50, offset: 50, has_more: false });
+
+    renderWithQueryClient(<DogrulamaKuyruguPage />);
+
+    const next = await screen.findByRole("button", { name: "Sonraki" });
+    expect((next as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole("button", { name: "Önceki" }) as HTMLButtonElement).disabled).toBe(true);
+
+    await userEvent.setup().click(next);
+
+    await waitFor(() => {
+      expect(adminApi.getVerificationQueue).toHaveBeenLastCalledWith({ limit: 50, offset: 50 });
+    });
+  });
+
+  it("has_more=false ve offset=0 iken sayfalama gösterilmez", async () => {
+    vi.mocked(adminApi.getVerificationQueue).mockResolvedValueOnce({
+      items: [mockOrganization],
+      limit: 50,
+      offset: 0,
+      has_more: false,
+    });
+
+    renderWithQueryClient(<DogrulamaKuyruguPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Tech Startup Inc.")).toBeTruthy();
+    });
+    expect(screen.queryByRole("navigation", { name: "Sayfalama" })).toBeNull();
+  });
+
+  it("liste hatasında aria-live uyarısı ve 'Tekrar dene' görünür; tıklanınca yeniden istenir", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    vi.mocked(adminApi.getVerificationQueue)
+      .mockRejectedValueOnce(new ApiError({ status: 500, code: "INTERNAL_ERROR", message: "x", requestId: null }))
+      .mockResolvedValueOnce({ items: [mockOrganization], limit: 50, offset: 0, has_more: false });
+
+    renderWithQueryClient(<DogrulamaKuyruguPage />);
+
+    const retry = await screen.findByRole("button", { name: "Tekrar dene" });
+    expect(screen.getByRole("alert")).toBeTruthy();
+
+    await userEvent.setup().click(retry);
+
+    await waitFor(() => {
+      expect(screen.getByText("Tech Startup Inc.")).toBeTruthy();
     });
   });
 });

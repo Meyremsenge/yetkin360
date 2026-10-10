@@ -27,6 +27,8 @@ export interface DiscoverOrganization {
   name: string;
   verification_level: string;
   domain: string | null;
+  /** C7 damga: haklı bulunan şikayet sayısı; yok/null/0 ise rozet gösterilmez. */
+  upheld_complaint_count?: number | null;
 }
 
 export interface DiscoverPage<T> {

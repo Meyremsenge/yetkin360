@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
+import { AdminPagination } from "@/components/admin-pagination";
 import * as adminApi from "@/lib/api/admin";
 import { ApiError, NetworkError } from "@/lib/api/errors";
 import messages from "@/messages/tr.json";
@@ -25,11 +27,13 @@ const signalLabels: Record<string, string> = messages.adminFraudQueue.signalLabe
  */
 export default function SahtekarlikIsaretleriPage() {
   const queryClient = useQueryClient();
-  const QUEUE_KEY = ["admin", "fraud-queue"] as const;
+  const [offset, setOffset] = useState(0);
+  const limit = adminApi.ADMIN_PAGE_SIZE;
+  const QUEUE_KEY = ["admin", "fraud-queue", { limit, offset }] as const;
 
-  const { data: queue, isLoading, isError, error } = useQuery({
+  const { data: queue, isLoading, isError, error, refetch } = useQuery({
     queryKey: QUEUE_KEY,
-    queryFn: () => adminApi.getFraudQueue(),
+    queryFn: () => adminApi.getFraudQueue({ limit, offset }),
   });
 
   const resolve = useMutation({
@@ -39,7 +43,7 @@ export default function SahtekarlikIsaretleriPage() {
       if (!resolved) return;
       queryClient.setQueryData(QUEUE_KEY, (prev: adminApi.FraudQueueResponse | undefined) => {
         if (!prev) return prev;
-        return { items: prev.items.filter((f) => f.id !== resolved.id) };
+        return { ...prev, items: prev.items.filter((f) => f.id !== resolved.id) };
       });
     },
   });
@@ -59,6 +63,13 @@ export default function SahtekarlikIsaretleriPage() {
               : error instanceof NetworkError && error.kind === "timeout"
                 ? messages.errors.timeout
                 : messages.errors.generic}
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="ml-3 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700"
+            >
+              {messages.errors.retry}
+            </button>
           </div>
         ) : !queue || queue.items.length === 0 ? (
           <div className="rounded-md bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
@@ -126,6 +137,13 @@ export default function SahtekarlikIsaretleriPage() {
                 </li>
               ))}
             </ul>
+            <AdminPagination
+              offset={offset}
+              limit={limit}
+              hasMore={queue.has_more}
+              disabled={resolve.isPending}
+              onChange={setOffset}
+            />
           </>
         )}
       </main>

@@ -3,13 +3,16 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
+import { AdminPagination } from "@/components/admin-pagination";
 import * as adminApi from "@/lib/api/admin";
 import { ApiError, NetworkError } from "@/lib/api/errors";
 import messages from "@/messages/tr.json";
 
 export default function SkillerPage() {
   const queryClient = useQueryClient();
-  const SKILLS_KEY = ["admin", "skills"] as const;
+  const [offset, setOffset] = useState(0);
+  const limit = adminApi.ADMIN_PAGE_SIZE;
+  const SKILLS_KEY = ["admin", "skills", { limit, offset }] as const;
 
   const [formData, setFormData] = useState<{ slug: string; name_tr: string; category: string }>({
     slug: "",
@@ -24,9 +27,22 @@ export default function SkillerPage() {
   const dialogRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
 
-  const { data: skillsList, isLoading, isError, error } = useQuery({
+  const { data: skillsList, isLoading, isError, error, refetch } = useQuery({
     queryKey: SKILLS_KEY,
-    queryFn: () => adminApi.getSkills(),
+    queryFn: () => adminApi.getSkills({ limit, offset }),
+  });
+
+  // Merge targets: every skill across all pages, fetched only while the dialog
+  // is open (the visible page alone would hide targets beyond it).
+  const {
+    data: allSkills,
+    isLoading: isLoadingTargets,
+    isError: isTargetsError,
+  } = useQuery({
+    queryKey: ["admin", "skills-all"] as const,
+    queryFn: () => adminApi.getAllSkills(),
+    enabled: mergeDialog !== null,
+    staleTime: 0,
   });
 
   const { mutate: createSkill, isPending: isCreating } = useMutation({
@@ -37,12 +53,8 @@ export default function SkillerPage() {
       setFormError(null);
       setFormData({ slug: "", name_tr: "", category: "LANGUAGE" });
       setSuccessMessage(messages.adminSkills.createSuccess);
-      queryClient.setQueryData(SKILLS_KEY, (prev: adminApi.SkillsListResponse | undefined) => {
-        if (!prev) return prev;
-        return {
-          items: [...prev.items, newSkill],
-        };
-      });
+      // Sorted server-side: the new skill may land on any page, so refetch.
+      void queryClient.invalidateQueries({ queryKey: ["admin", "skills"] });
       setTimeout(() => setSuccessMessage(null), 3000);
     },
     onError: (err) => {
@@ -70,6 +82,7 @@ export default function SkillerPage() {
       queryClient.setQueryData(SKILLS_KEY, (prev: adminApi.SkillsListResponse | undefined) => {
         if (!prev) return prev;
         return {
+          ...prev,
           items: prev.items.map(s =>
             s.id === updated.id ? updated : s
           ),
@@ -99,9 +112,11 @@ export default function SkillerPage() {
       setActionError(null);
       setMergeDialog(null);
       setMergeTarget("");
+      void queryClient.invalidateQueries({ queryKey: ["admin", "skills-all"] });
       queryClient.setQueryData(SKILLS_KEY, (prev: adminApi.SkillsListResponse | undefined) => {
         if (!prev) return prev;
         return {
+          ...prev,
           items: prev.items.map(s =>
             s.id === updated.id ? updated : s
           ),
@@ -135,13 +150,13 @@ export default function SkillerPage() {
 
   const getParentName = (parentId: string | null | undefined): string => {
     if (!parentId) return messages.adminSkills.parentLabel;
-    const parent = skillsList?.items.find((s) => s.id === parentId);
+    const parent = (allSkills ?? skillsList?.items)?.find((s) => s.id === parentId);
     return parent ? parent.name_tr : "-";
   };
 
   const getMergedIntoName = (mergedId: string | null | undefined): string => {
     if (!mergedId) return "-";
-    const target = skillsList?.items.find((s) => s.id === mergedId);
+    const target = (allSkills ?? skillsList?.items)?.find((s) => s.id === mergedId);
     return target ? target.name_tr : "-";
   };
 
@@ -241,6 +256,13 @@ export default function SkillerPage() {
               : error instanceof NetworkError && error.kind === "timeout"
                 ? messages.errors.timeout
                 : messages.errors.generic}
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="ml-3 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700"
+            >
+              {messages.errors.retry}
+            </button>
           </div>
         ) : (
           <>
@@ -312,12 +334,12 @@ export default function SkillerPage() {
                     id="skill-category"
                     value={formData.category}
                     onChange={(e) => {
-                      const validCategories = ["LANGUAGE", "DOMAIN", "TOOL", "FRAMEWORK"];
+                      const validCategories = ["LANGUAGE", "DOMAIN", "TOOL", "FRAMEWORK", "SOFT"];
                       const newValue = e.target.value;
                       if (validCategories.includes(newValue)) {
                         setFormData((p) => ({
                           ...p,
-                          category: newValue as "LANGUAGE" | "DOMAIN" | "TOOL" | "FRAMEWORK",
+                          category: newValue as adminApi.Skill["category"],
                         }));
                       }
                     }}
@@ -328,6 +350,7 @@ export default function SkillerPage() {
                     <option value="DOMAIN">DOMAIN</option>
                     <option value="TOOL">TOOL</option>
                     <option value="FRAMEWORK">FRAMEWORK</option>
+                    <option value="SOFT">SOFT</option>
                   </select>
                 </div>
 
@@ -427,6 +450,15 @@ export default function SkillerPage() {
                 </table>
               </div>
             )}
+            {skillsList && (
+              <AdminPagination
+                offset={offset}
+                limit={limit}
+                hasMore={skillsList.has_more}
+                disabled={isDeprecating || isMerging}
+                onChange={setOffset}
+              />
+            )}
 
             {/* Merge Dialog */}
             {mergeDialog && (
@@ -457,14 +489,20 @@ export default function SkillerPage() {
                       className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm"
                     >
                       <option value="">Seçiniz...</option>
-                      {skillsList?.items
-                        .filter((s) => s.id !== mergeDialog.skillId && s.status === "ACTIVE")
+                      {allSkills
+                        ?.filter((s) => s.id !== mergeDialog.skillId && s.status === "ACTIVE")
                         .map((s) => (
                           <option key={s.id} value={s.id}>
                             {s.name_tr}
                           </option>
                         ))}
                     </select>
+                    {isLoadingTargets && (
+                      <p role="status" className="mt-2 text-xs text-slate-600">{messages.shell.loading}</p>
+                    )}
+                    {isTargetsError && (
+                      <p role="alert" className="mt-2 text-xs text-red-700">{messages.errors.generic}</p>
+                    )}
                   </div>
                   <div className="flex gap-2 justify-end">
                     <button
