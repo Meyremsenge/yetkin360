@@ -28,7 +28,13 @@ from app.models import (
     VerifiedExperience,
 )
 from app.models.outbox import Outbox
-from app.services.authorization import Principal, get_scoped_or_404, scoped_engagements, engagement_relation
+from app.services.authorization import (
+    EngagementRelation,
+    Principal,
+    engagement_relation,
+    get_scoped_or_404,
+    scoped_engagements,
+)
 from app.services.audit import log_audit_event
 from app.models.verified_experience import generate_public_token
 
@@ -68,6 +74,20 @@ class VersionMismatchError(Exception):
     """Raised when request version does not match engagement.version (optimistic locking)."""
 
     pass
+
+
+def attestation_role_allowed(rel: EngagementRelation, engagement: Engagement) -> bool:
+    """
+    Role rule for T8 (STATE_MACHINE.md): who may seal this engagement.
+
+    institution_id NOT NULL -> a COORDINATOR of that institution only;
+    institution_id NULL -> an ORG_ADMIN of the organization only.
+    rel is masked for the subject, so the talent never qualifies.
+    Shared by create_attestation() and the detail view's viewer.can_attest.
+    """
+    if engagement.institution_id is not None:
+        return rel.is_coordinator
+    return rel.is_org_admin
 
 
 def _check_competence_preconditions(
@@ -208,23 +228,15 @@ def create_attestation(
         else:
             raise SelfAttestationError("Cannot attest own engagement")
 
-    # Role check per STATE_MACHINE.md T8: institution_id NOT NULL -> COORDINATOR only,
-    # institution_id NULL -> ORG_ADMIN only. scoped_engagements() only enforces tenant
-    # isolation (right org/institution); this enforces role suitability within that tenant.
-    # Out-of-role principals get 404 (S2 tenant-isolation style — they ARE in scope via
-    # scoped_engagements but not authorized for THIS action; not TALENT, so not the S6 403 case).
-    if engagement.institution_id is not None:
-        # institution_id NOT NULL: only COORDINATOR of this institution can attest
-        if not rel.is_coordinator:
-            raise EngagementNotFoundError(
-                f"Engagement {engagement_id} not accessible for attestation (role not authorized)"
-            )
-    else:
-        # institution_id NULL: only ORG_ADMIN of this organization can attest
-        if not rel.is_org_admin:
-            raise EngagementNotFoundError(
-                f"Engagement {engagement_id} not accessible for attestation (role not authorized)"
-            )
+    # Role check per STATE_MACHINE.md T8 (see attestation_role_allowed). scoped_engagements()
+    # only enforces tenant isolation (right org/institution); this enforces role suitability
+    # within that tenant. Out-of-role principals get 404 (S2 tenant-isolation style — they ARE
+    # in scope via scoped_engagements but not authorized for THIS action; not TALENT, so not
+    # the S6 403 case).
+    if not attestation_role_allowed(rel, engagement):
+        raise EngagementNotFoundError(
+            f"Engagement {engagement_id} not accessible for attestation (role not authorized)"
+        )
 
     # AC-3: Engagement must be EVALUATED
     if engagement.status != "EVALUATED":

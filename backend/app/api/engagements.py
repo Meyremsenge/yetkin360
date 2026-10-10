@@ -8,10 +8,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_principal, get_session, get_verified_principal
+from app.api.deps import get_current_principal, get_current_user, get_session, get_verified_principal
 from app.core.deps import require_csrf
 from app.core.errors import ApiError
-from app.models import Engagement
+from app.models import Engagement, User
 from app.schemas.certificate_check import CertificateCheckListResponse, CertificateCheckResponse
 from app.services.authorization import Principal, get_scoped_or_404, scoped_engagements
 from app.services.certificate_check import list_certificate_checks_for_engagement
@@ -34,6 +34,7 @@ from app.services.engagement import (
     create_engagement_task,
     create_deliverable,
     verify_engagement_task,
+    viewer_capabilities,
 )
 from app.services.evaluation import (
     EngagementNotFoundError as EvalEngagementNotFoundError,
@@ -273,6 +274,23 @@ class EngagementListResponse(BaseModel):
         from_attributes = True
 
 
+class EngagementViewerResponse(BaseModel):
+    """
+    SPRINT A: what the caller may do on this engagement (mirrors the write endpoints).
+
+    Describes only the caller; computed only after the engagement is proven in scope.
+    """
+
+    relation: Literal["SUBJECT", "ORG_ADMIN", "ORG_MEMBER", "COORDINATOR", "INSTITUTION_ADMIN", "OBSERVER"]
+    allowed_transitions: list[str]
+    reason_required: list[str]
+    can_add_task: bool
+    can_add_deliverable: bool
+    can_evaluate: bool
+    can_attest: bool
+    attest_blocker: Literal["ORG_NOT_VERIFIED"] | None
+
+
 class EngagementDetailResponse(BaseModel):
     """Response schema for GET /engagements/{id} (detail with tasks and deliverables)."""
 
@@ -296,6 +314,8 @@ class EngagementDetailResponse(BaseModel):
     tasks: list[TaskSummaryResponse]
     deliverables: list[DeliverableSummaryResponse]
     attestations: list[AttestationSummaryResponse]
+
+    viewer: EngagementViewerResponse
 
     class Config:
         from_attributes = True
@@ -466,6 +486,7 @@ def get_engagements(
 def get_engagement_detail(
     engagement_id: str,
     principal: Principal = Depends(get_current_principal),
+    user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> EngagementDetailResponse:
     """
@@ -506,6 +527,10 @@ def get_engagement_detail(
             session=session,
             principal=principal,
             engagement_id=engagement_id,
+        )
+        # Engagement is in scope at this point; viewer describes only the caller.
+        viewer = viewer_capabilities(
+            session, principal, engagement, email_verified=user.email_verified_at is not None
         )
 
         # Build response
@@ -551,6 +576,7 @@ def get_engagement_detail(
                 )
                 for att in attestations
             ],
+            viewer=EngagementViewerResponse(**viewer),
         )
 
     except EngagementNotFoundError:

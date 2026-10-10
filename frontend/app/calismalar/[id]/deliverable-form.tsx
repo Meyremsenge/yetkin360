@@ -13,8 +13,8 @@ import messages from "@/messages/tr.json";
 
 /**
  * YET-202/ENT-01: Engagement ACTIVE durumundayken yeni bir teslim (deliverable) ekler.
- * Sadece TALENT çağırabilir — backend 403 döner, burada rol kontrolü yapılmaz
- * (bkz. transition-actions.tsx'teki aynı felsefe: duruma göre göster, yetki sunucuda).
+ * Sadece TALENT ekleyebilir; form yalnız sunucunun `viewer.can_add_deliverable` dediği
+ * kullanıcıya görünür (SPRINT A). Yetki kararı yine sunucudadır.
  */
 export function DeliverableForm({
   engagement,
@@ -65,10 +65,10 @@ export function DeliverableForm({
     },
   });
 
-  // transition-actions.tsx'teki desenle aynı: durum artık uygun değilse AMA henüz
-  // okunmamış bir mesaj varsa erken dönme — aksi halde başarı mesajı bir render
-  // sonra (status ACTIVE'den çıkınca) okunamadan kaybolur.
-  if (engagement.status !== "ACTIVE" && !formError && !successMessage) {
+  // transition-actions.tsx'teki desenle aynı: izin artık yoksa AMA henüz okunmamış
+  // bir mesaj varsa erken dönme — aksi halde başarı mesajı bir render sonra
+  // (status ACTIVE'den çıkınca) okunamadan kaybolur.
+  if (!engagement.viewer.can_add_deliverable && !formError && !successMessage) {
     return null;
   }
 

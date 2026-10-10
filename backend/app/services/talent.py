@@ -6,7 +6,14 @@ from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import TalentProfile, User
+from app.models import (
+    Institution,
+    InstitutionMember,
+    Organization,
+    OrganizationMember,
+    TalentProfile,
+    User,
+)
 from app.services.authorization import Principal, get_scoped_or_404, scoped_institutions, scoped_organizations, scoped_talent_profiles
 
 
@@ -35,13 +42,39 @@ def get_me_context(principal: Principal, user: User, session: Session) -> dict:
     talent_query = scoped_talent_profiles(session, principal)
     talent = get_scoped_or_404(talent_query, session)
 
-    # Get organizations this user is member of via scoped query
-    org_query = scoped_organizations(session, principal)
-    organizations = session.execute(org_query).scalars().all()
+    # Organizations this user is a member of (scoped query), with the user's own
+    # membership role and unit. The join is pinned to principal.user_id, so another
+    # member's role/unit can never appear (SPRINT A AC-S3).
+    org_rows = session.execute(
+        scoped_organizations(session, principal)
+        .join(
+            OrganizationMember,
+            and_(
+                OrganizationMember.organization_id == Organization.id,
+                OrganizationMember.user_id == principal.user_id,
+            ),
+        )
+        .add_columns(OrganizationMember.role, OrganizationMember.unit)
+        .order_by(Organization.name)
+    ).all()
+    organizations = [
+        {"id": org.id, "name": org.name, "role": role, "unit": unit} for org, role, unit in org_rows
+    ]
 
-    # Get institutions this user is member of via scoped query
-    inst_query = scoped_institutions(session, principal)
-    institutions = session.execute(inst_query).scalars().all()
+    # Institutions this user is a member of (scoped query), with the user's own role.
+    inst_rows = session.execute(
+        scoped_institutions(session, principal)
+        .join(
+            InstitutionMember,
+            and_(
+                InstitutionMember.institution_id == Institution.id,
+                InstitutionMember.user_id == principal.user_id,
+            ),
+        )
+        .add_columns(InstitutionMember.role)
+        .order_by(Institution.name)
+    ).all()
+    institutions = [{"id": inst.id, "name": inst.name, "role": role} for inst, role in inst_rows]
 
     return {
         "user": user,

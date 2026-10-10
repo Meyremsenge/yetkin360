@@ -3,6 +3,7 @@
 import re
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
@@ -60,23 +61,20 @@ class UserResponse(BaseModel):
 
 
 class OrganizationResponse(BaseModel):
-    """Response schema for Organization (in GET /me)."""
+    """Response schema for Organization (in GET /me) — with the caller's own membership."""
 
     id: uuid.UUID
     name: str
-
-    class Config:
-        from_attributes = True
+    role: Literal["ADMIN", "MEMBER"]
+    unit: str | None = None
 
 
 class InstitutionResponse(BaseModel):
-    """Response schema for Institution (in GET /me)."""
+    """Response schema for Institution (in GET /me) — with the caller's own membership role."""
 
     id: uuid.UUID
     name: str
-
-    class Config:
-        from_attributes = True
+    role: Literal["ADMIN", "COORDINATOR", "SUPERVISOR"]
 
 
 class GetMeResponse(BaseModel):
@@ -175,12 +173,8 @@ def get_me(
     talent_profile = context["talent_profile"]
 
     # Build response
-    org_responses = [
-        OrganizationResponse(id=o.id, name=o.name) for o in context["organizations"]
-    ]
-    inst_responses = [
-        InstitutionResponse(id=i.id, name=i.name) for i in context["institutions"]
-    ]
+    org_responses = [OrganizationResponse(**o) for o in context["organizations"]]
+    inst_responses = [InstitutionResponse(**i) for i in context["institutions"]]
 
     return GetMeResponse(
         user=UserResponse(
