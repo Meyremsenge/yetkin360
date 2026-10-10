@@ -126,10 +126,10 @@ function PortfolioRow({ item }: { item: PortfolioItem }) {
           <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
             {(t.portfolioKind as Record<string, string>)[item.kind]}
           </p>
-          <p className="mt-0.5 flex items-center gap-2 font-medium text-foreground">
+          <div className="mt-0.5 flex items-center gap-2 font-medium text-foreground">
             {confirmed ? <VerifiedSeal size="sm" label={t.portfolioBadge.COORDINATOR_CONFIRMED} /> : null}
             <span className="break-words">{item.title}</span>
-          </p>
+          </div>
           {meta ? <p className="text-sm text-muted-foreground">{meta}</p> : null}
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             {item.credential_id ? <span className="font-mono">{item.credential_id}</span> : null}

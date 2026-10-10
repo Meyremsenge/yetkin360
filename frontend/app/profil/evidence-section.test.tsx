@@ -636,4 +636,55 @@ describe("EvidenceSection (/profil/evidence-section.tsx)", () => {
       });
     });
   });
+
+  describe("Uzun döküm: özet satırı ve 'Tümünü göster'", () => {
+    function group(i: number, signals: Array<{ source_type: string; strength: string }>) {
+      return {
+        skill: { id: `s${i}`, name_tr: `Yetkinlik ${i}`, name_en: `Skill ${i}`, slug: `s${i}`, category: "x" },
+        signals: signals.map((sig, n) => ({
+          ...sig,
+          occurred_at: `2026-10-0${n + 1}T00:00:00Z`,
+          attested_by: null,
+          superseded: false,
+        })),
+      };
+    }
+
+    it("her yetkinlik kapalı bir <details> özetinde: kanıt sayısı ve en güçlü seviye", async () => {
+      vi.mocked(clientModule.getMySignals).mockResolvedValueOnce({
+        items: [
+          group(1, [
+            { source_type: "TASK", strength: "WEAK" },
+            { source_type: "EVALUATION", strength: "STRONG" },
+            { source_type: "DELIVERABLE", strength: "MODERATE" },
+          ]),
+        ],
+      });
+      vi.mocked(clientModule.getMyVerifiedExperiences).mockResolvedValueOnce({ items: [] });
+
+      const { container } = renderWithQueryClient(<EvidenceSection />);
+      await waitFor(() => expect(screen.getByText("Yetkinlik 1")).toBeTruthy());
+
+      const details = container.querySelector("details");
+      expect(details).toBeTruthy();
+      expect(details?.hasAttribute("open")).toBe(false);
+      expect(screen.getByText("3 kanıt")).toBeTruthy();
+      expect(screen.getByRole("img", { name: "En güçlü seviye: Güçlü" })).toBeTruthy();
+    });
+
+    it("6'dan fazla yetkinlik varsa fazlası 'Tümünü göster' ile açılır", async () => {
+      const items = Array.from({ length: 8 }, (_, i) => group(i + 1, [{ source_type: "TASK", strength: "WEAK" }]));
+      vi.mocked(clientModule.getMySignals).mockResolvedValueOnce({ items });
+      vi.mocked(clientModule.getMyVerifiedExperiences).mockResolvedValueOnce({ items: [] });
+
+      renderWithQueryClient(<EvidenceSection />);
+      await waitFor(() => expect(screen.getByText("Yetkinlik 6")).toBeTruthy());
+      expect(screen.queryByText("Yetkinlik 7")).toBeNull();
+
+      const toggle = screen.getByRole("button", { name: "Tüm yetkinlikleri göster (8)" });
+      await userEvent.click(toggle);
+      expect(screen.getByText("Yetkinlik 8")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Daha az göster" }).getAttribute("aria-expanded")).toBe("true");
+    });
+  });
 });

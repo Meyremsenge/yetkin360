@@ -148,6 +148,99 @@ function formatDate(isoDate: string): string {
   }).format(date);
 }
 
+// Long breakdowns stay scannable: a few skills open the list, the rest behind a toggle.
+const VISIBLE_SKILL_GROUPS = 6;
+
+/**
+ * One skill as a single summary row (seal, name, evidence count, strongest
+ * level); the dated signal list opens on demand.
+ */
+function SignalGroupCard({ group }: { group: SignalGroup }) {
+  // AC-1: Sort signals by occurred_at descending (newest first)
+  const sortedSignals = [...group.signals].sort(
+    (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()
+  );
+  const active = group.signals.filter((s) => !s.superseded);
+  // Sealed only when a real (non self-claim, non superseded) signal backs the skill
+  const hasEvidence = active.some(
+    (s) => s.source_type !== "SELF_CLAIM" && (STRENGTH_LEVEL[s.strength] ?? 0) > 0
+  );
+  const strongest = active.reduce<string>(
+    (best, s) => ((STRENGTH_LEVEL[s.strength] ?? 0) > (STRENGTH_LEVEL[best] ?? 0) ? s.strength : best),
+    "NONE"
+  );
+
+  return (
+    <li>
+      <details
+        className={`group rounded-md border ${hasEvidence ? "border-success/40 bg-success/5" : "border-border"}`}
+      >
+        <summary
+          className={`flex cursor-pointer list-none items-center gap-3 rounded-md px-4 py-3 [&::-webkit-details-marker]:hidden ${focusRingClass}`}
+        >
+          {hasEvidence && <VerifiedSeal size="sm" label={messages.profil.evidenceBackedLabel} />}
+          {/* AC-1: Skill name grouped */}
+          <h4
+            className={`min-w-0 flex-1 truncate text-[15px] font-medium ${
+              hasEvidence ? "text-success" : "text-muted-foreground"
+            }`}
+          >
+            {group.skill.name_tr}
+          </h4>
+          <span
+            role="img"
+            aria-label={messages.profil.strongestLevel.replace("{level}", getStrengthLabel(strongest))}
+            className="inline-flex"
+          >
+            <StrengthBars strength={strongest} />
+          </span>
+          <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
+            {messages.profil.signalCount.replace("{count}", String(group.signals.length))}
+          </span>
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </summary>
+
+        <ul className="mx-4 divide-y divide-border border-t border-border pb-1">
+          {sortedSignals.map((signal, idx) => (
+            <li
+              key={idx}
+              className={`flex items-start justify-between gap-3 py-2.5 ${signal.superseded ? "opacity-60" : ""}`}
+            >
+              <div className="min-w-0 flex-1">
+                {/* AC-1: source_type, strength, date */}
+                <div className="flex flex-wrap items-center gap-x-2 text-sm text-foreground">
+                  <span className="font-medium">{getSourceTypeLabel(signal.source_type)}</span>
+                  <StrengthBars strength={signal.strength} />
+                  <span className="text-muted-foreground">{getStrengthLabel(signal.strength)}</span>
+                </div>
+                {/* AC-5: attested_by, else engagement record or "Kendi beyanı" */}
+                <div className="mt-0.5 text-[13px] text-muted-foreground">{signalOrigin(signal)}</div>
+              </div>
+
+              <div className="flex flex-col items-end gap-1">
+                <span className="font-mono text-xs text-muted-foreground">{formatDate(signal.occurred_at)}</span>
+                {/* AC-4: superseded badge */}
+                {signal.superseded && <Badge variant="warning">{messages.profil.supersededBadge}</Badge>}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </details>
+    </li>
+  );
+}
+
 export default function EvidenceSection() {
   // AC-1/AC-12: Independent useQuery for signals
   const SIGNALS_QUERY_KEY = ["talent-signals"] as const;
@@ -172,6 +265,7 @@ export default function EvidenceSection() {
     queryFn: getMyVerifiedExperiences,
   });
 
+  const [showAllSkills, setShowAllSkills] = useState(false);
   const signalGroups = (signalsData?.items as SignalGroup[]) ?? [];
   const verifiedExperiences = (verifiedExpData?.items as VerifiedExperience[]) ?? [];
 
@@ -207,74 +301,25 @@ export default function EvidenceSection() {
         )}
 
         {!signalsLoading && !signalsError && signalGroups.length > 0 && (
-          <div className="space-y-4">
-            {signalGroups.map((group) => {
-              // AC-1: Sort signals by occurred_at descending (newest first)
-              const sortedSignals = [...group.signals].sort((a, b) => {
-                const dateA = new Date(a.occurred_at).getTime();
-                const dateB = new Date(b.occurred_at).getTime();
-                return dateB - dateA;
-              });
-              // Sealed only when a real (non self-claim, non superseded) signal backs the skill
-              const hasEvidence = group.signals.some(
-                (s) =>
-                  !s.superseded && s.source_type !== "SELF_CLAIM" && (STRENGTH_LEVEL[s.strength] ?? 0) > 0
-              );
-
-              return (
-                <div
-                  key={group.skill.id}
-                  className={`rounded-md border p-4 ${
-                    hasEvidence ? "border-success/40 bg-success/5" : "border-border"
-                  }`}
-                >
-                  {/* AC-1: Skill name grouped */}
-                  <div className="mb-3 flex items-center gap-2">
-                    {hasEvidence && <VerifiedSeal size="sm" label={messages.profil.evidenceBackedLabel} />}
-                    <h4
-                      className={`text-[15px] font-medium ${
-                        hasEvidence ? "text-success" : "text-muted-foreground"
-                      }`}
-                    >
-                      {group.skill.name_tr}
-                    </h4>
-                  </div>
-
-                  <ul className="divide-y divide-border">
-                    {sortedSignals.map((signal, idx) => (
-                      <li
-                        key={idx}
-                        className={`flex items-start justify-between gap-3 py-2.5 ${
-                          signal.superseded ? "opacity-60" : ""
-                        }`}
-                      >
-                        <div className="min-w-0 flex-1">
-                          {/* AC-1: source_type, strength, date */}
-                          <div className="flex flex-wrap items-center gap-x-2 text-sm text-foreground">
-                            <span className="font-medium">{getSourceTypeLabel(signal.source_type)}</span>
-                            <StrengthBars strength={signal.strength} />
-                            <span className="text-muted-foreground">{getStrengthLabel(signal.strength)}</span>
-                          </div>
-                          {/* AC-5: attested_by, else engagement record or "Kendi beyanı" */}
-                          <div className="mt-0.5 text-[13px] text-muted-foreground">{signalOrigin(signal)}</div>
-                        </div>
-
-                        <div className="flex flex-col items-end gap-1">
-                          <span className="font-mono text-xs text-muted-foreground">
-                            {formatDate(signal.occurred_at)}
-                          </span>
-                          {/* AC-4: superseded badge */}
-                          {signal.superseded && (
-                            <Badge variant="warning">{messages.profil.supersededBadge}</Badge>
-                          )}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })}
-          </div>
+          <>
+            <ul className="space-y-2">
+              {(showAllSkills ? signalGroups : signalGroups.slice(0, VISIBLE_SKILL_GROUPS)).map((group) => (
+                <SignalGroupCard key={group.skill.id} group={group} />
+              ))}
+            </ul>
+            {signalGroups.length > VISIBLE_SKILL_GROUPS && (
+              <button
+                type="button"
+                aria-expanded={showAllSkills}
+                onClick={() => setShowAllSkills((value) => !value)}
+                className={`mt-3 text-sm font-medium text-success underline-offset-4 hover:underline ${focusRingClass}`}
+              >
+                {showAllSkills
+                  ? messages.profil.showFewerSkills
+                  : messages.profil.showAllSkills.replace("{count}", String(signalGroups.length))}
+              </button>
+            )}
+          </>
         )}
       </div>
 
