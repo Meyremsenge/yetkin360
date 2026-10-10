@@ -54,6 +54,8 @@ class Settings(BaseSettings):
     # YET-186: identity-endpoint rate limits (docs/SECURITY.md §3). Off only for
     # local development; the test suite turns it off by default.
     rate_limit_enabled: bool = True
+    # PLAN R.1: Keşfet directory kill switch — off makes /discover/* answer 404.
+    discover_enabled: bool = True
 
     # Outbox / Email — docs/ENV.md §6, PLAN 1.5 (yet-5-outbox-worker), PLAN 1.6
     outbox_poll_interval_seconds: int = 5

@@ -132,6 +132,7 @@ yapabileceğini** belirler. İkisi birden gerekir.
 | Kaynak | Talent (sahip) | Talent (diğer) | Org üyesi (ilgili) | Org üyesi (ilgisiz) | Koordinatör (kendi kurumu) | Admin |
 |---|---|---|---|---|---|---|
 | TalentProfile (public alanlar) | RW | R (`visibility`'ye göre) | R (eşleşmişse) | ✗ | R | R |
+| TalentProfile (Keşfet dizini kartı — yalnız `PUBLIC` + `public_slug`) | R | R | R | R | R | R |
 | TalentProfile (e-posta, tel) | RW | ✗ | R (**yalnız aktif engagement**) | ✗ | R | R |
 | Evidence (`PRIVATE`) | RW | ✗ | ✗ | ✗ | ✗ | ✗ **(admin bile hayır)** |
 | Evidence (engagement'a bağlı) | RW | ✗ | R | ✗ | R | R |
@@ -334,6 +335,8 @@ hangi uca karşılık geldiğini gösterir.
 | `*/talents/me/skills` | `TALENT` (kendi) | B7, B8 |
 | `GET /talents/me/signals` | `TALENT` (kendi) | — |
 | `GET /skills` | `AUTH` | — |
+| `GET /discover/talents` | `AUTH` (e-posta doğrulanmış) — yalnız `PUBLIC` profiller | `tests/authorization/test_discover_authz.py` |
+| `GET /discover/organizations` | `AUTH` (e-posta doğrulanmış) — yalnız `ACTIVE` kuruluşlar | `tests/authorization/test_discover_authz.py` |
 | `POST /organizations` | `AUTH` | — |
 | `GET /organizations/{id}` | `AUTH` | A5 |
 | `POST /organizations/{id}/members` | `ORG:ADMIN` | D4 |

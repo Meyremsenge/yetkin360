@@ -6,13 +6,22 @@ import { sanitizeNext } from "./sanitize-next";
  * Davranış Sözleşmesi satır 2: public allowlist.
  */
 
+const ADMIN_LOGIN_PATH = "/admin/giris";
+
+function isAdminPath(pathname: string): boolean {
+  const basePath = pathname.split("?")[0].split("#")[0];
+  return basePath === "/admin" || basePath.startsWith("/admin/");
+}
+
 export function buildLoginUrl(
   pathname: string,
   reason?: "oturum-bitti"
 ): string {
   const sanitized = sanitizeNext(pathname);
   const encoded = encodeURIComponent(sanitized);
-  const url = `/giris?next=${encoded}`;
+  // Admin pages send the visitor to the admin sign-in, not the student one.
+  const loginPath = isAdminPath(sanitized) ? ADMIN_LOGIN_PATH : "/giris";
+  const url = `${loginPath}?next=${encoded}`;
 
   if (reason === "oturum-bitti") {
     return `${url}&neden=oturum-bitti`;
@@ -51,6 +60,9 @@ function isPublicRoute(pathname: string): boolean {
 
   // Login page and subpaths
   if (pathname === "/giris" || pathname.startsWith("/giris/")) return true;
+
+  // Admin sign-in page only — every other /admin path stays protected
+  if (pathname === ADMIN_LOGIN_PATH) return true;
 
   // Registration page and subpaths
   if (pathname === "/kayit" || pathname.startsWith("/kayit/")) return true;

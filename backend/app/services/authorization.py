@@ -644,6 +644,82 @@ def scoped_attestations_for_engagement(session: Session, engagement_id: uuid.UUI
     )
 
 
+# ============================================================================
+# Keşfet directory (PLAN R.1, docs/kesfet-tasarim.md)
+# ============================================================================
+
+
+def scoped_discoverable_talent_profiles(session: Session, principal: Principal) -> Select:
+    """
+    Return a SQLAlchemy Select query over the talent profiles listed in Keşfet.
+
+    A deliberate exception to tenant scoping, like scoped_organization_directory():
+    any authenticated principal may list profiles the talent has already made
+    readable anonymously via /p/{slug}. Nothing that is not already public is
+    reachable through this query:
+    - visibility='PUBLIC' (ORGANIZATIONS / INSTITUTION / PRIVATE never listed)
+    - public_slug IS NOT NULL (the card links to the public profile)
+    - deleted_at IS NULL
+
+    Anonymous principals get an empty scope (defense-in-depth; the route already
+    requires authentication).
+
+    Never use this for per-talent data — use scoped_talent_profiles() for that.
+    """
+    if principal.user_id is None:
+        return select(TalentProfile).where(TalentProfile.id.in_([]))
+    return select(TalentProfile).where(
+        TalentProfile.visibility == "PUBLIC",
+        TalentProfile.public_slug.is_not(None),
+        TalentProfile.deleted_at.is_(None),
+    )
+
+
+def scoped_discoverable_verified_experiences(session: Session, talent_ids: list[uuid.UUID]) -> Select:
+    """
+    Return a SQLAlchemy Select query for the PUBLIC VerifiedExperience rows of
+    already-discoverable talents (ids must come from
+    scoped_discoverable_talent_profiles()).
+
+    Same visibility rule as the public profile: visibility='PUBLIC', and
+    GUV-05 — an experience whose attestations are all revoked is hidden.
+    """
+    has_any_attestation = (
+        select(1).where(Attestation.engagement_id == VerifiedExperience.engagement_id).exists()
+    )
+    has_active_attestation = (
+        select(1).where(
+            Attestation.engagement_id == VerifiedExperience.engagement_id,
+            Attestation.revoked_at.is_(None),
+        ).exists()
+    )
+    return select(VerifiedExperience).where(
+        VerifiedExperience.talent_id.in_(talent_ids),
+        VerifiedExperience.visibility == "PUBLIC",
+        (~has_any_attestation) | has_active_attestation,
+    )
+
+
+def scoped_discoverable_attestations(session: Session) -> Select:
+    """
+    Return a SQLAlchemy Select query for the attestations that seal a skill on a
+    PUBLIC VerifiedExperience — the only source of the skill chips in Keşfet.
+
+    A skill attested on a non-PUBLIC experience must never surface here: the
+    public profile does not show it either. Revoked attestations are excluded
+    (GUV-05). Callers add their own talent / skill filters.
+    """
+    return (
+        select(Attestation)
+        .join(VerifiedExperience, VerifiedExperience.engagement_id == Attestation.engagement_id)
+        .where(
+            VerifiedExperience.talent_id == Attestation.talent_id,
+            VerifiedExperience.visibility == "PUBLIC",
+            Attestation.skill_id.is_not(None),
+            Attestation.revoked_at.is_(None),
+        )
+    )
+
 
 def scoped_public_skill_signals(
     session: Session, talent_id: uuid.UUID, engagement_ids: list[uuid.UUID]

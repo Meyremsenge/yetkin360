@@ -20,8 +20,8 @@ const FOCUS_RING =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-1 focus-visible:ring-offset-card";
 const OVERLAY_SHADOW = "shadow-[0_8px_24px_-12px_rgba(34,31,27,0.25)]";
 
-// /kesfet does not exist yet; flip when the discover page ships.
-const DISCOVER_ENABLED = false;
+// Discover page (/kesfet) is live.
+const DISCOVER_ENABLED = true;
 
 // Inline lucide paths (no icon dependency, brief §1.5).
 const ICON_PATHS = {

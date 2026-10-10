@@ -839,9 +839,12 @@ describe("AppShell", () => {
       expect(screen.queryByRole("link", { name: new RegExp(messages.shell.viewPublicProfile) })).toBeNull();
     });
 
-    it("Keşfet sayfası yokken menüde görünmez", () => {
-      const { container } = renderAt("/calismalar", { user: { id: "u1" }, talent_profile: { public_slug: null } });
-      expect(container.innerHTML).not.toContain('href="/kesfet"');
+    it("Keşfet ana menüde görünür ve /kesfet'te aktif olur", () => {
+      renderAt("/kesfet", { user: { id: "u1" }, talent_profile: { public_slug: null } });
+      const nav = screen.getByRole("navigation", { name: messages.shell.mainNav });
+      const link = within(nav).getByRole("link", { name: messages.shell.discoverLink });
+      expect(link.getAttribute("href")).toBe("/kesfet");
+      expect(link.getAttribute("aria-current")).toBe("page");
     });
 
     it("kullanıcı menüsü ad, rol başlığı ve maskeli e-postayı gösterir; tam e-posta yok", () => {
