@@ -14,3 +14,9 @@ Güncellenen mevcut testler: 3 public alan allowlist testi (`about`, `certificat
 ## Red-team sonrası
 - Bulgu 1 (medium, evidence_id silinen kayıtta kilitli kalıyordu) düzeltildi: soft delete `evidence_id`'yi boşaltır. Test: `test_deleted_item_releases_its_evidence`.
 - Yeniden çalıştırma: `pytest tests/authorization -q` → 977 passed, 9 skipped.
+
+## Düzeltme — cv2
+`test_certificate_check_handler.py` hatası ortam kaynaklıydı: testler sistem Python'uyla koşturulmuştu. `opencv-python-headless` `requirements.txt`'te var ve `backend/.venv`'de kurulu; `.venv/Scripts/python.exe -m pytest` ile dosya geçiyor. Bağımlılık değişikliği yapılmadı.
+
+## Seed
+`seed_showcase_portfolio` (ogrenci1): Hakkımda + 1 koordinatör onaylı sertifika + 3 kendi beyanı (biri rızası kapalı). `tests/test_seed_portfolio.py` 2 passed; `test_seed*.py`, `test_reset_demo.py` geçti.

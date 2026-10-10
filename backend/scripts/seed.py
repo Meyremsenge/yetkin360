@@ -14,7 +14,7 @@ DO NOT run in production without careful consideration.
 """
 
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
@@ -30,7 +30,12 @@ from app.models import (
     Organization,
     Engagement,
     VerifiedExperience,
+    CertificateCheck,
+    Deliverable,
+    Evidence,
+    PortfolioItem,
 )
+from app.models.base import uuid7_default
 from app.services.auth import register_user
 from app.services.institution import (
     create_institution,
@@ -1042,6 +1047,120 @@ def seed_showcase_profile(session: Session) -> None:
     print(f"Showcase profile seed: {inserted} engagements inserted")
 
 
+# Showcase "Hakkımda" + certificate/work showcase for ogrenci1 (docs/arastirma-ogrenci-profili.md).
+# No external links: a made-up verify/project URL would 404 in a live demo, so none are seeded.
+SHOWCASE_ABOUT = (
+    "Bilgisayar mühendisliği 4. sınıf öğrencisiyim. Backend geliştirme ve veritabanı performansıyla "
+    "ilgileniyorum; ölçerek iyileştirmeyi ve yaptığımı açık bir dille belgelemeyi seviyorum.\n"
+    "Şu an FastAPI ve PostgreSQL üzerine çalışıyorum, boş zamanlarımda kampüs projelerine katkı veriyorum."
+)
+SHOWCASE_CONFIRMED_ENGAGEMENT = ("ORG4", "Sorgu Performansı İyileştirme Projesi")
+SHOWCASE_SELF_DECLARED = [
+    # (kind, title, issuer, issued_on, credential_id, show_on_profile)
+    ("CERTIFICATE", "SQL Temelleri", "Udemy", date(2026, 2, 1), "UC-7F3K2M9Q", True),
+    ("WORK", "Kampüs etkinlik takvimi (kişisel proje)", "Öğrenci kulübü", date(2026, 4, 1), None, True),
+    ("CERTIFICATE", "İngilizce B2", "Dil okulu", date(2025, 6, 1), None, False),
+]
+
+
+def seed_showcase_portfolio(session: Session) -> None:
+    """
+    Fill the showcase student's "Hakkımda" and certificate showcase (idempotent).
+
+    - about text, only when empty
+    - one certificate uploaded inside a verified engagement, with a certificate
+      check CONFIRMED by that organization's admin → "Koordinatör onaylı" card.
+      The evidence row is metadata only (no object in storage); it stays PRIVATE.
+    - self-declared items, one of them with consent off (not on the public page)
+    Skipped entirely when the student already has live (not deleted) portfolio items.
+    """
+    if settings.environment == "production":
+        raise RuntimeError("Seed script cannot run in production environment")
+
+    talent = session.execute(
+        select(TalentProfile).join(User, TalentProfile.user_id == User.id).where(User.email == SHOWCASE_STUDENT_EMAIL)
+    ).scalars().first()
+    if talent is None:
+        print("Warning: showcase student missing — run seed_talents first")
+        return
+    if not talent.about:
+        talent.about = SHOWCASE_ABOUT
+
+    has_items = session.execute(
+        select(PortfolioItem.id).where(PortfolioItem.talent_id == talent.id, PortfolioItem.deleted_at.is_(None))
+    ).first()
+    if has_items:
+        print("Showcase portfolio seed: already present, skipped")
+        return
+
+    legal_id, engagement_title = SHOWCASE_CONFIRMED_ENGAGEMENT
+    deliverable = session.execute(
+        select(Deliverable)
+        .join(Engagement, Deliverable.engagement_id == Engagement.id)
+        .where(Engagement.talent_id == talent.id, Engagement.title == engagement_title)
+    ).scalars().first()
+    coordinator = session.execute(
+        select(User).where(User.email == f"{legal_id.lower()}-admin@seed.local")
+    ).scalars().first()
+    inserted = 0
+    if deliverable is not None and coordinator is not None:
+        evidence = Evidence(
+            owner_talent_id=talent.id,
+            deliverable_id=deliverable.id,
+            kind="CERTIFICATE",
+            storage_key=f"evidence/{talent.id}/{uuid7_default()}.pdf",
+            mime_type="application/pdf",
+            size_bytes=48_213,
+            scan_status="CLEAN",
+        )
+        session.add(evidence)
+        session.flush()
+        decided_at = datetime.now(timezone.utc) - timedelta(days=100)
+        session.add(
+            CertificateCheck(
+                evidence_id=evidence.id,
+                requested_by_talent_at=decided_at - timedelta(days=2),
+                status="DONE",
+                provider="COURSERA",
+                credential_id="SEED-PGPERF-2026",
+                verify_url=None,
+                name_match=True,
+                decision="CONFIRMED",
+                decided_by_user_id=coordinator.id,
+                decided_at=decided_at,
+            )
+        )
+        session.add(
+            PortfolioItem(
+                talent_id=talent.id,
+                kind="CERTIFICATE",
+                title="PostgreSQL ile Sorgu Optimizasyonu",
+                issued_on=date(2026, 5, 1),
+                evidence_id=evidence.id,
+                show_on_profile=True,
+            )
+        )
+        inserted += 1
+    else:
+        print("Warning: confirmed showcase certificate skipped (engagement or coordinator missing)")
+
+    for kind, title, issuer, issued_on, credential_id, show in SHOWCASE_SELF_DECLARED:
+        session.add(
+            PortfolioItem(
+                talent_id=talent.id,
+                kind=kind,
+                title=title,
+                issuer=issuer,
+                issued_on=issued_on,
+                credential_id=credential_id,
+                show_on_profile=show,
+            )
+        )
+        inserted += 1
+    session.flush()
+    print(f"Showcase portfolio seed: {inserted} items inserted")
+
+
 def seed_public_experiences(session: Session) -> int:
     """
     Make every seed student's verified experiences PUBLIC so /p/[slug] and /v/[token]
@@ -1106,6 +1225,8 @@ if __name__ == "__main__":
         seed_engagements(session)
 
         seed_showcase_profile(session)
+
+        seed_showcase_portfolio(session)
 
         seed_public_experiences(session)
 
