@@ -278,3 +278,47 @@ class TestCertificateCheckHandler:
         outbox_worker.certificate_check_requested_handler({"certificate_check_id": str(uuid.uuid4())}, 1)
 
         assert calls == []
+
+    def test_jpeg_upload_is_reencoded_to_real_png_before_sending(self, session, talent_cc, handler_env, monkeypatch):
+        """Canlı bulgu: JPEG bytes'ı ham haliyle 'image/png' etiketiyle gönderirsek
+        sağlayıcı (Anthropic) 400 ile reddediyor ('declared png but is jpeg').
+        Her upload gerçek PNG'ye yeniden encode edilmeli — hangi mime_type ile
+        yüklendiği fark etmeksizin."""
+        import base64
+
+        image = np.full((40, 40, 3), 128, dtype=np.uint8)
+        ok, jpeg_buf = cv2.imencode(".jpg", image)
+        assert ok
+        jpeg_bytes = bytes(jpeg_buf)
+
+        ev = _evidence(session, talent_cc, mime="image/jpeg")
+        check = _pending_check(session, ev)
+        handler_env(jpeg_bytes)
+        calls = _install_fake_openrouter(
+            monkeypatch, body=_chat_response('{"provider": "UDEMY", "credential_id": null, "extracted_name": null, "verify_url": null}')
+        )
+
+        outbox_worker.certificate_check_requested_handler({"certificate_check_id": str(check.id)}, 1)
+
+        assert len(calls) == 1
+        content_blocks = calls[0]["json"]["messages"][0]["content"]
+        image_block = next(b for b in content_blocks if b["type"] == "image_url")
+        data_url = image_block["image_url"]["url"]
+        assert data_url.startswith("data:image/png;base64,")
+        decoded = base64.b64decode(data_url.split(",", 1)[1])
+        assert decoded.startswith(b"\x89PNG\r\n\x1a\n"), "gönderilen bytes gerçek PNG imzasıyla başlamalı"
+
+        session.refresh(check)
+        assert check.status == "DONE"
+
+    def test_undecodable_image_marks_failed_without_calling_model(self, session, talent_cc, handler_env, monkeypatch):
+        ev = _evidence(session, talent_cc, mime="image/png")
+        check = _pending_check(session, ev)
+        handler_env(b"not a real image")
+        calls = _install_fake_openrouter(monkeypatch, body=_chat_response("{}"))
+
+        outbox_worker.certificate_check_requested_handler({"certificate_check_id": str(check.id)}, 1)
+
+        assert calls == []
+        session.refresh(check)
+        assert check.status == "FAILED"

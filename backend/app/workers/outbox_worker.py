@@ -653,6 +653,26 @@ def _decode_qr(image_bytes: bytes) -> str | None:
     return data or None
 
 
+def _reencode_as_png(image_bytes: bytes) -> bytes | None:
+    """
+    Decodes any uploaded image format (JPEG/PNG) and re-encodes it as real PNG
+    bytes. Needed because the model's provider validates the declared media
+    type against the ACTUAL bytes (Anthropic rejects a JPEG mislabeled as
+    PNG) — passing an uploaded JPEG straight through under a hardcoded
+    "image/png" label would 400 forever. Returns None if the bytes aren't a
+    decodable image (handler records this as FAILED, not a retry).
+    """
+    import cv2
+    import numpy as np
+
+    array = np.frombuffer(image_bytes, dtype=np.uint8)
+    decoded = cv2.imdecode(array, cv2.IMREAD_COLOR)
+    if decoded is None:
+        return None
+    ok, buf = cv2.imencode(".png", decoded)
+    return bytes(buf) if ok else None
+
+
 def _render_first_page_to_png(file_bytes: bytes) -> bytes:
     """PDF → PNG (first page only) via PyMuPDF — pure-pip, no poppler/system binary."""
     import fitz
@@ -814,8 +834,16 @@ def certificate_check_requested_handler(payload: dict, outbox_id: int) -> None:
         image_png = (
             _render_first_page_to_png(stored.data)
             if evidence_row.mime_type == "application/pdf"
-            else stored.data
+            else _reencode_as_png(stored.data)
         )
+        if image_png is None:
+            with Session(engine) as session:
+                session.execute(
+                    update(CertificateCheck).where(CertificateCheck.id == check_id, CertificateCheck.status == "PENDING")
+                    .values(status="FAILED")
+                )
+                session.commit()
+            return
 
         qr_data = _decode_qr(image_png)
         fields = _extract_certificate_fields(image_png, settings.openrouter_api_key, settings.openrouter_model)
