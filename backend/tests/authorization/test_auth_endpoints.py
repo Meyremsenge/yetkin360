@@ -793,3 +793,126 @@ class TestResetPassword:
         )
         assert response.status_code == 410
         assert response.json()["code"] == "TOKEN_EXPIRED"
+
+
+class TestRegisterOrganizationCorporateIdentity:
+    """Kuruluş kaydı: doğrulama e-postası her zaman kurumsal adrese gider
+    (ücretsiz sağlayıcı sunucuda reddedilir) ve MERSİS numarası kuruluşa yazılır."""
+
+    @staticmethod
+    def _payload(email: str, **overrides) -> dict:
+        payload = {
+            "email": email,
+            "password": "Str0ngPassw0rd!",
+            "full_name": "Kuruluş Yetkilisi",
+            "account_kind": "ORGANIZATION",
+            "entity_name": "Kurumsal Kimlik A.Ş.",
+        }
+        payload.update(overrides)
+        return payload
+
+    @pytest.mark.parametrize(
+        "email", ["kurucu@gmail.com", "kurucu@HOTMAIL.com", "kurucu@mail.gmail.com", "kurucu@yandex.com.tr"]
+    )
+    def test_organization_registration_with_free_email_is_rejected_422(self, client, session, email):
+        response = client.post("/auth/register", json=self._payload(email))
+
+        assert response.status_code == 422, response.text
+        body = response.json()
+        assert body["code"] == "VALIDATION_ERROR"
+        assert "email" in body["fields"]
+        assert session.execute(select(func.count()).select_from(User).where(User.email == email)).scalar() == 0
+        assert (
+            session.execute(
+                select(func.count()).select_from(Organization).where(Organization.name == "Kurumsal Kimlik A.Ş.")
+            ).scalar()
+            == 0
+        )
+
+    def test_free_email_rejection_does_not_depend_on_the_account_existing(self, client, existing_user, session):
+        """Enumeration guard: aynı cevap, hesap var olsa da olmasa da — karar yalnız istekten verilir."""
+        existing_user.email = "zaten-kayitli@gmail.com"
+        session.flush()
+
+        taken = client.post("/auth/register", json=self._payload("zaten-kayitli@gmail.com"))
+        free = client.post("/auth/register", json=self._payload("hic-kayitli-degil@gmail.com"))
+
+        assert taken.status_code == free.status_code == 422
+        assert taken.json()["fields"] == free.json()["fields"]
+
+    @pytest.mark.parametrize("account_kind", ["TALENT", "INSTITUTION"])
+    def test_free_email_is_still_allowed_for_other_account_kinds(self, client, account_kind):
+        payload = self._payload(f"kisi-{account_kind.lower()}@gmail.com", account_kind=account_kind)
+        if account_kind == "TALENT":
+            payload.pop("entity_name")
+
+        assert client.post("/auth/register", json=payload).status_code == 201
+
+    def test_verification_email_is_queued_for_the_corporate_address(self, client, session):
+        from app.models import Outbox
+
+        response = client.post("/auth/register", json=self._payload("yetkili@kurumsal-firma.example.com"))
+
+        assert response.status_code == 201, response.text
+        user_id = response.json()["user_id"]
+        user = session.execute(select(User).where(User.email == "yetkili@kurumsal-firma.example.com")).scalars().one()
+        assert str(user.id) == user_id
+        queued = session.execute(select(Outbox).where(Outbox.topic == "email.verify_email")).scalars().all()
+        assert [row.payload["user_id"] for row in queued] == [user_id]
+
+    def test_mersis_number_is_stored_on_the_organization(self, client, session):
+        response = client.post(
+            "/auth/register", json=self._payload("yetkili@mersisli-firma.example.com", legal_id="0123456789012345")
+        )
+
+        assert response.status_code == 201, response.text
+        org = session.execute(
+            select(Organization).where(Organization.name == "Kurumsal Kimlik A.Ş.")
+        ).scalars().one()
+        assert org.legal_id == "0123456789012345"
+        assert org.verification_level == "T1"  # a number alone verifies nothing
+
+    @pytest.mark.parametrize("legal_id", ["123", "012345678901234X", "01234567890123456", "0123 4567 8901 2345"])
+    def test_malformed_mersis_number_is_rejected_422(self, client, legal_id):
+        response = client.post(
+            "/auth/register", json=self._payload("yetkili@bicimsiz-firma.example.com", legal_id=legal_id)
+        )
+
+        assert response.status_code == 422
+        assert "legal_id" in response.json()["fields"]
+
+    def test_mersis_number_of_another_organization_is_rejected_409_and_nothing_is_created(self, client, session):
+        session.add(Organization(name="İlk Sahibi Ltd.", legal_id="0999999999999999", verification_level="T1"))
+        session.flush()
+
+        response = client.post(
+            "/auth/register", json=self._payload("ikinci@ikinci-firma.example.com", legal_id="0999999999999999")
+        )
+
+        assert response.status_code == 409, response.text
+        assert response.json()["code"] == "LEGAL_ID_TAKEN"
+        assert (
+            session.execute(
+                select(func.count()).select_from(Organization).where(Organization.name == "Kurumsal Kimlik A.Ş.")
+            ).scalar()
+            == 0
+        )
+
+    def test_mersis_number_is_ignored_for_non_organization_accounts(self, client, session):
+        response = client.post(
+            "/auth/register",
+            json={
+                "email": "ogrenci-mersis@example.com",
+                "password": "Str0ngPassw0rd!",
+                "full_name": "Öğrenci",
+                "legal_id": "0111111111111111",
+            },
+        )
+
+        assert response.status_code == 201
+        assert (
+            session.execute(
+                select(func.count()).select_from(Organization).where(Organization.legal_id == "0111111111111111")
+            ).scalar()
+            == 0
+        )

@@ -38,7 +38,7 @@ from app.models import (
 )
 from app.services.audit import log_audit_event
 from app.services.institution import create_institution
-from app.services.organization import create_organization
+from app.services.organization import DuplicateLegalIdError, create_organization, is_free_email_domain
 from app.services.outbox import enqueue
 
 EMAIL_VERIFICATION_TOKEN_TTL_HOURS = 24
@@ -138,6 +138,14 @@ def summarize_role(session: Session, user: User) -> str:
     return "TALENT"
 
 
+class CorporateEmailRequired(Exception):
+    """ORGANIZATION registration attempted with a free e-mail provider address."""
+
+
+class LegalIdTaken(Exception):
+    """ORGANIZATION registration attempted with a legal_id another organization holds."""
+
+
 def register_user(
     session: Session,
     email: str,
@@ -145,6 +153,7 @@ def register_user(
     full_name: str,
     account_kind: str = "TALENT",
     entity_name: str | None = None,
+    legal_id: str | None = None,
 ) -> RegisteredUser:
     """
     Create a user + empty talent profile in one transaction (docs/API.md §2.1:
@@ -166,6 +175,12 @@ def register_user(
     the email.duplicate_registration_attempt topic, which the outbox worker
     will process asynchronously without blocking this transaction.
     """
+    # An organization account is created from a corporate address, so the
+    # verification e-mail below always goes to one. Decided from the request
+    # alone (never from whether the account exists) — no enumeration signal.
+    if account_kind == "ORGANIZATION" and is_free_email_domain(email.rsplit("@", 1)[-1]):
+        raise CorporateEmailRequired()
+
     # Hash before branching so both paths pay the same Argon2 cost (YET-183).
     password_hash = hash_password(password)
 
@@ -209,13 +224,18 @@ def register_user(
 
     if account_kind == "ORGANIZATION":
         assert entity_name is not None  # enforced by RegisterRequest validator
-        organization = create_organization(
-            name=entity_name,
-            domain=None,
-            legal_id=None,
-            caller_user_id=user.id,
-            session=session,
-        )
+        try:
+            organization = create_organization(
+                name=entity_name,
+                domain=None,
+                legal_id=legal_id,
+                caller_user_id=user.id,
+                session=session,
+            )
+        except DuplicateLegalIdError as exc:
+            # Caller (route) turns this into 409; get_session rolls the whole
+            # registration back, so no user is left behind without its organization.
+            raise LegalIdTaken() from exc
         log_audit_event(
             session=session,
             actor_user_id=user.id,

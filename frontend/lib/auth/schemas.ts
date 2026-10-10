@@ -19,7 +19,43 @@ export const registerSchema = z.object({
     .min(1, "Ad soyad gereklidir"),
   account_kind: z.enum(accountKinds).default("TALENT"),
   entity_name: z.string().max(200).optional(),
+  // MERSİS numarası — yalnız ORGANIZATION için gönderilir (backend: organizations.legal_id).
+  legal_id: z.string().optional(),
 });
+
+// backend/app/services/organization.py FREE_EMAIL_DOMAINS ile aynı liste —
+// asıl kontrol sunucudadır (POST /auth/register 422), bu yalnız erken geri bildirim.
+const FREE_EMAIL_DOMAINS = [
+  "gmail.com", "hotmail.com", "outlook.com", "yahoo.com", "yandex.com", "icloud.com",
+  "hotmail.com.tr", "outlook.com.tr", "protonmail.com", "mail.ru", "yahoo.com.tr",
+  "googlemail.com", "live.com", "msn.com", "hotmail.co.uk", "hotmail.de", "hotmail.fr",
+  "outlook.de", "yahoo.co.uk", "yahoo.de", "yahoo.fr", "ymail.com", "rocketmail.com",
+  "gmx.com", "gmx.net", "gmx.de", "gmx.at", "gmx.ch", "aol.com", "mail.com", "proton.me",
+  "pm.me", "tutanota.com", "zoho.com", "yandex.ru", "yandex.com.tr", "mynet.com",
+];
+
+/** Listedeki bir sağlayıcı veya alt alan adı (mail.gmail.com) ise true; benzerleri (notgmail.com) değil. */
+export function isFreeEmailAddress(email: string): boolean {
+  const domain = email.trim().toLowerCase().split("@").pop() ?? "";
+  return FREE_EMAIL_DOMAINS.some((free) => domain === free || domain.endsWith(`.${free}`));
+}
+
+/** MERSİS numarası 16 hanedir. Yalnız biçim kontrolü — şirketin gerçekliğini kanıtlamaz. */
+export function isValidMersis(value: string): boolean {
+  return /^\d{16}$/.test(value);
+}
+
+export function requireCorporateEmailForOrganization<T extends { account_kind: AccountKind; email: string }>(
+  data: T
+): boolean {
+  return data.account_kind !== "ORGANIZATION" || !isFreeEmailAddress(data.email);
+}
+
+export function requireValidMersisWhenGiven<T extends { account_kind: AccountKind; legal_id?: string }>(
+  data: T
+): boolean {
+  return data.account_kind !== "ORGANIZATION" || !data.legal_id?.trim() || isValidMersis(data.legal_id.trim());
+}
 
 export function requireEntityNameForNonTalent<T extends { account_kind: AccountKind; entity_name?: string }>(
   data: T
