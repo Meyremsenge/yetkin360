@@ -6,29 +6,41 @@ import pytest
 from sqlalchemy import select
 
 from app.models import User
-from scripts.seed import seed_verify_users
+from scripts.seed import SEED_EMAIL_DOMAINS, seed_verify_users
 
 pytestmark = pytest.mark.unverified_users
 
 
-def test_seed_verify_users_verifies_only_seed_local_accounts(session):
-    seed_user = User(email=f"seed-{uuid.uuid4()}@seed.local", password_hash="h")
-    real_user = User(email=f"real-{uuid.uuid4()}@example.com", password_hash="h")
-    session.add_all([seed_user, real_user])
+def test_seed_verify_users_verifies_only_seed_domain_accounts(session):
+    seed_users = [
+        User(email=f"seed-{uuid.uuid4()}@{domain}", password_hash="h")
+        for domain in ("posta.test", "cinaralti.edu.test", "yelkovanyazilim.test")
+    ]
+    # Real or foreign accounts: another .test domain, a lookalike of a seed
+    # domain and a real domain must never be touched.
+    other_users = [
+        User(email=f"real-{uuid.uuid4()}@{domain}", password_hash="h")
+        for domain in ("example.com", "baska.test", "notposta.test", "posta.test.example.com")
+    ]
+    session.add_all(seed_users + other_users)
     session.flush()
-    assert seed_user.email_verified_at is None
-    assert real_user.email_verified_at is None
 
     updated = seed_verify_users(session)
 
-    assert updated >= 1
+    assert updated >= len(seed_users)
     session.expire_all()
-    assert session.execute(select(User.email_verified_at).where(User.id == seed_user.id)).scalar_one() is not None
-    assert session.execute(select(User.email_verified_at).where(User.id == real_user.id)).scalar_one() is None
+    for user in seed_users:
+        assert session.execute(select(User.email_verified_at).where(User.id == user.id)).scalar_one() is not None
+    for user in other_users:
+        assert session.execute(select(User.email_verified_at).where(User.id == user.id)).scalar_one() is None, user.email
+
+
+def test_seed_email_domains_are_all_reserved_test_domains():
+    assert SEED_EMAIL_DOMAINS and all(domain.endswith(".test") for domain in SEED_EMAIL_DOMAINS)
 
 
 def test_seed_verify_users_is_idempotent(session):
-    session.add(User(email=f"seed-{uuid.uuid4()}@seed.local", password_hash="h"))
+    session.add(User(email=f"seed-{uuid.uuid4()}@posta.test", password_hash="h"))
     session.flush()
     seed_verify_users(session)
 

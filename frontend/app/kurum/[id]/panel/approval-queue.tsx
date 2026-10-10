@@ -27,7 +27,7 @@ const SM = "h-8 px-3 text-[13px]";
 
 type RowStatus = "PENDING_APPROVAL" | "PENDING_EVALUATION" | "EVALUATED";
 
-/** Student and organization behind an engagement, e.g. "Ayşe Yılmaz · Lale Yazılım". */
+/** Student and organization behind an engagement, e.g. "Ayşe Yılmaz · Yelkovan Yazılım". */
 function rowMeta(item: PendingItem): string {
   return formatTemplate(t.rowMeta, {
     talent: item.talent_full_name,

@@ -94,7 +94,7 @@ Uygulama kabuğunu (frontend/components/app-shell.tsx) sol kenar çubuğundan ü
 
 Tasarım:
 - Masaüstü (≥1024): 64px beyaz üst bar, alt çizgi. Sol: BrandLockup. Orta: birincil menü (Çalışmalarım, Profil, Keşfet — Keşfet sayfası yoksa gizli/feature flag), aktif öğe altında 2px çam çizgisi. Sağ: "Profilimi gör ↗" (public slug varsa), avatar menüsü (ad + rol başlığı, Çıkış).
-- Kuruluş/kurum üyeleri: birden fazla varlığa üye olabilir → üst barda bağlam seçici (ör. "Lale Yazılım A.Ş. ▾" açılır listesi: kuruluşlar, kurumlar, admin ekranları). Rol başına menü öğeleri bu seçiciden gelir.
+- Kuruluş/kurum üyeleri: birden fazla varlığa üye olabilir → üst barda bağlam seçici (ör. "Yelkovan Yazılım A.Ş. ▾" açılır listesi: kuruluşlar, kurumlar, admin ekranları). Rol başına menü öğeleri bu seçiciden gelir.
 - Mobil (<1024): mevcut hamburger + çekmece korunur (odak tuzağı testi), ya da alt sekme çubuğu — öner, sor.
 - Sayfa iskeleti: PageHeader beyaz şeridi üst barın hemen altında; içerik 1200px ortalı (components/page-layout.tsx).
 Bu 3+ dosyalık bir refactor ve testlerin bir kısmı DOM yapısını sabitliyor → önce plan + etkilenecek testlerin listesi, ONAY AL, sonra uygula. Test davranışlarını koru; yalnız yapı sabitleyen beklentileri güncelle ve her güncellemeyi gerekçelendir.

@@ -176,7 +176,7 @@ npm run lint
 Ayrıca §3'teki grep = 0 olmalı. Hepsi temiz değilse commit yok.
 
 Sonra kullanıcıya söyle: `npm run dev` açıkken ekranı tarayıcıda **375px ve 1280px** genişlikte kontrol etsin (DevTools → cihaz araç çubuğu).
-Seed hesapları: `ogrenci1@seed.local`, `org1-admin@seed.local`, `kurum1-admin@seed.local`, `kurum1-koordinator@seed.local`. Şifre `backend/scripts/seed.py`'de; çıktıya yazma.
+Seed hesapları: `ayse.yilmaz@posta.test`, `murat.demirci@yelkovanyazilim.test`, `nermin.basaran@cinaralti.edu.test`, `kerem.taskin@cinaralti.edu.test`. Şifre `backend/scripts/seed.py`'de; çıktıya yazma.
 
 ## 8. Kapat
 

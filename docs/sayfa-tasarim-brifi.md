@@ -349,7 +349,7 @@ Giriş yapan kullanıcının gördüğü tüm sayfaları sarar (`/calismalar…`
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
-│ [mühür] Yetkin360   Çalışmalarım  Profil  │ [▣ Lale Yazılım A.Ş. ▾]   Profilimi gör ↗  (AY)▾ │
+│ [mühür] Yetkin360   Çalışmalarım  Profil  │ [▣ Yelkovan Yazılım A.Ş. ▾]   Profilimi gör ↗  (AY)▾ │
 ├──────────────────────────────────────────────────────────────────────┤
 │  PageHeader beyaz şeridi (eyebrow + başlık + açıklama + ana aksiyon)   │
 ├──────────────────────────────────────────────────────────────────────┤

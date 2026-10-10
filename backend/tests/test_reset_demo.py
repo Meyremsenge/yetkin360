@@ -12,7 +12,7 @@ from scripts.reset_demo import KEEP_TABLES, reset_demo_data, resettable_tables
 
 
 def test_reset_empties_data_tables_including_append_only(session):
-    session.add(User(email=f"demo-{uuid.uuid4()}@seed.local", password_hash="h"))
+    session.add(User(email=f"demo-{uuid.uuid4()}@posta.test", password_hash="h"))
     session.add(AuditEvent(action="demo.test", subject_type="user", result="SUCCESS"))
     session.flush()
 

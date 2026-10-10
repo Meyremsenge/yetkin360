@@ -49,12 +49,12 @@ kuruluşun platformda **neden hesap açacağı** görünmüyor. Kararımız:
 
 | # | Aktör | Ekran | Ne görülür |
 |---|---|---|---|
-| 1 | Ayşe Yılmaz (bireysel, Galata Teknik) | Yeni çalışma | Lale Yazılım'ı seçer, onaylayıcı olarak **Mehmet Kaya · Yazılım** seçer |
-| 2 | Kerem Taşkın (Galata koordinatörü) | Kurum paneli | Onay kutusunda satır içi **Onayla** |
-| 3 | Mehmet Kaya (Lale, Yazılım birimi) | Kuruluş paneli → "Bana atananlar" | Değerlendirir |
+| 1 | Ayşe Yılmaz (bireysel, Çınaraltı Teknik) `ayse.yilmaz@posta.test` | Yeni çalışma | Yelkovan Yazılım'ı seçer, onaylayıcı olarak **Mehmet Karaca · Yazılım** seçer |
+| 2 | Kerem Taşkın (Çınaraltı koordinatörü) `kerem.taskin@cinaralti.edu.test` | Kurum paneli | Onay kutusunda satır içi **Onayla** |
+| 3 | Mehmet Karaca (Yelkovan, Yazılım birimi) `mehmet.karaca@yelkovanyazilim.test` | Kuruluş paneli → "Bana atananlar" | Değerlendirir |
 | 4 | Kerem Taşkın | Kurum paneli → "Mühür bekleyen" | Mühürler → **çift imzalı kayıt** |
-| 5 | Kuzey Enerji İK | Kuruluş paneli → **Aday doğrula** | Ayşe'nin CV'sindeki bağlantıyı yapıştırır → imzalı kaydı görür |
-| 6 | Herkes | Keşfet → Lale Yazılım → **Vitrin** | "Bu şirkette yapılmış, imzalı işler" |
+| 5 | Seda Gürbüz (Gündoğusu Enerji İK) `seda.gurbuz@gundogusuenerji.test` | Kuruluş paneli → **Aday doğrula** | Ayşe'nin CV'sindeki bağlantıyı yapıştırır → imzalı kaydı görür |
+| 6 | Herkes | Keşfet → Yelkovan Yazılım → **Vitrin** | "Bu şirkette yapılmış, imzalı işler" |
 
 ---
 
@@ -324,8 +324,8 @@ Kurum üyelerine birim **eklenmez** (YAGNI; akademisyen akışı yol haritası).
 `GET /me` (ekleme):
 ```json
 {
-  "organizations": [{ "id": "uuid", "name": "Lale Yazılım A.Ş.", "role": "ADMIN|MEMBER", "unit": "Yazılım|null" }],
-  "institutions":  [{ "id": "uuid", "name": "Galata Teknik Üniversitesi", "role": "ADMIN|COORDINATOR|SUPERVISOR" }]
+  "organizations": [{ "id": "uuid", "name": "Yelkovan Yazılım A.Ş.", "role": "ADMIN|MEMBER", "unit": "Yazılım|null" }],
+  "institutions":  [{ "id": "uuid", "name": "Çınaraltı Teknik Üniversitesi", "role": "ADMIN|COORDINATOR|SUPERVISOR" }]
 }
 ```
 
@@ -430,7 +430,7 @@ frontend `npm run typecheck && npm run lint && npx vitest run app/calismalar lib
 2. `calismalar/olustur/page.tsx`: kuruluş seçiliyken `GET /organizations/{id}/approvers` (D2) ile
    "Kime gönderilsin? (isteğe bağlı)" seçimi. Seçenek etiketi `Ad Soyad · Birim`; varsayılan
    "Kuruluş yöneticisine (genel)" = `null`. Liste boşsa alan gizlenir. Metinler `calismaOlustur` ad alanına eklenir.
-3. `calismalar/[id]/page.tsx` başlığında: "Onaylayıcı: Mehmet Kaya · Yazılım" (yalnız `supervisor` varsa).
+3. `calismalar/[id]/page.tsx` başlığında: "Onaylayıcı: Mehmet Karaca · Yazılım" (yalnız `supervisor` varsa).
 
 **Kabul:**
 - AC-1 Onaylayıcıyla oluşturulan çalışma detayda onaylayıcıyı gösterir.
@@ -569,8 +569,8 @@ Onay talepleri kişiye gider; yönetici her şeyi görür. Tek seviye birim; ağ
 5. Metinler `shell` ad alanına eklenir.
 
 **Kabul:**
-- AC-1 `kurum1-koordinator@seed.local` girişte kurum paneline, `org1-admin@seed.local` kuruluş paneline,
-  `ogrenci1@seed.local` `/calismalar`'a, platform admini admin kuyruğuna gider.
+- AC-1 `kerem.taskin@cinaralti.edu.test` girişte kurum paneline, `murat.demirci@yelkovanyazilim.test` kuruluş paneline,
+  `ayse.yilmaz@posta.test` `/calismalar`'a, platform admini admin kuyruğuna gider.
 - AC-2 `next=/p/...` verilirse oraya gider (temizlenmiş).
 - AC-3 Kurum/kuruluş kullanıcısının üst menüsünde bağlantı "İşlemler" adıyla görünür; #60 görünümü bozulmaz (`app/calismalar/page.test.tsx` geçer).
 - AC-S1 Rol kontrolü yalnız UX; hiçbir sayfa erişimi frontend'de "yetki" diye kapatılmaz.
@@ -732,14 +732,14 @@ profilde ve Çalışmalarım'da zaten var).
 `GET /public/organizations/{organization_id}` (kimlik doğrulamasız):
 ```json
 {
-  "id": "uuid", "name": "Lale Yazılım A.Ş.", "verification_level": "T3",
+  "id": "uuid", "name": "Yelkovan Yazılım A.Ş.", "verification_level": "T3",
   "domain": "lale.com.tr|null (yalnız T2+)",
   "showcase_enabled": true,
   "stats": { "verified_public_count": 7, "institution_count": 3 },
   "experiences": [{
     "role_snapshot": "Mobil Uygulama Stajı", "started_on": "2026-07-01", "ended_on": "2026-09-01",
     "talent_display_name": "Ayşe Yılmaz", "talent_public_slug": "ayse-yilmaz",
-    "institution_name": "Galata Teknik Üniversitesi|null",
+    "institution_name": "Çınaraltı Teknik Üniversitesi|null",
     "public_token": "…", "skills": ["React Native", "Test yazımı"]
   }]
 }
@@ -821,7 +821,7 @@ iptal edilmemiş tanıklık var. Admin'in elle verdiği T4 seviyesiyle karışma
    `display_name` = değerlendirenin adı + soyadının baş harfi (gizlilik; tam ad yok). Birim `OrganizationMember.unit`.
 2. `services/public_profile.py` deneyim kartlarına aynı iki alan.
 3. Frontend `v/[token]/page.tsx`: rozet "Çift imzalı · Kuruluş değerlendirdi, üniversite mühürledi" + satır
-   "Değerlendiren: Mehmet K. · Lale Yazılım, Yazılım". `p/[slug]` kartında küçük rozet. Metin `publicVerification` ad alanına eklenir.
+   "Değerlendiren: Mehmet K. · Yelkovan Yazılım, Yazılım". `p/[slug]` kartında küçük rozet. Metin `publicVerification` ad alanına eklenir.
 
 **Kabul:** AC-1 Seed'deki çift imzalı kayıtta rozet var, tek imzalıda yok. AC-S1 Tam soyad ve e-posta yanıtta yok.
 AC-S2 İptal edilmiş tanıklıkta rozet yok.
@@ -839,10 +839,10 @@ AC-S2 İptal edilmiş tanıklıkta rozet yok.
 **Eklenecek veri (idempotent — iki kez çalışınca kopya yok):**
 | Ne | Değer |
 |---|---|
-| Lale Yazılım (ORG1) üyeleri | Murat Demirci (ADMIN, birim "Yönetim"), **Mehmet Kaya** `org1-yazilim@seed.local` (MEMBER, "Yazılım"), **Zeynep Arı** `org1-tasarim@seed.local` (MEMBER, "Tasarım") |
-| Kuzey Enerji (ORG3) | **Elif Çınar** `org3-ik@seed.local` (MEMBER, "İnsan Kaynakları") — "Aday doğrula" aktörü |
+| Yelkovan Yazılım (ORG1) üyeleri | Murat Demirci `murat.demirci@yelkovanyazilim.test` (ADMIN, birim "Yönetim"), **Mehmet Karaca** `mehmet.karaca@yelkovanyazilim.test` (MEMBER, "Yazılım"), **Zeynep Arı** `zeynep.ari@yelkovanyazilim.test` (MEMBER, "Tasarım") |
+| Gündoğusu Enerji (ORG3) | **Seda Gürbüz** `seda.gurbuz@gundogusuenerji.test` (MEMBER, "İnsan Kaynakları") — "Aday doğrula" aktörü |
 | Vitrin | ORG1 ve ORG4 `showcase_public=true` |
-| Ayşe Yılmaz (`ogrenci1`, Galata) | (a) Lale ile **VERIFIED**, onaylayıcı Mehmet, Mehmet değerlendirmiş + Kerem mühürlemiş (çift imza), deneyim `PUBLIC`; (b) Lale ile **PENDING_EVALUATION**, onaylayıcı Mehmet (canlı demo); (c) Galata bağlı **PENDING_APPROVAL** (Kerem canlı onaylar) |
+| Ayşe Yılmaz (`ayse.yilmaz@posta.test`, Çınaraltı) | (a) Yelkovan ile **VERIFIED**, onaylayıcı Mehmet, Mehmet değerlendirmiş + Kerem mühürlemiş (çift imza), deneyim `PUBLIC`; (b) Yelkovan ile **PENDING_EVALUATION**, onaylayıcı Mehmet (canlı demo); (c) Çınaraltı bağlı **PENDING_APPROVAL** (Kerem canlı onaylar) |
 | Profil | Ayşe `PUBLIC`; başka bir öğrenci `ORGANIZATIONS` (H yapıldıysa demosu) |
 
 - Mevcut ekran görüntüsündeki "eg" taslakları el ile girilmiş test verisi → `python -m scripts.reset_demo --yes --reseed` ile temizlenir.

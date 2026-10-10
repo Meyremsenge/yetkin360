@@ -195,7 +195,7 @@ Hedef: jürinin göreceği yüz. Bu fazın sonunda canlı URL + gerçekçi veri 
       > `app/kurum/[id]/panel` + testleri mevcut.
 - [x] 3.11 Seed verisi: 20 öğrenci, 5 kurum, 15 tamamlanmış engagement @be1
       > commit ad183f6 tamamlandı. `backend/scripts/seed.py` — 20 öğrenci
-      > (ogrenci1-20@seed.local), 5 kurum + 5 organizasyon, 15 tam VERIFIED
+      > (ad.soyad@posta.test), 5 kurum + 5 organizasyon, 15 tam VERIFIED
       > engagement (Attestation/VerifiedExperience zinciriyle), idempotent.
       > PLAN.md'de işaretlenmemişti (2026-09-27 entegrasyon denetiminde bulundu).
 - [x] 3.12 Güvenlik geçişi: BOLA taraması, 404-yerine-403 doğrulaması @be2
