@@ -12,6 +12,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
     text,
 )
 from sqlalchemy.dialects.postgresql import CITEXT, UUID
@@ -136,6 +137,7 @@ class Organization(Base, TimestampMixin):
     last_verify_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String, nullable=False, server_default="ACTIVE")
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    showcase_public: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=false())
 
 
 class OrganizationMember(Base, TimestampMixin):
@@ -143,6 +145,10 @@ class OrganizationMember(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("organization_id", "user_id", name="uq_organization_members_organization_user"),
         CheckConstraint("role IN ('ADMIN','MEMBER')", name="ck_organization_members_role"),
+        CheckConstraint(
+            "unit IS NULL OR char_length(btrim(unit)) BETWEEN 1 AND 60",
+            name="ck_organization_members_unit_length",
+        ),
         Index("ix_organization_members_user_id", "user_id"),
     )
 
@@ -153,3 +159,4 @@ class OrganizationMember(Base, TimestampMixin):
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     role: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False, server_default="ACTIVE")
+    unit: Mapped[str | None] = mapped_column(String(60))

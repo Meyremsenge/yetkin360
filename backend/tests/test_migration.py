@@ -1,10 +1,23 @@
+from pathlib import Path
+
 import pytest
-from sqlalchemy import create_engine, inspect
-from sqlalchemy.exc import IntegrityError
+from alembic import command
+from alembic.config import Config as AlembicConfig
+from alembic.script import ScriptDirectory
+from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.exc import DataError, IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models import Institution, InstitutionMember, Organization, Skill, TalentProfile, User
+from app.models import (
+    Institution,
+    InstitutionMember,
+    Organization,
+    OrganizationMember,
+    Skill,
+    TalentProfile,
+    User,
+)
 
 engine = create_engine(settings.database_url)
 
@@ -296,3 +309,88 @@ def test_outbox_insert_without_attempts_uses_default(session):
 
     result = session.execute(text("SELECT attempts FROM outbox WHERE topic = 'email.test'")).scalar()
     assert result == 0
+
+
+# ============================================================================
+# SPRINT M0: organization_members.unit + organizations.showcase_public
+# ============================================================================
+
+
+def _org_member(session, email: str, unit: str | None) -> OrganizationMember:
+    org = Organization(name=f"Org {email}")
+    user = User(email=email, password_hash="x")
+    session.add_all([org, user])
+    session.flush()
+    member = OrganizationMember(organization_id=org.id, user_id=user.id, role="MEMBER", unit=unit)
+    session.add(member)
+    return member
+
+
+def test_organization_member_unit_rejects_61_chars(session):
+    # VARCHAR(60) rejects it first (DataError); the CHECK is the second line of defense.
+    _org_member(session, "unit-long@example.com", "x" * 61)
+    with pytest.raises((DataError, IntegrityError)):
+        session.commit()
+
+
+@pytest.mark.parametrize("unit", ["   ", ""])
+def test_organization_member_unit_check_rejects_blank(session, unit):
+    _org_member(session, "unit-blank@example.com", unit)
+    with pytest.raises(IntegrityError):
+        session.commit()
+
+
+@pytest.mark.parametrize("unit", [None, "Ar-Ge", "y" * 60])
+def test_organization_member_unit_accepts_valid(session, unit):
+    member = _org_member(session, "unit-ok@example.com", unit)
+    session.commit()
+    assert member.unit == unit
+
+
+def test_organization_showcase_public_defaults_to_false(session):
+    session.execute(text("INSERT INTO organizations (id, name) VALUES (gen_random_uuid(), 'Vitrin A')"))
+    value = session.execute(
+        text("SELECT showcase_public FROM organizations WHERE name = 'Vitrin A'")
+    ).scalar_one()
+    assert value is False
+
+
+def _alembic_config() -> AlembicConfig:
+    backend_path = Path(__file__).resolve().parent.parent
+    cfg = AlembicConfig(str(backend_path / "alembic.ini"))
+    cfg.set_main_option("sqlalchemy.url", settings.database_url)
+    cfg.set_main_option("script_location", str(backend_path / "alembic"))
+    return cfg
+
+
+def _m0_schema_present() -> tuple[bool, bool, bool]:
+    inspector = inspect(engine)
+    member_cols = {c["name"] for c in inspector.get_columns("organization_members")}
+    org_cols = {c["name"] for c in inspector.get_columns("organizations")}
+    checks = {c["name"] for c in inspector.get_check_constraints("organization_members")}
+    return (
+        "unit" in member_cols,
+        "showcase_public" in org_cols,
+        "ck_organization_members_unit_length" in checks,
+    )
+
+
+def test_m0_migration_upgrade_downgrade_upgrade_roundtrip():
+    """upgrade head -> downgrade -1 -> upgrade head on the test DB (M0 is the head)."""
+    cfg = _alembic_config()
+    head = ScriptDirectory.from_config(cfg).get_current_head()
+    assert head == "c15c0d0133f7", "M0 must be the head; update this test when a newer migration lands"
+
+    engine.dispose()
+    try:
+        command.upgrade(cfg, "head")
+        assert _m0_schema_present() == (True, True, True)
+
+        command.downgrade(cfg, "-1")
+        engine.dispose()
+        assert _m0_schema_present() == (False, False, False)
+    finally:
+        command.upgrade(cfg, "head")
+        engine.dispose()
+
+    assert _m0_schema_present() == (True, True, True)
