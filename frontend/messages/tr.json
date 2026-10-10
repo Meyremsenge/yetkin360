@@ -21,22 +21,22 @@
     "comparisonVerified": "Doğrulanmış kayıt: kanıt ve tanıklıkla teyit edilmiş.",
     "personasTitle": "Kimler için?",
     "personas": {
-      "student": {
-        "title": "Öğrenci",
-        "description": "Staj ve proje deneyimlerinizi kanıtla belgeleyin.",
-        "points": [
-          "Staj ve projelerinizi tek yerde toplayın",
-          "Mentorunuzdan tanıklık isteyin",
-          "Başvurularda doğrulama bağlantısı paylaşın"
-        ]
-      },
       "organization": {
         "title": "Kuruluş",
-        "description": "Ekibinizdeki yetkinlikleri kayıtlı kanıtlarla görün.",
+        "description": "Başvuranın deneyimini saniyeler içinde doğrulayın; kendi stajyerlerinize mühür verin.",
         "points": [
-          "Stajyer çalışmalarını açın ve izleyin",
-          "Tanıklığı birkaç dakikada verin",
-          "Yetkinlikleri kanıtıyla birlikte görün"
+          "Adayın bağlantısını yapıştırın, imzalı kaydı görün",
+          "Ekibinizdeki mentorlar kendi stajyerini değerlendirsin",
+          "Vitrininizde gerçek işleri gösterin"
+        ]
+      },
+      "student": {
+        "title": "Bireysel",
+        "description": "Staj, proje ve işlerinizi kanıtla belgeleyin.",
+        "points": [
+          "Staj ve projelerinizi tek yerde toplayın",
+          "Mentorunuzdan ve üniversitenizden tanıklık isteyin",
+          "Başvurularda doğrulama bağlantısı paylaşın"
         ]
       },
       "institution": {
@@ -44,8 +44,8 @@
         "description": "Öğrencilerinizin doğrulanmış deneyimlerini tek yerden izleyin.",
         "points": [
           "Öğrencilerinizin doğrulanmış deneyimlerini izleyin",
-          "Kuruluş iş birliklerini tek ekranda görün",
-          "Rapor için tek ve güvenilir kaynak"
+          "Hangi kuruluşla kaç öğrenci çalıştı, tek ekranda",
+          "Akreditasyon için tek tıkla rapor"
         ]
       }
     },
@@ -70,15 +70,15 @@
     "demo": {
       "steps": {
         "claim": {
-          "actor": "Öğrenci yazar",
+          "actor": "Kişi yazar",
           "text": "Ne yaptığını ve hangi yetkinlikleri kullandığını kendi sözleriyle anlatır."
         },
         "evidence": {
-          "actor": "Öğrenci ekler",
+          "actor": "Kişi ekler",
           "text": "Dosya, bağlantı ya da çıktı: iddiayı destekleyen somut iz."
         },
         "attestation": {
-          "actor": "Mentor onaylar",
+          "actor": "Kuruluş değerlendirir, üniversite mühürler",
           "text": "Çalışmayı yakından gören kişi tanıklık eder ve değerlendirir."
         },
         "verified": {
@@ -160,7 +160,7 @@
     "userMenu": "Kullanıcı menüsü",
     "newTab": "(yeni sekmede açılır)",
     "signIn": "Giriş yap",
-    "roleStudent": "Öğrenci",
+    "roleStudent": "Bireysel",
     "roleAdmin": "Platform yöneticisi",
     "signedInAs": "Oturum açık",
     "contextSwitcher": "Panel seç",
@@ -228,13 +228,14 @@
   "kayit": {
     "title": "Kayıt Ol",
     "accountKindLabel": "Hesap Türü",
-    "accountKindTalent": "Öğrenci",
-    "accountKindTalentHint": "Yetkinliklerinizi kanıtlayın",
+    "accountKindTalent": "Bireysel",
+    "accountKindTalentHint": "Staj, proje ve iş deneyimlerinizi kanıtlayın",
     "accountKindOrganization": "Kuruluş",
-    "accountKindOrganizationHint": "Stajyer/çalışan yetkinliğine tanıklık edin",
+    "accountKindOrganizationHint": "Başvuranları doğrulayın, stajyerlerinize mühür verin",
     "accountKindInstitution": "Kurum",
     "accountKindInstitutionHint": "Öğrencilerinizin doğrulama sürecini yönetin",
-    "entityNameLabel": "Kuruluş/Kurum Adı",
+    "entityNameOrganization": "Kuruluş adı",
+    "entityNameInstitution": "Kurum (üniversite/bölüm) adı",
     "entityNameHint": "Kayıt olduğunuzda bu kuruluş/kurum sizin adınıza oluşturulur ve yöneticisi siz olursunuz.",
     "emailLabel": "E-posta",
     "passwordLabel": "Şifre",
@@ -259,7 +260,7 @@
     "documentQrFound": "Belgedeki karekod okundu.",
     "documentNeedsClaim": "Karşılaştırma için kuruluş adını ve 16 haneli MERSİS numarasını girin.",
     "documentManualReview": "Başvurunuz manuel incelemeye gönderilecek.",
-    "documentDemoNote": "Örnek sonuç: otomatik belge kontrolü henüz bağlı değil ve belge sunucuya gönderilmez."
+    "documentDemoNote": "Otomatik belge kontrolü yol haritasında; şimdilik başvurunuz platform ekibince incelenir."
   },
   "epostaDogrula": {
     "verifying": "E-posta doğrulanıyor...",
@@ -792,19 +793,19 @@
     "submittingButton": "Oluşturuluyor...",
     "missingLinkMessage": "Önce bir kuruluş seçmeniz gerekiyor.",
     "missingLinkPickerLink": "Kuruluş seç",
-    "notATalentMessage": "Bu özellik yalnızca öğrenci hesapları için kullanılabilir.",
-    "invalidLinkError": "Bu organizasyon bulunamadı. Organizasyonunuzdan doğru linki isteyin.",
+    "notATalentMessage": "Bu özellik yalnızca bireysel hesaplar için kullanılabilir.",
+    "invalidLinkError": "Bu kuruluş bulunamadı. Kuruluşunuzdan doğru bağlantıyı isteyin.",
     "description": "Oluşturduğunuz çalışma taslak olarak kaydedilir; ardından kuruluşun onayına gönderirsiniz.",
     "titlePlaceholder": "Örn. Veri Analisti Yaz Stajı",
     "loadingLabel": "Form yükleniyor"
   },
   "kesfet": {
     "title": "Keşfet",
-    "description": "Herkese açık öğrenci profillerini ve platformdaki kuruluşları arayın. Sonuçlar puanlanmaz; filtreye uyan herkes aynı sırada listelenir.",
+    "description": "Herkese açık kişi profillerini ve platformdaki kuruluşları arayın. Sonuçlar puanlanmaz; filtreye uyan herkes aynı sırada listelenir.",
     "tabsLabel": "Keşfet bölümleri",
-    "tabTalents": "Öğrenciler",
+    "tabTalents": "Kişiler",
     "tabOrganizations": "Kuruluşlar",
-    "talentSearchLabel": "Öğrenci ara",
+    "talentSearchLabel": "Kişi ara",
     "talentSearchPlaceholder": "Ad veya başlık ara (en az 2 karakter)...",
     "organizationSearchLabel": "Kuruluş ara",
     "organizationSearchPlaceholder": "Kuruluş adı ara (en az 2 karakter)...",
@@ -830,9 +831,9 @@
     "startEngagementWith": "{name} ile çalışma başlat",
     "talentsLoading": "Öğrenciler yükleniyor",
     "talentsError": "Öğrenciler yüklenemedi.",
-    "talentsEmptyTitle": "Henüz keşfedilebilir öğrenci yok",
+    "talentsEmptyTitle": "Henüz keşfedilebilir kişi yok",
     "talentsEmptyBody": "Öğrenciler profillerini \"Herkese Açık\" yaptığında burada listelenir.",
-    "talentsEmptyFilteredTitle": "Filtrelerinize uyan öğrenci bulunamadı",
+    "talentsEmptyFilteredTitle": "Filtrelerinize uyan kişi bulunamadı",
     "talentsEmptyFilteredBody": "Bir filtreyi kaldırmayı veya daha genel bir arama yapmayı deneyin.",
     "organizationsLoading": "Kuruluşlar yükleniyor",
     "organizationsError": "Kuruluşlar yüklenemedi.",
@@ -940,11 +941,11 @@
       },
       {
         "title": "Tanıklık verilir",
-        "hint": "Kuruluş, öğrencinin deneyimine tanıklık eder."
+        "hint": "Kuruluş, kişinin deneyimine tanıklık eder."
       },
       {
         "title": "Sicile işlenir",
-        "hint": "Çalışma doğrulanmış deneyim olarak öğrencinin profilinde mühürlenir."
+        "hint": "Çalışma doğrulanmış deneyim olarak kişinin profilinde mühürlenir."
       }
     ],
     "successNext": "Sıradaki adım: tanıklık. Çalışma sayfasından devam edebilirsiniz."
@@ -1005,7 +1006,7 @@
     "profileUrlLabel": "Profil adresi",
     "printNote": "Bu çıktı canlı bir kaydın anlık görüntüsüdür. Güncel durumu görmek için QR kodu okutun.",
     "metaTitle": "{name} — Yetkin360 doğrulanmış profil",
-    "metaDescription": "{name} adlı öğrencinin kuruluş tanıklığıyla doğrulanmış deneyimleri ve kanıtlı yetkinlikleri.",
+    "metaDescription": "{name} adlı kişinin kuruluş tanıklığıyla doğrulanmış deneyimleri ve kanıtlı yetkinlikleri.",
     "metaFallbackTitle": "Yetkin360 doğrulanmış profil",
     "aboutTitle": "Hakkımda",
     "selfDeclared": "Kendi beyanı",
@@ -1147,7 +1148,7 @@
     "newTab": "(yeni sekmede açılır)"
   },
   "kurulusOlustur": {
-    "title": "Yeni Organizasyon Oluştur",
+    "title": "Yeni Kuruluş Oluştur",
     "nameLabel": "Ad",
     "domainLabel": "Alan Adı (opsiyonel)",
     "domainPlaceholder": "ornek.com",
@@ -1180,7 +1181,7 @@
     "legalIdLabel": "Ticari Sicil No",
     "domainSectionTitle": "Alan Adı Doğrulama",
     "domainLabel": "Alan Adı",
-    "noDomainMessage": "Bu organizasyon için alan adı belirlenmemiş, doğrulama yapılamaz.",
+    "noDomainMessage": "Bu kuruluş için alan adı belirlenmemiş, doğrulama yapılamaz.",
     "domainVerifiedBadge": "Doğrulanmış alan adı",
     "txtRecordHint": "Bu TXT kaydını alan adınızın DNS ayarlarına ekleyin, sonra tekrar deneyin:",
     "verifyButton": "Doğrulamayı Kontrol Et",
@@ -1190,7 +1191,7 @@
     "verifiedMessage": "Alan adı doğrulandı.",
     "freeEmailDomainError": "Ücretsiz e-posta sağlayıcıları (gmail.com, hotmail.com vb.) doğrulanamaz.",
     "rateLimitedError": "Çok sık deniyorsunuz. Lütfen bir dakika bekleyip tekrar deneyin.",
-    "domainAlreadyVerifiedError": "Bu alan adı başka bir organizasyonda zaten doğrulanmış.",
+    "domainAlreadyVerifiedError": "Bu alan adı başka bir kuruluşta zaten doğrulanmış.",
     "inviteMemberTitle": "Üye Davet Et",
     "inviteEmailLabel": "E-posta",
     "inviteRoleLabel": "Rol",
@@ -1227,7 +1228,7 @@
     "evaluateAction": "Değerlendir",
     "orgNextStep": {
       "DRAFT": "Öğrenci taslağı hazırlıyor",
-      "PENDING_APPROVAL": "Kurum onayı bekleniyor",
+      "PENDING_APPROVAL": "Üniversite onayı bekleniyor",
       "ACTIVE": "Öğrenci görev ve kanıt ekliyor",
       "PENDING_EVALUATION": "Değerlendirme formunu doldurun",
       "EVALUATED": "Tanıklık bekleniyor",
@@ -1298,12 +1299,12 @@
     },
     "signalLabel": {
       "SELF_ATTESTATION": "Kendi kendine tanıklık",
-      "SHARED_EMAIL_DOMAIN": "Tanık ve öğrenci aynı e-posta alan adında",
+      "SHARED_EMAIL_DOMAIN": "Tanık ve aday aynı e-posta alan adında",
       "DUPLICATE_STATEMENT": "Kopya tanıklık metni",
       "RAPID_VERIFICATION": "Çok hızlı doğrulama",
       "UNVERIFIED_HIGH_VOLUME": "Doğrulanmamış kuruluşta yoğun tanıklık",
       "NEW_ORG_BURST": "Yeni kuruluşta ani tanıklık artışı",
-      "SINGLE_TALENT_ONLY": "Tüm tanıklıklar tek öğrenciye",
+      "SINGLE_TALENT_ONLY": "Tüm tanıklıklar tek kişiye",
       "APPROVER_IS_ORG_MEMBER": "Onaylayan koordinatör kuruluş üyesi",
       "RAPID_BULK_APPROVAL": "Toplu ve hızlı onay",
       "AI_ORG_IDENTITY": "Kuruluş kimliğinde tutarsızlık"
@@ -1373,7 +1374,7 @@
     "filterAll": "Tümü",
     "actionsHeader": "İşlemler",
     "requiredError": "Slug ve ad zorunludur",
-    "formHint": "Slug küçük harf ve tireyle yazılır; öğrenciler yetkinliği Türkçe adıyla arar.",
+    "formHint": "Slug küçük harf ve tireyle yazılır; kullanıcılar yetkinliği Türkçe adıyla arar.",
     "noMatch": "Aramanızla eşleşen yetkinlik yok.",
     "emptyHint": "Sağdaki formdan ilk yetkinliği ekleyin.",
     "mergePlaceholder": "Seçiniz...",

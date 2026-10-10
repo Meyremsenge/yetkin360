@@ -91,7 +91,7 @@ describe("KurulusPanelPage (/kurulus/[id]/panel)", () => {
       renderWithQueryClient(<KurulusPanelPage />);
 
       await waitFor(() => {
-        expect(screen.getByText("Bu organizasyon için alan adı belirlenmemiş, doğrulama yapılamaz.")).toBeTruthy();
+        expect(screen.getByText("Bu kuruluş için alan adı belirlenmemiş, doğrulama yapılamaz.")).toBeTruthy();
       });
       expect(screen.queryByText("Doğrulamayı Kontrol Et")).toBeNull();
     });
@@ -201,7 +201,7 @@ describe("KurulusPanelPage (/kurulus/[id]/panel)", () => {
       await user.click(screen.getByText("Doğrulamayı Kontrol Et"));
 
       await waitFor(() => {
-        expect(screen.getByText(/başka bir organizasyonda zaten doğrulanmış/)).toBeTruthy();
+        expect(screen.getByText(/başka bir kuruluşta zaten doğrulanmış/)).toBeTruthy();
       });
     });
   });

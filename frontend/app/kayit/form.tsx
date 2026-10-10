@@ -171,7 +171,7 @@ export default function RegisterForm() {
 
       {accountKind !== "TALENT" && (
         <div>
-          <Label htmlFor="entity_name">{messages.kayit.entityNameLabel}</Label>
+          <Label htmlFor="entity_name">{accountKind === "INSTITUTION" ? messages.kayit.entityNameInstitution : messages.kayit.entityNameOrganization}</Label>
           <Input
             {...register("entity_name")}
             id="entity_name"

@@ -74,7 +74,7 @@ describe("CalismaOlusturPage (/calismalar/olustur)", () => {
 
     renderWithQueryClient(<CalismaOlusturPage />);
 
-    expect(screen.getByText(/yalnızca öğrenci hesapları için/)).toBeTruthy();
+    expect(screen.getByText(/yalnızca bireysel hesaplar için/)).toBeTruthy();
     expect(screen.queryByLabelText("Başlık")).toBeNull();
   });
 
@@ -172,7 +172,7 @@ describe("CalismaOlusturPage (/calismalar/olustur)", () => {
     await user.click(screen.getByText("Oluştur"));
 
     await waitFor(() => {
-      expect(screen.getByText("Bu organizasyon bulunamadı. Organizasyonunuzdan doğru linki isteyin.")).toBeTruthy();
+      expect(screen.getByText("Bu kuruluş bulunamadı. Kuruluşunuzdan doğru bağlantıyı isteyin.")).toBeTruthy();
     });
   });
 
