@@ -164,10 +164,10 @@ API dokümantasyonu: `http://localhost:8000/docs`
 
 | Rol | E-posta | Şifre |
 |---|---|---|
-| Öğrenci | `ogrenci@ornek.edu.tr` | `demo1234` |
-| Kurum yetkilisi | `kurum@ornek.com` | `demo1234` |
-| Koordinatör | `koordinator@ornek.edu.tr` | `demo1234` |
-| Platform admin | `admin@yetkin360.local` | `demo1234` |
+| Bireysel kullanıcı | `ayse.yilmaz@posta.test` | `demo1234` |
+| Kuruluş yöneticisi | `murat.demirci@yelkovanyazilim.test` | `demo1234` |
+| Koordinatör | `kerem.taskin@cinaralti.edu.test` | `demo1234` |
+| Platform admin | `admin@yetkin360.test` | `demo1234` |
 
 > Bu hesaplar **yalnız geliştirme içindir.** Seed script'i production ortamında
 > çalıştırılmaz.

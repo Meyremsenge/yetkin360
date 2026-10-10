@@ -35,7 +35,7 @@ def _run_full_seed(session) -> None:
 
 def _ayse(session) -> TalentProfile:
     return session.execute(
-        select(TalentProfile).join(User, TalentProfile.user_id == User.id).where(User.email == "ogrenci1@seed.local")
+        select(TalentProfile).join(User, TalentProfile.user_id == User.id).where(User.email == "ayse.yilmaz@posta.test")
     ).scalar_one()
 
 

@@ -205,14 +205,14 @@ describe("CalismalarPage (/calismalar)", () => {
     const ORG = [{ id: "org-1", name: "Acme A.Ş." }];
     const INST = [{ id: "inst-1", name: "Bilgi Üniversitesi" }];
 
-    it("kuruluş üyesi 'Öğrenci çalışmaları' başlığını görür, 'Yeni Çalışma' düğmesini görmez", async () => {
+    it("kuruluş üyesi 'Kişi çalışmaları' başlığını görür, 'Yeni Çalışma' düğmesini görmez", async () => {
       mockSession({ organizations: ORG, talent_profile: null });
       vi.mocked(listEngagements).mockResolvedValueOnce({ items: [summary({})] });
 
       renderWithQueryClient(<CalismalarPage />);
 
       await waitFor(() => {
-        expect(screen.getByRole("heading", { level: 1, name: "Öğrenci çalışmaları" })).toBeTruthy();
+        expect(screen.getByRole("heading", { level: 1, name: "Kişi çalışmaları" })).toBeTruthy();
       });
       expect(screen.queryByRole("link", { name: "Yeni Çalışma" })).toBeNull();
       expect(screen.queryByRole("group", { name: "Çalışma görünümü" })).toBeNull();
@@ -227,7 +227,7 @@ describe("CalismalarPage (/calismalar)", () => {
       const card = await screen.findByTestId("review-approved-card");
       expect(within(card).getByText("Ayşe Yılmaz")).toBeTruthy();
       expect(within(card).getByText("Frontend Stajı")).toBeTruthy();
-      expect(within(card).getByText("Öğrenci görev ve kanıt ekliyor")).toBeTruthy();
+      expect(within(card).getByText("Kişi görev ve kanıt ekliyor")).toBeTruthy();
       expect(card.getAttribute("href")).toBe("/calismalar/eng-1");
     });
 
@@ -254,7 +254,7 @@ describe("CalismalarPage (/calismalar)", () => {
       renderWithQueryClient(<CalismalarPage />);
 
       await waitFor(() => {
-        expect(screen.getByText("Henüz size bağlı bir öğrenci çalışması yok.")).toBeTruthy();
+        expect(screen.getByText("Henüz size bağlı bir kişi çalışması yok.")).toBeTruthy();
       });
     });
 
@@ -276,7 +276,7 @@ describe("CalismalarPage (/calismalar)", () => {
       expect(screen.queryByText("Öğrencinin Stajı")).toBeNull();
 
       const switcher = screen.getByRole("group", { name: "Çalışma görünümü" });
-      fireEvent.click(within(switcher).getByRole("button", { name: "Öğrenci çalışmaları" }));
+      fireEvent.click(within(switcher).getByRole("button", { name: "Kişi çalışmaları" }));
 
       await waitFor(() => {
         expect(screen.getByText("Öğrencinin Stajı")).toBeTruthy();

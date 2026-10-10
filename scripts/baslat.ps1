@@ -414,12 +414,13 @@ function Show-Summary {
     Write-Host '  MinIO       ' -NoNewline -ForegroundColor DarkGray; Write-Host 'http://localhost:9001'
     Write-Host ''
     Write-Host '  Seed hesapları  (şifre: SeedTest123!)' -ForegroundColor DarkGray
-    Write-Host '    Öğrenci          ogrenci1..20@seed.local'
-    Write-Host '    Keşfet dizini    dizin1..32@seed.local'
-    Write-Host '    Kuruluş admini   org1..5-admin@seed.local'
-    Write-Host '    Kurum admini     kurum1..5-admin@seed.local'
-    Write-Host '    Koordinatör      kurum1..5-koordinator@seed.local'
-    Write-Host '    Platform admini  admin@yetkin360.local  ' -NoNewline
+    Write-Host '    Bireysel         ayse.yilmaz@posta.test  (tümü ad.soyad@posta.test)'
+    Write-Host '    Kuruluş admini   murat.demirci@yelkovanyazilim.test'
+    Write-Host '    Onaylayıcı       mehmet.karaca@yelkovanyazilim.test'
+    Write-Host '    Aday doğrulayan  seda.gurbuz@gundogusuenerji.test'
+    Write-Host '    Kurum admini     nermin.basaran@cinaralti.edu.test'
+    Write-Host '    Koordinatör      kerem.taskin@cinaralti.edu.test'
+    Write-Host '    Platform admini  admin@yetkin360.test  ' -NoNewline
     Write-Host '(şifre: .env → SEED_ADMIN_PASSWORD)' -ForegroundColor DarkGray
     Write-Host ''
     Write-Host '  Loglar      ' -NoNewline -ForegroundColor DarkGray; Write-Host '.logs\api.log  .logs\worker.log  .logs\web.log'

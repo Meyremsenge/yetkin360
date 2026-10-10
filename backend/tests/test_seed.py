@@ -24,7 +24,7 @@ Test Deseni:
 Varsayımlar:
 - Toplam TalentProfile: exact 20 (sadece öğrenciler için; kurum/org admin hesaplarının TalentProfile'ı
   bu sayıya dahil edilmez — plan.md fonksiyonları netleştiğinde teyit edilmesi gerekir)
-  E-posta konvansiyonu: öğrenci → `ogrenci{1..20}@seed.local`, kurum admin → `kurum{1..5}-admin@seed.local`, org admin → `org{1..N}-admin@seed.local`
+  E-posta konvansiyonu: `ad.soyad@<kurgusal alan>.test` — öğrenci → `@posta.test` (STUDENT_EMAILS), kurum yetkilisi → `@<kurum>.edu.test`, kuruluş üyesi → `@<kuruluş>.test`
 - Kurum admin hesapları create_institution() içinde oluşturulur (register_user ile ayrı değil)
 - Organization admin hesapları create_organization() içinde oluşturulur (register_user ile ayrı değil)
 - Seed script mevcut _SessionLocal() ile çalışır (test session fixture'ı kullansa da,
@@ -53,6 +53,9 @@ from app.core.config import settings
 # Import seed functions (will fail initially — expected)
 try:
     from scripts.seed import (
+        INSTITUTION_DOMAINS,
+        STUDENT_EMAILS,
+        seed_coordinator_email,
         seed_skills,
         seed_talents,
         seed_institutions_and_organizations,
@@ -100,10 +103,10 @@ def test_ac1_happy_path_creates_20_talents_5_institutions_15_engagements(session
     session.commit()
 
     # Verify counts
-    # Count only student talent profiles (ogrenci*.@seed.local email filter)
+    # Count only student talent profiles (STUDENT_EMAILS filter)
     talent_count = session.query(func.count(TalentProfile.id)).join(
         User, TalentProfile.user_id == User.id
-    ).filter(User.email.like("ogrenci%@seed.local")).scalar()
+    ).filter(User.email.in_(STUDENT_EMAILS)).scalar()
     assert talent_count == 20, f"Expected 20 student TalentProfile, got {talent_count}"
 
     institution_count = session.query(func.count(Institution.id)).scalar()
@@ -167,10 +170,10 @@ def test_ac2_idempotency_second_run_does_not_change_counts(session):
     session.commit()
 
     # Record initial counts
-    # Count only student talent profiles (ogrenci*.@seed.local email filter)
+    # Count only student talent profiles (STUDENT_EMAILS filter)
     talent_count_1 = session.query(func.count(TalentProfile.id)).join(
         User, TalentProfile.user_id == User.id
-    ).filter(User.email.like("ogrenci%@seed.local")).scalar()
+    ).filter(User.email.in_(STUDENT_EMAILS)).scalar()
     institution_count_1 = session.query(func.count(Institution.id)).scalar()
     organization_count_1 = session.query(func.count(Organization.id)).scalar()
     engagement_count_1 = session.query(func.count(Engagement.id)).scalar()
@@ -184,10 +187,10 @@ def test_ac2_idempotency_second_run_does_not_change_counts(session):
     session.commit()
 
     # Record counts after second run
-    # Count only student talent profiles (ogrenci*.@seed.local email filter)
+    # Count only student talent profiles (STUDENT_EMAILS filter)
     talent_count_2 = session.query(func.count(TalentProfile.id)).join(
         User, TalentProfile.user_id == User.id
-    ).filter(User.email.like("ogrenci%@seed.local")).scalar()
+    ).filter(User.email.in_(STUDENT_EMAILS)).scalar()
     institution_count_2 = session.query(func.count(Institution.id)).scalar()
     organization_count_2 = session.query(func.count(Organization.id)).scalar()
     engagement_count_2 = session.query(func.count(Engagement.id)).scalar()
@@ -322,10 +325,10 @@ def test_ac4_db_error_during_seeding_causes_full_rollback(session):
                 session.rollback()
 
         # Verify no talents were created (all should be rolled back due to single transaction)
-        # Count only student talent profiles (ogrenci*.@seed.local email filter)
+        # Count only student talent profiles (STUDENT_EMAILS filter)
         talent_count = session.query(func.count(TalentProfile.id)).join(
             User, TalentProfile.user_id == User.id
-        ).filter(User.email.like("ogrenci%@seed.local")).scalar()
+        ).filter(User.email.in_(STUDENT_EMAILS)).scalar()
         assert talent_count == 0, f"Expected 0 student TalentProfile after rollback, got {talent_count}"
 
 
@@ -583,8 +586,8 @@ def test_yet190_every_institution_has_exactly_one_seed_coordinator(session):
 
     institutions = session.query(Institution).all()
     assert len(institutions) == 5
-    for i in range(1, 6):
-        inst = session.query(Institution).filter_by(domain=f"inst{i}.seed.local").one()
+    for i, domain in enumerate(INSTITUTION_DOMAINS, start=1):
+        inst = session.query(Institution).filter_by(domain=domain).one()
         coordinators = (
             session.query(User)
             .join(InstitutionMember, InstitutionMember.user_id == User.id)
@@ -594,7 +597,7 @@ def test_yet190_every_institution_has_exactly_one_seed_coordinator(session):
             )
             .all()
         )
-        assert [u.email for u in coordinators] == [f"kurum{i}-koordinator@seed.local"]
+        assert [u.email for u in coordinators] == [seed_coordinator_email(i)]
         admins = (
             session.query(InstitutionMember)
             .filter_by(institution_id=inst.id, role="ADMIN")
@@ -661,14 +664,14 @@ def test_plan_3_28_demo_data_is_realistic_and_linked(session):
 
     students = session.query(TalentProfile).join(
         User, TalentProfile.user_id == User.id
-    ).filter(User.email.like("ogrenci%@seed.local")).all()
+    ).filter(User.email.in_(STUDENT_EMAILS)).all()
     assert len(students) == 20
     for tp in students:
         assert not tp.full_name.startswith("Student"), tp.full_name
         assert tp.institution_id is not None, f"{tp.full_name} is not linked to an institution"
         assert tp.public_slug and tp.visibility == "PUBLIC"
 
-    names = [i.name for i in session.query(Institution).filter(Institution.domain.like("inst%.seed.local"))]
+    names = [i.name for i in session.query(Institution).filter(Institution.domain.in_(INSTITUTION_DOMAINS))]
     names += [o.name for o in session.query(Organization).filter(Organization.legal_id.like("ORG%"))]
     assert names and not any(n.startswith(("Institution ", "Organization ")) for n in names)
 
@@ -710,22 +713,24 @@ def test_sprint_j_org_team_members_units_and_showcase(session):
     _seed_story(session)
 
     assert _member_rows(session, "ORG1") == {
-        "org1-admin@seed.local": ("ADMIN", "Yönetim"),
-        "org1-yazilim@seed.local": ("MEMBER", "Yazılım"),
-        "org1-tasarim@seed.local": ("MEMBER", "Tasarım"),
+        "murat.demirci@yelkovanyazilim.test": ("ADMIN", "Yönetim"),
+        "mehmet.karaca@yelkovanyazilim.test": ("MEMBER", "Yazılım"),
+        "zeynep.ari@yelkovanyazilim.test": ("MEMBER", "Tasarım"),
     }
-    assert _member_rows(session, "ORG3")["org3-ik@seed.local"] == ("MEMBER", "İnsan Kaynakları")
+    assert _member_rows(session, "ORG3")["seda.gurbuz@gundogusuenerji.test"] == ("MEMBER", "İnsan Kaynakları")
 
     names = {
         email: name
         for email, name in session.query(User.email, TalentProfile.full_name).join(
             TalentProfile, TalentProfile.user_id == User.id
-        ).filter(User.email.in_(["org1-yazilim@seed.local", "org1-tasarim@seed.local", "org3-ik@seed.local"]))
+        ).filter(User.email.in_([
+            "mehmet.karaca@yelkovanyazilim.test", "zeynep.ari@yelkovanyazilim.test", "seda.gurbuz@gundogusuenerji.test",
+        ]))
     }
     assert names == {
-        "org1-yazilim@seed.local": "Mehmet Karaca",
-        "org1-tasarim@seed.local": "Zeynep Arı",
-        "org3-ik@seed.local": "Elif Çınar",
+        "mehmet.karaca@yelkovanyazilim.test": "Mehmet Karaca",
+        "zeynep.ari@yelkovanyazilim.test": "Zeynep Arı",
+        "seda.gurbuz@gundogusuenerji.test": "Seda Gürbüz",
     }
 
     showcase = {o.legal_id: o.showcase_public for o in session.query(Organization).filter(Organization.legal_id.like("ORG%"))}
@@ -739,12 +744,12 @@ def test_sprint_j_ayse_story_runs_through_the_real_state_machine(session):
     _seed_story(session)
 
     ayse = session.query(TalentProfile).join(User, TalentProfile.user_id == User.id).filter(
-        User.email == "ogrenci1@seed.local"
+        User.email == "ayse.yilmaz@posta.test"
     ).one()
-    mehmet = session.query(User).filter_by(email="org1-yazilim@seed.local").one()
-    lale = session.query(Organization).filter_by(legal_id="ORG1").one()
-    galata = session.query(Institution).filter_by(domain="inst1.seed.local").one()
-    assert ayse.institution_id == galata.id
+    mehmet = session.query(User).filter_by(email="mehmet.karaca@yelkovanyazilim.test").one()
+    yelkovan = session.query(Organization).filter_by(legal_id="ORG1").one()
+    cinaralti = session.query(Institution).filter_by(domain="cinaralti.edu.test").one()
+    assert ayse.institution_id == cinaralti.id
 
     by_title = {
         e.title: e
@@ -757,8 +762,8 @@ def test_sprint_j_ayse_story_runs_through_the_real_state_machine(session):
     }
     for engagement in by_title.values():
         assert engagement.talent_id == ayse.id
-        assert engagement.organization_id == lale.id
-        assert engagement.institution_id == galata.id
+        assert engagement.organization_id == yelkovan.id
+        assert engagement.institution_id == cinaralti.id
         assert engagement.supervisor_user_id == mehmet.id
 
     verified = by_title["Mobil Bankacılık API Stajı"]
@@ -766,7 +771,7 @@ def test_sprint_j_ayse_story_runs_through_the_real_state_machine(session):
     assert evaluation.evaluator_user_id == mehmet.id
     attestation = session.query(Attestation).filter_by(engagement_id=verified.id).one()
     sealer = session.query(InstitutionMember).filter_by(
-        institution_id=galata.id, user_id=attestation.attestor_user_id
+        institution_id=cinaralti.id, user_id=attestation.attestor_user_id
     ).one()
     assert sealer.role == "COORDINATOR"
     assert session.query(VerifiedExperience).filter_by(engagement_id=verified.id).count() == 1

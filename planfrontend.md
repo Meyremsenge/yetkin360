@@ -346,11 +346,15 @@ Final analiz §35.2 senaryosunun ekran karşılığı:
 
 | Rol | E-posta | Gösterdiği ekran |
 |---|---|---|
-| Öğrenci | `ogrenci1@seed.local` | `/calismalar`, `/profil` |
-| Kuruluş admini | `org1-admin@seed.local` | `/kurulus/{id}/panel` |
-| Kurum admini | `kurum1-admin@seed.local` | `/kurum/{id}/panel` |
-| Koordinatör | `kurum1-koordinator@seed.local` | `/kurum/{id}/panel` |
-| Platform admini | `.env` → `SEED_ADMIN_EMAIL` | `/admin/*` |
+| Bireysel kullanıcı (Ayşe Yılmaz) | `ayse.yilmaz@posta.test` | `/calismalar`, `/profil` |
+| Kuruluş yöneticisi (Murat Demirci, Yelkovan Yazılım) | `murat.demirci@yelkovanyazilim.test` | `/kurulus/{id}/panel` |
+| Onaylayıcı mentor (Mehmet Karaca, Yazılım birimi) | `mehmet.karaca@yelkovanyazilim.test` | `/kurulus/{id}/panel` → Bana atananlar |
+| Aday doğrulayan İK (Seda Gürbüz, Gündoğusu Enerji) | `seda.gurbuz@gundogusuenerji.test` | `/kurulus/{id}/panel` → Aday doğrula |
+| Kurum yöneticisi (Nermin Başaran, Çınaraltı Teknik) | `nermin.basaran@cinaralti.edu.test` | `/kurum/{id}/panel` |
+| Koordinatör (Kerem Taşkın, Çınaraltı Teknik) | `kerem.taskin@cinaralti.edu.test` | `/kurum/{id}/panel` |
+| Platform admini | `.env` → `SEED_ADMIN_EMAIL` (varsayılan `admin@yetkin360.test`) | `/admin/*` |
+
+Tüm seed e-postaları `ad.soyad@<kurgusal alan>.test` biçimindedir (`.test` gerçek bir alan adı değildir); tam liste `backend/scripts/seed.py` → `STUDENT_EMAILS`, `INSTITUTIONS_DATA`, `ORGANIZATIONS_DATA`, `ORG_TEAM`.
 
 ---
 

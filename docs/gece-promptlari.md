@@ -38,7 +38,7 @@ Oku: planfrontend.md §5 (Seed hesapları) ve backend/scripts/seed.py'de hesap/�
 Auth uçlarını backend/app/api/auth.py'den bul.
 
 1. Şu hesapların her biriyle login dene (curl, cookie jar ile), sonra GET /me çağır:
-   ogrenci1@seed.local, org1-admin@seed.local, kurum1-admin@seed.local, kurum1-koordinator@seed.local.
+   ayse.yilmaz@posta.test, murat.demirci@yelkovanyazilim.test, nermin.basaran@cinaralti.edu.test, kerem.taskin@cinaralti.edu.test.
    Her biri için: login HTTP kodu, /me'de organizations/institutions/talent_profile dolu mu.
 2. Veritabanında (psql değil — backend içinden küçük bir python -c ile, mevcut SessionLocal'i kullanarak, SADECE SELECT):
    - status='VERIFIED' olan engagement sayısı

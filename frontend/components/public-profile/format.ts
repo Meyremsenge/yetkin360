@@ -6,7 +6,7 @@ export function formatMonthYear(value: string): string {
   return new Date(value).toLocaleDateString("tr-TR", { month: "long", year: "numeric", timeZone: "UTC" });
 }
 
-/** "Mehmet K. · Lale Yazılım, Yazılım"; the name or the unit is left out when unknown. */
+/** "Mehmet K. · Yelkovan Yazılım, Yazılım"; the name or the unit is left out when unknown. */
 export function formatEvaluator(
   organization: string,
   evaluator: { display_name: string | null; unit: string | null }

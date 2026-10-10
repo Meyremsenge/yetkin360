@@ -62,7 +62,7 @@ export default function ProfileHero({ profile }: { profile: Record<string, unkno
   const slug = typeof profile.public_slug === "string" && profile.public_slug ? profile.public_slug : null;
   const meta = [
     typeof profile.department === "string" ? profile.department : null,
-    typeof profile.study_year === "number" ? t.studyYear.replace("{n}", String(profile.study_year)) : null,
+    typeof profile.study_year === "number" && profile.study_year > 0 ? t.studyYear.replace("{n}", String(profile.study_year)) : null,
     typeof profile.city === "string" ? profile.city : null,
   ].filter(Boolean);
 
