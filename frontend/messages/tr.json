@@ -214,6 +214,7 @@
   },
   "calismalar": {
     "listTitle": "Çalışmalarım",
+    "newEngagementButton": "Yeni Çalışma",
     "loadError": "Çalışmalar yüklenemedi.",
     "emptyMessage": "Henüz bir çalışmanız yok.",
     "emptyHint": "Bir kuruluş sizi bir staja veya projeye eklediğinde ya da size bir başlatma bağlantısı gönderdiğinde çalışmanız burada görünür.",
@@ -362,12 +363,29 @@
     "titleLabel": "Başlık",
     "submitButton": "Oluştur",
     "submittingButton": "Oluşturuluyor...",
-    "missingLinkMessage": "Bu link eksik veya geçersiz. Organizasyonunuzdan doğru linki isteyin.",
+    "missingLinkMessage": "Önce bir kuruluş seçmeniz gerekiyor.",
+    "missingLinkPickerLink": "Kuruluş seç",
     "notATalentMessage": "Bu özellik yalnızca öğrenci hesapları için kullanılabilir.",
     "invalidLinkError": "Bu organizasyon bulunamadı. Organizasyonunuzdan doğru linki isteyin.",
     "description": "Oluşturduğunuz çalışma taslak olarak kaydedilir; ardından kuruluşun onayına gönderirsiniz.",
     "titlePlaceholder": "Örn. Veri Analisti Yaz Stajı",
     "loadingLabel": "Form yükleniyor"
+  },
+  "kurulusSec": {
+    "title": "Kuruluş Seç",
+    "description": "Çalışma başlatmak istediğiniz kuruluşu arayıp seçin.",
+    "searchPlaceholder": "Kuruluş adı ara...",
+    "searchLabel": "Kuruluş ara",
+    "loadingLabel": "Kuruluşlar yükleniyor",
+    "loadError": "Kuruluşlar yüklenemedi.",
+    "retry": "Tekrar dene",
+    "emptyMessage": "Aramanızla eşleşen bir kuruluş bulunamadı.",
+    "verificationLevel": {
+      "T1": "Temel doğrulama",
+      "T2": "Alan adı doğrulandı",
+      "T3": "Tam doğrulama",
+      "T4": "Üst düzey doğrulama"
+    }
   },
   "degerlendirme": {
     "title": "Değerlendirme Formu",

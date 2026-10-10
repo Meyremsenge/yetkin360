@@ -106,6 +106,12 @@ function CalismaOlusturContent() {
     return (
       <PageFrame>
         <InfoState message={messages.calismaOlustur.missingLinkMessage} />
+        <Link
+          href="/calismalar/kurulus-sec"
+          className="mt-4 inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-success hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success"
+        >
+          {messages.calismaOlustur.missingLinkPickerLink}
+        </Link>
       </PageFrame>
     );
   }

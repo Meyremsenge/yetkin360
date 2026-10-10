@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createOrganization, getOrganization, inviteOrgMember, verifyDomain } from "./organizations";
+import { createOrganization, getOrganization, inviteOrgMember, verifyDomain, listOrganizationDirectory } from "./organizations";
 import * as client from "./client";
 import { ApiError, NetworkError } from "./errors";
 
@@ -166,6 +166,42 @@ describe("lib/api/organizations", () => {
       mockApiFetch.mockRejectedValueOnce(error);
 
       await expect(verifyDomain("org-b")).rejects.toMatchObject({ status: 404 });
+    });
+  });
+
+  describe("listOrganizationDirectory", () => {
+    it("happy path - GET /organizations/ çağırır, items döner", async () => {
+      const items = [
+        { id: "org-1", name: "Acme A.Ş.", domain: "acme.com", verification_level: "T2" },
+      ];
+      mockApiFetch.mockResolvedValueOnce({ items });
+
+      const result = await listOrganizationDirectory();
+
+      expect(result).toEqual(items);
+      expect(mockApiFetch).toHaveBeenCalledWith("/organizations/");
+    });
+
+    it("arama terimi verildiğinde q query param'ı eklenir", async () => {
+      mockApiFetch.mockResolvedValueOnce({ items: [] });
+
+      await listOrganizationDirectory("Acme & Co");
+
+      expect(mockApiFetch).toHaveBeenCalledWith("/organizations/?q=Acme%20%26%20Co");
+    });
+
+    it("boş/whitespace arama terimi query param eklemez", async () => {
+      mockApiFetch.mockResolvedValueOnce({ items: [] });
+
+      await listOrganizationDirectory("   ");
+
+      expect(mockApiFetch).toHaveBeenCalledWith("/organizations/");
+    });
+
+    it("network error - NetworkError fırlatır", async () => {
+      mockApiFetch.mockRejectedValueOnce(new NetworkError("network"));
+
+      await expect(listOrganizationDirectory()).rejects.toBeInstanceOf(NetworkError);
     });
   });
 });

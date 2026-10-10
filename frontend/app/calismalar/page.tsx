@@ -203,15 +203,23 @@ export default function CalismalarPage() {
   return (
     <AppShell>
       <div className="max-w-[1120px] px-4 py-8 md:px-6 lg:px-10">
-        <header>
-          <h1 className="font-serif text-[32px] font-semibold leading-10 text-foreground">
-            {messages.calismalar.listTitle}
-          </h1>
-          {!isLoading && !isError ? (
-            <p className="mt-2 text-sm text-muted-foreground">
-              {formatTemplate(messages.calismalar.listCount, { count: items.length })}
-            </p>
-          ) : null}
+        <header className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="font-serif text-[32px] font-semibold leading-10 text-foreground">
+              {messages.calismalar.listTitle}
+            </h1>
+            {!isLoading && !isError ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                {formatTemplate(messages.calismalar.listCount, { count: items.length })}
+              </p>
+            ) : null}
+          </div>
+          <Link
+            href="/calismalar/kurulus-sec"
+            className="inline-flex h-10 shrink-0 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success"
+          >
+            {messages.calismalar.newEngagementButton}
+          </Link>
         </header>
 
         {isLoading ? (

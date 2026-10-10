@@ -73,6 +73,15 @@ describe("CalismalarPage (/calismalar)", () => {
     });
   });
 
+  it("PLAN 3.53: 'Yeni Çalışma' butonu kuruluş seçiciye yönlendirir", async () => {
+    vi.mocked(listEngagements).mockResolvedValueOnce({ items: [] });
+
+    renderWithQueryClient(<CalismalarPage />);
+
+    const link = screen.getByRole("link", { name: "Yeni Çalışma" });
+    expect(link.getAttribute("href")).toBe("/calismalar/kurulus-sec");
+  });
+
   it("dönen engagement'ları başlık, tür, kuruluş ve durum ile listeler", async () => {
     vi.mocked(listEngagements).mockResolvedValueOnce({
       items: [

@@ -84,3 +84,25 @@ export async function verifyDomain(organizationId: string): Promise<DomainVerify
   if (!response) throw unexpectedResponse();
   return response;
 }
+
+/**
+ * PLAN 3.53: öğrencinin "Yeni Çalışma" başlatırken serbestçe arayıp
+ * seçebileceği kuruluş dizini. Sözleşme: backend GET /organizations
+ * (scoped_organization_directory — üyelikten bağımsız, tenant-scoping'in
+ * kasıtlı istisnası, legal_id/status döndürmez).
+ */
+export interface OrganizationDirectoryEntry {
+  id: string;
+  name: string;
+  domain: string | null;
+  verification_level: string;
+}
+
+export async function listOrganizationDirectory(q?: string): Promise<OrganizationDirectoryEntry[]> {
+  // Router prefix "/organizations" + route "/" → gerçek yol "/organizations/"
+  // (createOrganization'daki aynı 307-redirect notu geçerli).
+  const query = q?.trim() ? `?q=${encodeURIComponent(q.trim())}` : "";
+  const response = await apiFetch<{ items: OrganizationDirectoryEntry[] }>(`/organizations/${query}`);
+  if (!response) throw unexpectedResponse();
+  return response.items;
+}

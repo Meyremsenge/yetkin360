@@ -64,7 +64,7 @@ describe("CalismaOlusturPage (/calismalar/olustur)", () => {
 
     renderWithQueryClient(<CalismaOlusturPage />);
 
-    expect(screen.getByText(/Bu link eksik veya geçersiz/)).toBeTruthy();
+    expect(screen.getByText(/Önce bir kuruluş seçmeniz gerekiyor/)).toBeTruthy();
     expect(screen.queryByLabelText("Başlık")).toBeNull();
   });
 
