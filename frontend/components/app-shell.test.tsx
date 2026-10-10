@@ -606,7 +606,10 @@ describe("AppShell", () => {
       // Assert: admin link metinleri TAM EŞLEŞMEYLE bulunur
       const html = container.innerHTML;
       expect(html).toContain(messages.shell.adminVerificationQueueLink);
-      expect(html).toContain(messages.shell.adminSkillsLink);
+      expect(html).toContain(messages.shell.adminFraudQueueLink);
+      // Yetkinlik yönetimi menüde yok; sayfa /admin/skiller adresinden açılır.
+      expect(html).not.toContain(messages.shell.adminSkillsLink);
+      expect(html).not.toContain("/admin/skiller");
     });
 
     it("AC-2: is_platform_admin=false iken admin linklerini HİÇ gösterme", () => {
