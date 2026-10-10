@@ -35,6 +35,29 @@ ATTESTATION_CREATED_BODY = (
     "Detayları görmek için giriş yapın: {engagement_url}"
 )
 
+COMPLAINT_OPENED_SUBJECT = "Yetkin360 - Bir çalışma için şikayet açıldı"
+
+# {engagement_url}
+COMPLAINT_OPENED_BODY = (
+    "Kuruluşunuzdaki bir çalışma için öğrenci, onay sürecinin ilerlemediğini bildiren bir şikayet açtı.\n\n"
+    "Bekleyen bir görev onayı, değerlendirme ya da doğrulama varsa lütfen tamamlayın: {engagement_url}\n\n"
+    "Şikayeti platform yöneticisi inceleyecek. Onay vermemenizin bir gerekçesi varsa "
+    "bu e-postayı yanıtlayarak bildirin."
+)
+
+COMPLAINT_RESOLVED_SUBJECT = "Yetkin360 - Şikayetiniz karara bağlandı"
+
+# {outcome_label}, {engagement_url}
+COMPLAINT_RESOLVED_BODY = (
+    "Açtığınız şikayet incelendi. Sonuç: {outcome_label}.\n\n"
+    "Ayrıntılar için çalışmanızı açın: {engagement_url}"
+)
+
+COMPLAINT_OUTCOME_LABELS = {
+    "UPHELD": "şikayetiniz haklı bulundu",
+    "DISMISSED": "şikayetiniz kapatıldı",
+}
+
 ENGAGEMENT_PENDING_APPROVAL_SUBJECT = "Yetkin360 - Onay bekleyen bir çalışma var"
 
 # {engagement_url}

@@ -401,6 +401,90 @@ def _resolve_selected_coordinator_emails(institution_id: str, user_ids: list[str
         engine.dispose()
 
 
+def _resolve_organization_member_emails(organization_id: str) -> list[str]:
+    """Every member (ADMIN and MEMBER) of the organization — the people who can
+    act on a student's complaint about one of its engagements."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session as _Session
+
+    from app.core.config import settings
+    from app.models import OrganizationMember, User
+
+    engine = create_engine(settings.database_url)
+    try:
+        with _Session(engine) as session:
+            emails = session.execute(
+                select(User.email)
+                .join(OrganizationMember, OrganizationMember.user_id == User.id)
+                .where(OrganizationMember.organization_id == organization_id)
+            ).scalars().all()
+            return list(emails)
+    finally:
+        engine.dispose()
+
+
+def complaint_opened_handler(payload: dict, outbox_id: int) -> None:
+    """
+    Handler for complaint.opened: tells the organization's members that a student
+    opened a complaint about one of their engagements and asks them to act.
+
+    Args:
+      - payload: {"complaint_id", "engagement_id", "organization_id"} — neither
+        an address nor the student's statement (PII guard)
+      - outbox_id: row ID in outbox table
+    """
+    from app.core.config import settings
+    from app.core.email_messages import COMPLAINT_OPENED_BODY, COMPLAINT_OPENED_SUBJECT
+
+    engagement_url = f"{settings.frontend_origin}/calismalar/{payload['engagement_id']}"
+
+    if settings.email_backend == "console":
+        print(f"[EMAIL] Complaint opened email (outbox_id={outbox_id}): {engagement_url}")
+        return
+
+    for to_email in _resolve_organization_member_emails(payload["organization_id"]):
+        _send_smtp_email(
+            to_email=to_email,
+            subject=COMPLAINT_OPENED_SUBJECT,
+            body=COMPLAINT_OPENED_BODY.format(engagement_url=engagement_url),
+        )
+
+
+def complaint_resolved_handler(payload: dict, outbox_id: int) -> None:
+    """
+    Handler for complaint.resolved: tells the student the admin's decision.
+
+    Args:
+      - payload: {"complaint_id", "engagement_id", "talent_id", "outcome"}
+      - outbox_id: row ID in outbox table
+    """
+    from app.core.config import settings
+    from app.core.email_messages import (
+        COMPLAINT_OUTCOME_LABELS,
+        COMPLAINT_RESOLVED_BODY,
+        COMPLAINT_RESOLVED_SUBJECT,
+    )
+
+    engagement_url = f"{settings.frontend_origin}/calismalar/{payload['engagement_id']}"
+
+    if settings.email_backend == "console":
+        print(f"[EMAIL] Complaint resolved email (outbox_id={outbox_id}): {engagement_url}")
+        return
+
+    to_email = _resolve_talent_user_email(payload["talent_id"])
+    if to_email is None:
+        return
+
+    _send_smtp_email(
+        to_email=to_email,
+        subject=COMPLAINT_RESOLVED_SUBJECT,
+        body=COMPLAINT_RESOLVED_BODY.format(
+            outcome_label=COMPLAINT_OUTCOME_LABELS.get(payload["outcome"], payload["outcome"].lower()),
+            engagement_url=engagement_url,
+        ),
+    )
+
+
 def attestation_created_handler(payload: dict, outbox_id: int) -> None:
     """
     Handler for attestation.created topic (PLAN 3.51 — was enqueued since
@@ -1360,6 +1444,8 @@ DEFAULT_HANDLERS = {
     "fraud.organization_identity_check_requested": organization_identity_check_handler,
     "attestation.created": attestation_created_handler,
     "engagement.pending_approval": engagement_pending_approval_handler,
+    "complaint.opened": complaint_opened_handler,
+    "complaint.resolved": complaint_resolved_handler,
     "evidence.certificate_check_requested": certificate_check_requested_handler,
 }
 

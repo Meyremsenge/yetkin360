@@ -312,6 +312,6 @@ olduğunu açıkça söyler. Gizlemek, bilmemekten daha kötüdür.
 | PostgreSQL RLS | **Yanlış kurulmuş RLS, olmayan RLS'ten tehlikelidir** (§AUTHORIZATION 3) | V2 |
 | MFA | Kapsam; MVP'de kullanıcı tabanı yok | V2 |
 | GitHub OAuth kanıt doğrulama (T5) | Kapsam | V2 |
-| Break-glass admin akışı | MVP'de admin `PRIVATE` evidence'a **hiç** erişemez — daha güvenli varsayılan | Faz 5.4 |
+| Break-glass admin akışı | MVP'de admin `PRIVATE` evidence'a erişemez; tek istisna öğrencinin bir şikayete kendi eklediği belgedir (yalnız şikayet üzerinden, audit'li — AUTHORIZATION §4.1) | Faz 5.4 |
 | `audit_events` partition | 3 haftalık veri için gereksiz | Faz 5.4 |
 | Bağımlılık taraması otomasyonu | CI'da var, ancak otomatik güncelleme yok | Faz 5 |

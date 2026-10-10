@@ -384,6 +384,8 @@ Yetkisiz çağıran her zaman `404` alır ve kota harcamaz.
 | `POST` | `/engagements/{id}/transitions` | duruma göre | `to_status`, `version`, `reason?`, `notify_emails?` | `200` — güncel engagement | `403`, `404`, `409`, `422 ILLEGAL_TRANSITION`, `422 PRECONDITION_FAILED` |
 | `POST` | `/engagements/{id}/tasks` | Kuruluş üyesi / koordinatör (yalnız `ACTIVE`) veya `TALENT` (kendi çalışması; `DRAFT`, `ACTIVE`) | `title`, `description?`, `due_at?`, `skill_id?` | `201` — görev (`verified`, `verified_at`) | `404`, `403`, `422 PRECONDITION_FAILED` |
 | `POST` | `/engagements/{id}/tasks/{task_id}/verify` | Kuruluş üyesi / koordinatör — **öğrenci kendi görevini doğrulayamaz** | — | `200` — görev (`verified: true`) | `404`, `403`, `409 TASK_ALREADY_VERIFIED`, `422 PRECONDITION_FAILED` |
+| `POST` | `/engagements/{id}/complaints` | `TALENT` — yalnız çalışmanın sahibi | `category`, `description` (20–2000), `evidence_id?` | `201` — şikayet (`status: OPEN`) | `404`, `403`, `409 COMPLAINT_ALREADY_OPEN`, `422 PRECONDITION_FAILED`, `422 INVALID_EVIDENCE` |
+| `GET` | `/engagements/{id}/complaints` | `TALENT` — yalnız çalışmanın sahibi | — | `200` — kendi şikayetleri, yeniden eskiye | `404`, `403` |
 | `POST` | `/engagements/{id}/deliverables` | `TALENT` | `title`, `description?`, `task_id?`, `evidence_ids[]` | `201` | `404`, `403`, `422 EVIDENCE_REQUIRED` |
 
 **`GET /engagements` listesinde `org_id` parametresi yoktur** (§1.2).
@@ -419,6 +421,36 @@ Görevi kimin eklediği, doğrulanmış sayılıp sayılmayacağını belirler:
 | `403 FORBIDDEN` | Geçiş tanımlı, ön koşul tamam, ama **bu aktör yetkili değil** |
 
 Bu üç hatanın ayrı olması kasıtlıdır: istemci kullanıcıya doğru mesajı gösterebilir.
+
+#### Öğrenci şikayeti
+
+Öğrenci, onay süreci ilerlemeyen kendi çalışması için şikayet açar
+(`category`: `TASK_APPROVAL` — görev onaylanmıyor, `CERTIFICATE_APPROVAL` —
+sertifika/çalışma doğrulanmıyor, `PERSONAL` — kişisel sorun).
+
+- Yalnız çalışmanın sahibi öğrenci açar ve okur. Kapsamdaki kuruluş üyesi ya da
+  koordinatör `403`, kapsam dışındaki herkes (admin dahil) `404` alır.
+- `DRAFT` çalışma için açılamaz (`422 PRECONDITION_FAILED`); bir çalışmada aynı
+  anda tek açık şikayet olur (`409 COMPLAINT_ALREADY_OPEN`).
+- `evidence_id` isteğe bağlıdır: öğrencinin **o çalışmanın bir çıktısına**
+  yüklediği, silinmemiş ve taraması `CLEAN` olan bir kanıt olmalıdır. Diğer her
+  durum tek yanıt verir: `422 INVALID_EVIDENCE`.
+- Açılınca kuruluşun üyelerine e-posta gider (`complaint.opened`). Açıklama metni
+  outbox'a ve audit kaydına yazılmaz.
+- Kararı admin verir: `UPHELD` (kuruluş kasıtlı olarak doğrulamadı) ya da
+  `DISMISSED` (kuruluş haklı; şikayet kapatılır). Karar kalıcıdır ve öğrenciye
+  bildirilir (`complaint.resolved`).
+- **Kasıtlı doğrulamama damgası** ayrı bir alan değildir: kuruluşun `UPHELD`
+  şikayetlerinin sayısıdır (`organization_upheld_count`; doğrulama kuyruğunda
+  `upheld_complaint_count`). Yalnız admin uçlarında döner.
+- **Eklenen belgeyi admin açabilir** (`GET /admin/complaints/{id}/evidence-url`).
+  Bu, "`PRIVATE` kanıt admin'e de kapalıdır" kuralının **tek istisnasıdır**: öğrenci
+  belgeyi o şikayetin incelenmesi için kendisi eklemiştir. Erişim yalnız şikayet
+  üzerindendir; aynı belge `GET /evidence/{id}/download-url` ile admin'e yine `403`
+  döner ve öğrencinin şikayete eklemediği hiçbir kanıta bu yoldan ulaşılamaz. Sahibinin
+  indirmesindeki tarama ve bütünlük kontrolleri aynen uygulanır.
+- İlk sürümde yok: kuruluşun gerekçe yazması, öğrencinin itirazı ve koordinatöre
+  yükseltme.
 
 **Onay isteğinin alıcısı (`notify_emails`).** `DRAFT → PENDING_APPROVAL`
 geçişinde **zorunludur** (yoksa ya da boşsa `422 PRECONDITION_FAILED`), diğer
@@ -601,6 +633,9 @@ güvenlik sınırı değildir — sınır yukarıdaki sunucu kontrolüdür.
 | `POST` | `/admin/organizations/{id}/verification-reject` | `note?` | `200` — kurum kuyruktan çıkar, seviye değişmez | `404`, `409 NOT_PENDING` |
 | `GET` | `/admin/fraud-queue` | `limit?`, `offset?` | `200` — PENDING fraud flag'leri (AI işareti, karar yok) | — |
 | `POST` | `/admin/fraud-queue/{id}/resolve` | `outcome` (`CONFIRMED`/`DISMISSED`) | `200` — admin kararı kalıcı kaydedilir | `404`, `409 NOT_PENDING` |
+| `GET` | `/admin/complaints` | `status?` (`OPEN` varsayılan / `UPHELD` / `DISMISSED`), `limit?`, `offset?` | `200` — şikayetler; her satır öğrenci, kuruluş, çalışma ve `organization_upheld_count` taşır | — |
+| `POST` | `/admin/complaints/{id}/resolve` | `outcome` (`UPHELD`/`DISMISSED`), `note?` | `200` — karar kalıcıdır, öğrenciye bildirilir | `404`, `409 NOT_OPEN` |
+| `GET` | `/admin/complaints/{id}/evidence-url` | — | `200` — şikayete eklenen belge için kısa ömürlü indirme bağlantısı; her çağrı audit'e yazılır | `404`, `409 SCAN_NOT_CLEAN`, `409 EVIDENCE_CONTENT_CHANGED`, `503` |
 
 - Admin uçları **offset sayfalama** kullanabilir (§1.6).
 - Her doğrulama seviyesi değişikliği `audit_events` üretir.
@@ -665,7 +700,7 @@ aksi halde `null`). Yalnız `status = 'ACTIVE'` ve silinmemiş kuruluşlar.
 
 ## 3. Uç özeti
 
-Toplam **41 uç**. Hackathon fazlarına dağılımı → [PLAN.md](../PLAN.md).
+Toplam **46 uç**. Hackathon fazlarına dağılımı → [PLAN.md](../PLAN.md).
 
 | Grup | Uç sayısı | Faz |
 |---|---|---|
@@ -674,12 +709,12 @@ Toplam **41 uç**. Hackathon fazlarına dağılımı → [PLAN.md](../PLAN.md).
 | `/skills` | 1 | 1 |
 | `/organizations` | 4 | 1 |
 | `/institutions` | 3 | 3 |
-| `/engagements` | 7 | 2 |
+| `/engagements` | 9 | 2 |
 | `/evidence` | 3 | 2 |
 | Değerlendirme / tanıklık / itiraz | 4 | 2 |
 | `/public` | 2 | 3 |
 | `/discover` | 2 | 3 (R.1) |
-| `/admin` | 2 | 3 |
+| `/admin` | 5 | 3 |
 
 **Definition of Done hatırlatması:** Yeni uç = **aynı commit'te yetkilendirme
 testi**. Testsiz uç commit edilmez (CLAUDE.md). Her ucun test satırı →

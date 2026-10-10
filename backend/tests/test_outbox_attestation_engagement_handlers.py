@@ -177,3 +177,73 @@ class TestEngagementPendingApprovalHandler:
         out = capsys.readouterr().out
         assert "outbox_id=9" in out
         assert "@" not in out
+
+
+COMPLAINT_OPENED_PAYLOAD = {"complaint_id": "cmp-1", "engagement_id": "eng-3", "organization_id": "org-9"}
+COMPLAINT_RESOLVED_PAYLOAD = {
+    "complaint_id": "cmp-1",
+    "engagement_id": "eng-3",
+    "talent_id": "talent-3",
+    "outcome": "UPHELD",
+}
+
+
+class TestComplaintHandlers:
+    def test_both_topics_are_registered(self):
+        assert outbox_worker.DEFAULT_HANDLERS["complaint.opened"] is outbox_worker.complaint_opened_handler
+        assert outbox_worker.DEFAULT_HANDLERS["complaint.resolved"] is outbox_worker.complaint_resolved_handler
+
+    def test_opened_mail_goes_to_every_member_of_the_organization(self, monkeypatch):
+        monkeypatch.setattr(settings, "frontend_origin", "https://app.example.test")
+        monkeypatch.setattr(settings, "email_backend", "smtp")
+        asked: list[str] = []
+
+        def members(organization_id):
+            asked.append(organization_id)
+            return ["admin@org.example.test", "member@org.example.test"]
+
+        monkeypatch.setattr(outbox_worker, "_resolve_organization_member_emails", members)
+        sent: list[dict] = []
+        monkeypatch.setattr(
+            outbox_worker,
+            "_send_smtp_email",
+            lambda to_email, subject, body: sent.append({"to": to_email, "subject": subject, "body": body}),
+        )
+
+        outbox_worker.complaint_opened_handler(COMPLAINT_OPENED_PAYLOAD, 1)
+
+        assert asked == ["org-9"]
+        assert {s["to"] for s in sent} == {"admin@org.example.test", "member@org.example.test"}
+        assert all(s["subject"] == "Yetkin360 - Bir çalışma için şikayet açıldı" for s in sent)
+        assert all("https://app.example.test/calismalar/eng-3" in s["body"] for s in sent)
+
+    def test_resolved_mail_tells_the_student_the_outcome(self, monkeypatch):
+        monkeypatch.setattr(settings, "frontend_origin", "https://app.example.test")
+        monkeypatch.setattr(settings, "email_backend", "smtp")
+        monkeypatch.setattr(outbox_worker, "_resolve_talent_user_email", lambda talent_id: "ogrenci@example.test")
+        sent: list[dict] = []
+        monkeypatch.setattr(
+            outbox_worker,
+            "_send_smtp_email",
+            lambda to_email, subject, body: sent.append({"to": to_email, "subject": subject, "body": body}),
+        )
+
+        outbox_worker.complaint_resolved_handler(COMPLAINT_RESOLVED_PAYLOAD, 1)
+
+        assert [s["to"] for s in sent] == ["ogrenci@example.test"]
+        assert "şikayetiniz haklı bulundu" in sent[0]["body"]
+        assert "https://app.example.test/calismalar/eng-3" in sent[0]["body"]
+
+    def test_console_backend_resolves_no_address(self, monkeypatch, capsys):
+        monkeypatch.setattr(settings, "email_backend", "console")
+
+        def must_not_be_called(*args):
+            raise AssertionError("no address may be resolved for the console backend")
+
+        monkeypatch.setattr(outbox_worker, "_resolve_organization_member_emails", must_not_be_called)
+        monkeypatch.setattr(outbox_worker, "_resolve_talent_user_email", must_not_be_called)
+
+        outbox_worker.complaint_opened_handler(COMPLAINT_OPENED_PAYLOAD, 7)
+        outbox_worker.complaint_resolved_handler(COMPLAINT_RESOLVED_PAYLOAD, 8)
+
+        assert "@" not in capsys.readouterr().out

@@ -151,8 +151,15 @@ Admin erişimi gerçekten gerekiyorsa, **gerekçeli ve denetim kaydına yazılan
 
 > ❓ AÇIK SORU: Break-glass akışının mekaniği final analizde tanımlanmamış
 > (gerekçe zorunlu mu, ikinci onay gerekiyor mu, öğrenciye bildirim gidiyor mu).
-> MVP'de admin için `PRIVATE` evidence erişimi **tamamen kapalıdır**; break-glass
+> MVP'de admin için `PRIVATE` evidence erişimi **kapalıdır**; genel break-glass
 > Faz 5'e bırakılır ([PLAN.md](../PLAN.md) 5.4).
+
+**Tek istisna — şikayete eklenen belge.** Öğrenci bir şikayet açarken kendi
+kanıtlarından birini eklerse, admin o belgeyi **yalnız o şikayet üzerinden**
+açabilir (`GET /admin/complaints/{id}/evidence-url`). Gerekçe şikayetin kendisidir,
+belgeyi öğrenci kendi eliyle paylaşmıştır ve her erişim `complaint.evidence_downloaded`
+olarak şikayet kimliğiyle audit'e yazılır. Aynı belge genel indirme ucundan admin'e
+yine `403` döner (G1 değişmedi); eklenmemiş hiçbir kanıta bu yoldan ulaşılamaz.
 
 ### 4.2 404 mü 403 mü?
 
@@ -349,6 +356,9 @@ hangi uca karşılık geldiğini gösterir.
 | `POST /engagements/{id}/transitions` | duruma göre → [STATE_MACHINE.md](STATE_MACHINE.md) | D1, D2, E4 |
 | `POST /engagements/{id}/tasks` | Kuruluş üyesi / koordinatör (doğrulanmış görev) · `TALENT` kendi çalışması (doğrulanmamış görev, sinyal yok) | A2, `tests/test_engagement_tasks.py` |
 | `POST /engagements/{id}/tasks/{task_id}/verify` | Kuruluş üyesi / koordinatör; öğrenci (çoklu rolde dahi) `403`, kapsam dışı `404` | `tests/authorization/test_task_verification_authz.py` |
+| `POST` / `GET /engagements/{id}/complaints` | Yalnız çalışmanın sahibi `TALENT`; kapsamdaki kuruluş üyesi / koordinatör `403`, kapsam dışı (admin dahil) `404` | `tests/authorization/test_complaint_authz.py` |
+| `GET /admin/complaints`, `POST /admin/complaints/{id}/resolve` | Yalnız platform admini; diğer herkes `404` | `tests/authorization/test_complaint_authz.py` |
+| `GET /admin/complaints/{id}/evidence-url` | Yalnız platform admini, yalnız o şikayete eklenmiş belge — `PRIVATE` kanıtın admin'e açıldığı tek yol; diğer herkes `404` | `tests/authorization/test_complaint_authz.py` |
 | `POST /engagements/{id}/deliverables` | `TALENT` (taraf) | A4 |
 | `POST /evidence/upload-url` | `TALENT` | — |
 | `POST /evidence` | `TALENT` | B3 |

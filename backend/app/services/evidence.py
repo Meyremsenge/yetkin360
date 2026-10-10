@@ -267,6 +267,24 @@ def get_download_url(
         # Regular 404 for everyone else (non-owners, non-admins)
         raise ApiError(404, "NOT_FOUND", "Kanıt bulunamadı.")
 
+    return issue_download_url(session, principal.user_id, evidence)
+
+
+def issue_download_url(
+    session: Session,
+    actor_user_id: uuid.UUID | None,
+    evidence: Evidence,
+    audit_action: str = "evidence.downloaded",
+    audit_metadata: dict | None = None,
+) -> EvidenceDownloadUrlResponse:
+    """
+    Issue a short-lived download URL for an evidence the caller has ALREADY been
+    authorized for. Enforces what holds for every reader: the scan must be CLEAN
+    and the stored object must still be the one that was scanned; the download is
+    audited.
+
+    Raises ApiError 409 SCAN_NOT_CLEAN / EVIDENCE_CONTENT_CHANGED, 503 STORAGE_UNAVAILABLE.
+    """
     # AC-7: Scan status must be CLEAN before download
     if evidence.scan_status != "CLEAN":
         raise ApiError(
@@ -284,13 +302,13 @@ def get_download_url(
     if scanned_etag is None or current_etag != scanned_etag:
         log_audit_event(
             session=session,
-            actor_user_id=principal.user_id,
+            actor_user_id=actor_user_id,
             actor_ip=None,
             action="evidence.download_blocked",
             subject_type="evidence",
             subject_id=evidence_pk,
             result="DENIED",
-            metadata={"reason": "content_changed_since_scan"},
+            metadata={"reason": "content_changed_since_scan", **(audit_metadata or {})},
         )
         session.commit()  # the 409 below would otherwise roll the audit row back
         raise ApiError(
@@ -310,12 +328,13 @@ def get_download_url(
     # AC-S6: Log download audit event
     log_audit_event(
         session=session,
-        actor_user_id=principal.user_id,
+        actor_user_id=actor_user_id,
         actor_ip=None,  # IP passed from endpoint layer if available
-        action="evidence.downloaded",
+        action=audit_action,
         subject_type="evidence",
         subject_id=evidence_pk,
         result="SUCCESS",
+        metadata=audit_metadata,
     )
 
     return EvidenceDownloadUrlResponse(

@@ -527,3 +527,35 @@ Bilinen farklar:
 
 > Bu tablo, [DOMAIN.md](DOMAIN.md) okuyup koda geçen ekip üyesinin yanlış alan
 > adı kullanmasını engellemek içindir. Kod yazarken **her zaman bu dosyaya** bakın.
+
+### `complaints` — öğrenci şikayetleri
+
+Öğrencinin kendi çalışması için açtığı şikayet; kararı admin verir. `fraud_flags`
+gibi değiştirilebilir bir kuyruk satırıdır (karar `status`'ü günceller), kanıt değildir.
+
+```sql
+complaints
+  id uuid PK                                     -- UUIDv7
+  engagement_id uuid NOT NULL REFERENCES engagements(id)
+  organization_id uuid NOT NULL REFERENCES organizations(id)   -- kararın sayıldığı kuruluş
+  talent_id uuid NOT NULL REFERENCES talent_profiles(id)
+  created_by_user_id uuid NOT NULL REFERENCES users(id)
+  category text NOT NULL
+      CHECK (category IN ('TASK_APPROVAL','CERTIFICATE_APPROVAL','PERSONAL'))
+  description text NOT NULL CHECK (char_length(btrim(description)) > 0)   -- PII: loglanmaz
+  evidence_id uuid REFERENCES evidence(id)       -- isteğe bağlı belge
+  status text NOT NULL DEFAULT 'OPEN'
+      CHECK (status IN ('OPEN','UPHELD','DISMISSED'))
+  decision_note text
+  decided_by_user_id uuid REFERENCES users(id)
+  decided_at timestamptz
+  created_at timestamptz NOT NULL DEFAULT now()
+  CHECK ((status = 'OPEN') = (decided_at IS NULL))
+  CHECK ((decided_at IS NULL) = (decided_by_user_id IS NULL))
+
+  UNIQUE (engagement_id) WHERE status = 'OPEN'   -- çalışma başına tek açık şikayet
+  INDEX (status, created_at)                     -- admin kuyruğu
+  INDEX (organization_id, status)                -- kuruluşun UPHELD sayısı
+```
+
+Kuruluşun "kasıtlı doğrulamama" sayacı saklanmaz: `status = 'UPHELD'` satırlarının sayısıdır.

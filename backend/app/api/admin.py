@@ -20,8 +20,19 @@ from app.api.deps import get_current_principal, get_session, get_verified_princi
 from app.core.deps import get_current_user, require_csrf, require_email_verified
 from app.core.errors import ApiError
 from app.models import User
+from app.schemas.evidence import EvidenceDownloadUrlResponse
 from app.services.audit import log_audit_event
 from app.services.authorization import Principal
+from app.services.complaint import (
+    ComplaintNotOpenError,
+    ComplaintQueueRow,
+    get_complaint_evidence,
+    get_complaint_queue_row,
+    list_complaint_queue,
+    resolve_complaint,
+    upheld_counts,
+)
+from app.services.evidence import issue_download_url
 from app.services.fraud_flag import NotPendingError as FraudFlagNotPendingError, list_fraud_queue, resolve_fraud_flag
 from app.services.fraud_signals import subject_labels
 from app.services.organization import (
@@ -80,6 +91,8 @@ class VerificationQueueItem(BaseModel):
     domain: Optional[str]
     verification_level: str
     created_at: datetime
+    # Complaints the admin upheld against the organization ("deliberate non-verification").
+    upheld_complaint_count: int = 0
 
     class Config:
         from_attributes = True
@@ -174,6 +187,60 @@ class FraudFlagResolveRequest(BaseModel):
     outcome: Literal["CONFIRMED", "DISMISSED"]
 
 
+ComplaintStatus = Literal["OPEN", "UPHELD", "DISMISSED"]
+
+
+class ComplaintQueueItem(BaseModel):
+    """A student complaint as the admin sees it, with who it is about."""
+
+    id: uuid.UUID
+    engagement_id: uuid.UUID
+    engagement_title: str
+    engagement_status: str
+    talent_name: str
+    organization_id: uuid.UUID
+    organization_name: str
+    # UPHELD complaints of the organization: its "deliberate non-verification" count.
+    organization_upheld_count: int
+    category: Literal["TASK_APPROVAL", "CERTIFICATE_APPROVAL", "PERSONAL"]
+    description: str
+    has_evidence: bool
+    status: ComplaintStatus
+    decision_note: str | None
+    decided_at: datetime | None
+    created_at: datetime
+
+
+class ComplaintQueueResponse(BaseModel):
+    items: list[ComplaintQueueItem]
+
+
+class ComplaintResolveRequest(BaseModel):
+    outcome: Literal["UPHELD", "DISMISSED"]
+    note: Optional[str] = Field(None, max_length=1000)
+
+
+def _complaint_item(row: ComplaintQueueRow) -> ComplaintQueueItem:
+    complaint = row.complaint
+    return ComplaintQueueItem(
+        id=complaint.id,
+        engagement_id=complaint.engagement_id,
+        engagement_title=row.engagement_title,
+        engagement_status=row.engagement_status,
+        talent_name=row.talent_name,
+        organization_id=complaint.organization_id,
+        organization_name=row.organization_name,
+        organization_upheld_count=row.organization_upheld_count,
+        category=complaint.category,  # type: ignore[arg-type]
+        description=complaint.description,
+        has_evidence=complaint.evidence_id is not None,
+        status=complaint.status,  # type: ignore[arg-type]
+        decision_note=complaint.decision_note,
+        decided_at=complaint.decided_at,
+        created_at=complaint.created_at,
+    )
+
+
 # ============================================================================
 # Kurum doğrulama kuyruğu (YET-136)
 # ============================================================================
@@ -188,7 +255,15 @@ def get_verification_queue(
 ) -> VerificationQueueResponse:
     """docs/API.md §2.10: T2 + legal_id dolu kurumlar (T3 başvurusu sayılır)."""
     orgs = list_verification_queue(session, limit=limit, offset=offset)
-    return VerificationQueueResponse(items=[VerificationQueueItem.model_validate(o) for o in orgs])
+    counts = upheld_counts(session, {o.id for o in orgs})
+    return VerificationQueueResponse(
+        items=[
+            VerificationQueueItem.model_validate(o).model_copy(
+                update={"upheld_complaint_count": counts.get(o.id, 0)}
+            )
+            for o in orgs
+        ]
+    )
 
 
 @router.post("/organizations/{organization_id}/verification-level", response_model=OrganizationSummary)
@@ -462,3 +537,90 @@ def resolve_fraud_flag_endpoint(
         metadata={"outcome": payload.outcome},
     )
     return FraudFlagItem.model_validate(flag)
+
+
+# ============================================================================
+# Öğrenci şikayetleri — kuruluş bilgilendirilir, kararı admin verir
+# ============================================================================
+
+
+@router.get("/complaints", response_model=ComplaintQueueResponse)
+def get_complaint_queue(
+    status: ComplaintStatus = Query("OPEN"),
+    limit: int = Query(50, ge=1, le=MAX_PAGE_SIZE),
+    offset: int = Query(0, ge=0),
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> ComplaintQueueResponse:
+    """Complaints by status. Open ones oldest first; decided ones newest decision first."""
+    rows = list_complaint_queue(session, status=status, limit=limit, offset=offset)
+    return ComplaintQueueResponse(items=[_complaint_item(row) for row in rows])
+
+
+@router.get("/complaints/{complaint_id}/evidence-url", response_model=EvidenceDownloadUrlResponse)
+def get_complaint_evidence_url(
+    complaint_id: uuid.UUID,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> EvidenceDownloadUrlResponse:
+    """
+    Short-lived download URL for the document attached to a complaint.
+
+    The only way an admin reads a student's PRIVATE evidence: the student
+    attached it to this complaint for the review. Same scan/integrity checks as
+    the owner's download; every issue is audited with the complaint id.
+
+    Errors: 404 (no such complaint or no document), 409 SCAN_NOT_CLEAN,
+    409 EVIDENCE_CONTENT_CHANGED, 503 STORAGE_UNAVAILABLE.
+    """
+    evidence = get_complaint_evidence(session, complaint_id)
+    if evidence is None:
+        raise ApiError(404, "NOT_FOUND", "Şikayete eklenmiş bir belge bulunamadı.")
+    return issue_download_url(
+        session,
+        principal.user_id,
+        evidence,
+        audit_action="complaint.evidence_downloaded",
+        audit_metadata={"complaint_id": str(complaint_id)},
+    )
+
+
+@router.post("/complaints/{complaint_id}/resolve", response_model=ComplaintQueueItem)
+def resolve_complaint_endpoint(
+    complaint_id: uuid.UUID,
+    payload: ComplaintResolveRequest,
+    principal: Principal = Depends(get_verified_principal),
+    session: Session = Depends(get_session),
+    _csrf: None = Depends(require_csrf),
+) -> ComplaintQueueItem:
+    """
+    Admin decision: UPHELD (the organization deliberately did not verify — counts
+    against it) or DISMISSED (the organization was right; the complaint is closed).
+    """
+    assert principal.user_id is not None  # router-level admin gate
+    try:
+        complaint = resolve_complaint(
+            session,
+            complaint_id=complaint_id,
+            outcome=payload.outcome,
+            note=payload.note,
+            admin_user_id=principal.user_id,
+        )
+    except ComplaintNotOpenError:
+        raise ApiError(409, "NOT_OPEN", "Bu şikayet zaten karara bağlanmış.")
+    if complaint is None:
+        raise ApiError(404, "NOT_FOUND", "Şikayet bulunamadı.")
+
+    log_audit_event(
+        session=session,
+        actor_user_id=principal.user_id,
+        actor_ip=None,
+        action="ADMIN_RESOLVE_COMPLAINT",
+        subject_type="complaint",
+        subject_id=complaint_id,
+        result="SUCCESS",
+        metadata={"outcome": payload.outcome, "organization_id": str(complaint.organization_id)},
+    )
+    row = get_complaint_queue_row(session, complaint_id)
+    assert row is not None  # resolved in this transaction
+    return _complaint_item(row)
