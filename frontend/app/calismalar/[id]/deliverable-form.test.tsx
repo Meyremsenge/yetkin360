@@ -49,6 +49,7 @@ const activeEngagement: EngagementDetail = {
   tasks: [],
   deliverables: [],
   attestations: [],
+  supervisor: null,
   viewer: makeViewer({ relation: "SUBJECT", can_add_deliverable: true }),
 };
 

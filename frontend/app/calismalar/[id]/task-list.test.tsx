@@ -34,6 +34,7 @@ const engagement: EngagementDetail = {
   ],
   deliverables: [],
   attestations: [],
+  supervisor: null,
   viewer: makeViewer(),
 };
 

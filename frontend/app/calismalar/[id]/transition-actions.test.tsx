@@ -44,6 +44,7 @@ const activeEngagement: EngagementDetail = {
   deliverables: [],
   attestations: [],
   // Organization admin on an ACTIVE engagement (server-computed).
+  supervisor: null,
   viewer: makeViewer({
     relation: "ORG_ADMIN",
     allowed_transitions: ["CANCELLED", "PENDING_EVALUATION"],

@@ -146,6 +146,19 @@ export default function CalismaDetayPage() {
             <span>
               {c.updatedAtLabel}: {formatDate(engagement.updated_at)}
             </span>
+            {engagement.supervisor ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>
+                  {c.supervisorLabel}:{" "}
+                  <span className="font-medium text-foreground">
+                    {engagement.supervisor.unit
+                      ? `${engagement.supervisor.display_name} · ${engagement.supervisor.unit}`
+                      : engagement.supervisor.display_name}
+                  </span>
+                </span>
+              </>
+            ) : null}
           </span>
         }
         actions={

@@ -536,6 +536,7 @@
     "statusLabel": "Durum",
     "organizationLabel": "Kuruluş",
     "updatedAtLabel": "Güncellenme",
+    "supervisorLabel": "Onaylayıcı",
     "tasksTitle": "Görevler",
     "emptyTasksMessage": "Henüz görev eklenmemiş.",
     "deliverablesTitle": "Çıktılar",
@@ -802,7 +803,12 @@
     "invalidLinkError": "Bu kuruluş bulunamadı. Kuruluşunuzdan doğru bağlantıyı isteyin.",
     "description": "Oluşturduğunuz çalışma taslak olarak kaydedilir; ardından kuruluşun onayına gönderirsiniz.",
     "titlePlaceholder": "Örn. Veri Analisti Yaz Stajı",
-    "loadingLabel": "Form yükleniyor"
+    "loadingLabel": "Form yükleniyor",
+    "supervisorLabel": "Kime gönderilsin? (isteğe bağlı)",
+    "supervisorDefault": "Kuruluş yöneticisine (genel)",
+    "supervisorHint": "Seçtiğiniz kişi çalışmanızı kuruluş tarafında takip eder. Seçmezseniz kuruluş yöneticisi görür.",
+    "supervisorUnnamed": "Adı girilmemiş üye",
+    "supervisorUnavailableError": "Seçtiğiniz kişi artık bu kuruluşta onaylayıcı olarak görünmüyor. Listeyi yenileyip başka birini seçin ya da genel seçeneği kullanın."
   },
   "kesfet": {
     "title": "Keşfet",
