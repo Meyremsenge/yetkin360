@@ -83,12 +83,13 @@ describe("Home (Landing) Page", () => {
       }
     });
 
-    it("AC-2: 'Örnek Bir Doğrulamayı İncele' linki href='/giris' olmalı", () => {
+    // The sample-verification CTA scrolls to the live sample record on the page.
+    it("AC-2: 'Örnek Bir Doğrulamayı İncele' linki href='#zincir' olmalı", () => {
       render(<Home />);
       const links = screen.getAllByRole("link", { name: "Örnek Bir Doğrulamayı İncele" });
       expect(links.length).toBeGreaterThan(0);
       for (const link of links) {
-        expect(link.getAttribute("href")).toBe("/giris");
+        expect(link.getAttribute("href")).toBe("#zincir");
       }
     });
   });

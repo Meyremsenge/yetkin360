@@ -15,6 +15,11 @@ import { SESSION_QUERY_KEY } from "@/lib/session/use-session";
 
 const DEFAULT_AFTER_LOGIN = "/calismalar";
 
+const fieldClass =
+  "y360-autofill h-11 bg-card border-border px-3.5 text-[15px] text-foreground placeholder:text-muted-foreground/70 transition-colors hover:border-muted-foreground/40 focus:border-success focus:ring-success/25 motion-reduce:transition-none";
+const labelClass = "mb-1.5 text-foreground";
+const fieldErrorClass = "mt-1.5 text-[13px] text-destructive";
+
 function useQueryClientSafe() {
   try {
     return useQueryClient();
@@ -95,39 +100,41 @@ export default function LoginForm({ nextPath }: { nextPath?: string }) {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 rounded-md bg-slate-50 p-6 border border-slate-200">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       <div>
-        <Label htmlFor="email">{messages.giris.emailLabel}</Label>
+        <Label htmlFor="email" className={labelClass}>{messages.giris.emailLabel}</Label>
         <Input
           {...register("email")}
           id="email"
           type="email"
           placeholder={messages.giris.placeholder}
           autoComplete="username"
+          className={fieldClass}
         />
         {errors.email && (
-          <div className="text-xs text-red-600 mt-1">{errors.email.message}</div>
+          <div className={fieldErrorClass}>{errors.email.message}</div>
         )}
       </div>
 
       <div>
-        <Label htmlFor="password">{messages.giris.passwordLabel}</Label>
+        <Label htmlFor="password" className={labelClass}>{messages.giris.passwordLabel}</Label>
         <Input
           {...register("password")}
           id="password"
           type="password"
           placeholder={messages.giris.passwordLabel}
           autoComplete="current-password"
+          className={fieldClass}
         />
         {errors.password && (
-          <div className="text-xs text-red-600 mt-1">{errors.password.message}</div>
+          <div className={fieldErrorClass}>{errors.password.message}</div>
         )}
       </div>
 
       {errors.root && (
         <div
           aria-live="polite"
-          className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-600"
+          className="rounded-md border border-destructive/30 bg-destructive/10 px-3.5 py-3 text-sm text-destructive"
         >
           {errors.root.message}
         </div>
@@ -136,7 +143,8 @@ export default function LoginForm({ nextPath }: { nextPath?: string }) {
       <Button
         type="submit"
         disabled={isSubmitting}
-        className="w-full"
+        size="lg"
+        className="h-11 w-full bg-success text-background transition-colors hover:bg-success/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-success disabled:opacity-70 motion-reduce:transition-none"
       >
         {isSubmitting ? "..." : messages.giris.login}
       </Button>

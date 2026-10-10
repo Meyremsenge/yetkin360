@@ -19,14 +19,15 @@ export default async function LoginPage({
         { href: "/sifre-unuttum", label: messages.authLayout.forgotPasswordLink },
       ]}
     >
-        <h1 className="text-2xl font-bold mb-4 text-slate-900">
+        <h1 className="font-serif text-[32px] font-semibold leading-tight text-foreground">
           {messages.giris.title}
         </h1>
+        <p className="mb-8 mt-2 text-[15px] text-muted-foreground">{messages.giris.subtitle}</p>
 
         {showExpiredMessage && (
           <div
             aria-live="polite"
-            className="mb-4 rounded-md bg-yellow-50 border border-yellow-200 p-3 text-sm text-yellow-700"
+            className="mb-6 rounded-md border border-warning/30 bg-warning/10 px-3.5 py-3 text-sm text-warning"
           >
             {messages.session.expired}
           </div>
