@@ -238,3 +238,27 @@ describe("shouldRedirect", () => {
     });
   });
 });
+
+describe("admin sign-in routing", () => {
+  it("allows `/admin/giris` without cookies", () => {
+    expect(shouldRedirect("/admin/giris", [])).toBeNull();
+  });
+
+  it.each(["/admin", "/admin/dogrulama-kuyrugu", "/admin/skiller", "/admin/giris/x", "/admin/girisx"])(
+    "keeps `%s` protected and sends the visitor to the admin sign-in",
+    (path) => {
+      expect(shouldRedirect(path, [])).toBe(`/admin/giris?next=${encodeURIComponent(path)}`);
+    }
+  );
+
+  it("sends non-admin paths to the regular sign-in", () => {
+    expect(shouldRedirect("/calismalar", [])).toBe("/giris?next=%2Fcalismalar");
+    expect(shouldRedirect("/administrator", [])).toBe("/giris?next=%2Fadministrator");
+  });
+
+  it("keeps the expired-session reason on the admin sign-in url", () => {
+    expect(buildLoginUrl("/admin/skiller", "oturum-bitti")).toBe(
+      "/admin/giris?next=%2Fadmin%2Fskiller&neden=oturum-bitti"
+    );
+  });
+});

@@ -18,6 +18,7 @@ export default async function LoginPage({
       links={[
         { href: "/kayit", label: messages.home.registerLink },
         { href: "/sifre-unuttum", label: messages.authLayout.forgotPasswordLink },
+        { href: "/admin/giris", label: messages.adminGiris.linkFromLogin },
       ]}
     >
         <Link
