@@ -41,6 +41,7 @@
     "noOrganizations": "Henüz bir kuruluşunuz yok. Lütfen yöneticinize başvurun.",
     "adminVerificationQueueLink": "Kurum Doğrulama",
     "adminSkillsLink": "Yetkinlik Yönetimi",
+    "adminFraudQueueLink": "Sahtekarlık İşaretleri",
     "engagementsLink": "Çalışmalarım",
     "profileLink": "Profil",
     "publicProfileLink": "Herkese açık profilim",
@@ -563,6 +564,31 @@
       "levelLabel": "Doğrulama Seviyesi",
       "confirm": "Onayla",
       "reject": "Reddet"
+    }
+  },
+  "adminFraudQueue": {
+    "title": "Sahtekarlık İşaretleri",
+    "description": "AI tanıklık metinlerinde şüpheli patern tespit ettiğinde burada görünür — karar her zaman sana ait, AI hiçbir hesabı etkilemez.",
+    "empty": "Bekleyen işaret yok",
+    "notFound": "Kaynak bulunamadı.",
+    "confirmed": "Sahtekarlık onaylandı",
+    "dismissed": "Yanlış alarm olarak işaretlendi",
+    "notPending": "Bu işaret zaten incelenmiş.",
+    "headers": {
+      "subject": "Tanıklık",
+      "reason": "AI gerekçesi",
+      "confidence": "Güven",
+      "model": "Model",
+      "createdAt": "Tarih"
+    },
+    "confidenceLabel": {
+      "LOW": "Düşük",
+      "MEDIUM": "Orta",
+      "HIGH": "Yüksek"
+    },
+    "form": {
+      "confirm": "Sahtekarlık Onayla",
+      "dismiss": "Yanlış Alarm"
     }
   },
   "adminSkills": {
