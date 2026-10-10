@@ -23,6 +23,11 @@ vi.mock("@/lib/api/engagements", async (importOriginal) => {
 vi.mock("@/lib/api/deliverables", () => ({ createDeliverable: vi.fn() }));
 vi.mock("@/lib/api/attestations", () => ({ createAttestation: vi.fn(), revokeAttestation: vi.fn() }));
 vi.mock("@/lib/api/tasks", () => ({ createTask: vi.fn() }));
+vi.mock("@/lib/api/complaints", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/complaints")>()),
+  listEngagementComplaints: vi.fn().mockResolvedValue([]),
+  createComplaint: vi.fn(),
+}));
 
 function renderWithQueryClient(ui: React.ReactElement) {
   const queryClient = new QueryClient({
@@ -282,5 +287,50 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
       expect(screen.getByText("Geri çekildi: Yanlış girilmiş")).toBeTruthy();
     });
     expect(screen.queryByText("Geri Çek")).toBeNull();
+  });
+
+  describe("şikayet bölümü", () => {
+    function asStudent(talentId: string) {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { id: "user-1", email: "user@test.com" },
+          organizations: [],
+          institutions: [],
+          talent_profile: { id: talentId },
+        },
+        error: null,
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useSession>);
+    }
+
+    it("çalışmanın sahibi öğrenci şikayet bölümünü görür", async () => {
+      asStudent("talent-1");
+      vi.mocked(getEngagement).mockResolvedValueOnce(baseEngagement);
+
+      renderWithQueryClient(<CalismaDetayPage />);
+
+      expect(await screen.findByRole("button", { name: "Şikayet oluştur" })).toBeTruthy();
+    });
+
+    it("kuruluş üyesi şikayet bölümünü görmez", async () => {
+      vi.mocked(getEngagement).mockResolvedValueOnce(baseEngagement);
+
+      renderWithQueryClient(<CalismaDetayPage />);
+
+      await screen.findByText("Yaz Kısa Projesi");
+      expect(screen.queryByRole("button", { name: "Şikayet oluştur" })).toBeNull();
+    });
+
+    it("taslak çalışmada öğrenciye de şikayet bölümü gösterilmez", async () => {
+      asStudent("talent-1");
+      vi.mocked(getEngagement).mockResolvedValueOnce({ ...baseEngagement, status: "DRAFT" });
+
+      renderWithQueryClient(<CalismaDetayPage />);
+
+      await screen.findByText("Yaz Kısa Projesi");
+      expect(screen.queryByRole("button", { name: "Şikayet oluştur" })).toBeNull();
+    });
   });
 });

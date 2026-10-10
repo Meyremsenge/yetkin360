@@ -145,6 +145,7 @@
     "adminVerificationQueueLink": "Kurum Doğrulama",
     "adminSkillsLink": "Yetkinlik Yönetimi",
     "adminFraudQueueLink": "Sahtekarlık İşaretleri",
+    "adminComplaintsLink": "Şikayetler",
     "engagementsLink": "Çalışmalarım",
     "studentEngagementsLink": "Öğrenci çalışmaları",
     "profileLink": "Profil",
@@ -554,6 +555,45 @@
     "certificateCheckAlreadyResolved": "Bu kayıt zaten incelenmiş.",
     "reasonLabel": "Gerekçe",
     "reasonRequiredError": "Bu işlem için gerekçe girilmesi zorunludur.",
+    "complaint": {
+      "title": "Şikayet",
+      "hint": "Onay süreci ilerlemiyorsa durumu platform yöneticisine bildirin.",
+      "openButton": "Şikayet oluştur",
+      "categoryLabel": "Şikayet konusu",
+      "category": {
+        "TASK_APPROVAL": "Görevim onaylanmıyor",
+        "CERTIFICATE_APPROVAL": "Sertifikam ya da çalışmam doğrulanmıyor",
+        "PERSONAL": "Kişisel bir sorun yaşıyorum"
+      },
+      "descriptionLabel": "Ne oldu?",
+      "descriptionHint": "Ne zamandır beklediğinizi ve kuruluşla nasıl iletişime geçtiğinizi yazın (en az {min} karakter).",
+      "descriptionTooShortError": "Açıklama en az {min} karakter olmalı.",
+      "evidenceLabel": "Belge (isteğe bağlı)",
+      "evidenceNone": "Belge eklemeyeceğim",
+      "evidenceNotice": "Eklediğiniz belgeyi yalnız bu şikayeti inceleyen platform yöneticisi açabilir.",
+      "evidenceOption": "{deliverable} · {date}",
+      "evidenceEmptyHint": "Belge eklemek için önce bir çıktıya kanıt yükleyin; taraması tamamlanan kanıtlar burada listelenir.",
+      "processNote": "Şikayetiniz kuruluşa bildirilir ve platform yöneticisi tarafından incelenir. Karar verildiğinde e-postayla haber verilir.",
+      "submitButton": "Şikayeti gönder",
+      "submittingButton": "Gönderiliyor...",
+      "cancelButton": "Vazgeç",
+      "successMessage": "Şikayetiniz gönderildi.",
+      "openStatusTitle": "Şikayetiniz inceleniyor",
+      "openStatusText": "Kuruluşa bildirildi; platform yöneticisi karar verdiğinde sonuç burada görünür.",
+      "status": {
+        "OPEN": "İnceleniyor",
+        "UPHELD": "Haklı bulundu",
+        "DISMISSED": "Kapatıldı"
+      },
+      "decisionNoteLabel": "Yönetici notu",
+      "submittedOn": "{date} tarihinde gönderildi",
+      "decidedOn": "{date} tarihinde karar verildi",
+      "historyTitle": "Önceki şikayetler",
+      "alreadyOpenError": "Bu çalışma için zaten açık bir şikayetiniz var.",
+      "invalidEvidenceError": "Seçtiğiniz belge bu şikayete eklenemiyor. Başka bir belge seçin ya da belgesiz gönderin.",
+      "notAllowedError": "Bu çalışma için şikayet açılamıyor.",
+      "loadError": "Şikayetler yüklenemedi."
+    },
     "notifyEmailsLabel": "Onay isteği kime gitsin?",
     "notifyEmailsPlaceholder": "ad.soyad@kurum.edu.tr",
     "notifyEmailsHint": "Onayı verecek kurum yetkilisinin e-posta adresini yazın; birden fazla adresi virgülle ayırın (en fazla {max}).",
@@ -1114,6 +1154,59 @@
       "confirm": "Onayla",
       "reject": "Reddet"
     }
+  },
+  "adminComplaints": {
+    "title": "Şikayetler",
+    "description": "Öğrencilerin onay alamadıkları çalışmalar için açtığı şikayetler. Kuruluş bilgilendirilir, kararı sen verirsin. Haklı bulunan her şikayet kuruluşun “kasıtlı doğrulamama” sayacına eklenir.",
+    "tabsLabel": "Şikayet durumu",
+    "tabs": {
+      "OPEN": "Açık",
+      "UPHELD": "Haklı bulunan",
+      "DISMISSED": "Kapatılan"
+    },
+    "empty": {
+      "OPEN": {
+        "title": "Bekleyen şikayet yok.",
+        "hint": "Bir öğrenci şikayet açtığında burada, en uzun bekleyen en üstte görünür."
+      },
+      "UPHELD": {
+        "title": "Haklı bulunan şikayet yok.",
+        "hint": "Haklı bulduğun şikayetler ve damgalanan kuruluşlar burada listelenir."
+      },
+      "DISMISSED": {
+        "title": "Kapatılan şikayet yok.",
+        "hint": "Kuruluşu haklı bulduğun şikayetler burada listelenir."
+      }
+    },
+    "notFound": "Kaynak bulunamadı.",
+    "notOpen": "Bu şikayet zaten karara bağlanmış.",
+    "studentLabel": "Öğrenci",
+    "organizationLabel": "Kuruluş",
+    "engagementLabel": "Çalışma",
+    "stamp": "Kasıtlı doğrulamama · {count}",
+    "stampLabel": "Bu kuruluş hakkında {count} şikayet haklı bulundu",
+    "hasEvidence": "Belge eklendi",
+    "openEvidence": "Belgeyi aç",
+    "openingEvidence": "Açılıyor...",
+    "openEvidenceLabel": "{student}, {engagement}: eklenen belgeyi aç",
+    "evidenceError": {
+      "notFound": "Belge artık mevcut değil.",
+      "notReady": "Belge şu an açılamıyor: tarama tamamlanmamış ya da dosya taramadan sonra değişmiş.",
+      "generic": "Belge açılamadı. Lütfen tekrar deneyin."
+    },
+    "openedOn": "{date} tarihinde açıldı",
+    "decidedOn": "{date} tarihinde karar verildi",
+    "decisionNoteLabel": "Karar notu",
+    "noteLabel": "Karar notu (isteğe bağlı)",
+    "uphold": "Haklı bul",
+    "dismiss": "Kapat",
+    "confirm": {
+      "UPHELD": "Şikayet haklı bulunacak ve kuruluşun sayacına eklenecek. Bu karar geri alınamaz.",
+      "DISMISSED": "Şikayet kapatılacak, kuruluş hakkında işlem yapılmayacak. Bu karar geri alınamaz."
+    },
+    "confirmButton": "Kararı onayla",
+    "cancelButton": "Vazgeç",
+    "actionLabel": "{student}, {engagement}: {action}"
   },
   "adminFraudQueue": {
     "title": "Sahtekarlık İşaretleri",

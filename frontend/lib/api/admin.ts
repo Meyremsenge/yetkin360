@@ -15,6 +15,8 @@ export interface Organization {
   id: string;
   name: string;
   legal_id?: string | null;
+  /** Haklı bulunan şikayet sayısı ("kasıtlı doğrulamama" sayacı); yalnız kuyruk yanıtında gelir. */
+  upheld_complaint_count?: number;
   domain?: string | null;
   verification_level: string; // "T0" | "T1" | "T2" | "T3"
   verified_at?: string | null;

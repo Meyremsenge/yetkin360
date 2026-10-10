@@ -276,6 +276,7 @@ const ADMIN_LINKS: NavEntry[] = [
   { href: "/admin/dogrulama-kuyrugu", icon: "shield", label: messages.shell.adminVerificationQueueLink },
   { href: "/admin/skiller", icon: "tag", label: messages.shell.adminSkillsLink },
   { href: "/admin/sahtekarlik-isaretleri", icon: "shield", label: messages.shell.adminFraudQueueLink },
+  { href: "/admin/sikayetler", icon: "shield", label: messages.shell.adminComplaintsLink },
 ];
 
 /** Role-specific destinations, grouped: organisations, institutions, admin. */

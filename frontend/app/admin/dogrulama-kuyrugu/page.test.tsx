@@ -111,6 +111,21 @@ describe("DogrulamaKuyruguPage (/admin/dogrulama-kuyrugu)", () => {
     });
   });
 
+  it("haklı bulunan şikayeti olan kuruluş 'kasıtlı doğrulamama' damgası ve sayacıyla gösterilir", async () => {
+    vi.mocked(adminApi.getVerificationQueue).mockResolvedValueOnce({
+      items: [{ ...mockOrganization, upheld_complaint_count: 3 }, mockOrganizationWithNulls],
+    });
+
+    renderWithQueryClient(<DogrulamaKuyruguPage />);
+
+    await waitFor(() => {
+      const stamps = screen.getAllByTestId("complaint-stamp");
+      expect(stamps).toHaveLength(1);
+      expect(stamps[0].textContent).toBe("Kasıtlı doğrulamama · 3");
+      expect(stamps[0].closest("tr")?.textContent).toContain(mockOrganization.name);
+    });
+  });
+
   it("AC-1: nullable alanlar — legal_id null ise '-' gösterilir", async () => {
     vi.mocked(adminApi.getVerificationQueue).mockResolvedValueOnce(
       mockVerificationQueue

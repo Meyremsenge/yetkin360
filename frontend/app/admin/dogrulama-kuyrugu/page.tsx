@@ -154,7 +154,17 @@ export default function DogrulamaKuyruguPage() {
                 <tbody>
                   {queue.items.map((org) => (
                     <tr key={org.id} className="border-b border-slate-200 hover:bg-slate-50">
-                      <td className="p-3">{org.name}</td>
+                      <td className="p-3">
+                        {org.name}
+                        {org.upheld_complaint_count ? (
+                          <span
+                            data-testid="complaint-stamp"
+                            className="ml-2 inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700"
+                          >
+                            {messages.adminComplaints.stamp.replace("{count}", String(org.upheld_complaint_count))}
+                          </span>
+                        ) : null}
+                      </td>
                       <td className="p-3 text-slate-600">{org.legal_id || "-"}</td>
                       <td className="p-3 text-slate-600">{org.domain || "-"}</td>
                       <td className="p-3">

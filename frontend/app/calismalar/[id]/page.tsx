@@ -20,6 +20,7 @@ import { TaskForm } from "./task-form";
 import { TaskList } from "./task-list";
 import { AttestationRevoke } from "./attestation-revoke";
 import { CertificateChecksSection } from "./certificate-checks-section";
+import { ComplaintSection } from "./complaint-section";
 import messages from "@/messages/tr.json";
 
 const c = messages.calismalar;
@@ -293,6 +294,9 @@ export default function CalismaDetayPage() {
 
               <AttestationForm engagement={engagement} onSuccess={refresh} />
             </div>
+
+            {/* UX only: the server lets only the engagement's talent complain, and not on a draft. */}
+            {isSubject && engagement.status !== "DRAFT" ? <ComplaintSection engagement={engagement} /> : null}
           </aside>
         </div>
       </PageBody>

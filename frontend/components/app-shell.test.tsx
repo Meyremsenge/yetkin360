@@ -607,6 +607,8 @@ describe("AppShell", () => {
       const html = container.innerHTML;
       expect(html).toContain(messages.shell.adminVerificationQueueLink);
       expect(html).toContain(messages.shell.adminSkillsLink);
+      expect(html).toContain(messages.shell.adminComplaintsLink);
+      expect(html).toContain("/admin/sikayetler");
     });
 
     it("AC-2: is_platform_admin=false iken admin linklerini HİÇ gösterme", () => {
