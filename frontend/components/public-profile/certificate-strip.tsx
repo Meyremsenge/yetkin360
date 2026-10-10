@@ -135,7 +135,7 @@ function CertificateRow({ title, note, certificates }: { title: string; note?: s
     const el = listRef.current;
     if (!el) return;
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    el.scrollBy({ left: direction * Math.max(el.clientWidth * 0.8, 280), behavior: reduce ? "auto" : "smooth" });
+    el.scrollBy?.({ left: direction * Math.max(el.clientWidth * 0.8, 280), behavior: reduce ? "auto" : "smooth" });
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLUListElement>) => {
