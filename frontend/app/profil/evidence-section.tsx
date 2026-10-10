@@ -3,12 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getMySignals, getMyVerifiedExperiences, setMyVerifiedExperienceVisibility } from "@/lib/api/client";
+import { getMySignals, getMyVerifiedExperiences, removeSkill, setMyVerifiedExperienceVisibility } from "@/lib/api/client";
 import messages from "@/messages/tr.json";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { VerifiedSeal } from "@/components/ui/verified-seal";
 import { ProfileSection, SkeletonRows, EmptyNote, focusRingClass } from "./profile-ui";
+import SkillsSection from "./skills-section";
 
 interface Signal {
   source_type: string;
@@ -156,6 +157,28 @@ const VISIBLE_SKILL_GROUPS = 6;
  * level); the dated signal list opens on demand.
  */
 function SignalGroupCard({ group }: { group: SignalGroup }) {
+  const queryClient = useQueryClient();
+  const [removeFailed, setRemoveFailed] = useState(false);
+  const refresh = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["talent-signals"] }),
+      queryClient.invalidateQueries({ queryKey: ["talent-skills"] }),
+    ]);
+  // AC-8: removing the self-claim needs no confirmation; AC-9: a 404 means it
+  // is already gone, so refresh silently.
+  const removeClaim = useMutation({
+    mutationFn: () => removeSkill(group.skill.id),
+    onMutate: () => setRemoveFailed(false),
+    onSuccess: refresh,
+    onError: (error) => {
+      if (error && typeof error === "object" && (error as { status?: unknown }).status === 404) {
+        void refresh();
+        return;
+      }
+      setRemoveFailed(true);
+    },
+  });
+
   // AC-1: Sort signals by occurred_at descending (newest first)
   const sortedSignals = [...group.signals].sort(
     (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()
@@ -232,10 +255,26 @@ function SignalGroupCard({ group }: { group: SignalGroup }) {
                 <span className="font-mono text-xs text-muted-foreground">{formatDate(signal.occurred_at)}</span>
                 {/* AC-4: superseded badge */}
                 {signal.superseded && <Badge variant="warning">{messages.profil.supersededBadge}</Badge>}
+                {signal.source_type === "SELF_CLAIM" && !signal.superseded && (
+                  <button
+                    type="button"
+                    disabled={removeClaim.isPending}
+                    onClick={() => removeClaim.mutate()}
+                    aria-label={messages.profil.removeClaimLabel.replace("{skill}", group.skill.name_tr)}
+                    className={`rounded text-xs text-muted-foreground underline-offset-4 hover:text-destructive hover:underline disabled:opacity-50 ${focusRingClass}`}
+                  >
+                    {messages.profil.removeClaimButton}
+                  </button>
+                )}
               </div>
             </li>
           ))}
         </ul>
+        {removeFailed && (
+          <p role="alert" className="mx-4 mb-3 text-[13px] text-destructive">
+            {messages.errors.generic}
+          </p>
+        )}
       </details>
     </li>
   );
@@ -303,7 +342,11 @@ export default function EvidenceSection({ part = "all" }: { part?: "all" | "sign
         )}
 
         {!signalsLoading && !signalsError && signalGroups.length === 0 && (
-          <EmptyNote title={messages.profil.emptySignalsMessage} hint={messages.profil.emptySignalsHint} />
+          part === "signals" ? (
+            <EmptyNote title={messages.profil.emptySkillsMessage} hint={messages.profil.emptySkillsListHint} />
+          ) : (
+            <EmptyNote title={messages.profil.emptySignalsMessage} hint={messages.profil.emptySignalsHint} />
+          )
         )}
 
         {!signalsLoading && !signalsError && signalGroups.length > 0 && (
@@ -383,7 +426,11 @@ export default function EvidenceSection({ part = "all" }: { part?: "all" | "sign
 
   if (part === "signals") {
     return (
-      <ProfileSection title={messages.profil.evidenceSection} description={messages.profil.signalsTabDescription}>
+      <ProfileSection
+        title={messages.profil.skillsSection}
+        description={messages.profil.signalsTabDescription}
+        action={<SkillsSection />}
+      >
         {signalsBlock}
       </ProfileSection>
     );

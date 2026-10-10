@@ -8,7 +8,6 @@ import { Alert } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import ProfileForm from "./profile-form";
 import ProfileHero from "./profile-hero";
-import SkillsSection from "./skills-section";
 import EvidenceSection from "./evidence-section";
 import AboutSection from "./about-section";
 import PortfolioSection from "./portfolio-section";
@@ -154,14 +153,8 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {/* Claim next to evidence: grey self-claims left, sealed evidence right. */}
-            {panel(
-              "yetkinlik",
-              <div className="grid grid-cols-1 items-start gap-x-6 xl:grid-cols-2">
-                <SkillsSection />
-                <EvidenceSection part="signals" />
-              </div>
-            )}
+            {/* One list: grey self-claims and sealed, evidence-backed skills. */}
+            {panel("yetkinlik", <EvidenceSection part="signals" />)}
 
             {panel("deneyimler", <EvidenceSection part="experiences" />)}
 

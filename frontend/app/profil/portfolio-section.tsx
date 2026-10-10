@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -21,7 +21,7 @@ import messages from "@/messages/tr.json";
 import { Button } from "@/components/ui/button";
 import { VerifiedSeal } from "@/components/ui/verified-seal";
 import { cn } from "@/lib/utils";
-import { EmptyNote, ProfileSection, SkeletonRows, fieldClass, focusRingClass, labelClass, primaryButtonClass } from "./profile-ui";
+import { EmptyNote, ProfileSection, ProfileFormDialog, SkeletonRows, fieldClass, focusRingClass, labelClass, primaryButtonClass } from "./profile-ui";
 
 const t = messages.profil;
 const PORTFOLIO_QUERY_KEY = ["talent-portfolio"] as const;
@@ -432,103 +432,23 @@ function AddPortfolioForm({ titleId, onAdded }: { titleId: string; onAdded: () =
   );
 }
 
-/**
- * "+ Yeni kayıt" opens the add form in a sheet from the right, so the action
- * stays at the top however long the list grows. The form stays mounted: a
- * draft survives closing the sheet; a successful add closes it.
- */
-function AddPortfolioSheet() {
-  const [open, setOpen] = useState(false);
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const titleId = useId();
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!open || !dialog) return;
-    // jsdom has no showModal; the open attribute is enough there.
-    if (typeof dialog.showModal === "function") {
-      if (!dialog.open) dialog.showModal();
-    } else {
-      dialog.setAttribute("open", "");
-    }
-    const root = document.documentElement;
-    const previousOverflow = root.style.overflow;
-    root.style.overflow = "hidden";
-    return () => {
-      root.style.overflow = previousOverflow;
-    };
-  }, [open]);
-
-  const close = () => {
-    const dialog = dialogRef.current;
-    if (dialog && typeof dialog.close === "function") dialog.close();
-    else {
-      dialog?.removeAttribute("open");
-      setOpen(false);
-    }
-  };
-
-  return (
-    <>
-      <Button
-        type="button"
-        size="sm"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => setOpen(true)}
-        className={cn("inline-flex items-center gap-1.5", primaryButtonClass)}
-      >
-        <span aria-hidden="true" className="text-base leading-none">+</span>
-        {t.portfolioAddButton}
-      </Button>
-      <dialog
-        ref={dialogRef}
-        className="y360-sheet"
-        aria-labelledby={titleId}
-        onClose={() => setOpen(false)}
-        onClick={(event) => {
-          // A click on the dialog element itself is a click on the backdrop.
-          if (event.target === event.currentTarget) close();
-        }}
-      >
-        <div className="flex h-full flex-col bg-card">
-          <div className="flex items-start justify-between gap-3 border-b border-border px-6 py-5">
-            <div>
-              <h2 id={titleId} className="font-serif text-xl font-medium text-foreground">
-                {t.portfolioAddTitle}
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">{t.portfolioAddHint}</p>
-            </div>
-            <button
-              type="button"
-              aria-label={t.portfolioAddClose}
-              onClick={close}
-              className={cn(
-                "-mr-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground",
-                focusRingClass
-              )}
-            >
-              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" className="h-4 w-4">
-                <path d="M18 6 6 18M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto px-6 py-5">
-            <AddPortfolioForm titleId={titleId} onAdded={close} />
-          </div>
-        </div>
-      </dialog>
-    </>
-  );
-}
-
 export default function PortfolioSection() {
   const { data, isLoading, isError, refetch } = useQuery({ queryKey: PORTFOLIO_QUERY_KEY, queryFn: listPortfolio });
   const items = data?.items ?? [];
   const engagementCerts = data?.engagement_certificates ?? [];
 
   return (
-    <ProfileSection title={t.portfolioTitle} description={t.portfolioDescription} action={<AddPortfolioSheet />}>
+    <ProfileSection title={t.portfolioTitle} description={t.portfolioDescription} action={
+        <ProfileFormDialog
+          triggerLabel={t.portfolioAddButton}
+          title={t.portfolioAddTitle}
+          description={t.portfolioAddHint}
+          closeLabel={t.sheetClose}
+        >
+          {(close, titleId) => <AddPortfolioForm titleId={titleId} onAdded={close} />}
+        </ProfileFormDialog>
+      }
+    >
       {isLoading ? <SkeletonRows rows={2} /> : null}
       {isError ? (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">

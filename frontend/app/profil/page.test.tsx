@@ -10,9 +10,6 @@ vi.mock("@/app/profil/profile-form", () => ({
 vi.mock("@/app/profil/profile-hero", () => ({
   default: () => <div data-testid="profile-hero">Profile Hero</div>,
 }));
-vi.mock("@/app/profil/skills-section", () => ({
-  default: () => <div data-testid="skills-section">Skills Section</div>,
-}));
 vi.mock("@/app/profil/evidence-section", () => ({
   default: () => <div data-testid="evidence-section">Evidence Section</div>,
 }));
@@ -64,7 +61,6 @@ describe("ProfilePage (/profil)", () => {
 
       // AppShell ve bileşenleri render edilir
       expect(screen.getByTestId("profile-form")).toBeTruthy();
-      expect(screen.getByTestId("skills-section")).toBeTruthy();
       expect(screen.getByTestId("institution-link-section")).toBeTruthy();
     });
 
@@ -213,7 +209,7 @@ describe("ProfilePage (/profil)", () => {
 
       expect(screen.getByRole("tab", { name: "Hakkımda" }).getAttribute("aria-selected")).toBe("true");
       expect(panelOf("profile-form").hidden).toBe(false);
-      expect(panelOf("skills-section").hidden).toBe(true);
+      expect(panelOf("evidence-section").hidden).toBe(true);
       expect(panelOf("portfolio-section").hidden).toBe(true);
     });
 
@@ -234,7 +230,7 @@ describe("ProfilePage (/profil)", () => {
       mockProfile();
       const { unmount } = render(<ProfilePage />);
       expect(screen.getByRole("tab", { name: "Yetkinlik ve kanıt" }).getAttribute("aria-selected")).toBe("true");
-      expect(panelOf("skills-section").hidden).toBe(false);
+      expect(panelOf("evidence-section").hidden).toBe(false);
       unmount();
 
       window.history.replaceState(null, "", "/profil?sekme=yok");

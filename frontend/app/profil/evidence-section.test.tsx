@@ -8,6 +8,11 @@ import * as clientModule from "@/lib/api/client";
 vi.mock("@/lib/api/client", () => ({
   getMySignals: vi.fn(),
   getMyVerifiedExperiences: vi.fn(),
+  removeSkill: vi.fn(),
+  // Used by the "+ Yeni yetkinlik" dialog on the signals tab.
+  getMySkills: vi.fn(async () => ({ items: [] })),
+  listSkills: vi.fn(),
+  addSkill: vi.fn(),
 }));
 
 function renderWithQueryClient(ui: React.ReactElement) {
@@ -685,6 +690,70 @@ describe("EvidenceSection (/profil/evidence-section.tsx)", () => {
       await userEvent.click(toggle);
       expect(screen.getByText("Yetkinlik 8")).toBeTruthy();
       expect(screen.getByRole("button", { name: "Daha az göster" }).getAttribute("aria-expanded")).toBe("true");
+    });
+  });
+
+  describe("Yetkinlik sekmesi: tek liste, beyanı kaldırma (AC-8/AC-9)", () => {
+    const selfClaimOnly = {
+      skill: { id: "skill-9", name_tr: "Figma", name_en: "Figma", slug: "figma", category: "x" },
+      signals: [
+        { source_type: "SELF_CLAIM", strength: "WEAK", occurred_at: "2026-10-01T00:00:00Z", attested_by: null, superseded: false },
+      ],
+    };
+
+    it("part=signals: başlık 'Yetkinlikler' ve '+ Yeni yetkinlik' düğmesi kartın üstünde", async () => {
+      vi.mocked(clientModule.getMySignals).mockResolvedValueOnce({ items: [selfClaimOnly] });
+      vi.mocked(clientModule.getMyVerifiedExperiences).mockResolvedValueOnce({ items: [] });
+
+      renderWithQueryClient(<EvidenceSection part="signals" />);
+
+      expect(screen.getByRole("heading", { name: "Yetkinlikler", level: 2 })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Yeni yetkinlik" })).toHaveAttribute("aria-haspopup", "dialog");
+      await waitFor(() => expect(screen.getByText("Figma")).toBeTruthy());
+    });
+
+    it("AC-8: kendi beyanı satırındaki 'Beyanı kaldır' onay sormadan removeSkill çağırır", async () => {
+      vi.mocked(clientModule.getMySignals).mockResolvedValue({ items: [selfClaimOnly] });
+      vi.mocked(clientModule.getMyVerifiedExperiences).mockResolvedValue({ items: [] });
+      vi.mocked(clientModule.removeSkill).mockResolvedValueOnce(undefined);
+
+      renderWithQueryClient(<EvidenceSection part="signals" />);
+      const button = await screen.findByRole("button", { name: "Figma beyanını kaldır" });
+      await userEvent.click(button);
+
+      await waitFor(() => expect(clientModule.removeSkill).toHaveBeenCalledWith("skill-9"));
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+      // Signals are refetched after the removal.
+      await waitFor(() => expect(vi.mocked(clientModule.getMySignals).mock.calls.length).toBeGreaterThanOrEqual(2));
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("AC-9: removeSkill 404 dönerse sessizce tazelenir, hata gösterilmez", async () => {
+      vi.mocked(clientModule.getMySignals).mockResolvedValue({ items: [selfClaimOnly] });
+      vi.mocked(clientModule.getMyVerifiedExperiences).mockResolvedValue({ items: [] });
+      vi.mocked(clientModule.removeSkill).mockRejectedValueOnce({ status: 404, code: "NOT_FOUND" });
+
+      renderWithQueryClient(<EvidenceSection part="signals" />);
+      await userEvent.click(await screen.findByRole("button", { name: "Figma beyanını kaldır" }));
+
+      await waitFor(() => expect(vi.mocked(clientModule.getMySignals).mock.calls.length).toBeGreaterThanOrEqual(2));
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("kanıtlı (kendi beyanı olmayan) sinyalde 'Beyanı kaldır' yok", async () => {
+      vi.mocked(clientModule.getMySignals).mockResolvedValueOnce({
+        items: [
+          {
+            skill: { id: "s1", name_tr: "SQL", name_en: "SQL", slug: "sql", category: "x" },
+            signals: [{ source_type: "EVALUATION", strength: "STRONG", occurred_at: "2026-10-01T00:00:00Z", attested_by: null, superseded: false }],
+          },
+        ],
+      });
+      vi.mocked(clientModule.getMyVerifiedExperiences).mockResolvedValueOnce({ items: [] });
+
+      renderWithQueryClient(<EvidenceSection part="signals" />);
+      await waitFor(() => expect(screen.getByText("SQL")).toBeTruthy());
+      expect(screen.queryByRole("button", { name: /beyanını kaldır/ })).toBeNull();
     });
   });
 });
