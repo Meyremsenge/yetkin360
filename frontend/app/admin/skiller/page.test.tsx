@@ -180,7 +180,8 @@ describe("SkillerPage (/admin/skiller)", () => {
     // Form doldur
     const slugInput = screen.getByLabelText(/slug|identifier/i);
     const nameInput = screen.getByLabelText(/adı \(türkçe\)|name_tr/i);
-    const categorySelect = screen.getByDisplayValue(/LANGUAGE|DOMAIN/i);
+    // Options show Turkish labels, not raw enum codes: find the select by its label.
+    const categorySelect = screen.getByLabelText(/kategori|category/i);
 
     await user.type(slugInput, "golang");
     await user.type(nameInput, "Go");
@@ -338,7 +339,8 @@ describe("SkillerPage (/admin/skiller)", () => {
     await waitFor(() => {
       const updatedTable = screen.getByRole("table");
       const updatedRow = within(updatedTable).getByText("python").closest("tr");
-      expect(updatedRow?.textContent).toContain("DEPRECATED");
+      // Status badge shows the Turkish label, not the raw DEPRECATED enum.
+      expect(within(updatedRow!).getByText("Devre Dışı")).toBeTruthy();
     });
   });
 
@@ -376,7 +378,8 @@ describe("SkillerPage (/admin/skiller)", () => {
     await waitFor(() => {
       const updatedTable = screen.getByRole("table");
       const updatedRow = within(updatedTable).getByText("python").closest("tr");
-      expect(updatedRow?.textContent).toContain("MERGED");
+      // Status badge shows the Turkish label, not the raw MERGED enum.
+      expect(within(updatedRow!).getByText("Birleştirilmiş")).toBeTruthy();
       // merged_into_id = skill-2 (Web Geliştirme) — hedef adı gösterilir
       expect(updatedRow?.textContent).toContain("Web Geliştirme");
     });
@@ -446,7 +449,9 @@ describe("SkillerPage (/admin/skiller)", () => {
       const updatedTable = screen.getByRole("table");
       const rowStatus = within(updatedTable).getByText("python").closest("tr");
       // Status ACTIVE kalmalı (DEPRECATED olmaz)
-      expect(rowStatus?.textContent).not.toContain("DEPRECATED");
+      // Badge must not switch to the Turkish DEPRECATED label (exact match: the
+      // "Devre Dışı Bırak" button in the same row is a different string).
+      expect(within(rowStatus!).queryByText("Devre Dışı")).toBeNull();
     });
 
     // Hata bildirimi gösterilmelidir
@@ -575,7 +580,8 @@ describe("SkillerPage (/admin/skiller)", () => {
       const table = screen.getByRole("table");
       // Slug ile js satırını bul
       const jsRow = within(table).getByText("js").closest("tr");
-      expect(jsRow?.textContent).toContain("MERGED");
+      // Status badge shows the Turkish label, not the raw MERGED enum.
+      expect(within(jsRow!).getByText("Birleştirilmiş")).toBeTruthy();
       // merged_into_id = "skill-1" (Python), gösterilir
       expect(jsRow?.textContent).toContain("Python");
     });
@@ -594,9 +600,13 @@ describe("SkillerPage (/admin/skiller)", () => {
       // Status ACTIVE olduğu için merged_into_id sütunu boş kalmalı
       // (MERGED değilse merged_into_id görünmez)
       const cells = pythonRow?.querySelectorAll("td");
+      // Aksiyonlar en sağa taşındı (brif §3.4); "Hedef" hücresini başlık sırasından bul.
+      const headers = Array.from(table.querySelectorAll("th")).map((th) => th.textContent);
+      const mergedIndex = headers.indexOf("Hedef");
+      expect(mergedIndex).toBeGreaterThanOrEqual(0);
       if (cells) {
-        // Son sütun (merged_into) boş veya "-" olmalı
-        expect(cells[cells.length - 1].textContent).toMatch(/^-?$/);
+        // Hedef (merged_into) sütunu boş veya "-" olmalı
+        expect(cells[mergedIndex].textContent).toMatch(/^-?$/);
       }
     });
   });

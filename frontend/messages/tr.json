@@ -1294,7 +1294,19 @@
       "TOOL": "Araç",
       "FRAMEWORK": "Framework"
     },
-    "parentLabel": "Kök seviye"
+    "parentLabel": "Kök seviye",
+    "description": "Platformun yetkinlik sözlüğünü yönetin: yeni yetkinlik ekleyin, eskiyenleri devre dışı bırakın, tekrar edenleri birleştirin.",
+    "searchLabel": "Yetkinlik ara",
+    "searchPlaceholder": "python, Veri Analizi…",
+    "filterLabel": "Durum filtresi",
+    "filterAll": "Tümü",
+    "actionsHeader": "İşlemler",
+    "requiredError": "Slug ve ad zorunludur",
+    "formHint": "Slug küçük harf ve tireyle yazılır; öğrenciler yetkinliği Türkçe adıyla arar.",
+    "noMatch": "Aramanızla eşleşen yetkinlik yok.",
+    "emptyHint": "Sağdaki formdan ilk yetkinliği ekleyin.",
+    "mergePlaceholder": "Seçiniz...",
+    "mergeHint": "\"{name}\" birleştirilmiş olarak işaretlenir ve seçtiğiniz hedefe yönlendirilir."
   },
   "loginDialog": {
     "title": "Tekrar hoş geldiniz",
