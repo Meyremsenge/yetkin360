@@ -42,6 +42,8 @@ export interface EngagementTask {
   id: string;
   title: string;
   status: string;
+  /** false: öğrencinin eklediği, kuruluş/kurum henüz onaylamadığı görev. */
+  verified: boolean;
 }
 
 export interface EngagementDeliverable {

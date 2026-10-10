@@ -178,7 +178,7 @@ describe("lib/api/engagements", () => {
         version: 1,
         created_at: "2026-09-01T09:00:00Z",
         updated_at: "2026-09-27T10:00:00Z",
-        tasks: [{ id: "task-1", title: "Tasarım görev", status: "DONE" }],
+        tasks: [{ id: "task-1", title: "Tasarım görev", status: "DONE", verified: true }],
         deliverables: [
           { id: "del-1", title: "Tasarım dosyası", submitted_at: "2026-09-20T15:00:00Z" },
         ],
@@ -227,8 +227,8 @@ describe("lib/api/engagements", () => {
         created_at: "2026-08-15T08:00:00Z",
         updated_at: "2026-09-25T14:00:00Z",
         tasks: [
-          { id: "task-1", title: "Backend API", status: "DONE" },
-          { id: "task-2", title: "Test yazma", status: "IN_PROGRESS" },
+          { id: "task-1", title: "Backend API", status: "DONE", verified: true },
+          { id: "task-2", title: "Test yazma", status: "IN_PROGRESS", verified: true },
         ],
         deliverables: [
           { id: "del-1", title: "API dokümanı", submitted_at: "2026-09-18T10:00:00Z" },
@@ -329,7 +329,7 @@ describe("lib/api/engagements", () => {
         version: 2,
         created_at: "2026-09-01T09:00:00Z",
         updated_at: "2026-09-27T11:00:00Z",
-        tasks: [{ id: "task-1", title: "Tasarım görev", status: "DONE" }],
+        tasks: [{ id: "task-1", title: "Tasarım görev", status: "DONE", verified: true }],
         deliverables: [
           { id: "del-1", title: "Tasarım dosyası", submitted_at: "2026-09-20T15:00:00Z" },
         ],
