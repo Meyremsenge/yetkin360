@@ -486,6 +486,15 @@ def transition_engagement(
             },
         )
 
+    # PLAN 3.56: coordinator approval (T2) is the main defence against fake
+    # internships — check the approval itself for conflict-of-interest/bulk patterns.
+    if current_status == "PENDING_APPROVAL" and to_status == "ACTIVE":
+        enqueue(
+            session=session,
+            topic="fraud.approval_risk_scan_requested",
+            payload={"engagement_id": str(engagement.id), "approver_user_id": str(principal.user_id)},
+        )
+
     return engagement
 
 
