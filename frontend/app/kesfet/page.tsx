@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { SealMark } from "@/components/brand/brand-mark";
 import { PAGE_CONTAINER } from "@/components/page-layout";
@@ -26,6 +26,7 @@ import {
   Icon,
   OrganizationCard,
   TalentCard,
+  type Facet,
   type IconName,
 } from "./discover-ui";
 
@@ -45,6 +46,10 @@ const STEP_MS = 40;
 const MAX_STEPS = 8;
 const TABS = ["talents", "organizations"] as const;
 
+// Shareable search: filters live in the address bar under Turkish keys.
+const URL_KEYS = { q: "ara", tab: "sekme", skill: "yetkinlik", department: "bolum", city: "sehir" } as const;
+const ORGANIZATIONS_TAB_VALUE = "kuruluslar";
+
 type Tab = (typeof TABS)[number];
 
 interface SkillChip {
@@ -52,13 +57,26 @@ interface SkillChip {
   name: string;
 }
 
-function useDebounced<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value);
+type SkillOption = { id: string; name_tr: string };
+
+/**
+ * Debounced copy of `value`. Changing `syncKey` adopts the current value at
+ * once — used when filters are restored from the URL, so the first request
+ * already carries them.
+ */
+function useDebounced<T>(value: T, delayMs: number, syncKey = 0): T {
+  const [state, setState] = useState({ value, syncKey });
+  // Render-phase adjustment (React "storing information from previous renders"):
+  // a new syncKey takes the value in this same render, not one effect later.
+  if (state.syncKey !== syncKey) setState({ value, syncKey });
   useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delayMs);
+    const timer = setTimeout(
+      () => setState((current) => (Object.is(current.value, value) ? current : { ...current, value })),
+      delayMs
+    );
     return () => clearTimeout(timer);
   }, [value, delayMs]);
-  return debounced;
+  return state.syncKey !== syncKey ? value : state.value;
 }
 
 /** Search term as the API will use it: shorter than the minimum means "not searching". */
@@ -71,16 +89,79 @@ function stepStyle(index: number) {
   return { animationDelay: `${Math.min(index, MAX_STEPS) * STEP_MS}ms` };
 }
 
+function sameName(a: string, b: string): boolean {
+  return a.toLocaleLowerCase("tr") === b.toLocaleLowerCase("tr");
+}
+
+/** Skill names come back from the directory without ids; resolve one by exact name. */
+async function findSkillByName(name: string): Promise<SkillChip | null> {
+  const result = await listSkills(name);
+  const match = ((result?.items ?? []) as SkillOption[]).find((option) => sameName(option.name_tr, name));
+  return match ? { id: match.id, name: match.name_tr } : null;
+}
+
+function prefersReducedMotion(): boolean {
+  return typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 export default function KesfetPage() {
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("talents");
   const [search, setSearch] = useState("");
   const [department, setDepartment] = useState("");
   const [city, setCity] = useState("");
   const [skills, setSkills] = useState<SkillChip[]>([]);
+  // URL → state happens once after mount; queries wait for it (`ready`).
+  const [ready, setReady] = useState(false);
+  const [syncKey, setSyncKey] = useState(0);
+  const resultsRef = useRef<HTMLDivElement>(null);
 
-  const q = effectiveQuery(useDebounced(search, SEARCH_DEBOUNCE_MS));
-  const debouncedDepartment = useDebounced(department, SEARCH_DEBOUNCE_MS).trim();
-  const debouncedCity = useDebounced(city, SEARCH_DEBOUNCE_MS).trim();
+  const q = effectiveQuery(useDebounced(search, SEARCH_DEBOUNCE_MS, syncKey));
+  const debouncedDepartment = useDebounced(department, SEARCH_DEBOUNCE_MS, syncKey).trim();
+  const debouncedCity = useDebounced(city, SEARCH_DEBOUNCE_MS, syncKey).trim();
+
+  // Restore filters from the address bar (a shared or reloaded search).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const skillNames = params.getAll(URL_KEYS.skill).slice(0, DISCOVER_MAX_SKILL_FILTERS);
+    let cancelled = false;
+    const apply = (resolved: SkillChip[]) => {
+      if (cancelled) return;
+      setSearch(params.get(URL_KEYS.q) ?? "");
+      setDepartment(params.get(URL_KEYS.department) ?? "");
+      setCity(params.get(URL_KEYS.city) ?? "");
+      setTab(params.get(URL_KEYS.tab) === ORGANIZATIONS_TAB_VALUE ? "organizations" : "talents");
+      setSkills(resolved);
+      setSyncKey((key) => key + 1);
+      setReady(true);
+    };
+    if (skillNames.length === 0) {
+      apply([]);
+    } else {
+      Promise.all(skillNames.map((name) => findSkillByName(name).catch(() => null))).then((found) =>
+        apply(found.filter((skill): skill is SkillChip => skill !== null))
+      );
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // State → address bar. replaceState: filtering should not flood browser history.
+  useEffect(() => {
+    if (!ready) return;
+    const params = new URLSearchParams();
+    if (q) params.set(URL_KEYS.q, q);
+    if (tab === "organizations") params.set(URL_KEYS.tab, ORGANIZATIONS_TAB_VALUE);
+    for (const skill of skills) params.append(URL_KEYS.skill, skill.name);
+    if (debouncedDepartment) params.set(URL_KEYS.department, debouncedDepartment);
+    if (debouncedCity) params.set(URL_KEYS.city, debouncedCity);
+    const query = params.toString();
+    const next = `${window.location.pathname}${query ? `?${query}` : ""}`;
+    if (next !== `${window.location.pathname}${window.location.search}`) {
+      window.history.replaceState(window.history.state, "", next);
+    }
+  }, [ready, q, tab, skills, debouncedDepartment, debouncedCity]);
 
   const hasTalentFilters = Boolean(q || debouncedDepartment || debouncedCity || skills.length);
   const clearFilters = () => {
@@ -88,6 +169,40 @@ export default function KesfetPage() {
     setDepartment("");
     setCity("");
     setSkills([]);
+  };
+
+  // A filter picked on a card replaces the grid: bring its top back into view.
+  const revealResults = () => {
+    const el = resultsRef.current;
+    if (el && el.getBoundingClientRect().top < 0) {
+      el.scrollIntoView?.({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
+    }
+  };
+
+  const toggleSkillByName = async (name: string) => {
+    const existing = skills.find((skill) => sameName(skill.name, name));
+    if (existing) {
+      setSkills((current) => current.filter((skill) => skill.id !== existing.id));
+      revealResults();
+      return;
+    }
+    if (skills.length >= DISCOVER_MAX_SKILL_FILTERS) return;
+    const found = await queryClient
+      .fetchQuery({ queryKey: ["discover-skill-by-name", name.toLocaleLowerCase("tr")], queryFn: () => findSkillByName(name) })
+      .catch(() => null);
+    if (!found) return;
+    setSkills((current) =>
+      current.some((skill) => skill.id === found.id) || current.length >= DISCOVER_MAX_SKILL_FILTERS
+        ? current
+        : [...current, found]
+    );
+    revealResults();
+  };
+
+  const applyFacet = (facet: Facet, value: string) => {
+    if (facet === "department") setDepartment(value);
+    else setCity(value);
+    revealResults();
   };
 
   const chips = [
@@ -125,21 +240,24 @@ export default function KesfetPage() {
               hasFilters={hasTalentFilters}
               onClear={clearFilters}
             />
-            <div className="min-w-0">
+            <div ref={resultsRef} className="min-w-0 scroll-mt-24">
               <TalentResults
+                ready={ready}
                 q={q}
                 department={debouncedDepartment}
                 city={debouncedCity}
-                skillIds={skills.map((skill) => skill.id)}
+                skills={skills}
                 hasFilters={hasTalentFilters}
                 onClear={clearFilters}
+                onSkillClick={(name) => void toggleSkillByName(name)}
+                onFacetClick={applyFacet}
                 chips={<ActiveFilters chips={chips} hasFilters={hasTalentFilters} onClear={clearFilters} />}
               />
             </div>
           </div>
         ) : (
           <div role="tabpanel" id="discover-panel-organizations" aria-labelledby="discover-tab-organizations">
-            <OrganizationResults q={q} onClear={() => setSearch("")} />
+            <OrganizationResults ready={ready} q={q} onClear={() => setSearch("")} />
           </div>
         )}
       </div>
@@ -147,7 +265,13 @@ export default function KesfetPage() {
   );
 }
 
-/* ── Header: title, search, the directory's rules, tabs on the bottom edge ── */
+/* ── Header: one compact band — title, search, the directory's rules, tabs ── */
+
+const PRINCIPLES: { icon: "globe" | "seal" | "equal"; title: string; body: string }[] = [
+  { icon: "globe", title: t.principlePublicTitle, body: t.principlePublicBody },
+  { icon: "seal", title: t.principleSealTitle, body: t.principleSealBody },
+  { icon: "equal", title: t.principleOrderTitle, body: t.principleOrderBody },
+];
 
 function DiscoverHeader({
   tab,
@@ -194,134 +318,154 @@ function DiscoverHeader({
     <header className="relative overflow-hidden border-b border-border bg-card">
       <div
         aria-hidden="true"
-        className="y360-dot-grid pointer-events-none absolute inset-y-0 right-0 w-2/3 [mask-image:linear-gradient(to_left,black,transparent)]"
+        className="y360-dot-grid pointer-events-none absolute inset-y-0 right-0 w-1/2 [mask-image:linear-gradient(to_left,black,transparent)]"
       />
-      <div className={cn(PAGE_CONTAINER, "relative pt-8 lg:pt-10")}>
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-end lg:gap-12">
+      <div className={cn(PAGE_CONTAINER, "relative pt-6 lg:pt-7")}>
+        <div className="flex flex-col gap-x-10 gap-y-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
-            <p className="mb-3 font-mono text-xs uppercase tracking-[0.12em] text-success">{t.eyebrow}</p>
-            <h1 className="max-w-[18ch] font-serif text-[34px] font-semibold leading-[1.1] tracking-tight text-foreground md:text-[44px]">
+            <p className="mb-1.5 font-mono text-xs uppercase tracking-[0.12em] text-success">{t.eyebrow}</p>
+            <h1 className="font-serif text-[26px] font-semibold leading-tight tracking-tight text-foreground md:text-[30px]">
               {t.heroTitle}
             </h1>
-            <p className="mt-3 max-w-[60ch] text-[15px] leading-6 text-muted-foreground">{t.heroDescription}</p>
-
-            <div className="mt-6 max-w-[640px]">
-              <label htmlFor="discover-search" className="sr-only">
-                {tab === "talents" ? t.talentSearchLabel : t.organizationSearchLabel}
-              </label>
-              <div className="relative">
-                <Icon
-                  name="search"
-                  className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground"
-                />
-                <input
-                  ref={searchRef}
-                  id="discover-search"
-                  type="search"
-                  value={search}
-                  onChange={(e) => onSearchChange(e.target.value)}
-                  placeholder={tab === "talents" ? t.talentSearchPlaceholder : t.organizationSearchPlaceholder}
-                  maxLength={64}
-                  autoComplete="off"
-                  aria-describedby="discover-search-hint"
-                  className={cn(
-                    "block h-[52px] w-full rounded-lg border border-border bg-background pl-12 pr-4 text-[15px] text-foreground shadow-[inset_0_1px_0_rgba(34,31,27,0.03)] transition-colors duration-150 placeholder:text-muted-foreground/70 hover:border-muted-foreground/40 focus:border-success focus:bg-card sm:pr-14",
-                    "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-success/20"
-                  )}
-                />
-                <kbd
-                  aria-hidden="true"
-                  title={t.searchShortcut}
-                  className="pointer-events-none absolute right-3 top-1/2 hidden h-6 min-w-6 -translate-y-1/2 items-center justify-center rounded border border-border bg-card px-1.5 font-mono text-xs text-muted-foreground sm:flex"
-                >
-                  /
-                </kbd>
-              </div>
-              <p
-                id="discover-search-hint"
-                aria-live="polite"
-                className={cn("mt-2 text-xs", tooShort ? "text-warning" : "text-muted-foreground lg:sr-only")}
-              >
-                {tooShort ? t.searchTooShort : t.principlesCompact}
-              </p>
-            </div>
           </div>
 
-          <Principles />
+          <div className="w-full lg:max-w-[520px]">
+            <label htmlFor="discover-search" className="sr-only">
+              {tab === "talents" ? t.talentSearchLabel : t.organizationSearchLabel}
+            </label>
+            <div className="relative">
+              <Icon
+                name="search"
+                className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-muted-foreground"
+              />
+              <input
+                ref={searchRef}
+                id="discover-search"
+                type="search"
+                value={search}
+                onChange={(e) => onSearchChange(e.target.value)}
+                placeholder={tab === "talents" ? t.talentSearchPlaceholder : t.organizationSearchPlaceholder}
+                maxLength={64}
+                autoComplete="off"
+                aria-describedby={tooShort ? "discover-search-hint" : undefined}
+                className={cn(
+                  "block h-11 w-full rounded-lg border border-border bg-background pl-11 pr-4 text-[15px] text-foreground transition-colors duration-150 placeholder:text-muted-foreground/70 hover:border-muted-foreground/40 focus:border-success focus:bg-card sm:pr-12",
+                  "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-success/20"
+                )}
+              />
+              <kbd
+                aria-hidden="true"
+                title={t.searchShortcut}
+                className="pointer-events-none absolute right-3 top-1/2 hidden h-6 min-w-6 -translate-y-1/2 items-center justify-center rounded border border-border bg-card px-1.5 font-mono text-xs text-muted-foreground sm:flex"
+              >
+                /
+              </kbd>
+            </div>
+            <p id="discover-search-hint" aria-live="polite" className="text-xs text-warning [&:not(:empty)]:mt-1.5">
+              {tooShort ? t.searchTooShort : ""}
+            </p>
+          </div>
         </div>
 
-        <div
-          role="tablist"
-          aria-label={t.tabsLabel}
-          className="-mx-1 mt-8 flex gap-1 overflow-x-auto px-1 lg:mt-10"
+        <ul
+          aria-label={t.principlesLabel}
+          className="mt-4 flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-muted-foreground"
         >
-          {TABS.map((key) => {
-            const selected = tab === key;
-            const icon: IconName = key === "talents" ? "user" : "building";
-            return (
-              <button
-                key={key}
-                ref={(el) => {
-                  tabRefs.current[key] = el;
-                }}
-                type="button"
-                role="tab"
-                id={`discover-tab-${key}`}
-                aria-selected={selected}
-                aria-controls={`discover-panel-${key}`}
-                tabIndex={selected ? 0 : -1}
-                onClick={() => onTabChange(key)}
-                onKeyDown={onTabKeyDown}
-                className={cn(
-                  "relative inline-flex h-11 shrink-0 items-center gap-2 rounded-t-md px-4 text-sm font-medium transition-colors duration-150",
-                  "after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:transition-colors after:duration-200",
-                  selected
-                    ? "text-foreground after:bg-success"
-                    : "text-muted-foreground after:bg-transparent hover:text-foreground hover:after:bg-border",
-                  FOCUS_RING
-                )}
-              >
-                <Icon name={icon} className={selected ? "text-success" : undefined} />
-                {key === "talents" ? t.tabTalents : t.tabOrganizations}
-              </button>
-            );
-          })}
+          {PRINCIPLES.map((item) => (
+            <li key={item.title} title={item.body} className="inline-flex items-center gap-1.5">
+              {item.icon === "seal" ? (
+                <SealMark className="h-3.5 w-3.5" />
+              ) : (
+                <Icon name={item.icon} className="h-3.5 w-3.5 text-success" />
+              )}
+              <span>{item.title}</span>
+              <span className="sr-only">— {item.body}</span>
+            </li>
+          ))}
+        </ul>
+
+        <div className="mt-3 flex items-end justify-between gap-4">
+          <div role="tablist" aria-label={t.tabsLabel} className="-mx-1 flex gap-1 overflow-x-auto px-1">
+            {TABS.map((key) => {
+              const selected = tab === key;
+              const icon: IconName = key === "talents" ? "user" : "building";
+              return (
+                <button
+                  key={key}
+                  ref={(el) => {
+                    tabRefs.current[key] = el;
+                  }}
+                  type="button"
+                  role="tab"
+                  id={`discover-tab-${key}`}
+                  aria-selected={selected}
+                  aria-controls={`discover-panel-${key}`}
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => onTabChange(key)}
+                  onKeyDown={onTabKeyDown}
+                  className={cn(
+                    "relative inline-flex h-11 shrink-0 items-center gap-2 rounded-t-md px-4 text-sm font-medium transition-colors duration-150",
+                    "after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:transition-colors after:duration-200",
+                    selected
+                      ? "text-foreground after:bg-success"
+                      : "text-muted-foreground after:bg-transparent hover:text-foreground hover:after:bg-border",
+                    FOCUS_RING
+                  )}
+                >
+                  <Icon name={icon} className={selected ? "text-success" : undefined} />
+                  {key === "talents" ? t.tabTalents : t.tabOrganizations}
+                </button>
+              );
+            })}
+          </div>
+          <ShareSearchButton />
         </div>
       </div>
     </header>
   );
 }
 
-const PRINCIPLES: { icon: "globe" | "seal" | "equal"; title: string; body: string }[] = [
-  { icon: "globe", title: t.principlePublicTitle, body: t.principlePublicBody },
-  { icon: "seal", title: t.principleSealTitle, body: t.principleSealBody },
-  { icon: "equal", title: t.principleOrderTitle, body: t.principleOrderBody },
-];
+/** Copies the current address (filters included) so a search can be handed on. */
+function ShareSearchButton() {
+  const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
+  useEffect(() => {
+    if (state === "idle") return;
+    const timer = setTimeout(() => setState("idle"), 1800);
+    return () => clearTimeout(timer);
+  }, [state]);
 
-/** The three promises that make the directory trustworthy, on a sand index card. */
-function Principles() {
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setState("copied");
+    } catch {
+      setState("failed");
+    }
+  };
+
   return (
-    <aside
-      aria-labelledby="discover-principles-title"
-      className="relative hidden rounded-lg border border-border bg-sand/70 p-5 lg:block"
-    >
-      <p id="discover-principles-title" className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
-        {t.principlesTitle}
-      </p>
-      <ol className="mt-4 space-y-4">
-        {PRINCIPLES.map((item) => (
-          <li key={item.title} className="flex gap-3">
-            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-card text-success">
-              {item.icon === "seal" ? <SealMark className="h-4 w-4" /> : <Icon name={item.icon} className="h-3.5 w-3.5" />}
-            </span>
-            <span className="min-w-0">
-              <span className="block text-sm font-medium text-foreground">{item.title}</span>
-              <span className="block text-xs leading-5 text-muted-foreground">{item.body}</span>
-            </span>
-          </li>
-        ))}
-      </ol>
-    </aside>
+    <div className="mb-1.5 flex shrink-0 items-center gap-2">
+      <span aria-live="polite" className={cn("text-xs", state === "failed" ? "text-destructive" : "text-success")}>
+        {state === "copied" ? t.shareCopied : state === "failed" ? t.shareFailed : ""}
+      </span>
+      <button
+        type="button"
+        onClick={() => void copy()}
+        className={cn(
+          "inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-3 text-xs font-medium text-foreground transition-colors duration-150 hover:bg-muted",
+          FOCUS_RING
+        )}
+      >
+        {state === "copied" ? (
+          <svg viewBox="0 0 24 24" aria-hidden="true" className="h-3.5 w-3.5 text-success" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        ) : (
+          <Icon name="link" className="h-3.5 w-3.5" />
+        )}
+        <span className="sr-only sm:not-sr-only">{t.shareSearch}</span>
+      </button>
+    </div>
   );
 }
 
@@ -479,12 +623,12 @@ function SkillFilter({ selected, onChange }: { selected: SkillChip[]; onChange: 
     queryFn: () => listSkills(debouncedTerm),
     enabled: debouncedTerm.length > 0 && !full,
   });
-  const options = ((data?.items ?? []) as { id: string; name_tr: string }[])
+  const options = ((data?.items ?? []) as SkillOption[])
     .filter((option) => !selected.some((skill) => skill.id === option.id))
     .slice(0, 8);
   const showOptions = Boolean(term.trim() && debouncedTerm && !full && options.length > 0);
 
-  const pick = (option: { id: string; name_tr: string }) => {
+  const pick = (option: SkillOption) => {
     onChange([...selected, { id: option.id, name: option.name_tr }]);
     setTerm("");
   };
@@ -587,15 +731,18 @@ function ActiveFilters({
 
 /* ── Results ── */
 
-function ResultsHeading({ title, count, more, sort }: { title: string; count: string | null; more: boolean; sort: string }) {
+/** "{n} profil" / "{n}+ profil" while more pages remain (no total from the API). */
+function resultCount(template: string, loaded: number, more: boolean): string {
+  return template.replace("{count}", more ? t.resultCountMore.replace("{count}", String(loaded)) : String(loaded));
+}
+
+function ResultsHeading({ title, count, sort }: { title: string; count: string | null; sort: string }) {
   return (
     <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border pb-3">
       <p className="flex items-baseline gap-3" aria-live="polite">
         <span className="font-serif text-xl font-semibold text-foreground">{title}</span>
         {count !== null ? (
-          <span className="font-mono text-xs tabular-nums text-muted-foreground">
-            {more ? t.resultCountMore.replace("{count}", count) : count}
-          </span>
+          <span className="font-mono text-xs tabular-nums text-muted-foreground">{count}</span>
         ) : null}
       </p>
       <p className="font-mono text-[11px] text-muted-foreground">{sort}</p>
@@ -604,45 +751,53 @@ function ResultsHeading({ title, count, more, sort }: { title: string; count: st
 }
 
 function TalentResults({
+  ready,
   q,
   department,
   city,
-  skillIds,
+  skills,
   hasFilters,
   onClear,
+  onSkillClick,
+  onFacetClick,
   chips,
 }: {
+  ready: boolean;
   q: string;
   department: string;
   city: string;
-  skillIds: string[];
+  skills: SkillChip[];
   hasFilters: boolean;
   onClear: () => void;
+  onSkillClick: (name: string) => void;
+  onFacetClick: (facet: Facet, value: string) => void;
   chips: ReactNode;
 }) {
   const session = useSession();
   const isStudent = Boolean(session.data?.talent_profile);
+  const skillIds = skills.map((skill) => skill.id);
   const query = useInfiniteQuery({
     queryKey: ["discover-talents", q, department, city, skillIds],
     queryFn: ({ pageParam }) => listDiscoverTalents({ q, department, city, skillIds, cursor: pageParam }),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.next_cursor,
     retry: false,
+    enabled: ready,
   });
   const items = query.data?.pages.flatMap((page) => page.items) ?? [];
-  const loaded = query.isSuccess;
+  const selectedNames = skills.map((skill) => skill.name);
 
   return (
     <>
       <ResultsHeading
         title={t.tabTalents}
-        count={loaded ? t.talentResultCount.replace("{count}", String(items.length)) : null}
-        more={query.hasNextPage}
+        count={query.isSuccess ? resultCount(t.talentResultCount, items.length, query.hasNextPage) : null}
         sort={t.talentSort}
       />
       {chips}
       <ResultList
         query={query}
+        ready={ready}
         isEmpty={items.length === 0}
         variant="talent"
         loadingLabel={t.talentsLoading}
@@ -668,10 +823,16 @@ function TalentResults({
           </EmptyState>
         }
       >
+        {!hasFilters ? <p className="-mt-1 mb-4 text-xs text-muted-foreground">{t.cardFilterHint}</p> : null}
         <ul className="grid gap-5 sm:grid-cols-2">
           {items.map((talent, index) => (
             <li key={talent.public_slug} className="y360-step-in" style={stepStyle(index)}>
-              <TalentCard talent={talent} />
+              <TalentCard
+                talent={talent}
+                selectedSkills={selectedNames}
+                onSkillClick={onSkillClick}
+                onFacetClick={onFacetClick}
+              />
             </li>
           ))}
         </ul>
@@ -680,7 +841,7 @@ function TalentResults({
   );
 }
 
-function OrganizationResults({ q, onClear }: { q: string; onClear: () => void }) {
+function OrganizationResults({ ready, q, onClear }: { ready: boolean; q: string; onClear: () => void }) {
   const session = useSession();
   const canStartEngagement = Boolean(session.data?.talent_profile);
 
@@ -690,6 +851,7 @@ function OrganizationResults({ q, onClear }: { q: string; onClear: () => void })
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.next_cursor,
     retry: false,
+    enabled: ready,
   });
   const items = query.data?.pages.flatMap((page) => page.items) ?? [];
 
@@ -697,12 +859,12 @@ function OrganizationResults({ q, onClear }: { q: string; onClear: () => void })
     <>
       <ResultsHeading
         title={t.tabOrganizations}
-        count={query.isSuccess ? t.organizationResultCount.replace("{count}", String(items.length)) : null}
-        more={query.hasNextPage}
+        count={query.isSuccess ? resultCount(t.organizationResultCount, items.length, query.hasNextPage) : null}
         sort={t.organizationSort}
       />
       <ResultList
         query={query}
+        ready={ready}
         isEmpty={items.length === 0}
         variant="organization"
         loadingLabel={t.organizationsLoading}
@@ -736,6 +898,7 @@ function OrganizationResults({ q, onClear }: { q: string; onClear: () => void })
 /** Loading / error / rate-limit / empty / "load more" frame shared by both tabs. */
 function ResultList({
   query,
+  ready,
   isEmpty,
   variant,
   loadingLabel,
@@ -752,6 +915,7 @@ function ResultList({
     refetch: () => unknown;
     fetchNextPage: () => unknown;
   };
+  ready: boolean;
   isEmpty: boolean;
   variant: "talent" | "organization";
   loadingLabel: string;
@@ -759,7 +923,7 @@ function ResultList({
   empty: ReactNode;
   children: ReactNode;
 }) {
-  if (query.isLoading) {
+  if (!ready || query.isLoading) {
     return (
       <div
         role="status"

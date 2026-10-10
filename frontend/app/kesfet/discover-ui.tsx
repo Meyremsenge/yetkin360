@@ -87,6 +87,12 @@ const ICONS = {
       <path d="M5 15h14" />
     </>
   ),
+  link: (
+    <>
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </>
+  ),
   compass: (
     <>
       <circle cx="12" cy="12" r="10" />
@@ -144,13 +150,36 @@ function RecordStrip({ label, value }: { label: string; value: string }) {
 const cardFrame =
   "group relative flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card transition-colors duration-150 hover:border-muted-foreground/50 focus-within:border-success/60";
 
+export type Facet = "department" | "city";
+
+// Filter buttons sit above the card's stretched profile link (z-10).
+const facetButton = cn(
+  "relative z-10 rounded-sm underline decoration-transparent underline-offset-2 transition-colors duration-150 hover:text-foreground hover:decoration-current",
+  FOCUS_RING
+);
+
 /**
  * A student as a registry card: who they are, where they study, and only the
- * skills an organization has attested to. The whole card is one link to the
- * public profile (stretched link), so there is a single tab stop per card.
+ * skills an organization has attested to. The card body is one link to the
+ * public profile (stretched link); skill chips, department and city are
+ * separate buttons that narrow the directory to that value.
  */
-export function TalentCard({ talent }: { talent: DiscoverTalent }) {
-  const meta = [talent.institution_name, talent.department, talent.city].filter(Boolean).join(" · ");
+export function TalentCard({
+  talent,
+  selectedSkills = [],
+  onSkillClick,
+  onFacetClick,
+}: {
+  talent: DiscoverTalent;
+  selectedSkills?: string[];
+  onSkillClick?: (skill: string) => void;
+  onFacetClick?: (facet: Facet, value: string) => void;
+}) {
+  const metaParts: { key: string; value: string; facet?: Facet }[] = [
+    ...(talent.institution_name ? [{ key: "institution", value: talent.institution_name }] : []),
+    ...(talent.department ? [{ key: "department", value: talent.department, facet: "department" as const }] : []),
+    ...(talent.city ? [{ key: "city", value: talent.city, facet: "city" as const }] : []),
+  ];
   const metaIcon: IconName = talent.institution_name ? "landmark" : talent.department ? "cap" : "pin";
   const sealed = talent.verified_experience_count > 0;
   const shown = talent.sealed_skills.slice(0, VISIBLE_SKILLS);
@@ -180,10 +209,31 @@ export function TalentCard({ talent }: { talent: DiscoverTalent }) {
               {talent.full_name}
             </h2>
             {talent.headline ? <p className="mt-0.5 text-sm leading-5 text-foreground/90">{talent.headline}</p> : null}
-            {meta ? (
+            {metaParts.length > 0 ? (
               <div className="mt-1.5 flex items-start gap-1.5 text-xs leading-4 text-muted-foreground">
                 <Icon name={metaIcon} className="mt-px h-3.5 w-3.5" />
-                <p>{meta}</p>
+                <p>
+                  {metaParts.map((part, index) => (
+                    <span key={part.key}>
+                      {index > 0 ? " · " : null}
+                      {part.facet && onFacetClick ? (
+                        <button
+                          type="button"
+                          onClick={() => onFacetClick(part.facet as Facet, part.value)}
+                          aria-label={(part.facet === "city" ? t.filterByCity : t.filterByDepartment).replace(
+                            "{value}",
+                            part.value
+                          )}
+                          className={facetButton}
+                        >
+                          {part.value}
+                        </button>
+                      ) : (
+                        part.value
+                      )}
+                    </span>
+                  ))}
+                </p>
               </div>
             ) : null}
           </div>
@@ -194,15 +244,41 @@ export function TalentCard({ talent }: { talent: DiscoverTalent }) {
           {shown.length > 0 ? (
             <>
               <ul aria-label={t.sealedSkillsLabel} className="flex flex-wrap gap-1.5">
-                {shown.map((skill) => (
-                  <li
-                    key={skill}
-                    className="inline-flex items-center gap-1 rounded-full border border-success/20 bg-success/[0.08] px-2.5 py-0.5 text-xs font-medium text-success"
-                  >
-                    <CheckIcon />
-                    {skill}
-                  </li>
-                ))}
+                {shown.map((skill) => {
+                  const active = selectedSkills.includes(skill);
+                  const chip = cn(
+                    "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium",
+                    active
+                      ? "border-success bg-success text-background"
+                      : "border-success/20 bg-success/[0.08] text-success"
+                  );
+                  return (
+                    <li key={skill} className="flex">
+                      {onSkillClick ? (
+                        <button
+                          type="button"
+                          onClick={() => onSkillClick(skill)}
+                          aria-pressed={active}
+                          aria-label={(active ? t.unfilterBySkill : t.filterBySkill).replace("{skill}", skill)}
+                          className={cn(
+                            chip,
+                            "relative z-10 transition-colors duration-150",
+                            !active && "hover:border-success/50 hover:bg-success/[0.14]",
+                            FOCUS_RING
+                          )}
+                        >
+                          <CheckIcon />
+                          {skill}
+                        </button>
+                      ) : (
+                        <span className={chip}>
+                          <CheckIcon />
+                          {skill}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
               {hidden > 0 ? (
                 <p className="mt-2 text-xs text-muted-foreground">{t.moreSkills.replace("{count}", String(hidden))}</p>
