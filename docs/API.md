@@ -571,12 +571,6 @@ tek ekrandaki kanıtı:
 
 ---
 
-## 3. Uç özeti
-
-Toplam **40 uç**. Hackathon fazlarına dağılımı → [PLAN.md](../PLAN.md).
-
-| Grup | Uç sayısı | Faz |
-|---|---|---|
 ### 2.11 Keşfet — `/discover`
 
 Dizin ve arama; **eşleştirme değil** (puan, öneri, uygunluk sıralaması yok).
@@ -604,6 +598,12 @@ aksi halde `null`). Yalnız `status = 'ACTIVE'` ve silinmemiş kuruluşlar.
 - Hız sınırı iki uç için ortak: **60/dk/kullanıcı**; aşımda `Retry-After` başlığı.
 - `DISCOVER_ENABLED=false` iken iki uç da (kimlik doğrulamadan önce) `404` döner.
 
+## 3. Uç özeti
+
+Toplam **40 uç**. Hackathon fazlarına dağılımı → [PLAN.md](../PLAN.md).
+
+| Grup | Uç sayısı | Faz |
+|---|---|---|
 | `/auth` | 7 | 1 |
 | `/me`, `/talents` | 7 | 1 |
 | `/skills` | 1 | 1 |
@@ -613,9 +613,9 @@ aksi halde `null`). Yalnız `status = 'ACTIVE'` ve silinmemiş kuruluşlar.
 | `/evidence` | 3 | 2 |
 | Değerlendirme / tanıklık / itiraz | 4 | 2 |
 | `/public` | 2 | 3 |
+| `/discover` | 2 | 3 (R.1) |
 | `/admin` | 2 | 3 |
 
 **Definition of Done hatırlatması:** Yeni uç = **aynı commit'te yetkilendirme
 testi**. Testsiz uç commit edilmez (CLAUDE.md). Her ucun test satırı →
 [AUTHORIZATION.md](AUTHORIZATION.md).
-| `/discover` | 2 | 3 (R.1) |

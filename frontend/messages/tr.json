@@ -576,12 +576,6 @@
     "titlePlaceholder": "Örn. Veri Analisti Yaz Stajı",
     "loadingLabel": "Form yükleniyor"
   },
-  "kurulusSec": {
-    "title": "Kuruluş Seç",
-    "description": "Çalışma başlatmak istediğiniz kuruluşu arayıp seçin.",
-    "searchPlaceholder": "Kuruluş adı ara...",
-    "searchLabel": "Kuruluş ara",
-    "loadingLabel": "Kuruluşlar yükleniyor",
   "kesfet": {
     "title": "Keşfet",
     "description": "Herkese açık öğrenci profillerini ve platformdaki kuruluşları arayın. Sonuçlar puanlanmaz; filtreye uyan herkes aynı sırada listelenir.",
@@ -629,6 +623,12 @@
     "loadMore": "Daha fazla göster",
     "loadingMore": "Yükleniyor..."
   },
+  "kurulusSec": {
+    "title": "Kuruluş Seç",
+    "description": "Çalışma başlatmak istediğiniz kuruluşu arayıp seçin.",
+    "searchPlaceholder": "Kuruluş adı ara...",
+    "searchLabel": "Kuruluş ara",
+    "loadingLabel": "Kuruluşlar yükleniyor",
     "loadError": "Kuruluşlar yüklenemedi.",
     "retry": "Tekrar dene",
     "emptyMessage": "Aramanızla eşleşen bir kuruluş bulunamadı.",

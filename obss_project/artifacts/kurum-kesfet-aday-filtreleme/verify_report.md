@@ -23,3 +23,24 @@ _Reference: docs/kesfet-tasarim.md (atdd.md ve plan.md geçersiz; code_diff.md y
 - Yetkilendirme matrisi: `tests/authorization/test_discover_authz.py` (kim çağırabilir, yalnız PUBLIC, alan allowlist'i, gizli deneyimden sızıntı, istemci kapsam genişletme, kuruluş dizini).
 - Canlı duman testi: anonim `GET /discover/talents` → 401; anonim + bilinmeyen parametre → 401.
 - Eksik: ekran görüntüleri, güvenlik tarayıcıları, red-team.
+
+## Ek koşu — `frontend/app/globals.css` (yinelenen `y360-step-in` tanımının kaldırılması, main birleşmesi sonrası)
+| Gate | Result | Evidence |
+|---|---|---|
+| Lint | PASS | `npm run lint` — 0 hata, 7 uyarı (önceden var olan dosyalar) |
+| Type check | FAIL (yerel ortam) | `tsc --noEmit` — `qr-code.tsx`: `Cannot find module 'qrcode-generator'`; main'den gelen paket yerelde kurulu değil, bu değişiklikle ilgisiz |
+| Unit testler | FAIL (yerel ortam) | `npm run test` — 1288 test geçti; 3 dosya (`qr-code`, `p/[slug]/page`, `p/[slug]/showcase`) aynı eksik paket yüzünden yüklenemedi |
+| Build | Çalıştırılmadı | Aynı eksik paket yüzünden yerelde derlenemez |
+| İnsan onayı | PENDING | — |
+
+## Ek koşu — kaymış Keşfet bloklarının düzeltilmesi (`tr.json`, `docs/API.md`; PR #52 frontend CI)
+Kök neden: iki dosya kısmi sahnelenirken (`git apply --cached --unidiff-zero`) Keşfet blokları 6 satır kaymıştı; önceki koşular çalışma ağacını doğruladı, commit'e giren içeriği değil.
+Bu koşu **sahnelenen içerik** üzerinde yapıldı (`git checkout-index` ile geçici klasöre çıkarılarak).
+
+| Gate | Result | Evidence |
+|---|---|---|
+| Dosya konumu | PASS | Sahnede `kesfet` üst düzey grup; `docs/API.md` §2.11 → §3 → `/discover` satırı sırada |
+| Type check | PASS (Keşfet) / FAIL (yerel ortam) | `tsc --noEmit` — `kesfet` hatası yok; kalan tek hata `qrcode-generator` yerelde kurulu değil |
+| Unit testler | PASS | `vitest run app/kesfet lib/api/discover.test.ts messages` — 129 geçti |
+| Lint / Build | Çalıştırılmadı | Değişiklik JSON ve Markdown; build eksik paket yüzünden yerelde derlenemez — CI doğrulayacak |
+| İnsan onayı | PENDING | — |
