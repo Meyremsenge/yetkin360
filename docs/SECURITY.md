@@ -163,6 +163,8 @@ Limit aşımında `429 RATE_LIMITED` döner ([API.md](API.md) §1.5).
 | `POST /auth/verify-email` | 20/saat | — |
 | `POST /auth/refresh` | 60/dk | — |
 
+**Keşfet (PLAN R.1):** `GET /discover/talents` ve `GET /discover/organizations` ortak bir kovayı paylaşır — **60/dk/kullanıcı** (yukarıdaki "Arama" satırı), aynı `auth_rate_limits` tablosu, anahtar kullanıcı kimliğinin HMAC'i.
+
 - Yanıt `429 RATE_LIMITED` + `Retry-After` (saniye). Hesap sayacı, hesap var/yok fark etmeksizin gönderilen e-postaya göre tutulur; yanıt numaralandırmaya izin vermez.
 - Anahtarlar `HMAC-SHA256(SECRET_KEY, "kova:değer")`; tabloda ham IP/e-posta yoktur. IPv6 istemciler /64 önekiyle gruplanır.
 - Sıra: önce hız sınırı (429), sonra YET-175 hesap kilidi (423).
