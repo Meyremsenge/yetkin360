@@ -274,7 +274,8 @@ function primaryLinks(data: NavData): NavEntry[] {
 
 const ADMIN_LINKS: NavEntry[] = [
   { href: "/admin/dogrulama-kuyrugu", icon: "shield", label: messages.shell.adminVerificationQueueLink },
-  { href: "/admin/skiller", icon: "tag", label: messages.shell.adminSkillsLink },
+  // Skill management (/admin/skiller) stays reachable by URL but is not in the
+  // menu: the taxonomy is seeded and rarely edited.
   { href: "/admin/sahtekarlik-isaretleri", icon: "shield", label: messages.shell.adminFraudQueueLink },
 ];
 
