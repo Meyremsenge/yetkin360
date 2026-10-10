@@ -67,24 +67,63 @@ async function handleResponse<T>(response: Response): Promise<T> {
   throw parseApiError(response.status, body);
 }
 
+export interface PublicAttestedSkill {
+  name_tr: string;
+  category: string;
+  claim_type: string;
+  attestor_organization: string | null;
+}
+
+export interface PublicEvidencedSkill {
+  name_tr: string;
+  category: string;
+}
+
+export interface PublicVerifiedExperience {
+  id: string;
+  organization_name_snapshot: string;
+  organization_trust_level?: string;
+  role_snapshot: string;
+  institution_name_snapshot?: string | null;
+  started_on_snapshot: string | null;
+  ended_on_snapshot: string | null;
+  claim_type: string;
+  created_at: string;
+  /** /v/{token} link; null when the record has no shareable token. */
+  public_token?: string | null;
+  skills?: PublicAttestedSkill[];
+  evidenced_skills?: PublicEvidencedSkill[];
+}
+
+export interface PublicSkill {
+  name_tr: string;
+  category: string;
+  strength: string;
+  /** true: an organization attested it; false: task/deliverable evidence only. */
+  attested: boolean;
+  experience_count: number;
+}
+
+export interface PublicProfile {
+  display_name: string;
+  headline?: string | null;
+  department?: string | null;
+  study_year?: number | null;
+  city?: string | null;
+  institution_name?: string | null;
+  institution_trust_level?: string | null;
+  verified_experiences: PublicVerifiedExperience[];
+  skills?: PublicSkill[];
+  attesting_organization_count?: number;
+}
+
 /**
  * Get public profile by slug.
- * AC-1: display_name, verified_experiences.
+ * AC-1: identity line, verified_experiences (PUBLIC only), skill map.
  * AC-3: 404 "Kayıt bulunamadı".
  * AC-8: network error → NetworkError.
  */
-export async function getPublicProfile(slug: string): Promise<{
-  display_name: string;
-  verified_experiences: Array<{
-    id: string;
-    organization_name_snapshot: string;
-    role_snapshot: string;
-    started_on_snapshot: string | null;
-    ended_on_snapshot: string | null;
-    claim_type: string;
-    created_at: string;
-  }>;
-}> {
+export async function getPublicProfile(slug: string): Promise<PublicProfile> {
   try {
     const url = `${BASE_URL}/public/talents/${encodeURIComponent(slug)}`;
     const response = await fetchWithTimeout(url);
