@@ -450,6 +450,22 @@ def get_scoped_or_404(scoped_select: Select, session: Session):
     return session.execute(scoped_select).scalars().first()
 
 
+def _not_fully_revoked():
+    """
+    GUV-05 filter for VerifiedExperience queries: visible if the engagement has
+    no attestations at all, or at least one non-revoked attestation. An
+    experience whose attestations were all revoked is hidden everywhere.
+    """
+    has_any_attestation = select(1).where(
+        Attestation.engagement_id == VerifiedExperience.engagement_id,
+    ).exists()
+    has_active_attestation = select(1).where(
+        Attestation.engagement_id == VerifiedExperience.engagement_id,
+        Attestation.revoked_at.is_(None),
+    ).exists()
+    return (~has_any_attestation) | has_active_attestation
+
+
 def scoped_public_talent_profile(session: Session, slug: str) -> Select:
     """
     Return a SQLAlchemy Select query for a PUBLIC talent profile by slug.
@@ -499,25 +515,10 @@ def scoped_public_verified_experiences(session: Session, talent_id: uuid.UUID) -
 
     Implements AC-1, AC-5 (AC-S3) (public-profil-endpoint, YET-105), GUV-05 (AC-4/AC-S3)
     """
-    # Subquery: check if engagement has any attestations at all
-    has_any_attestation = (
-        select(1).where(
-            Attestation.engagement_id == VerifiedExperience.engagement_id,
-        ).exists()
-    )
-
-    # Subquery: check if engagement has at least one non-revoked attestation
-    has_active_attestation = (
-        select(1).where(
-            Attestation.engagement_id == VerifiedExperience.engagement_id,
-            Attestation.revoked_at.is_(None),
-        ).exists()
-    )
-
     return select(VerifiedExperience).where(
         VerifiedExperience.talent_id == talent_id,
         # GUV-05: Include if no attestations exist OR at least one is active
-        (~has_any_attestation) | has_active_attestation,
+        _not_fully_revoked(),
     )
 
 
@@ -541,25 +542,10 @@ def scoped_own_verified_experiences(session: Session, principal: Principal) -> S
     Implements AC-7, AC-9/AC-S1 (owner isolation, visibility filter NOT applied), GUV-05 (AC-4/AC-S3)
     """
     if principal.talent_id is not None:
-        # Subquery: check if engagement has any attestations at all
-        has_any_attestation = (
-            select(1).where(
-                Attestation.engagement_id == VerifiedExperience.engagement_id,
-            ).exists()
-        )
-
-        # Subquery: check if engagement has at least one non-revoked attestation
-        has_active_attestation = (
-            select(1).where(
-                Attestation.engagement_id == VerifiedExperience.engagement_id,
-                Attestation.revoked_at.is_(None),
-            ).exists()
-        )
-
         return select(VerifiedExperience).where(
             VerifiedExperience.talent_id == principal.talent_id,
             # GUV-05: Include if no attestations exist OR at least one is active
-            (~has_any_attestation) | has_active_attestation,
+            _not_fully_revoked(),
         )
     # All other kinds: no verified experiences in scope
     return select(VerifiedExperience).where(VerifiedExperience.id.in_([]))
@@ -588,21 +574,6 @@ def scoped_public_verified_experience_by_token(session: Session, token: str) -> 
 
     Implements AC-1, AC-2, AC-3 (AC-S2), AC-6 (public-dogrulama-linki, YET-106), GUV-05 (AC-4/AC-S3)
     """
-    # Subquery: check if engagement has any attestations at all
-    has_any_attestation = (
-        select(1).where(
-            Attestation.engagement_id == VerifiedExperience.engagement_id,
-        ).exists()
-    )
-
-    # Subquery: check if engagement has at least one non-revoked attestation
-    has_active_attestation = (
-        select(1).where(
-            Attestation.engagement_id == VerifiedExperience.engagement_id,
-            Attestation.revoked_at.is_(None),
-        ).exists()
-    )
-
     # Join keeps this one query: a soft-deleted talent's token must be
     # indistinguishable from an unknown token (YET-230), same as the slug route.
     return (
@@ -613,7 +584,52 @@ def scoped_public_verified_experience_by_token(session: Session, token: str) -> 
             VerifiedExperience.visibility == "PUBLIC",
             TalentProfile.deleted_at.is_(None),
             # GUV-05: Include if no attestations exist OR at least one is active
-            (~has_any_attestation) | has_active_attestation,
+            _not_fully_revoked(),
+        )
+    )
+
+
+def scoped_public_organization(session: Session, organization_id: uuid.UUID) -> Select:
+    """
+    Return a SQLAlchemy Select query for an organization shown on its public
+    showcase page (GET /public/organizations/{id}, auth-free).
+
+    Only ACTIVE, non-deleted organizations: a suspended or deleted organization
+    is indistinguishable from an unknown id (same 404). The same set is already
+    listed in the Keşfet directory (scoped_organization_directory).
+    """
+    return select(Organization).where(
+        Organization.id == organization_id,
+        Organization.status == "ACTIVE",
+        Organization.deleted_at.is_(None),
+    )
+
+
+def scoped_public_org_showcase_experiences(session: Session, organization_id: uuid.UUID) -> Select:
+    """
+    Return a SQLAlchemy Select query for the VerifiedExperience rows shown on an
+    organization's public showcase, joined with their TalentProfile.
+
+    Double consent: the experience is PUBLIC (the talent opted this record in)
+    AND the talent profile itself is PUBLIC with a slug and not deleted. A
+    PUBLIC record of a non-PUBLIC profile never surfaces. GUV-05 applies.
+
+    The caller must first resolve the organization via scoped_public_organization()
+    and check its showcase_public switch; this query only scopes the records.
+
+    Returns rows of (VerifiedExperience, TalentProfile).
+    """
+    return (
+        select(VerifiedExperience, TalentProfile)
+        .join(Engagement, Engagement.id == VerifiedExperience.engagement_id)
+        .join(TalentProfile, TalentProfile.id == VerifiedExperience.talent_id)
+        .where(
+            Engagement.organization_id == organization_id,
+            VerifiedExperience.visibility == "PUBLIC",
+            TalentProfile.visibility == "PUBLIC",
+            TalentProfile.public_slug.is_not(None),
+            TalentProfile.deleted_at.is_(None),
+            _not_fully_revoked(),
         )
     )
 
@@ -641,6 +657,19 @@ def scoped_attestations_for_engagement(session: Session, engagement_id: uuid.UUI
         Attestation.engagement_id == engagement_id,
         Attestation.skill_id.isnot(None),
         Attestation.revoked_at.is_(None),  # GUV-05: exclude revoked attestations
+    )
+
+
+def scoped_attestations_for_engagements(session: Session, engagement_ids: list[uuid.UUID]) -> Select:
+    """
+    Batch form of scoped_attestations_for_engagement() for several already
+    visibility-checked engagements at once (organization showcase: one query
+    instead of one per record). Same filters: skill set, not revoked (GUV-05).
+    """
+    return select(Attestation).where(
+        Attestation.engagement_id.in_(engagement_ids),
+        Attestation.skill_id.isnot(None),
+        Attestation.revoked_at.is_(None),
     )
 
 
@@ -684,19 +713,10 @@ def scoped_discoverable_verified_experiences(session: Session, talent_ids: list[
     Same visibility rule as the public profile: visibility='PUBLIC', and
     GUV-05 — an experience whose attestations are all revoked is hidden.
     """
-    has_any_attestation = (
-        select(1).where(Attestation.engagement_id == VerifiedExperience.engagement_id).exists()
-    )
-    has_active_attestation = (
-        select(1).where(
-            Attestation.engagement_id == VerifiedExperience.engagement_id,
-            Attestation.revoked_at.is_(None),
-        ).exists()
-    )
     return select(VerifiedExperience).where(
         VerifiedExperience.talent_id.in_(talent_ids),
         VerifiedExperience.visibility == "PUBLIC",
-        (~has_any_attestation) | has_active_attestation,
+        _not_fully_revoked(),
     )
 
 

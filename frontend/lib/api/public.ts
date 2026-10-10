@@ -1,6 +1,7 @@
 /**
  * Public API client — no authentication required.
- * Used for /p/{slug} (public profile) and /v/{token} (public verification) pages.
+ * Used for /p/{slug} (public profile), /v/{token} (public verification) and
+ * /o/{id} (organization showcase) pages.
  * AC-6: public routes, no credentials in fetch.
  * AC-8/AC-9: network error handling + plain text safety.
  */
@@ -180,6 +181,46 @@ export async function getPublicVerification(token: string): Promise<{
 }> {
   try {
     const url = `${BASE_URL}/public/v/${encodeURIComponent(token)}`;
+    const response = await fetchWithTimeout(url);
+    return await handleResponse(response);
+  } catch (error) {
+    if (error instanceof ApiError || error instanceof NetworkError) {
+      throw error;
+    }
+    throw new NetworkError("network");
+  }
+}
+
+export interface OrganizationShowcaseExperience {
+  role_snapshot: string;
+  started_on: string | null;
+  ended_on: string | null;
+  talent_display_name: string;
+  talent_public_slug: string;
+  institution_name: string | null;
+  public_token: string | null;
+  skills: string[];
+}
+
+export interface OrganizationShowcase {
+  id: string;
+  name: string;
+  verification_level: string;
+  /** Verified (T2+) domain only; null otherwise. */
+  domain: string | null;
+  showcase_enabled: boolean;
+  stats: { verified_public_count: number; institution_count: number };
+  /** Double-consented records only; always empty when the showcase is off. */
+  experiences: OrganizationShowcaseExperience[];
+}
+
+/**
+ * Get an organization's public showcase.
+ * 404 ORGANIZATION_NOT_FOUND: unknown, deleted or inactive organization.
+ */
+export async function getOrganizationShowcase(id: string): Promise<OrganizationShowcase> {
+  try {
+    const url = `${BASE_URL}/public/organizations/${encodeURIComponent(id)}`;
     const response = await fetchWithTimeout(url);
     return await handleResponse(response);
   } catch (error) {

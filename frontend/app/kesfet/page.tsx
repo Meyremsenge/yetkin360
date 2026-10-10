@@ -842,9 +842,6 @@ function TalentResults({
 }
 
 function OrganizationResults({ ready, q, onClear }: { ready: boolean; q: string; onClear: () => void }) {
-  const session = useSession();
-  const canStartEngagement = Boolean(session.data?.talent_profile);
-
   const query = useInfiniteQuery({
     queryKey: ["discover-organizations", q],
     queryFn: ({ pageParam }) => listDiscoverOrganizations({ q, cursor: pageParam }),
@@ -886,7 +883,7 @@ function OrganizationResults({ ready, q, onClear }: { ready: boolean; q: string;
         <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((organization, index) => (
             <li key={organization.id} className="y360-step-in" style={stepStyle(index)}>
-              <OrganizationCard organization={organization} canStartEngagement={canStartEngagement} />
+              <OrganizationCard organization={organization} />
             </li>
           ))}
         </ul>
