@@ -79,10 +79,10 @@ export default function Home() {
         <section className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-6 px-4 pb-16 pt-6 md:px-8 lg:min-h-[calc(100vh-84px)] lg:grid-cols-[11fr_9fr] lg:gap-8 lg:pb-20">
           <div>
             <p
-              className="y360-rise inline-flex items-center gap-2.5 rounded-full border border-border bg-card py-1 pl-1 pr-3.5 text-[13px] text-muted-foreground"
+              className="y360-rise inline-flex items-center gap-2.5 rounded-full border border-border bg-card px-3.5 py-1.5 text-[13px] text-muted-foreground"
               style={rise(0)}
             >
-              <span className="rounded-full bg-success/10 px-2.5 py-0.5 font-medium text-success">{home.eyebrowTag}</span>
+              <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-success" />
               {home.eyebrow}
             </p>
 

@@ -4,6 +4,7 @@ import { useSession } from "@/lib/session/use-session";
 import { AppShell } from "@/components/app-shell";
 import { Alert } from "@/components/ui/alert";
 import ProfileForm from "./profile-form";
+import ProfileHero from "./profile-hero";
 import SkillsSection from "./skills-section";
 import EvidenceSection from "./evidence-section";
 import InstitutionLinkSection from "./institution-link-section";
@@ -26,6 +27,7 @@ export default function ProfilePage() {
         {/* AC-1: Render ProfileForm + SkillsSection if talent_profile is valid */}
         {hasValidProfile ? (
           <>
+            <ProfileHero profile={talentProfile as Record<string, unknown>} />
             <ProfileForm initialData={talentProfile as Record<string, unknown>} />
             <SkillsSection />
             <EvidenceSection />

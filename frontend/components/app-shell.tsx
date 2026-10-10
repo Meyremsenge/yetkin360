@@ -12,6 +12,7 @@ import {
   InvalidResponseError,
 } from "@/lib/api/errors";
 import { cn } from "@/lib/utils";
+import { SealMark } from "@/components/brand/brand-mark";
 import messages from "@/messages/tr.json";
 
 const FOCUS_RING =
@@ -118,9 +119,24 @@ function maskEmail(email: string | undefined): string {
   return `${local.slice(0, keep)}…${email.slice(at)}`;
 }
 
-function initialOf(email: string | undefined): string {
+// "Ayşe Yılmaz" → "AY"; falls back to the e-mail's first letter.
+function initialsOf(name: string | undefined, email: string | undefined): string {
+  const words = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (words.length > 0) {
+    const first = words[0].charAt(0);
+    const last = words.length > 1 ? words[words.length - 1].charAt(0) : "";
+    return `${first}${last}`.toLocaleUpperCase("tr-TR");
+  }
   return email ? email.charAt(0).toLocaleUpperCase("tr-TR") : "?";
 }
+
+type Identity = {
+  name: string | undefined;
+  /** Second line under the name: role or organisation. */
+  subtitle: string;
+  email: string | undefined;
+  publicSlug: string | null;
+};
 
 type NamedRef = { id: string; name: string };
 
@@ -166,23 +182,35 @@ function Logo({ size = "md" }: { size?: "md" | "sm" }) {
     <Link
       href="/calismalar"
       className={cn(
-        "rounded-md font-serif font-bold text-foreground",
+        "inline-flex items-center gap-2 rounded-md font-serif font-bold text-foreground",
         size === "md" ? "text-xl" : "text-lg",
         FOCUS_RING
       )}
     >
+      <SealMark className={size === "md" ? "h-7 w-7" : "h-6 w-6"} />
       {messages.home.title}
     </Link>
   );
 }
 
-function Avatar({ email }: { email: string | undefined }) {
+function Avatar({
+  name,
+  email,
+  size = "md",
+}: {
+  name?: string;
+  email: string | undefined;
+  size?: "md" | "lg";
+}) {
   return (
     <span
       aria-hidden="true"
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-card font-serif text-sm font-semibold text-foreground"
+      className={cn(
+        "flex shrink-0 items-center justify-center rounded-full bg-success font-serif font-semibold text-background",
+        size === "md" ? "h-9 w-9 text-[13px]" : "h-11 w-11 text-base"
+      )}
     >
-      {initialOf(email)}
+      {initialsOf(name, email)}
     </span>
   );
 }
@@ -357,13 +385,10 @@ function NavLinks({
 function SidebarHeader({ trailing }: { trailing?: ReactNode }) {
   return (
     <div className="px-5 pb-5 pt-6">
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-center justify-between gap-2">
         <Logo />
         {trailing}
       </div>
-      <p className="mt-1 font-mono text-[11px] leading-4 text-muted-foreground">
-        {messages.home.tagline}
-      </p>
     </div>
   );
 }
@@ -373,14 +398,15 @@ function SidebarHeader({ trailing }: { trailing?: ReactNode }) {
  * with CSS so it is a real DOM node; `variant="topbar"` mounts it on open.
  */
 function UserMenu({
-  email,
+  identity,
   onLogout,
   variant,
 }: {
-  email: string | undefined;
+  identity: Identity;
   onLogout: () => void;
   variant: "sidebar" | "topbar";
 }) {
+  const { name, subtitle, email, publicSlug } = identity;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -406,47 +432,70 @@ function UserMenu({
     };
   }, [open]);
 
+  const itemClass = cn(
+    "flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm transition-colors duration-[120ms]",
+    FOCUS_RING
+  );
+
   const list = (
-    <ul
+    <div
       id={menuId}
       className={cn(
-        "absolute z-50 min-w-[200px] rounded-lg border border-border bg-card p-1",
+        "y360-step-in absolute z-50 min-w-[232px] overflow-hidden rounded-xl border border-border bg-card",
         OVERLAY_SHADOW,
         variant === "sidebar" ? "bottom-full left-0 right-0 mb-2" : "right-0 top-full mt-2",
         variant === "sidebar" && !open && "hidden"
       )}
     >
-      <li>
-        <Link
-          href="/profil"
-          onClick={() => setOpen(false)}
-          className={cn(
-            "flex h-9 items-center gap-2 rounded-md px-3 text-sm text-foreground hover:bg-muted",
-            FOCUS_RING
-          )}
-        >
-          <Icon name="user" className="text-muted-foreground" />
-          {messages.shell.profileLink}
-        </Link>
-      </li>
-      <li aria-hidden="true" className="my-1 h-px bg-border" />
-      <li>
+      <div className="flex items-center gap-3 border-b border-border bg-sand/50 px-4 py-3.5">
+        <Avatar name={name} email={email} size="lg" />
+        <div className="min-w-0">
+          <p className="truncate font-serif text-[15px] font-semibold text-foreground">{name ?? masked}</p>
+          <p className="truncate font-mono text-[11px] text-muted-foreground">{masked}</p>
+        </div>
+      </div>
+      <ul className="p-1.5">
+        <li>
+          <Link
+            href="/profil"
+            onClick={() => setOpen(false)}
+            className={cn(itemClass, "text-foreground hover:bg-muted")}
+          >
+            <Icon name="user" className="text-muted-foreground" />
+            {messages.shell.profileLink}
+          </Link>
+        </li>
+        {publicSlug && (
+          <li>
+            <Link
+              href={`/p/${encodeURIComponent(publicSlug)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setOpen(false)}
+              className={cn(itemClass, "text-foreground hover:bg-muted")}
+            >
+              <Icon name="globe" className="text-muted-foreground" />
+              <span className="flex-1">{messages.shell.publicProfileLink}</span>
+              <Icon name="arrowUpRight" className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="sr-only">{messages.shell.newTab}</span>
+            </Link>
+          </li>
+        )}
+      </ul>
+      <div className="border-t border-border p-1.5">
         <button
           type="button"
           onClick={() => {
             setOpen(false);
             onLogout();
           }}
-          className={cn(
-            "flex h-9 w-full items-center gap-2 rounded-md px-3 text-left text-sm text-destructive hover:bg-destructive/10",
-            FOCUS_RING
-          )}
+          className={cn(itemClass, "text-destructive hover:bg-destructive/10")}
         >
           <Icon name="logOut" />
           {messages.session.logout}
         </button>
-      </li>
-    </ul>
+      </div>
+    </div>
   );
 
   return (
@@ -461,17 +510,21 @@ function UserMenu({
         onClick={() => setOpen((value) => !value)}
         className={cn(
           variant === "sidebar"
-            ? "flex h-14 w-full items-center gap-3 rounded-md px-2 text-left hover:bg-background/60"
+            ? cn(
+                "flex h-14 w-full items-center gap-3 rounded-lg border px-2.5 text-left transition-colors duration-[120ms]",
+                open ? "border-border bg-card" : "border-transparent hover:border-border hover:bg-card/70"
+              )
             : "flex h-10 w-10 items-center justify-center rounded-full",
           FOCUS_RING
         )}
       >
-        <Avatar email={email} />
+        <Avatar name={name} email={email} />
         {variant === "sidebar" && (
           <>
             <span className="min-w-0 flex-1">
               <span className="sr-only">{messages.shell.userMenu}: </span>
-              <span className="block truncate text-sm font-medium text-foreground">{masked}</span>
+              <span className="block truncate text-sm font-semibold text-foreground">{name ?? masked}</span>
+              <span className="block truncate text-xs text-muted-foreground">{subtitle}</span>
             </span>
             <Icon name="chevronsUpDown" className="text-muted-foreground" />
           </>
@@ -659,6 +712,19 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   const data = session.data;
+  const profileName = data?.talent_profile?.full_name;
+  const displayName =
+    (typeof profileName === "string" && profileName.trim()) || data?.user.full_name?.trim() || undefined;
+  const firstEntity = data ? namedRefs(data.organizations)[0] ?? namedRefs(data.institutions)[0] : undefined;
+  const identity: Identity = {
+    name: displayName,
+    subtitle: data?.talent_profile
+      ? messages.shell.roleStudent
+      : firstEntity?.name ??
+        (data?.user.is_platform_admin ? messages.shell.roleAdmin : maskEmail(data?.user.email)),
+    email: data?.user.email,
+    publicSlug: data?.talent_profile?.public_slug ?? null,
+  };
   const navData: NavData | null = data
     ? {
         organizations: namedRefs(data.organizations),
@@ -699,7 +765,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <NavLinks data={navData} pathname={pathname} />
             </nav>
             <div className="border-t border-border p-3">
-              <UserMenu email={data.user.email} onLogout={() => logoutState.logout()} variant="sidebar" />
+              <UserMenu identity={identity} onLogout={() => logoutState.logout()} variant="sidebar" />
             </div>
           </aside>
 
@@ -721,7 +787,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </button>
               <Logo size="sm" />
             </div>
-            <UserMenu email={data.user.email} onLogout={() => logoutState.logout()} variant="topbar" />
+            <UserMenu identity={identity} onLogout={() => logoutState.logout()} variant="topbar" />
           </header>
 
           {drawerOpen && <MobileDrawer data={navData} pathname={pathname} onClose={closeDrawer} />}

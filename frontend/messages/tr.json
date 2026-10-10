@@ -55,7 +55,6 @@
       "audience": "Kimler için"
     },
     "eyebrow": "Kanıta dayalı yetkinlik sicili",
-    "eyebrowTag": "Açık kaynak",
     "heroTitleLead": "Yetkinliğiniz iddia değil,",
     "heroTitleAccent": "kanıt olsun.",
     "heroPoints": [
@@ -158,7 +157,10 @@
     "closeMenu": "Menüyü kapat",
     "userMenu": "Kullanıcı menüsü",
     "newTab": "(yeni sekmede açılır)",
-    "signIn": "Giriş yap"
+    "signIn": "Giriş yap",
+    "roleStudent": "Öğrenci",
+    "roleAdmin": "Platform yöneticisi",
+    "signedInAs": "Oturum açık"
   },
   "emailVerificationBanner": {
     "message": "E-posta adresiniz doğrulanmadı. Doğrulanana kadar kayıt oluşturamaz veya değişiklik yapamazsınız.",
@@ -306,7 +308,29 @@
     "emptySignalsHint": "Çalışmalarınız tanıklıkla doğrulandıkça sinyaller burada görünür.",
     "evidenceBackedLabel": "Kanıtla desteklenen yetkinlik",
     "verifiedLabel": "Doğrulanmış deneyim",
-    "institutionDescription": "Bağlı olduğunuz kurum ve gönderdiğiniz bağlanma talepleri."
+    "institutionDescription": "Bağlı olduğunuz kurum ve gönderdiğiniz bağlanma talepleri.",
+    "engagementSourceLabel": "Çalışma kaydından",
+    "hero": {
+      "visibility": {
+        "PRIVATE": "Yalnızca siz görebilirsiniz",
+        "INSTITUTION": "Kurumunuz görebilir",
+        "ORGANIZATIONS": "Kuruluşlar görebilir",
+        "PUBLIC": "Herkese açık"
+      },
+      "studyYear": "{n}. sınıf",
+      "publicLinkTitle": "Herkese açık profil bağlantınız",
+      "copy": "Kopyala",
+      "copied": "Kopyalandı",
+      "view": "Görüntüle",
+      "notPublicTitle": "Profiliniz herkese açık değil",
+      "notPublicHint": "Bağlantı paylaşmak için aşağıdan görünürlüğü “Herkese Açık” yapın ve bir profil linki belirleyin.",
+      "stats": {
+        "verified": "Doğrulanmış deneyim",
+        "backedSkills": "Kanıtlı yetkinlik",
+        "signals": "Kanıt sinyali"
+      }
+    },
+    "skillSearchLabel": "Eklemek istediğiniz yetkinlik"
   },
   "kurumBaglan": {
     "title": "Kuruma Bağlanma Talebi",
@@ -462,7 +486,15 @@
     "revokeAttestationSuccessMessage": "Tanıklık geri çekildi.",
     "revokeAttestationForbiddenError": "Sadece kendi verdiğiniz tanıklığı geri çekebilirsiniz.",
     "revokeAttestationAlreadyRevokedError": "Bu tanıklık zaten geri çekilmiş.",
-    "revokeAttestationReasonRequiredError": "Geri çekme gerekçesi zorunludur."
+    "revokeAttestationReasonRequiredError": "Geri çekme gerekçesi zorunludur.",
+    "summary": {
+      "total": "Toplam çalışma",
+      "ongoing": "Süren",
+      "verified": "Doğrulanmış deneyim"
+    },
+    "newCardTitle": "Yeni bir çalışma başlatın",
+    "newCardHint": "Kuruluşu seçin, deneyiminizi beyan edin; kanıt ve tanıklık zinciri buradan başlar.",
+    "updatedLabel": "Son güncelleme"
   },
   "calismaOlustur": {
     "title": "Yeni Çalışma Oluştur",
@@ -530,7 +562,10 @@
     "timelineTitle": "Doğrulanmış deneyimler",
     "emptyHint": "Deneyimler kuruluş tanıklığıyla doğrulandığında burada görünür.",
     "sealLabel": "Doğrulanmış deneyim",
-    "loadingLabel": "Profil yükleniyor"
+    "loadingLabel": "Profil yükleniyor",
+    "eyebrow": "Doğrulanmış yetkinlik sicili",
+    "trustNote": "Bu sayfadaki her deneyim, kuruluşun tanıklığı ve sunulan kanıtlarla doğrulanmıştır.",
+    "trustTitle": "Bu kayıtlar neden güvenilir?"
   },
   "publicVerification": {
     "notFound": "Kayıt bulunamadı",

@@ -58,6 +58,17 @@ function getStrengthLabel(strength: string): string {
 
 const STRENGTH_LEVEL: Record<string, number> = { NONE: 0, WEAK: 1, MODERATE: 2, STRONG: 3 };
 
+// Signals produced inside an engagement: with no named attester they come from
+// the engagement record, not from the student's own claim.
+const ENGAGEMENT_SOURCES = new Set(["TASK", "DELIVERABLE", "EVALUATION", "ATTESTATION"]);
+
+function signalOrigin(signal: Signal): string {
+  if (signal.attested_by) return signal.attested_by;
+  return ENGAGEMENT_SOURCES.has(signal.source_type)
+    ? messages.profil.engagementSourceLabel
+    : messages.profil.selfClaimLabel;
+}
+
 function StrengthBars({ strength }: { strength: string }) {
   const filled = STRENGTH_LEVEL[strength] ?? 0;
   return (
@@ -185,14 +196,12 @@ export default function EvidenceSection() {
                         <div className="min-w-0 flex-1">
                           {/* AC-1: source_type, strength, date */}
                           <div className="flex flex-wrap items-center gap-x-2 text-sm text-foreground">
-                            <span>{getSourceTypeLabel(signal.source_type)}</span>
+                            <span className="font-medium">{getSourceTypeLabel(signal.source_type)}</span>
                             <StrengthBars strength={signal.strength} />
                             <span className="text-muted-foreground">{getStrengthLabel(signal.strength)}</span>
                           </div>
-                          {/* AC-5: attested_by or "Kendi beyanı" */}
-                          <div className="mt-0.5 text-sm font-medium text-foreground">
-                            {signal.attested_by || messages.profil.selfClaimLabel}
-                          </div>
+                          {/* AC-5: attested_by, else engagement record or "Kendi beyanı" */}
+                          <div className="mt-0.5 text-[13px] text-muted-foreground">{signalOrigin(signal)}</div>
                         </div>
 
                         <div className="flex flex-col items-end gap-1">

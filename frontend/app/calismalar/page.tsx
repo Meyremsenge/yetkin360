@@ -139,6 +139,48 @@ function SealMark() {
   );
 }
 
+const SUMMARY: {
+  key: keyof typeof messages.calismalar.summary;
+  filterKey: FilterKey;
+  accent?: boolean;
+}[] = [
+  { key: "total", filterKey: "all" },
+  { key: "ongoing", filterKey: "ongoing" },
+  { key: "verified", filterKey: "verified", accent: true },
+];
+
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+      <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// One quiet line icon per engagement kind (lucide shapes, inline).
+function KindIcon({ kind }: { kind: string }) {
+  const paths: Record<string, string> = {
+    INTERNSHIP: "M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16M4 6h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z",
+    CAPSTONE: "M22 10 12 5 2 10l10 5 10-5zM6 12v5c3 2 9 2 12 0v-5",
+    SHORT_PROJECT: "M13 2 3 14h9l-1 8 10-12h-9l1-8z",
+    PART_TIME: "M12 6v6l4 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z",
+  };
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-[18px] w-[18px]"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={paths[kind] ?? paths.INTERNSHIP} />
+    </svg>
+  );
+}
+
 function SkeletonCards() {
   return (
     <div role="status" className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -216,8 +258,9 @@ export default function CalismalarPage() {
           </div>
           <Link
             href="/calismalar/kurulus-sec"
-            className="inline-flex h-10 shrink-0 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success"
+            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-success px-4 text-sm font-medium text-background shadow-[0_8px_20px_-12px_rgba(38,84,69,0.8)] transition-colors hover:bg-success/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2"
           >
+            <PlusIcon />
             {messages.calismalar.newEngagementButton}
           </Link>
         </header>
@@ -245,10 +288,26 @@ export default function CalismalarPage() {
           </section>
         ) : (
           <>
+            <dl className="mt-8 grid grid-cols-3 overflow-hidden rounded-xl border border-border bg-card">
+              {SUMMARY.map(({ key, filterKey, accent }) => (
+                <div key={key} className="border-r border-border px-4 py-4 last:border-r-0 md:px-6">
+                  <dt className="text-xs text-muted-foreground">{messages.calismalar.summary[key]}</dt>
+                  <dd
+                    className={cn(
+                      "mt-1 font-serif text-3xl font-semibold tabular-nums",
+                      accent ? "text-success" : "text-foreground"
+                    )}
+                  >
+                    {countFor(filterKey)}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+
             <div
               role="tablist"
               aria-label={messages.calismalar.filterTabsLabel}
-              className="mt-8 flex overflow-x-auto border-b border-border"
+              className="mt-8 flex gap-1 overflow-x-auto overflow-y-hidden rounded-lg border border-border bg-muted/60 p-1 [scrollbar-width:none] sm:inline-flex [&::-webkit-scrollbar]:hidden"
             >
               {FILTER_KEYS.map((key) => {
                 const selected = filter === key;
@@ -260,14 +319,19 @@ export default function CalismalarPage() {
                     aria-selected={selected}
                     onClick={() => setFilter(key)}
                     className={cn(
-                      "-mb-px flex h-10 shrink-0 items-center gap-1.5 border-b-2 px-4 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success",
+                      "flex h-9 shrink-0 items-center gap-2 rounded-md px-3.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success",
                       selected
-                        ? "border-success text-foreground"
-                        : "border-transparent text-muted-foreground hover:text-foreground",
+                        ? "bg-card text-foreground shadow-[0_1px_3px_rgba(34,31,27,0.12)]"
+                        : "text-muted-foreground hover:text-foreground",
                     )}
                   >
                     {messages.calismalar.filterTabs[key]}
-                    <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                    <span
+                      className={cn(
+                        "min-w-[20px] rounded-full px-1.5 text-center font-mono text-[11px] tabular-nums",
+                        selected ? "bg-success/10 text-success" : "bg-background/70 text-muted-foreground"
+                      )}
+                    >
                       {countFor(key)}
                     </span>
                   </button>
@@ -287,9 +351,18 @@ export default function CalismalarPage() {
                       <li key={item.id}>
                         <Link
                           href={`/calismalar/${item.id}`}
-                          className="flex h-full flex-col gap-4 rounded-lg border border-border bg-card p-5 hover:border-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success"
+                          className={cn(
+                            "group relative flex h-full flex-col gap-4 overflow-hidden rounded-xl border bg-card p-5 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_-28px_rgba(34,31,27,0.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+                            isVerified ? "border-success/30 hover:border-success/60" : "border-border hover:border-muted-foreground/40"
+                          )}
                         >
-                          <div className="flex items-start justify-end">
+                          {isVerified ? (
+                            <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-success" />
+                          ) : null}
+                          <div className="flex items-start justify-between gap-3">
+                            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-sand text-foreground">
+                              <KindIcon kind={item.kind} />
+                            </span>
                             <Badge variant={variant} className="gap-1.5">
                               <span
                                 aria-hidden="true"
@@ -309,7 +382,7 @@ export default function CalismalarPage() {
                               {messages.calismalar.kind[item.kind]} · {item.organization_name}
                             </p>
                           </div>
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center justify-between gap-2 border-t border-border pt-4">
                             <MiniChain status={item.status} />
                             <time
                               dateTime={item.updated_at}
@@ -323,6 +396,24 @@ export default function CalismalarPage() {
                       </li>
                     );
                   })}
+                  {filter === "all" ? (
+                    <li>
+                      <Link
+                        href="/calismalar/kurulus-sec"
+                        className="group flex h-full min-h-[180px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-muted-foreground/30 p-5 text-center transition-colors hover:border-success hover:bg-success/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success"
+                      >
+                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-sand text-success transition-colors group-hover:bg-success group-hover:text-background">
+                          <PlusIcon />
+                        </span>
+                        <span className="font-serif text-lg font-semibold text-foreground">
+                          {messages.calismalar.newCardTitle}
+                        </span>
+                        <span className="max-w-[260px] text-sm text-muted-foreground">
+                          {messages.calismalar.newCardHint}
+                        </span>
+                      </Link>
+                    </li>
+                  ) : null}
                 </ul>
               )}
             </div>

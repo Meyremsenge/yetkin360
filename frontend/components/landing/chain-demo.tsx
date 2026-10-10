@@ -16,8 +16,8 @@ const STEPS = [
   { key: "verified", label: home.chain.verified, ...demo.steps.verified },
 ] as const;
 
-const STEP_MS = 3400;
-const HOLD_LAST_MS = 5200;
+const STEP_MS = 2000;
+const HOLD_LAST_MS = 3600;
 
 const STATUS_CLASS = [
   "border-border bg-muted text-muted-foreground",

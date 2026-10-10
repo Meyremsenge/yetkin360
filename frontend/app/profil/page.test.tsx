@@ -7,6 +7,9 @@ vi.mock("@/lib/session/use-session");
 vi.mock("@/app/profil/profile-form", () => ({
   default: () => <div data-testid="profile-form">Profile Form</div>,
 }));
+vi.mock("@/app/profil/profile-hero", () => ({
+  default: () => <div data-testid="profile-hero">Profile Hero</div>,
+}));
 vi.mock("@/app/profil/skills-section", () => ({
   default: () => <div data-testid="skills-section">Skills Section</div>,
 }));

@@ -9,6 +9,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { VerifiedSeal } from "@/components/ui/verified-seal";
 import { PublicTopBar, publicFocusRing } from "@/components/public-top-bar";
+import { SealMark } from "@/components/brand/brand-mark";
 import messages from "@/messages/tr.json";
 
 const t = messages.publicProfile;
@@ -98,7 +99,7 @@ export default function PublicProfilePage() {
     <div className="min-h-screen bg-background">
       <PublicTopBar label={t.topBarLabel} />
 
-      <main className="mx-auto max-w-[720px] px-4 pb-16 pt-6 md:pt-10">
+      <main className="mx-auto max-w-[800px] px-4 pb-16 pt-6 md:pt-10">
         {isLoading ? (
           <ProfileSkeleton />
         ) : isError ? (
@@ -116,50 +117,63 @@ export default function PublicProfilePage() {
           )
         ) : profile ? (
           <>
-            <header className="flex flex-col gap-4 md:flex-row md:items-center">
-              <span
-                aria-hidden="true"
-                className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-border bg-sand font-serif text-xl font-medium text-foreground"
-              >
-                {initials(profile.display_name)}
-              </span>
-              <div>
-                <h1 className="font-serif text-[32px] font-semibold leading-10">
-                  {profile.display_name}
-                </h1>
-                <p className="mt-1 text-sm tabular-nums text-muted-foreground">
-                  {t.experienceCount.replace("{n}", String(profile.verified_experiences.length))}
-                </p>
+            <header className="relative overflow-hidden rounded-2xl border border-border bg-sand/70 p-6 md:p-8">
+              <SealMark className="pointer-events-none absolute -right-10 -top-10 h-52 w-52 rotate-12 text-success/[0.07]" />
+              <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
+                <span
+                  aria-hidden="true"
+                  className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-success font-serif text-2xl font-semibold text-background ring-4 ring-background"
+                >
+                  {initials(profile.display_name)}
+                </span>
+                <div className="min-w-0">
+                  <p className="font-mono text-xs text-success">{t.eyebrow}</p>
+                  <h1 className="mt-1 font-serif text-[34px] font-semibold leading-tight md:text-[40px]">
+                    {profile.display_name}
+                  </h1>
+                  <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-success/25 bg-card px-3 py-1 text-sm tabular-nums text-success">
+                    <SealMark className="h-4 w-4" />
+                    {t.experienceCount.replace("{n}", String(profile.verified_experiences.length))}
+                  </p>
+                </div>
               </div>
             </header>
 
-            <section className="mt-8 border-t border-border pt-8">
-              <h2 className="font-serif text-2xl font-medium">{t.timelineTitle}</h2>
+            <section className="mt-10">
+              <h2 className="font-serif text-2xl font-semibold">{t.timelineTitle}</h2>
 
               {profile.verified_experiences.length === 0 ? (
-                <div className="mt-6 rounded-lg border border-border bg-card p-6">
-                  <p className="text-base font-semibold first-letter:uppercase">{t.empty}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{t.emptyHint}</p>
+                <div className="mt-6 flex items-center gap-5 rounded-xl border border-dashed border-border p-6">
+                  <SealMark className="h-12 w-12 shrink-0 text-muted-foreground/30" />
+                  <div>
+                    <p className="text-base font-semibold first-letter:uppercase">{t.empty}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{t.emptyHint}</p>
+                  </div>
                 </div>
               ) : (
-                <ol className="mt-6 ml-[10px] space-y-8 border-l border-border">
+                <ol className="relative mt-6 space-y-4 before:absolute before:bottom-6 before:left-[19px] before:top-6 before:w-px before:bg-border">
                   {profile.verified_experiences.map((exp) => {
                     const period = formatPeriod(exp.started_on_snapshot, exp.ended_on_snapshot);
                     const claimLabel = claimTypeLabels[exp.claim_type];
                     return (
-                      <li key={exp.id} className="relative pl-6">
-                        <div className="absolute -left-[10.5px] top-1">
+                      <li key={exp.id} className="relative flex gap-4">
+                        <span className="relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-success/25 bg-background">
                           <VerifiedSeal size="sm" label={t.sealLabel} />
+                        </span>
+                        <div className="min-w-0 flex-1 rounded-xl border border-border bg-card p-5 transition-colors hover:border-success/40">
+                          <h3 className="font-serif text-xl font-semibold">{exp.role_snapshot}</h3>
+                          <p className="mt-1 text-[15px] text-foreground">{exp.organization_name_snapshot}</p>
+                          {(period || claimLabel) && (
+                            <p className="mt-3 flex flex-wrap items-center gap-2 text-[13px] tabular-nums text-muted-foreground">
+                              {period ? <span className="font-mono text-xs">{period}</span> : null}
+                              {claimLabel ? (
+                                <span className="rounded-full border border-border bg-background px-2 py-0.5">
+                                  {claimLabel}
+                                </span>
+                              ) : null}
+                            </p>
+                          )}
                         </div>
-                        <h3 className="font-serif text-xl font-medium">{exp.role_snapshot}</h3>
-                        <p className="mt-1 text-[15px]">{exp.organization_name_snapshot}</p>
-                        {(period || claimLabel) && (
-                          <p className="mt-1 text-[13px] tabular-nums text-muted-foreground">
-                            {period}
-                            {period && claimLabel ? " · " : null}
-                            {claimLabel}
-                          </p>
-                        )}
                       </li>
                     );
                   })}
@@ -167,14 +181,21 @@ export default function PublicProfilePage() {
               )}
             </section>
 
-            <p className="mt-10 text-center">
+            <aside className="mt-12 flex flex-col gap-4 rounded-xl border border-border bg-card p-5 sm:flex-row sm:items-center sm:justify-between md:p-6">
+              <div className="flex items-start gap-3">
+                <SealMark className="mt-0.5 h-6 w-6 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold">{t.trustTitle}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{t.trustNote}</p>
+                </div>
+              </div>
               <Link
                 href="/"
-                className={`text-[13px] text-muted-foreground hover:text-foreground hover:underline ${publicFocusRing}`}
+                className={`inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-border px-4 text-sm font-medium text-foreground transition-colors hover:border-success hover:text-success ${publicFocusRing}`}
               >
                 {messages.publicVerification.whatIs}
               </Link>
-            </p>
+            </aside>
           </>
         ) : null}
       </main>
