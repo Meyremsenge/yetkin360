@@ -16,8 +16,8 @@ const primaryCta = `inline-flex h-12 items-center justify-center gap-2 rounded-m
 const outlineCta = `inline-flex h-12 items-center justify-center rounded-md border border-success/40 bg-card px-6 text-base font-medium text-success transition-colors hover:border-success hover:bg-success/10 motion-reduce:transition-none ${focusRing}`;
 
 const personas = [
-  { ...home.personas.student, icon: "student" as const },
   { ...home.personas.organization, icon: "organization" as const },
+  { ...home.personas.student, icon: "student" as const },
   { ...home.personas.institution, icon: "institution" as const },
 ];
 
