@@ -170,6 +170,11 @@ Döngü — hattaki her paket için:
    **ön planda uyuma** (yasak): `run_in_background` ile şu döngüyü başlat ve bildirimini bekle:
    `until git fetch -q origin && git log origin/feat/kurum-kurulus-panelleri --oneline --grep "SPRINT <BAĞIMLILIK> " | grep -q .; do sleep 60; done`.
    (R için: hat 2 ve 3'ün son paketleri dahil tüm paketler.)
+   **Yönetici paketleri yedeği (M0, I — yönetici oturumu kapanmış olabilir):** bekleme sırasında
+   `git ls-remote --heads origin ajan/<bağımlılık>` dolu ama tabanda "SPRINT <bağımlılık> " yoksa,
+   **yalnız Hat 1** (I için **yalnız Hat 3**) o dalı adım 4'teki yöntemle birleştirir
+   (`git merge --no-ff origin/ajan/<id>`, mesaj `merge: SPRINT <ID> — <başlık>`); M0 birleştiren hat
+   migration'ı dev DB'ye uygulamaz. 45 dakika beklenip dal hiç gelmediyse aynı hat paketi Mod 2 ile kendisi yapar.
 3. **Uygula:** Mod 2'yi (2.1-2.5) çalıştır. Farklar: dal adı `ajan/<id>`; tek worktree'de kalabilirsin
    (her paket için `git checkout -B ajan/<id> origin/feat/kurum-kurulus-panelleri`); model uyarısı verme.
 4. **Birleştir (ana klasöre dokunmadan, uzak dal kilit görevi görür):**
