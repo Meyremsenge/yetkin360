@@ -161,13 +161,21 @@ export default function ProfileForm({ initialData }: ProfileFormProps) {
 
           <div>
             <label htmlFor="visibility" className={labelClass}>{messages.profil.visibility}</label>
-            <select {...register("visibility")} id="visibility" className={fieldClass}>
+            <select
+              {...register("visibility")}
+              id="visibility"
+              aria-describedby="visibility-hint"
+              className={fieldClass}
+            >
               <option value="">Seçiniz</option>
               <option value="PRIVATE">Özel (Sadece Ben)</option>
               <option value="INSTITUTION">Kurum (Kurumum)</option>
               <option value="ORGANIZATIONS">Kuruluşlar</option>
               <option value="PUBLIC">Herkese Açık</option>
             </select>
+            <p id="visibility-hint" className="mt-1 text-xs text-muted-foreground">
+              {messages.profil.visibilityDiscoverHint}
+            </p>
             <FieldError message={errors.visibility?.message} />
           </div>
 

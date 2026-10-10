@@ -21,6 +21,12 @@ const OVERLAY_SHADOW = "shadow-[0_8px_24px_-12px_rgba(34,31,27,0.25)]";
 
 // Inline lucide paths (no icon dependency, brief §1.5).
 const ICON_PATHS = {
+  compass: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <path d="m16.24 7.76-1.8 5.4a2 2 0 0 1-1.27 1.27l-5.4 1.8 1.8-5.4a2 2 0 0 1 1.27-1.27z" />
+    </>
+  ),
   briefcase: (
     <>
       <path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
@@ -274,6 +280,13 @@ function NavLinks({
           icon="briefcase"
           label={messages.shell.engagementsLink}
           active={isActive("/calismalar")}
+          onNavigate={onNavigate}
+        />
+        <NavItem
+          href="/kesfet"
+          icon="compass"
+          label={messages.shell.discoverLink}
+          active={isActive("/kesfet")}
           onNavigate={onNavigate}
         />
         <NavItem
