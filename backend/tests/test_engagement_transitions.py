@@ -945,6 +945,26 @@ class TestTransitionT2PendingToActive:
         assert engagement_pending_approval_alice.status == "ACTIVE"
         assert engagement_pending_approval_alice.version == 3
 
+    def test_coordinator_approval_enqueues_approval_risk_scan(
+        self, client, session, user_inst_coord_diana, inst_coord_diana, engagement_pending_approval_alice
+    ):
+        """PLAN 3.56: T2 (koordinatör onayı) fraud.approval_risk_scan_requested
+        üretir — payload yalnız çalışma ve onaylayan kullanıcı kimliğini taşır."""
+        from app.models import Outbox
+
+        response = client.post(
+            f"/engagements/{engagement_pending_approval_alice.id}/transitions",
+            json={"to_status": "ACTIVE", "version": 2},
+            headers={"X-Debug-User-Id": str(user_inst_coord_diana.id)},
+        )
+        assert response.status_code == 200, response.text
+
+        row = session.query(Outbox).filter_by(topic="fraud.approval_risk_scan_requested").one()
+        assert row.payload == {
+            "engagement_id": str(engagement_pending_approval_alice.id),
+            "approver_user_id": str(user_inst_coord_diana.id),
+        }
+
 
 # ============================================================================
 # AC-3: T3 (PENDING_APPROVAL → REJECTED) — INST:COORD with reason
@@ -1236,6 +1256,11 @@ class TestCoordinatorCrossInstitution:
         )
 
         assert response.status_code == 404, f"Expected 404, got {response.status_code}: {response.text}"
+
+        # PLAN 3.56: a refused approval must not enqueue an approval risk scan
+        from app.models import Outbox
+
+        assert session.query(Outbox).filter_by(topic="fraud.approval_risk_scan_requested").count() == 0
 
         data = response.json()
         error_obj = data.get("detail") if "detail" in data else data

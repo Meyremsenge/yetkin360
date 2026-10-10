@@ -18,8 +18,10 @@ function renderWithQueryClient(ui: React.ReactElement) {
 
 const mockFlag = {
   id: "flag-1",
-  subject_type: "ATTESTATION",
+  subject_type: "ATTESTATION" as const,
   subject_id: "att-12345678-abcd",
+  subject_label: null,
+  signal: null,
   reason: "Şablon ifade paterni tespit edildi.",
   confidence: "HIGH" as const,
   model: "anthropic/claude-haiku-4.5",
@@ -90,6 +92,55 @@ describe("SahtekarlikIsaretleriPage (/admin/sahtekarlik-isaretleri)", () => {
     expect(screen.getByText("anthropic/claude-haiku-4.5")).toBeTruthy();
     expect(screen.getByRole("button", { name: /Sahtekarlık Onayla/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Yanlış Alarm/ })).toBeTruthy();
+  });
+
+  it("kuruluş işareti — kuruluş adı, sinyal etiketi ve 'Kural' kaynağı gösterilir", async () => {
+    vi.mocked(adminApi.getFraudQueue).mockResolvedValueOnce({
+      items: [
+        {
+          ...mockFlag,
+          id: "flag-org",
+          subject_type: "ORGANIZATION" as const,
+          subject_id: "org-12345678-abcd",
+          subject_label: "Şüpheli Kuruluş Ltd.",
+          signal: "NEW_ORG_BURST",
+          reason: "Kuruluş 7 günden yeni ve şimdiden 3 çalışmasına tanıklık verilmiş.",
+          model: "rules-v1",
+        },
+      ],
+    });
+
+    renderWithQueryClient(<SahtekarlikIsaretleriPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Şüpheli Kuruluş Ltd\./)).toBeTruthy();
+    });
+    expect(screen.getByText(/^Kuruluş:/)).toBeTruthy();
+    expect(screen.getByText("Yeni kuruluşta ani tanıklık artışı")).toBeTruthy();
+    expect(screen.getByText("Kural")).toBeTruthy();
+  });
+
+  it("tanıklık işareti — ad yoksa kısa kimlik ve 'Yapay zeka' kaynağı gösterilir", async () => {
+    vi.mocked(adminApi.getFraudQueue).mockResolvedValueOnce({ items: [mockFlag] });
+
+    renderWithQueryClient(<SahtekarlikIsaretleriPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Tanıklık: #att-1234/)).toBeTruthy();
+    });
+    expect(screen.getByText("Yapay zeka")).toBeTruthy();
+  });
+
+  it("bilinmeyen sinyal kodu ham haliyle gösterilir (ekran kırılmaz)", async () => {
+    vi.mocked(adminApi.getFraudQueue).mockResolvedValueOnce({
+      items: [{ ...mockFlag, signal: "FUTURE_SIGNAL", model: "rules-v1" }],
+    });
+
+    renderWithQueryClient(<SahtekarlikIsaretleriPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("FUTURE_SIGNAL")).toBeTruthy();
+    });
   });
 
   it("Sahtekarlık Onayla tıklanınca resolveFraudFlag CONFIRMED ile çağrılır ve satır kaybolur", async () => {
