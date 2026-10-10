@@ -10,12 +10,12 @@ already carry it.
 
 import ipaddress
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.deps import get_current_user, get_session, require_csrf
-from app.core.errors import ApiError
+from app.core.errors import VALIDATION_MESSAGE, ApiError
 from app.models import User
 from app.schemas.auth import (
     ForgotPasswordRequest,
@@ -120,14 +120,28 @@ def register(
     # docs/SECURITY.md §4 senaryo 10: always 201, never leaks whether the
     # email was already registered (see register_user's docstring).
     _throttle(session, request, rate_limit.REGISTER_IP, rate_limit.REGISTER_ACCOUNT, body.email)
-    result = auth_service.register_user(
-        session,
-        body.email,
-        body.password,
-        body.full_name,
-        account_kind=body.account_kind,
-        entity_name=body.entity_name,
-    )
+    try:
+        result = auth_service.register_user(
+            session,
+            body.email,
+            body.password,
+            body.full_name,
+            account_kind=body.account_kind,
+            entity_name=body.entity_name,
+            legal_id=body.legal_id if body.account_kind == "ORGANIZATION" else None,
+        )
+    except auth_service.CorporateEmailRequired:
+        # Same body shape as a schema validation error, so the form shows it on the e-mail field.
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "VALIDATION_ERROR",
+                "message": VALIDATION_MESSAGE,
+                "fields": {"email": "Kuruluş hesabı için kurumsal e-posta adresi gereklidir."},
+            },
+        )
+    except auth_service.LegalIdTaken:
+        raise ApiError(409, "LEGAL_ID_TAKEN", "Bu MERSİS numarası başka bir kuruluşa kayıtlı.")
     return RegisterResponse(user_id=result.user_id)
 
 

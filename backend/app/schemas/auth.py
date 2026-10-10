@@ -26,6 +26,10 @@ class RegisterRequest(BaseModel):
     # account still gets a talent profile regardless of kind.
     account_kind: AccountKind = "TALENT"
     entity_name: str | None = Field(default=None, min_length=1, max_length=200)
+    # MERSİS number (16 digits) — only meaningful for ORGANIZATION; stored as
+    # organizations.legal_id. Format check only: it proves nothing about the
+    # company, the T3 decision stays with the admin queue (docs/DOMAIN.md).
+    legal_id: str | None = Field(default=None, pattern=r"^\d{16}$")
 
     @model_validator(mode="after")
     def _entity_name_required_for_org_or_institution(self) -> "RegisterRequest":

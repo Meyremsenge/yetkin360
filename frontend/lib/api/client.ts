@@ -252,11 +252,12 @@ export async function register(
   password: string,
   full_name: string,
   account_kind?: "TALENT" | "ORGANIZATION" | "INSTITUTION",
-  entity_name?: string
+  entity_name?: string,
+  legal_id?: string
 ): Promise<{ user_id: string } | undefined> {
   return apiFetch<{ user_id: string }>("/auth/register", {
     method: "POST",
-    body: { email, password, full_name, account_kind, entity_name },
+    body: { email, password, full_name, account_kind, entity_name, legal_id },
   });
 }
 
