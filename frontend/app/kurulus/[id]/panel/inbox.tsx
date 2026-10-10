@@ -295,7 +295,7 @@ function InboxRow({
           </button>
         ) : null}
         {action === "seal" ? (
-          <ActionLink href={`/calismalar/${item.id}#tanıklık`} variant="primary" className="h-8 px-3">
+          <ActionLink href={`/calismalar/${item.id}#taniklik`} variant="primary" className="h-8 px-3">
             {ti.seal}
           </ActionLink>
         ) : null}

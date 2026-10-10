@@ -177,7 +177,7 @@ export default function PublicVerificationPage() {
                 <p className="mt-5 inline-flex flex-wrap items-center gap-2 rounded-md border border-success/30 bg-success/[0.06] px-3 py-2 text-sm text-foreground">
                   <SealMark className="h-4 w-4 shrink-0" />
                   <span className="font-medium text-success">{t.coSignedBadge}</span>
-                  <span aria-hidden="true" className="text-muted-foreground">·</span>
+                  <span aria-hidden="true" className="hidden text-muted-foreground sm:inline">·</span>
                   <span>{t.coSignedDetail}</span>
                 </p>
               ) : null}

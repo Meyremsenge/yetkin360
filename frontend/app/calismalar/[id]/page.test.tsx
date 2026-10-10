@@ -133,6 +133,36 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
     });
   });
 
+  it("SPRINT R: mühürlü kayıtta koordinatör 'Profilde gör' ve kanıt ekleme formunu görmez", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce({
+      ...baseEngagement,
+      status: "VERIFIED",
+      deliverables: [{ id: "d-1", title: "API raporu", submitted_at: "2026-10-01T00:00:00Z" }],
+      viewer: makeViewer({ relation: "COORDINATOR" }),
+    });
+
+    renderWithQueryClient(<CalismaDetayPage />);
+
+    await waitFor(() => expect(screen.getByText(messages.calismalar.detail.verifiedTextOther)).toBeTruthy());
+    expect(screen.queryByText(messages.calismalar.detail.verifiedLink)).toBeNull();
+    expect(screen.queryByText(messages.calismalar.evidenceUploadLabel)).toBeNull();
+  });
+
+  it("SPRINT R: öğrenci mühürlü kaydında 'Profilde gör' ve kanıt ekleme formunu görür", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce({
+      ...baseEngagement,
+      status: "VERIFIED",
+      deliverables: [{ id: "d-1", title: "API raporu", submitted_at: "2026-10-01T00:00:00Z" }],
+      viewer: makeViewer({ relation: "SUBJECT" }),
+    });
+
+    renderWithQueryClient(<CalismaDetayPage />);
+
+    await waitFor(() => expect(screen.getByText(messages.calismalar.detail.verifiedLink)).toBeTruthy());
+    expect(screen.getByText(messages.calismalar.detail.verifiedText)).toBeTruthy();
+    expect(screen.getByText(messages.calismalar.evidenceUploadLabel)).toBeTruthy();
+  });
+
   it("SPRINT D1: onaylayıcı varsa başlıkta 'Onaylayıcı: Ad · Birim' gösterilir", async () => {
     vi.mocked(getEngagement).mockResolvedValueOnce({
       ...baseEngagement,

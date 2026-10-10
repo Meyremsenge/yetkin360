@@ -107,7 +107,8 @@ export function AttestationForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="mt-4 border-t border-border pt-4">
+    // id: panels link "Mühürle" straight here (/calismalar/{id}#taniklik, ASCII anchor).
+    <form id="taniklik" onSubmit={handleSubmit} className="mt-4 scroll-mt-6 border-t border-border pt-4">
       <h3 className="text-sm font-bold mb-3">{messages.calismalar.attestationTitle}</h3>
       {engagement.viewer.attest_blocker && (
         <p className="mb-3 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">

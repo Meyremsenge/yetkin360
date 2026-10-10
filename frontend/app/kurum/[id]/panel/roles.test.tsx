@@ -217,7 +217,7 @@ describe("KurumPanelPage — rol farkı ve satır içi onay (SPRINT E)", () => {
       const seal = within(section).getByRole("link", {
         name: t.sealButtonOf.replace("{title}", "Veri Analizi Projesi"),
       });
-      expect(seal.getAttribute("href")).toBe("/calismalar/eng-2");
+      expect(seal.getAttribute("href")).toBe("/calismalar/eng-2#taniklik");
     });
   });
 

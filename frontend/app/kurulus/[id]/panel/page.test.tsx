@@ -460,7 +460,7 @@ describe("KurulusPanelPage (/kurulus/[id]/panel)", () => {
       renderWithQueryClient(<KurulusPanelPage />);
 
       const seal = await screen.findByRole("link", { name: "Mühürle" });
-      expect(seal.getAttribute("href")).toBe("/calismalar/solo#tanıklık");
+      expect(seal.getAttribute("href")).toBe("/calismalar/solo#taniklik");
       expect(screen.getByText("Üniversite mührü bekleniyor")).toBeTruthy();
       expect(screen.getAllByText("Galata Teknik Üniversitesi").length).toBeGreaterThan(0);
     });
