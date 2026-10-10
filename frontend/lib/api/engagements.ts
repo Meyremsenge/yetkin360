@@ -33,9 +33,14 @@ export interface EngagementSummary {
   title: string;
   kind: EngagementKind;
   status: EngagementStatus;
+  organization_id: string;
+  institution_id: string | null;
   organization_name: string;
   version: number;
   updated_at: string;
+  /** Çalışmanın sahibi öğrenci; kuruluş/kurum listesi öğrenciye göre gösterilir. */
+  talent_id: string;
+  talent_name: string;
 }
 
 export interface EngagementTask {
@@ -62,7 +67,8 @@ export interface EngagementAttestation {
   revoke_reason: string | null;
 }
 
-export interface EngagementDetail extends EngagementSummary {
+// The detail response identifies the student by id only.
+export interface EngagementDetail extends Omit<EngagementSummary, "talent_name"> {
   talent_id: string;
   organization_id: string;
   institution_id: string | null;

@@ -790,6 +790,28 @@ describe("AppShell", () => {
       expect(profile.getAttribute("aria-current")).toBeNull();
     });
 
+    it("öğrenci profili olmayan kuruluş üyesinde çalışma bağlantısı 'Öğrenci çalışmaları' olur", () => {
+      renderAt("/calismalar", {
+        user: { id: "u1" },
+        talent_profile: null,
+        organizations: [{ id: "org-1", name: "Acme A.Ş." }],
+      });
+      const nav = screen.getByRole("navigation", { name: messages.shell.mainNav });
+      const link = within(nav).getByRole("link", { name: messages.shell.studentEngagementsLink });
+      expect(link.getAttribute("href")).toBe("/calismalar");
+      expect(within(nav).queryByRole("link", { name: messages.shell.engagementsLink })).toBeNull();
+    });
+
+    it("hem öğrenci hem kuruluş üyesi olan kullanıcıda bağlantı 'Çalışmalarım' kalır", () => {
+      renderAt("/calismalar", {
+        user: { id: "u1" },
+        talent_profile: { public_slug: null },
+        organizations: [{ id: "org-1", name: "Acme A.Ş." }],
+      });
+      const nav = screen.getByRole("navigation", { name: messages.shell.mainNav });
+      expect(within(nav).getByRole("link", { name: messages.shell.engagementsLink })).toBeTruthy();
+    });
+
     it("öğrencide bağlam seçici görünmez", () => {
       renderAt("/calismalar", { user: { id: "u1" }, talent_profile: { public_slug: null } });
       expect(screen.queryByRole("button", { name: new RegExp(messages.shell.contextSwitcher) })).toBeNull();
