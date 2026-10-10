@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import Organization, OrganizationMember, User
+from app.services.outbox import enqueue
 
 
 # ============================================================================
@@ -196,6 +197,14 @@ def create_organization(
     )
     session.add(admin_member)
     session.flush()
+
+    # PLAN 3.56: optional AI check of the organization's identity (name/domain
+    # consistency) — flags for admin review only, never blocks creation.
+    enqueue(
+        session=session,
+        topic="fraud.organization_identity_check_requested",
+        payload={"organization_id": str(organization.id)},
+    )
 
     return organization
 

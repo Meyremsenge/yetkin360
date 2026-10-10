@@ -12,7 +12,10 @@ kuyruk satırı, kanıtın kendisi değil).
 
 Schema:
   - id: UUIDv7 PK
-  - subject_type: CHECK IN ('ATTESTATION') — faz 2'de 'EVIDENCE' eklenecek
+  - subject_type: CHECK IN ('ATTESTATION','ORGANIZATION','INSTITUTION')
+  - signal: nullable text — işareti üreten kuralın/kontrolün kodu (PLAN 3.56;
+    3.54'ün tanıklık metni işaretlerinde NULL). Aynı (özne, sinyal) için
+    tekrar satır üretmemek ve admin ekranında etiketlemek için.
   - subject_id: UUID, nullable=False
   - reason: text, AI'nin ürettiği gerekçe (serbest metin ama AI kaynaklı, PII değil)
   - confidence: CHECK IN ('LOW','MEDIUM','HIGH')
@@ -38,7 +41,9 @@ class FraudFlag(Base):
 
     __tablename__ = "fraud_flags"
     __table_args__ = (
-        CheckConstraint("subject_type IN ('ATTESTATION')", name="ck_fraud_flags_subject_type"),
+        CheckConstraint(
+            "subject_type IN ('ATTESTATION','ORGANIZATION','INSTITUTION')", name="ck_fraud_flags_subject_type"
+        ),
         CheckConstraint("confidence IN ('LOW','MEDIUM','HIGH')", name="ck_fraud_flags_confidence"),
         CheckConstraint("status IN ('PENDING','CONFIRMED','DISMISSED')", name="ck_fraud_flags_status"),
         Index("ix_fraud_flags_subject", "subject_type", "subject_id"),
@@ -50,6 +55,7 @@ class FraudFlag(Base):
     subject_type: Mapped[str] = mapped_column(String(50), nullable=False)
     subject_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
 
+    signal: Mapped[str | None] = mapped_column(String(50), nullable=True)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     confidence: Mapped[str] = mapped_column(String(10), nullable=False)
     model: Mapped[str] = mapped_column(String(100), nullable=False)

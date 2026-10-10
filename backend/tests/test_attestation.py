@@ -488,6 +488,26 @@ class TestAttestationHappyPath:
         outbox_row = session.query(Outbox).filter_by(topic="attestation.fraud_check_requested").first()
         assert outbox_row is None
 
+    def test_every_attestation_enqueues_risk_rule_scan_even_without_statement(
+        self, client, session, user_inst_coord_diana_att, inst_coord_diana_att,
+        engagement_evaluated_alice_att, skill_communication_att, deliverable_alice_att
+    ):
+        """PLAN 3.56: deterministik risk kuralları statement'tan bağımsızdır —
+        her tanıklıkta fraud.attestation_risk_scan_requested eklenir, payload
+        yalnız kimlik taşır."""
+        from app.models import Outbox
+
+        response = client.post(
+            f"/engagements/{engagement_evaluated_alice_att.id}/attestations",
+            json={"claim_type": "COMPETENCE", "version": 1},
+            headers={"X-Debug-User-Id": str(user_inst_coord_diana_att.id)},
+        )
+        assert response.status_code == 201, response.text
+
+        att = session.query(Attestation).filter_by(engagement_id=engagement_evaluated_alice_att.id).first()
+        outbox_row = session.query(Outbox).filter_by(topic="fraud.attestation_risk_scan_requested").one()
+        assert outbox_row.payload == {"attestation_id": str(att.id)}
+
 
 # ============================================================================
 # AC-2: Kısmi Başarı — Downgrade COMPETENCE → PARTICIPATION

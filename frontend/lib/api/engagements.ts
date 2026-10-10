@@ -93,6 +93,8 @@ export interface TransitionPayload {
 //  - T9/T10 (DISPUTED/RESOLVED): STATE_MACHINE.md §7'de "vakit kalırsa" —
 //    backend'de hiç gerçeklenmemiş (ne /transitions'ta ne ayrı bir uçta).
 const NEXT_STATUSES: Record<EngagementStatus, EngagementStatus[]> = {
+  // DRAFT'ın gerçek hedefi institution_id'ye bağlı — bkz. availableTransitions().
+  // Burası yalnız institution_id'li (kurum bağlantılı) durum için varsayılan.
   DRAFT: ["PENDING_APPROVAL"],
   PENDING_APPROVAL: ["ACTIVE", "REJECTED"],
   ACTIVE: ["CANCELLED", "PENDING_EVALUATION"],
@@ -107,7 +109,21 @@ const NEXT_STATUSES: Record<EngagementStatus, EngagementStatus[]> = {
 
 const REASON_REQUIRED = new Set<EngagementStatus>(["REJECTED", "CANCELLED"]);
 
-export function availableTransitions(status: EngagementStatus): EngagementStatus[] {
+/**
+ * DRAFT için gerçek hedef institution_id'ye bağlı (app/services/engagement.py:313-324):
+ * kurum bağlantılı engagement PENDING_APPROVAL'a gider (koordinatör onaylar),
+ * doğrudan kuruluş engagement'ı (institution_id=NULL) kendi kendine ACTIVE'e
+ * geçer — PENDING_APPROVAL'ın "institution_id_not_null" ön koşulu bunu
+ * reddeder (422 PRECONDITION_FAILED). institutionId belirtilmezse (çağıran
+ * henüz bilmiyorsa) varsayılan DRAFT davranışı korunur.
+ */
+export function availableTransitions(
+  status: EngagementStatus,
+  institutionId?: string | null
+): EngagementStatus[] {
+  if (status === "DRAFT" && institutionId === null) {
+    return ["ACTIVE"];
+  }
   return NEXT_STATUSES[status] ?? [];
 }
 

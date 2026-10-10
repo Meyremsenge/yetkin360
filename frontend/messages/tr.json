@@ -1021,7 +1021,7 @@
   },
   "adminFraudQueue": {
     "title": "Sahtekarlık İşaretleri",
-    "description": "AI tanıklık metinlerinde şüpheli patern tespit ettiğinde burada görünür — karar her zaman sana ait, AI hiçbir hesabı etkilemez.",
+    "description": "Şüpheli tanıklıklar, kuruluşlar ve kurum onayları burada görünür. İşaretleri sabit kurallar ve yapay zeka üretir — karar her zaman sana ait, hiçbiri bir hesabı kendiliğinden etkilemez.",
     "empty": "Bekleyen işaret yok",
     "notFound": "Kaynak bulunamadı.",
     "confirmed": "Sahtekarlık onaylandı",
@@ -1038,6 +1038,27 @@
       "LOW": "Düşük",
       "MEDIUM": "Orta",
       "HIGH": "Yüksek"
+    },
+    "subjectTypeLabel": {
+      "ATTESTATION": "Tanıklık",
+      "ORGANIZATION": "Kuruluş",
+      "INSTITUTION": "Kurum"
+    },
+    "sourceLabel": {
+      "rule": "Kural",
+      "ai": "Yapay zeka"
+    },
+    "signalLabel": {
+      "SELF_ATTESTATION": "Kendi kendine tanıklık",
+      "SHARED_EMAIL_DOMAIN": "Tanık ve öğrenci aynı e-posta alan adında",
+      "DUPLICATE_STATEMENT": "Kopya tanıklık metni",
+      "RAPID_VERIFICATION": "Çok hızlı doğrulama",
+      "UNVERIFIED_HIGH_VOLUME": "Doğrulanmamış kuruluşta yoğun tanıklık",
+      "NEW_ORG_BURST": "Yeni kuruluşta ani tanıklık artışı",
+      "SINGLE_TALENT_ONLY": "Tüm tanıklıklar tek öğrenciye",
+      "APPROVER_IS_ORG_MEMBER": "Onaylayan koordinatör kuruluş üyesi",
+      "RAPID_BULK_APPROVAL": "Toplu ve hızlı onay",
+      "AI_ORG_IDENTITY": "Kuruluş kimliğinde tutarsızlık"
     },
     "form": {
       "confirm": "Sahtekarlık Onayla",
