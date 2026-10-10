@@ -857,6 +857,18 @@ AC-S2 İptal edilmiş tanıklıkta rozet yok.
 
 **Son · Opus · Boyut S · Bağımlılık: hepsi birleşmiş**
 
+**Hatlardan devreden işler (yönetici notu, 10 Ekim 21:45):**
+- **Çapa:** E ve F'nin "Mühürle" bağlantısı `/calismalar/{id}`'ye gidiyor; detay sayfasında `#tanıklık` çapası yok.
+  Detay sayfasındaki tanıklık bölümüne `id="taniklik"` ekle, E/F bağlantılarını `#taniklik` yap (ASCII çapa).
+- **Aralıklı kırılan testler (paralel yük kaynaklı):** `tests/test_auth_rate_limit.py::test_hits_survive_the_request_rollback_with_real_get_session`
+  (sabit IP + paylaşılan DB), `app/kayit` ve `app/giris` vitest'leri (zaman aşımı). Kapıyı **tek başına, seri** koş;
+  yine kırılırsa düzelt, geçerse "paralel yük kaynaklı" diye not et.
+- **Görsel kontrol (ana klasörde, sunucular açıkken):** E — `kurum1-admin`, `kurum1-koordinator`; F — `org1-admin`, `org1-yazilim`;
+  G — `/o/<ORG1 id>`; B — üç hesapla giriş yönlendirmesi. 390px ve masaüstü.
+- **Dev DB migration:** `alembic upgrade head` (M0 dahil) R'de uygulanır; kullanıcı onayı plan kapsamında verildi, yine tek satır haber ver.
+- **Şikayet PR'ı (`feat/admin-eksikler-ve-sikayet`) tabana birleşmişse:** `alembic heads` tek değilse **DUR** ve
+  bildir (PR'ın migration'ı `e7b1d9a3c604`'e bağlı; M0 ile iki head oluşabilir → merge migration gerekir).
+
 1. Taban dalda tam kapı: `pytest -q` · `pytest tests/authorization -q` · `ruff check . && mypy app` ·
    `npm run lint && npm run typecheck && npm test` · `alembic upgrade head && alembic downgrade -1 && alembic upgrade head`.
 2. `python -m scripts.reset_demo --yes --reseed`; §0 senaryosunu **jüri telefonu genişliğinde** (390px) yürü.
