@@ -37,6 +37,7 @@ $TotalSteps = 5
 
 $script:Step     = 0
 $script:Services = @()
+$script:QuitArmedAt = $null
 $esc = [char]27
 $bel = [char]7
 # CSI colour codes and OSC sequences (e.g. window-title escapes).
@@ -201,7 +202,16 @@ function Test-QuitKey {
         while ([Console]::KeyAvailable) {
             $k = [Console]::ReadKey($true)
             $ctrlC = ($k.Key -eq 'C') -and (($k.Modifiers -band [ConsoleModifiers]::Control) -ne 0)
-            if ($ctrlC -or $k.Key -eq 'Q') { return 'quit' }
+            if ($ctrlC -or $k.Key -eq 'Q') {
+                # Ctrl+C is also the copy shortcut (e.g. the e-mail link in the log):
+                # a single press only warns, a second one within 3 s stops.
+                $now = [DateTime]::UtcNow
+                if ($script:QuitArmedAt -and ($now - $script:QuitArmedAt).TotalSeconds -le 3) { return 'quit' }
+                $script:QuitArmedAt = $now
+                Write-Host ''
+                Write-Host '  Durdurmak için 3 saniye içinde tekrar Q veya Ctrl+C''ye basın.' -ForegroundColor Yellow
+                continue
+            }
             if ($k.Key -eq 'B') { Start-Process $AppUrl }
             if ($k.Key -eq 'H') { Show-Summary }
         }
@@ -481,7 +491,7 @@ function Show-Summary {
     Write-Host '  Loglar      ' -NoNewline -ForegroundColor DarkGray; Write-Host '.logs\api.log  .logs\worker.log  .logs\web.log'
     Write-Host '              ' -NoNewline; Write-Host 'Destek kodunu (request_id) api.log içinde ara.' -ForegroundColor DarkGray
     Write-Host '  Kısayollar  ' -NoNewline -ForegroundColor DarkGray
-    Write-Host '[B] tarayıcı   [H] bu özet   [Q] / Ctrl+C durdur'
+    Write-Host '[B] tarayıcı   [H] bu özet   [Q] / Ctrl+C (iki kez) durdur'
     Write-Host $line -ForegroundColor DarkGray
     Write-Host ''
 }
