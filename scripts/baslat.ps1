@@ -37,7 +37,6 @@ $TotalSteps = 5
 
 $script:Step     = 0
 $script:Services = @()
-$script:QuitArmedAt = $null
 $esc = [char]27
 $bel = [char]7
 # CSI colour codes and OSC sequences (e.g. window-title escapes).
@@ -192,6 +191,19 @@ function Stop-DevProcesses {
     }
 }
 
+# On every reload, uvicorn on Windows sends CTRL_C_EVENT, which reaches every
+# process on this console: it stopped the launcher (and the other services)
+# whenever a backend file changed. After the API starts, the launcher ignores
+# that event; processes started later inherit the setting. Uvicorn, started
+# before, still receives it and reloads. Keys are still read by Test-QuitKey.
+function Disable-CtrlCEvents {
+    try {
+        Add-Type -Namespace Y360 -Name ConsoleCtrl -MemberDefinition `
+            '[DllImport("kernel32.dll")] public static extern bool SetConsoleCtrlHandler(System.IntPtr handler, bool add);'
+        [void][Y360.ConsoleCtrl]::SetConsoleCtrlHandler([System.IntPtr]::Zero, $true)
+    } catch { }
+}
+
 function Test-QuitKey {
     try {
         # Child processes (cmd.exe in particular) reset the shared console mode, which
@@ -202,16 +214,7 @@ function Test-QuitKey {
         while ([Console]::KeyAvailable) {
             $k = [Console]::ReadKey($true)
             $ctrlC = ($k.Key -eq 'C') -and (($k.Modifiers -band [ConsoleModifiers]::Control) -ne 0)
-            if ($ctrlC -or $k.Key -eq 'Q') {
-                # Ctrl+C is also the copy shortcut (e.g. the e-mail link in the log):
-                # a single press only warns, a second one within 3 s stops.
-                $now = [DateTime]::UtcNow
-                if ($script:QuitArmedAt -and ($now - $script:QuitArmedAt).TotalSeconds -le 3) { return 'quit' }
-                $script:QuitArmedAt = $now
-                Write-Host ''
-                Write-Host '  Durdurmak için 3 saniye içinde tekrar Q veya Ctrl+C''ye basın.' -ForegroundColor Yellow
-                continue
-            }
+            if ($ctrlC -or $k.Key -eq 'Q') { return 'quit' }
             if ($k.Key -eq 'B') { Start-Process $AppUrl }
             if ($k.Key -eq 'H') { Show-Summary }
         }
@@ -491,7 +494,7 @@ function Show-Summary {
     Write-Host '  Loglar      ' -NoNewline -ForegroundColor DarkGray; Write-Host '.logs\api.log  .logs\worker.log  .logs\web.log'
     Write-Host '              ' -NoNewline; Write-Host 'Destek kodunu (request_id) api.log içinde ara.' -ForegroundColor DarkGray
     Write-Host '  Kısayollar  ' -NoNewline -ForegroundColor DarkGray
-    Write-Host '[B] tarayıcı   [H] bu özet   [Q] / Ctrl+C (iki kez) durdur'
+    Write-Host '[B] tarayıcı   [H] bu özet   [Q] / Ctrl+C durdur'
     Write-Host $line -ForegroundColor DarkGray
     Write-Host ''
 }
@@ -509,6 +512,7 @@ function Start-Services {
 
     $api = Start-DevProcess -Name 'api' -Color Cyan -FileName $Py `
         -Arguments '-m uvicorn app.main:app --reload --port 8000' -WorkDir $Backend -Environment $pyEnv
+    Disable-CtrlCEvents
     Start-DevProcess -Name 'worker' -Color DarkYellow -FileName $Py `
         -Arguments '-m app.workers.outbox_worker' -WorkDir $Backend -Environment $pyEnv | Out-Null
     # Run next directly with node when package.json's dev script is plain "next ...":
