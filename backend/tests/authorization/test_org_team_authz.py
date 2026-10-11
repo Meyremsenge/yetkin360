@@ -309,13 +309,25 @@ class TestInviteWithUnit:
 
 class TestApprovers:
     @pytest.mark.parametrize("actor", ["outsider", "member_a", "admin_b"])
-    def test_any_verified_user_lists_name_and_unit_only(self, client, world, actor):
+    def test_any_verified_user_lists_name_unit_and_masked_email_only(self, client, world, actor):
         response = client.get(f"/organizations/{world['org_a'].id}/approvers", headers=_auth(world[actor]))
         assert response.status_code == 200
         rows = response.json()
-        assert all(set(row) == {"user_id", "display_name", "unit"} for row in rows)
-        assert "lale.example" not in response.text
+        assert all(set(row) == {"user_id", "display_name", "unit", "email_hint"} for row in rows)
+        assert {row["email_hint"] for row in rows} == {"ad•••@lale.example", "me•••@lale.example"}
+        assert "admin-a@" not in response.text
+        assert "member-a@" not in response.text
         assert "ADMIN" not in response.text
+
+    @pytest.mark.parametrize(
+        ("email", "hint"),
+        [("ik@acme.example", "i•••@acme.example"), ("a@acme.example", "•••@acme.example")],
+    )
+    def test_short_local_part_is_never_shown_whole(self, client, session, world, email, hint):
+        _member(session, world["org_a"], _user(session, email, "Kısa Adres"))
+        response = client.get(f"/organizations/{world['org_a'].id}/approvers", headers=_auth(world["outsider"]))
+        row = next(row for row in response.json() if row["display_name"] == "Kısa Adres")
+        assert row["email_hint"] == hint
 
     def test_order_is_unit_then_name_with_no_unit_last(self, client, session, world):
         zeynep = _user(session, "z@lale.example", "Zeynep Ar")

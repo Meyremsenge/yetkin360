@@ -212,6 +212,36 @@ describe("TaskForm", () => {
     expect(screen.getByText("Görev eklendi.")).toBeTruthy();
   });
 
+  it("görev varsa form kapalı gelir; 'Görev ekle' açar, Vazgeç kapatır", async () => {
+    const withTask = {
+      ...activeEngagement,
+      tasks: [{ id: "t-1", title: "Var olan", status: "PLANNED", verified: true }],
+    } as EngagementDetail;
+    const user = userEvent.setup();
+    renderWithQueryClient(<TaskForm engagement={withTask} onSuccess={vi.fn()} />);
+
+    expect(screen.queryByLabelText("Başlık")).toBeNull();
+    await user.click(screen.getByRole("button", { name: messages.calismalar.openTaskForm }));
+    expect(document.activeElement).toBe(screen.getByLabelText("Başlık"));
+
+    await user.click(screen.getByRole("button", { name: messages.calismalar.taskCancelButton }));
+    expect(screen.queryByLabelText("Başlık")).toBeNull();
+  });
+
+  it("ekledikten sonra form açık ve boş kalır, başlığa odaklanır (art arda görev)", async () => {
+    vi.mocked(createTask).mockResolvedValueOnce({ id: "task-1", title: "x", status: "PLANNED", verified: true });
+    const user = userEvent.setup();
+    renderWithQueryClient(<TaskForm engagement={activeEngagement} onSuccess={vi.fn()} />);
+
+    await user.type(screen.getByLabelText("Başlık"), "İlk görev");
+    await user.click(screen.getByText("Görev Ekle"));
+
+    await waitFor(() => expect(screen.getByText("Görev eklendi.")).toBeTruthy());
+    const titleInput = screen.getByLabelText("Başlık") as HTMLInputElement;
+    expect(titleInput.value).toBe("");
+    expect(document.activeElement).toBe(titleInput);
+  });
+
   describe("öğrenci (isSubject)", () => {
     const draftEngagement: EngagementDetail = {
       ...activeEngagement,

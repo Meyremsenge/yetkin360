@@ -1,20 +1,29 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { transitionEngagement, type EngagementDetail, type EngagementStatus } from "@/lib/api/engagements";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  listApprovalRecipients,
+  transitionEngagement,
+  type ApprovalRecipient,
+  type EngagementDetail,
+  type EngagementStatus,
+} from "@/lib/api/engagements";
 import { ApiError } from "@/lib/api/errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MAX_NOTIFY_EMAILS, parseNotifyEmails } from "@/lib/ui/notify-emails";
 import messages from "@/messages/tr.json";
+import { ApproverIdentity, approverName } from "../yeni-calisma-parts";
 
-// Sending for approval asks who should receive the request before it goes out.
+// Sending for approval asks which coordinator of the school should receive it.
 const APPROVAL_REQUEST: EngagementStatus = "PENDING_APPROVAL";
 const NOTICE_MS = 2000;
-// The recipient notice explains what happens to the address; give it time to be read.
-const RECIPIENT_NOTICE_MS = 8000;
+// The recipient notice says where the request went; give it time to be read.
+const RECIPIENT_NOTICE_MS = 6000;
+const pulse = "animate-pulse rounded-md bg-muted motion-reduce:animate-none";
+const choiceCard =
+  "flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-card p-3 transition-colors hover:border-muted-foreground/50 has-[:checked]:border-success has-[:checked]:bg-success/[0.06] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-success";
 
 /**
  * PLAN 2.11/YET-97: Durum geçiş aksiyonları — POST /transitions bağlantısı + hata gösterimi.
@@ -32,29 +41,42 @@ export function TransitionActions({
 }) {
   const [pendingTarget, setPendingTarget] = useState<EngagementStatus | null>(null);
   const [reason, setReason] = useState("");
-  const [notifyInput, setNotifyInput] = useState("");
+  // "" = every coordinator of the school (the server's default).
+  const [recipientId, setRecipientId] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  const recipientsQuery = useQuery({
+    queryKey: ["approval-recipients", engagement.id],
+    queryFn: () => listApprovalRecipients(engagement.id),
+    enabled: pendingTarget === APPROVAL_REQUEST,
+    retry: false,
+  });
+  const recipients = recipientsQuery.data ?? [];
+
   const mutation = useMutation({
-    mutationFn: ({ toStatus, notifyEmails = [] }: { toStatus: EngagementStatus; notifyEmails?: string[] }) =>
+    mutationFn: ({ toStatus, recipient }: { toStatus: EngagementStatus; recipient?: ApprovalRecipient | null }) =>
       transitionEngagement(engagement.id, {
         to_status: toStatus,
         version: engagement.version,
         reason: reason.trim() || undefined,
-        ...(notifyEmails.length > 0 ? { notify_emails: notifyEmails } : {}),
+        ...(recipient ? { notify_user_ids: [recipient.user_id] } : {}),
       }),
-    onSuccess: (_data, { notifyEmails = [] }) => {
-      const addressed = notifyEmails.length > 0;
+    onSuccess: (_data, { toStatus, recipient }) => {
+      const approvalRequest = toStatus === APPROVAL_REQUEST;
       setPendingTarget(null);
       setReason("");
-      setNotifyInput("");
+      setRecipientId("");
       setFormError(null);
       setSuccessMessage(
-        addressed ? messages.calismalar.notifyEmailsSentMessage : messages.calismalar.transitionSuccessMessage,
+        !approvalRequest
+          ? messages.calismalar.transitionSuccessMessage
+          : recipient
+            ? messages.calismalar.approvalSentTo.replace("{name}", approverName(recipient))
+            : messages.calismalar.approvalSentAll,
       );
       onSuccess();
-      setTimeout(() => setSuccessMessage(null), addressed ? RECIPIENT_NOTICE_MS : NOTICE_MS);
+      setTimeout(() => setSuccessMessage(null), approvalRequest ? RECIPIENT_NOTICE_MS : NOTICE_MS);
     },
     onError: (error: unknown) => {
       if (error instanceof ApiError) {
@@ -70,7 +92,12 @@ export function TransitionActions({
           return;
         }
         if (error.code === "PRECONDITION_FAILED") {
-          setFormError(messages.calismalar.reasonRequiredError);
+          // The only precondition of a request for approval is a school on the engagement.
+          setFormError(
+            pendingTarget === APPROVAL_REQUEST
+              ? messages.calismalar.approvalNoInstitutionError
+              : messages.calismalar.reasonRequiredError,
+          );
           return;
         }
         if (error.code === "ILLEGAL_TRANSITION") {
@@ -105,23 +132,14 @@ export function TransitionActions({
   };
 
   const handleApprovalRequestSubmit = () => {
-    const parsed = parseNotifyEmails(notifyInput);
-    if (!parsed.ok) {
-      setFormError(
-        parsed.error === "required"
-          ? messages.calismalar.notifyEmailsRequiredError
-          : parsed.error === "tooMany"
-            ? messages.calismalar.notifyEmailsTooManyError.replace("{max}", String(MAX_NOTIFY_EMAILS))
-            : messages.calismalar.notifyEmailsInvalidError.replace("{email}", parsed.email),
-      );
-      return;
-    }
     setFormError(null);
-    mutation.mutate({ toStatus: APPROVAL_REQUEST, notifyEmails: parsed.emails });
+    const recipient = recipients.find((candidate) => candidate.user_id === recipientId) ?? null;
+    mutation.mutate({ toStatus: APPROVAL_REQUEST, recipient });
   };
 
   const handleCancel = () => {
     setPendingTarget(null);
+    setRecipientId("");
     setFormError(null);
   };
 
@@ -159,31 +177,73 @@ export function TransitionActions({
           durum değişti) gerekçe formunu göstermiyoruz — sadece hata mesajı görünür. */}
       {pendingTarget === APPROVAL_REQUEST && candidates.includes(APPROVAL_REQUEST) && (
         <form
-          className="mt-4 max-w-xl"
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
             handleApprovalRequestSubmit();
           }}
         >
-          <Label htmlFor="transition-notify-emails">{messages.calismalar.notifyEmailsLabel}</Label>
-          <Input
-            id="transition-notify-emails"
-            type="text"
-            inputMode="email"
-            autoComplete="off"
-            required
-            aria-required="true"
-            value={notifyInput}
-            onChange={(e) => setNotifyInput(e.target.value)}
-            placeholder={messages.calismalar.notifyEmailsPlaceholder}
-            aria-describedby="transition-notify-emails-hint"
-          />
-          <p id="transition-notify-emails-hint" className="mt-1 text-sm text-muted-foreground">
-            {messages.calismalar.notifyEmailsHint.replace("{max}", String(MAX_NOTIFY_EMAILS))}
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button type="submit" disabled={mutation.isPending}>
+          <fieldset aria-describedby="approval-recipients-hint">
+            <legend className="text-sm font-medium text-foreground">
+              {messages.calismalar.approvalRecipientsLabel}
+            </legend>
+            <p id="approval-recipients-hint" className="mt-1 text-[13px] leading-5 text-muted-foreground">
+              {messages.calismalar.approvalRecipientsHint}
+            </p>
+            {recipientsQuery.isLoading ? (
+              <div
+                role="status"
+                aria-busy="true"
+                aria-label={messages.calismalar.approvalRecipientsLoading}
+                className="mt-3 space-y-2"
+              >
+                {[0, 1].map((n) => (
+                  <div key={n} aria-hidden="true" className={`h-14 w-full ${pulse}`} />
+                ))}
+              </div>
+            ) : recipients.length === 0 ? (
+              // No list (none registered, or it could not be fetched): the server notifies them all.
+              <p className="mt-3 rounded-md bg-muted px-3 py-2 text-sm text-foreground">
+                {messages.calismalar.approvalRecipientsNone}
+              </p>
+            ) : (
+              <div className="mt-3 space-y-2">
+                <label className={choiceCard}>
+                  <input
+                    type="radio"
+                    name="approval-recipient"
+                    value=""
+                    checked={recipientId === ""}
+                    onChange={() => setRecipientId("")}
+                    className="h-4 w-4 shrink-0 accent-success"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-foreground">
+                      {messages.calismalar.approvalRecipientsAll}
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      {messages.calismalar.approvalRecipientsAllHint}
+                    </span>
+                  </span>
+                </label>
+                {recipients.map((recipient) => (
+                  <label key={recipient.user_id} className={choiceCard}>
+                    <input
+                      type="radio"
+                      name="approval-recipient"
+                      value={recipient.user_id}
+                      checked={recipientId === recipient.user_id}
+                      onChange={() => setRecipientId(recipient.user_id)}
+                      className="h-4 w-4 shrink-0 accent-success"
+                    />
+                    <ApproverIdentity approver={recipient} />
+                  </label>
+                ))}
+              </div>
+            )}
+          </fieldset>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button type="submit" disabled={mutation.isPending || recipientsQuery.isLoading}>
               {mutation.isPending
                 ? messages.calismalar.transitionSubmittingButton
                 : messages.calismalar.transitionAction[APPROVAL_REQUEST]}
@@ -215,7 +275,7 @@ export function TransitionActions({
         <div
           role="alert"
           aria-live="polite"
-          className="mt-4 rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-600"
+          className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
         >
           {formError}
         </div>
@@ -225,7 +285,7 @@ export function TransitionActions({
         <div
           role="status"
           aria-live="polite"
-          className="mt-4 rounded-md bg-green-50 border border-green-200 p-3 text-sm text-green-600"
+          className="mt-4 rounded-md border border-success/30 bg-success/10 p-3 text-sm text-success"
         >
           {successMessage}
         </div>

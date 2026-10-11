@@ -381,7 +381,9 @@ Yetkisiz çağıran her zaman `404` alır ve kota harcamaz.
 | `POST` | `/engagements` | `ORG:MEMBER` veya `TALENT` | `talent_id`, `organization_id`, `institution_id?`, `kind`, `title`, `started_on?`, `ended_on?`, `confidential?` | `201` — engagement (`status: DRAFT`) | `404`, `400` |
 | `GET` | `/engagements/{id}` | taraflardan biri | — | `200` — engagement + `available_transitions[]` | `404` |
 | `GET` | `/engagements` | `AUTH` | `status?`, `role?`, `limit?`, `cursor?` | `200` — **yalnız erişilebilir olanlar**; her satır `organization_id`, `institution_id`, `talent_id`, `talent_name` taşır (kuruluş/kurum tarafı listeyi öğrenciye göre gösterir) | — |
-| `POST` | `/engagements/{id}/transitions` | duruma göre | `to_status`, `version`, `reason?`, `notify_emails?` | `200` — güncel engagement | `403`, `404`, `409`, `422 ILLEGAL_TRANSITION`, `422 PRECONDITION_FAILED` |
+| `POST` | `/engagements/{id}/transitions` | duruma göre | `to_status`, `version`, `reason?`, `notify_user_ids?`, `notify_emails?` | `200` — güncel engagement | `403`, `404`, `409`, `422 ILLEGAL_TRANSITION`, `422 PRECONDITION_FAILED` |
+| `GET` | `/engagements/approval-recipients` | `TALENT` (kendi okulu) | — | `200` — çağıranın okulundaki koordinatörler (`user_id`, `display_name`, `email_hint` maskeli); "Yeni çalışma" formu oluşturur oluşturmaz onaya gönderir | `404` (profil ya da okul yok) |
+| `GET` | `/engagements/{id}/approval-recipients` | `DRAFT` çalışmayı onaya gönderebilen (öğrenci / kuruluş üyesi) | — | `200` — çalışmanın kurumundaki koordinatörler: `user_id`, `display_name`, `email_hint` (maskeli, ör. `ke•••@uni.edu.tr`) | `404` (kapsam dışı, `DRAFT` değil, kurumsuz — tek gövde) |
 | `POST` | `/engagements/{id}/tasks` | Kuruluş üyesi / koordinatör (yalnız `ACTIVE`) veya `TALENT` (kendi çalışması; `DRAFT`, `ACTIVE`) | `title`, `description?`, `due_at?`, `skill_id?` | `201` — görev (`verified`, `verified_at`) | `404`, `403`, `422 PRECONDITION_FAILED` |
 | `POST` | `/engagements/{id}/tasks/{task_id}/verify` | Kuruluş üyesi / koordinatör — **öğrenci kendi görevini doğrulayamaz** | — | `200` — görev (`verified: true`) | `404`, `403`, `409 TASK_ALREADY_VERIFIED`, `422 PRECONDITION_FAILED` |
 | `POST` | `/engagements/{id}/deliverables` | `TALENT` | `title`, `description?`, `task_id?`, `evidence_ids[]` | `201` | `404`, `403`, `422 EVIDENCE_REQUIRED` |
@@ -420,18 +422,27 @@ Görevi kimin eklediği, doğrulanmış sayılıp sayılmayacağını belirler:
 
 Bu üç hatanın ayrı olması kasıtlıdır: istemci kullanıcıya doğru mesajı gösterebilir.
 
-**Onay isteğinin alıcısı (`notify_emails`).** `DRAFT → PENDING_APPROVAL`
-geçişinde **zorunludur** (yoksa ya da boşsa `422 PRECONDITION_FAILED`), diğer
-geçişlerde yok sayılır; en az 1, en fazla 5 e-posta adresi.
+**Okula bağlı türler.** `INTERNSHIP` ve `CAPSTONE` oluşturulurken öğrencinin
+profilinde okul varsa `institution_id` gönderilmese de o okul bağlanır; böylece
+staj, okul onayını (T1/T2) atlayıp T4 ile kendi kendine aktifleştirilemez.
+`SHORT_PROJECT` ve `PART_TIME` okulsuz oluşturulabilir (T4: hemen `ACTIVE`,
+doğrulamayı en sonda kuruluş yapar); öğrenci isterse `institution_id` gönderip
+okul onayını seçer.
 
-- Adreslerden o kurumun `COORDINATOR` üyesine ait olanlar bildirimi **tek başına** alır.
+**Onay isteğinin alıcısı (`notify_user_ids` / `notify_emails`).** `DRAFT → PENDING_APPROVAL`
+geçişinde **isteğe bağlıdır**, diğer geçişlerde yok sayılır; her biri en fazla 5 öğe.
+Verilmezse bildirim kurumun tüm koordinatörlerine gider.
+
+- Arayüz koordinatörü `GET /engagements/{id}/approval-recipients` listesinden seçtirir
+  ve kimliğini `notify_user_ids` ile gönderir; öğrenci adres yazmaz.
+- O kurumun `COORDINATOR` üyesine ait kimlik/adresler bildirimi **tek başına** alır.
 - Başka kurumun koordinatörü, kurum yöneticisi, kuruluş üyesi ya da bilinmeyen bir
-  adres **hata vermeden yok sayılır**; hiçbiri eşleşmezse bildirim yine tüm
-  koordinatörlere gider. Yanıt her durumda aynıdır — istemci bir adresin kurumda
-  kayıtlı olup olmadığını öğrenemez.
+  kimlik/adres **hata vermeden yok sayılır**; hiçbiri eşleşmezse bildirim yine tüm
+  koordinatörlere gider. Yanıt her durumda aynıdır — istemci kimin kurumda kayıtlı
+  olduğunu bu uçtan öğrenemez.
 - Onay yetkisi değişmez: kurumun her koordinatörü çalışmayı onaylayabilir. Alan
   yalnız bildirimin kime gideceğini belirler.
-- Biçimi bozuk adres ya da 5'ten fazla adres → `422 VALIDATION_ERROR`.
+- Biçimi bozuk adres ya da 5'ten fazla öğe → `422 VALIDATION_ERROR`.
 - Outbox'a adres değil kullanıcı kimliği yazılır (PII).
 
 `GET /engagements/{id}` cevabındaki `available_transitions[]`, **bu kullanıcının

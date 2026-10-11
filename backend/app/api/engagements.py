@@ -34,6 +34,8 @@ from app.services.engagement import (
     create_engagement_task,
     create_deliverable,
     engagement_supervisor_summary,
+    list_approval_recipients,
+    list_own_approval_recipients,
     verify_engagement_task,
     viewer_capabilities,
 )
@@ -122,13 +124,17 @@ class TransitionEngagementRequest(BaseModel):
     ended_on: str | None = Field(
         None, description="Optional end date (ISO format) for engagement"
     )
-    # Required for DRAFT → PENDING_APPROVAL (422 PRECONDITION_FAILED without it):
-    # the approval request goes to these coordinators of the engagement's
-    # institution instead of all of them.
+    # Optional, DRAFT → PENDING_APPROVAL only: the approval request goes to
+    # these coordinators of the engagement's institution instead of all of them.
     notify_emails: list[Annotated[str, Field(pattern=_EMAIL_PATTERN, max_length=320)]] | None = Field(
         None,
         max_length=MAX_NOTIFY_EMAILS,
         description="Coordinator e-mails of the engagement's institution to notify",
+    )
+    notify_user_ids: list[uuid.UUID] | None = Field(
+        None,
+        max_length=MAX_NOTIFY_EMAILS,
+        description="Coordinator ids from GET /engagements/{id}/approval-recipients",
     )
 
     class Config:
@@ -507,6 +513,42 @@ def get_engagements(
 # ============================================================================
 
 
+class ApprovalRecipientEntry(BaseModel):
+    """GET /engagements/{id}/approval-recipients row — masked e-mail only."""
+
+    user_id: uuid.UUID
+    display_name: str
+    email_hint: str
+
+
+@router.get("/approval-recipients", response_model=list[ApprovalRecipientEntry])
+def list_own_approval_recipients_endpoint(
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> list[ApprovalRecipientEntry]:
+    """
+    Coordinators of the caller's own school, for the "Yeni çalışma" form
+    (declared before /{engagement_id} so the path is not read as an id).
+
+    Status codes:
+        200: List (by name); empty when the school has no coordinator
+        401: Unauthenticated
+        404: No talent profile or no school
+    """
+    if principal.user_id is None:
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "UNAUTHORIZED", "message": "Kimlik doğrulama gerekli.", "request_id": None},
+        )
+    rows = list_own_approval_recipients(session, principal)
+    if rows is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "NOT_FOUND", "message": "Kurum bulunamadı.", "request_id": None},
+        )
+    return [ApprovalRecipientEntry.model_validate(row, from_attributes=True) for row in rows]
+
+
 @router.get("/{engagement_id}", response_model=EngagementDetailResponse)
 def get_engagement_detail(
     engagement_id: str,
@@ -625,6 +667,36 @@ def get_engagement_detail(
         )
 
 
+@router.get("/{engagement_id}/approval-recipients", response_model=list[ApprovalRecipientEntry])
+def list_engagement_approval_recipients(
+    engagement_id: uuid.UUID,
+    principal: Principal = Depends(get_current_principal),
+    session: Session = Depends(get_session),
+) -> list[ApprovalRecipientEntry]:
+    """
+    Coordinators of the engagement's institution, to pick who receives the
+    approval request (notify_user_ids on DRAFT -> PENDING_APPROVAL).
+
+    Status codes:
+        200: List (by name); empty when the institution has no coordinator
+        401: Unauthenticated
+        404: Out of scope, not DRAFT, no institution, or the caller may not
+             send it for approval (same body)
+    """
+    if principal.user_id is None:
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "UNAUTHORIZED", "message": "Kimlik doğrulama gerekli.", "request_id": None},
+        )
+    rows = list_approval_recipients(session, principal, engagement_id)
+    if rows is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "NOT_FOUND", "message": "Engagement bulunamadı.", "request_id": None},
+        )
+    return [ApprovalRecipientEntry.model_validate(row, from_attributes=True) for row in rows]
+
+
 @router.get("/{engagement_id}/certificate-checks", response_model=CertificateCheckListResponse)
 def list_engagement_certificate_checks(
     engagement_id: str,
@@ -729,6 +801,7 @@ def post_engagement_transitions(
             started_on=payload.started_on,
             ended_on=payload.ended_on,
             notify_emails=payload.notify_emails,
+            notify_user_ids=payload.notify_user_ids,
         )
     except EngagementNotFoundError:
         raise HTTPException(

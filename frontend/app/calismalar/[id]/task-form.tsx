@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { createTask } from "@/lib/api/tasks";
 import type { EngagementDetail } from "@/lib/api/engagements";
@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { SkillPicker } from "@/components/skill-picker";
 import messages from "@/messages/tr.json";
 
+const c = messages.calismalar;
+
 /**
  * YET-202/ENT-01: Çalışmaya yeni bir görev ekler.
  * - Kuruluş üyesi / koordinatör: çalışma ACTIVE iken; görev doğrulanmış oluşur.
@@ -18,8 +20,10 @@ import messages from "@/messages/tr.json";
  *   oluşur ve kuruluş ya da kurum onaylayana kadar öyle kalır.
  * Form yalnız sunucunun `viewer.can_add_task` dediği kullanıcıya görünür (SPRINT A);
  * `isSubject` yalnız "doğrulanmamış görev" ipucunu seçer.
+ *
+ * Görev yokken form açık gelir (ilk iş görev yazmak); varsa "Görev ekle" ile açılır.
+ * Eklemeden sonra form açık kalır ve başlığa odaklanır: birkaç görev art arda girilir.
  */
-
 export function TaskForm({
   engagement,
   onSuccess,
@@ -29,12 +33,39 @@ export function TaskForm({
   onSuccess: () => void;
   isSubject?: boolean;
 }) {
+  const [open, setOpen] = useState(engagement.tasks.length === 0);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dueAt, setDueAt] = useState("");
   const [skillId, setSkillId] = useState<string | null>(null);
+  // SkillPicker keeps its own search text; a new key gives the next task a clean picker.
+  const [skillPickerKey, setSkillPickerKey] = useState(0);
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
+  const focusTitle = useRef(false);
+
+  useEffect(() => {
+    if (open && focusTitle.current) {
+      focusTitle.current = false;
+      titleRef.current?.focus();
+    }
+  });
+
+  useEffect(() => {
+    if (!successMessage) return;
+    const timer = setTimeout(() => setSuccessMessage(null), isSubject ? 5000 : 3000);
+    return () => clearTimeout(timer);
+  }, [successMessage, isSubject]);
+
+  const reset = () => {
+    setTitle("");
+    setDescription("");
+    setDueAt("");
+    setSkillId(null);
+    setSkillPickerKey((key) => key + 1);
+    setFormError(null);
+  };
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -45,30 +76,24 @@ export function TaskForm({
         skill_id: skillId ?? undefined,
       }),
     onSuccess: () => {
-      setTitle("");
-      setDescription("");
-      setDueAt("");
-      setSkillId(null);
-      setFormError(null);
-      setSuccessMessage(
-        isSubject ? messages.calismalar.taskAddedUnverifiedMessage : messages.calismalar.taskAddedMessage
-      );
+      reset();
+      setSuccessMessage(isSubject ? c.taskAddedUnverifiedMessage : c.taskAddedMessage);
+      focusTitle.current = true;
       onSuccess();
-      setTimeout(() => setSuccessMessage(null), isSubject ? 4000 : 2000);
     },
     onError: (error: unknown) => {
       if (error instanceof ApiError) {
         if (error.status === 403) {
-          setFormError(messages.calismalar.transitionForbiddenError);
+          setFormError(c.transitionForbiddenError);
           return;
         }
         if (error.code === "PRECONDITION_FAILED") {
-          setFormError(messages.calismalar.taskNotActiveError);
+          setFormError(c.taskNotActiveError);
           onSuccess(); // durum artık ACTIVE olmayabilir — güncel veriyi getir
           return;
         }
         if (error.code === "INVALID_REQUEST") {
-          setFormError(messages.calismalar.taskInvalidSkillError);
+          setFormError(c.taskInvalidSkillError);
           return;
         }
       }
@@ -83,6 +108,42 @@ export function TaskForm({
     return null;
   }
 
+  const status = successMessage ? (
+    <p
+      role="status"
+      aria-live="polite"
+      className="flex items-start gap-2 rounded-md border border-success/30 bg-success/10 px-3 py-2 text-sm text-success"
+    >
+      <svg viewBox="0 0 24 24" className="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+        <path d="M5 12.5l4.5 4.5L19 7.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      {successMessage}
+    </p>
+  ) : null;
+
+  if (!open || !engagement.viewer.can_add_task) {
+    return (
+      <div className="mb-4 space-y-3">
+        {status}
+        {engagement.viewer.can_add_task ? (
+          <button
+            type="button"
+            onClick={() => {
+              focusTitle.current = true;
+              setOpen(true);
+            }}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-muted-foreground/40 px-4 py-3 text-sm font-medium text-foreground transition-colors hover:border-success hover:bg-success/[0.04] hover:text-success focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+              <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+            </svg>
+            {c.openTaskForm}
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
@@ -91,62 +152,98 @@ export function TaskForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="mb-4 rounded-lg border border-dashed border-border bg-background p-4">
-      <h3 className="text-sm font-bold mb-3">{messages.calismalar.addTaskTitle}</h3>
+    <form
+      onSubmit={handleSubmit}
+      aria-labelledby="task-form-title"
+      className="mb-5 rounded-lg border border-border bg-background p-4 sm:p-5"
+    >
+      <h3 id="task-form-title" className="font-serif text-base font-semibold text-foreground">
+        {c.addTaskTitle}
+      </h3>
+      <p className="mt-1 text-[13px] text-muted-foreground">{c.taskFormIntro}</p>
       {isSubject && (
-        <p className="mb-3 text-xs text-muted-foreground">{messages.calismalar.taskUnverifiedHint}</p>
+        <p className="mt-3 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs leading-5 text-warning">
+          {c.taskUnverifiedHint}
+        </p>
       )}
 
-      <div className="mb-3">
-        <Label htmlFor="task-title">{messages.calismalar.taskTitleLabel}</Label>
-        <Input
-          id="task-title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          required
-        />
-      </div>
+      <div className="mt-4 space-y-4">
+        <div>
+          <Label htmlFor="task-title">{c.taskTitleLabel}</Label>
+          <Input
+            id="task-title"
+            ref={titleRef}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder={c.taskTitlePlaceholder}
+            required
+          />
+        </div>
 
-      <div className="mb-3">
-        <Label htmlFor="task-description">{messages.calismalar.taskDescriptionLabel}</Label>
-        <textarea
-          id="task-description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={2}
-          className="block w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent"
-        />
-      </div>
+        <div>
+          <Label htmlFor="task-description">{c.taskDescriptionLabel}</Label>
+          <textarea
+            id="task-description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder={c.taskDescriptionPlaceholder}
+            rows={3}
+            className="block min-h-[96px] w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 transition-colors hover:border-muted-foreground/40 focus:border-success focus:outline-none focus:ring-2 focus:ring-success/25"
+          />
+        </div>
 
-      <div className="mb-3">
-        <Label htmlFor="task-due-at">{messages.calismalar.taskDueAtLabel}</Label>
-        <Input
-          id="task-due-at"
-          type="date"
-          value={dueAt}
-          onChange={(e) => setDueAt(e.target.value)}
-        />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[180px_minmax(0,1fr)]">
+          <div>
+            <Label htmlFor="task-due-at">{c.taskDueAtLabel}</Label>
+            <Input
+              id="task-due-at"
+              type="date"
+              value={dueAt}
+              onChange={(e) => setDueAt(e.target.value)}
+              aria-describedby="task-due-at-hint"
+            />
+            <p id="task-due-at-hint" className="mt-1.5 text-xs text-muted-foreground">
+              {c.taskDueAtHint}
+            </p>
+          </div>
+          <div className="min-w-0">
+            <SkillPicker key={skillPickerKey} value={skillId} onChange={setSkillId} label={c.taskSkillLabel} />
+            <p className="mt-1.5 text-xs text-muted-foreground">{c.taskSkillHint}</p>
+          </div>
+        </div>
       </div>
-
-      <div className="mb-3">
-        <SkillPicker value={skillId} onChange={setSkillId} label={messages.calismalar.taskSkillLabel} />
-      </div>
-
-      <Button type="submit" disabled={mutation.isPending}>
-        {mutation.isPending ? messages.calismalar.addingTaskButton : messages.calismalar.addTaskButton}
-      </Button>
 
       {formError && (
-        <div role="alert" aria-live="polite" className="mt-3 rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-600">
+        <p
+          role="alert"
+          aria-live="polite"
+          className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
           {formError}
-        </div>
+        </p>
       )}
+      {status ? <div className="mt-4">{status}</div> : null}
 
-      {successMessage && (
-        <div role="status" aria-live="polite" className="mt-3 rounded-md bg-green-50 border border-green-200 p-3 text-sm text-green-600">
-          {successMessage}
-        </div>
-      )}
+      <div className="mt-5 flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => {
+            reset();
+            setOpen(false);
+          }}
+          className="h-10 text-muted-foreground hover:text-foreground"
+        >
+          {c.taskCancelButton}
+        </Button>
+        <Button
+          type="submit"
+          disabled={mutation.isPending}
+          className="h-10 px-5 text-background disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2"
+        >
+          {mutation.isPending ? c.addingTaskButton : c.addTaskButton}
+        </Button>
+      </div>
     </form>
   );
 }

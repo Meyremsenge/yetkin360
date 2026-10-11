@@ -117,8 +117,17 @@ export interface TransitionPayload {
   to_status: EngagementStatus;
   version: number;
   reason?: string;
-  /** DRAFT → PENDING_APPROVAL için zorunlu: onay isteğinin iletileceği kurum koordinatörleri. */
+  /** DRAFT → PENDING_APPROVAL, isteğe bağlı: onay isteğinin iletileceği kurum koordinatörleri. */
   notify_emails?: string[];
+  /** DRAFT → PENDING_APPROVAL, isteğe bağlı: listApprovalRecipients'ten seçilen koordinatörler. Yoksa hepsine gider. */
+  notify_user_ids?: string[];
+}
+
+/** Çalışmanın okulundaki koordinatörler; e-posta yalnız maskeli gelir. */
+export interface ApprovalRecipient {
+  user_id: string;
+  display_name: string;
+  email_hint: string;
 }
 
 // ============================================================================
@@ -206,6 +215,27 @@ export async function getEngagement(id: string): Promise<EngagementDetail> {
       message: "Engagement bulunamadı.",
       requestId: null,
     });
+  }
+  return response;
+}
+
+/**
+ * DRAFT çalışmayı onaya gönderebilen kişi için okulun koordinatörleri.
+ * Kapsam dışı / taslak değil / okulsuz → 404.
+ */
+export async function listApprovalRecipients(id: string): Promise<ApprovalRecipient[]> {
+  const response = await apiFetch<ApprovalRecipient[]>(`/engagements/${id}/approval-recipients`);
+  if (!response) {
+    throw new ApiError({ status: 502, code: "UNKNOWN_ERROR", message: "Beklenmeyen yanıt.", requestId: null });
+  }
+  return response;
+}
+
+/** "Yeni çalışma" formu için: kullanıcının kendi okulunun koordinatörleri. Okulu yoksa 404. */
+export async function listOwnApprovalRecipients(): Promise<ApprovalRecipient[]> {
+  const response = await apiFetch<ApprovalRecipient[]>("/engagements/approval-recipients");
+  if (!response) {
+    throw new ApiError({ status: 502, code: "UNKNOWN_ERROR", message: "Beklenmeyen yanıt.", requestId: null });
   }
   return response;
 }
