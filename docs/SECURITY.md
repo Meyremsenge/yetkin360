@@ -121,7 +121,7 @@ gerekçesi budur.
 **Hackathon kapsamında ClamAV yoktur** (final analiz §35.3: "virüs taraması —
 MIME + boyut kontrolü yeterli, ClamAV'i sonraya bırakın").
 
-| | MVP (hackathon) | Faz 5 ([PLAN.md](../PLAN.md) 5.3) |
+| | MVP (hackathon) | Faz 5 ([PLAN.md](PLAN.md) 5.3) |
 |---|---|---|
 | Magic-byte | ✅ | ✅ |
 | Boyut + kota | ✅ | ✅ |
@@ -132,7 +132,7 @@ MIME + boyut kontrolü yeterli, ClamAV'i sonraya bırakın").
 
 > Kural 8 (ayrı domain) MVP'de uygulanmıyor. Bu **bilinçli bir risk kabulüdür**:
 > hackathon demosunda yalnız seed verisi ve ekip dosyaları var. Ürün gerçek
-> kullanıcı aldığı anda bu kural zorunludur — [PLAN.md](../PLAN.md) 5.3.
+> kullanıcı aldığı anda bu kural zorunludur — [PLAN.md](PLAN.md) 5.3.
 
 ---
 
@@ -262,7 +262,7 @@ token (30 gün).**
 
 > **Açık kaynak riski:** Repo halka açık olduğu için bir kez commit edilen sır
 > **kalıcı olarak sızmıştır** — geçmişten silmek yetmez, sır **döndürülmelidir**.
-> Faz 3 kapanışında ([PLAN.md](../PLAN.md) 3.15) tüm geçmiş taranır.
+> Faz 3 kapanışında ([PLAN.md](PLAN.md) 3.15) tüm geçmiş taranır.
 
 ---
 

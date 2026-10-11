@@ -1,6 +1,6 @@
 ---
 name: durum
-description: PLAN.md'deki ilerlemeyi okur, nerede kalındığını kısaca söyler ve sıradaki maddeyi uygulamaya başlar. Kullanıcı /durum yazdığında çalışır.
+description: docs/PLAN.md'deki ilerlemeyi okur, nerede kalındığını kısaca söyler ve sıradaki maddeyi uygulamaya başlar. Kullanıcı /durum yazdığında çalışır.
 disable-model-invocation: true
 argument-hint: "(boş) | <madde-no>"
 ---
@@ -13,7 +13,7 @@ Amaç: kullanıcının prompt yazmasına gerek kalmadan, planda kalınan yerden 
 
 Şu üçünü oku, fazlasını **okuma**:
 
-- `PLAN.md` — tamamını oku (kısa tutulmuş bir dosyadır)
+- `docs/PLAN.md` — tamamını oku (kısa tutulmuş bir dosyadır)
 - `!`git log --oneline -5`` — son 5 commit (tam history okuma)
 - `!`git status --short`` — çalışma ağacı durumu
 
@@ -38,7 +38,7 @@ Rapordan sonra **durma, sorma, doğrudan başla.** Kullanıcı `/durum` yazarak 
 Uygularken:
 
 - `CLAUDE.md` içindeki çalışma döngüsüne uy: hedefli oku → uygula → hedefli doğrula
-- Maddenin detayı `docs/` veya `yetkin360-final-analiz.md` içindeyse **sadece ilgili bölümü** oku (grep ile bul)
+- Maddenin detayı `docs/` veya `docs/yetkin360-final-analiz.md` içindeyse **sadece ilgili bölümü** oku (grep ile bul)
 - Doğrulama matrisine göre minimum gerekli testi çalıştır
 
 ## 4. İstisna — önce onay al
@@ -56,7 +56,7 @@ Bu durumda raporun sonuna tek satır ekle: `Bu madde onay gerektiriyor: <sebep>.
 
 ## 5. Madde bitince
 
-- `PLAN.md`'de kutuyu `- [x]` yap
+- `docs/PLAN.md`'de kutuyu `- [x]` yap
 - Kısa çıktı formatını kullan (Değişen / Doğrulanan / Kalan)
 - Commit **atma** — kullanıcı `/bitir` derse o zaman atılır
 - Sıradaki maddeye kendiliğinden geçme; kullanıcı tekrar `/durum` yazsın

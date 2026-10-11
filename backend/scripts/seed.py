@@ -487,7 +487,7 @@ ORG_TEAM = [
 ]
 SHOWCASE_ORG_LEGAL_IDS = ("ORG1", "ORG4")
 
-# SPRINT J demo story (SPRINT.md §0): Ayşe (STUDENT_EMAILS[0], Çınaraltı) with
+# SPRINT J demo story (docs/SPRINT.md §0): Ayşe (STUDENT_EMAILS[0], Çınaraltı) with
 # Yelkovan Yazılım, approver Mehmet Karaca (Yazılım). One finished with both
 # signatures (Mehmet evaluates, the Çınaraltı coordinator seals), one waiting for Mehmet's evaluation
 # (live demo), one waiting for the coordinator's approval (live demo).

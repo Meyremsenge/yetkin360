@@ -244,7 +244,7 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
 ## 9. Production kontrol listesi
 
-Deploy öncesi ([PLAN.md](../PLAN.md) 3.14) doğrulanır:
+Deploy öncesi ([PLAN.md](PLAN.md) 3.14) doğrulanır:
 
 - [ ] `ENVIRONMENT=production` (açıkça; varsayılan `development` doğrulamayı devreye sokmaz)
 - [ ] `DEBUG=false`

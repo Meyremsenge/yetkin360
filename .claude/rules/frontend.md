@@ -9,7 +9,7 @@ paths:
 
 # Frontend
 
-Detay: `yetkin360-final-analiz.md` §14.
+Detay: `docs/yetkin360-final-analiz.md` §14.
 
 ## Kararlar (tartışma yok, uygula)
 

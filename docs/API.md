@@ -4,7 +4,7 @@ REST API'nin uç listesi, yetki gereksinimleri, şema özetleri, hata kodları.
 
 **Kaynak:** `yetkin360-final-analiz.md` §34 (uç listesi), §13.4 (tasarım kuralları).
 
-**Bu dosya sözleşmedir.** [PLAN.md](../PLAN.md) "sözleşme önce" kuralı gereği:
+**Bu dosya sözleşmedir.** [PLAN.md](PLAN.md) "sözleşme önce" kuralı gereği:
 bir ucun sözleşmesi burada yazılmadan `@fe` o ekranı yapamaz. Sözleşme yazılır →
 `@fe` mock ile ilerler → backend gerçeğini bağlar.
 
@@ -536,12 +536,12 @@ kullanıcıya göstermelidir:
 
 > ❓ AÇIK SORU: `downgrade_reasons` kodlarının tam listesi final analizde yok.
 > §3.11'deki 6 ön koşuldan türetilebilir ama kesin kod adları
-> [PLAN.md](../PLAN.md) 2.8 yazılırken kesinleşmeli.
+> [PLAN.md](PLAN.md) 2.8 yazılırken kesinleşmeli.
 
 **`/revoke` yan etkisi:** Tanıklık geri çekilince ilgili `skill_signals`
 kayıtları `superseded` olur — **silinmez** (D12). Tek transaction.
 
-**`/dispute` MVP kapsamı:** `DISPUTED` akışı [PLAN.md](../PLAN.md) R.3 —
+**`/dispute` MVP kapsamı:** `DISPUTED` akışı [PLAN.md](PLAN.md) R.3 —
 "vakit kalırsa" maddesidir. Uç sözleşmesi burada tanımlı ama hackathon
 MVP'sinde gerçeklenmeyebilir.
 
@@ -723,7 +723,7 @@ Bildirimler outbox ile: `complaint.explanation_requested` (yetkili), `complaint.
 
 ## 3. Uç özeti
 
-Toplam **41 uç**. Hackathon fazlarına dağılımı → [PLAN.md](../PLAN.md).
+Toplam **41 uç**. Hackathon fazlarına dağılımı → [PLAN.md](PLAN.md).
 
 | Grup | Uç sayısı | Faz |
 |---|---|---|

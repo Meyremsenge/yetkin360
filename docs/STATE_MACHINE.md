@@ -218,7 +218,7 @@ değişen `attestations` tablosudur. Uç: `POST /attestations/{id}/revoke`
 
 ## 7. MVP kapsamı
 
-Hackathon fazlarına dağılım — [PLAN.md](../PLAN.md):
+Hackathon fazlarına dağılım — [PLAN.md](PLAN.md):
 
 | Geçiş | Faz | Durum |
 |---|---|---|
@@ -230,7 +230,7 @@ Hackathon fazlarına dağılım — [PLAN.md](../PLAN.md):
 | T4 (koordinatörsüz) | — | ⚠️ Açık soru (§4.3) |
 | T9, T10 (`DISPUTED`) | **R.3** | ⚠️ "Vakit kalırsa" — gerçeklenmeyebilir |
 
-> **Altın kural hatırlatması ([PLAN.md](../PLAN.md)):** Tek uçtan uca senaryo
+> **Altın kural hatırlatması ([PLAN.md](PLAN.md)):** Tek uçtan uca senaryo
 > kusursuz çalışsın. Bu durum makinesinde o senaryo **T1 → T2 → T5 → T7 → T8**
 > yoludur. Bu yol çalışmıyorsa `DISPUTED` akışı hiçbir şey kurtarmaz.
 

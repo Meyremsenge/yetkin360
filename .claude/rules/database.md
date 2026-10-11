@@ -10,7 +10,7 @@ paths:
 
 # Veritabanı ve şema
 
-Detay gerekirse `yetkin360-final-analiz.md` §12'yi oku (tamamını değil, ilgili alt bölümü).
+Detay gerekirse `docs/yetkin360-final-analiz.md` §12'yi oku (tamamını değil, ilgili alt bölümü).
 
 ## Değişmezler
 

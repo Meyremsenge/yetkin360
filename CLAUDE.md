@@ -21,8 +21,8 @@ Stack: FastAPI + PostgreSQL + Next.js (TypeScript). Modüler monolit, tek VPS.
 
 | Dosya | Ne için | Ne zaman okunur |
 |---|---|---|
-| **`PLAN.md`** | Yapılacak işlerin **sırası** ve ilerleme durumu | Her iş başlangıcında |
-| **`yetkin360-final-analiz.md`** | Tüm mühendislik ve ürün kararları (39 bölüm) | İlgili bölüm, ihtiyaç anında |
+| **`docs/PLAN.md`** | Yapılacak işlerin **sırası** ve ilerleme durumu | Her iş başlangıcında |
+| **`docs/yetkin360-final-analiz.md`** | Tüm mühendislik ve ürün kararları (39 bölüm) | İlgili bölüm, ihtiyaç anında |
 | `docs/` | Detaylı şema, API, güvenlik, mimari | İlgili bölüm, ihtiyaç anında |
 
 **Kritik kural: Dokümanların tamamını okuma.** Final analiz ~2200 satır. İhtiyacın olan bölümü `grep` ile bul, sadece onu oku.
@@ -159,7 +159,7 @@ Kalan: —
 ## Commit
 
 - Her mantıklı birim ayrı commit. Mesaj Türkçe, tek satır özet + gerekirse gövde.
-- `PLAN.md` maddesiyle ilgiliyse gövdeye madde numarasını yaz (ör. `PLAN 2.3`).
+- `docs/PLAN.md` maddesiyle ilgiliyse gövdeye madde numarasını yaz (ör. `PLAN 2.3`).
 - **Commit'i sen atmazsın — kullanıcı söyleyince atarsın.** İstisna: `/bitir` komutu çalıştığında.
 - Sonunda: `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`
 

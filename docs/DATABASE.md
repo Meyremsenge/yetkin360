@@ -288,7 +288,7 @@ skill_signals                                    -- APPEND-ONLY
 > Seçenekler: (a) `attestations`'a denormalize `subject_talent_id` kolonu eklemek
 > ve `CHECK`'i mümkün kılmak, (b) `BEFORE INSERT` trigger'ı. Final analiz "DB
 > seviyesinde CHECK" diyor ama kolonu tanımlamamış. (a) tercih edilirse şema
-> değişir — karar [PLAN.md](../PLAN.md) 2.8 öncesinde verilmeli.
+> değişir — karar [PLAN.md](PLAN.md) 2.8 öncesinde verilmeli.
 
 ### 2.6 Değerlendirme
 

@@ -114,7 +114,7 @@ fonksiyonudur. "Neden güçlü?" sorusunun cevabı her zaman listelenebilir.
 | Test | pytest, testcontainers, Playwright |
 
 **Bilinçli olarak kullanılmayanlar:** Redis, Elasticsearch, Celery, Kubernetes,
-pgvector, blockchain, LLM. Gerekçeler `yetkin360-final-analiz.md` §39'da.
+pgvector, blockchain, LLM. Gerekçeler `docs/yetkin360-final-analiz.md` §39'da.
 
 ---
 
@@ -218,10 +218,10 @@ Son iki satır ürünün vitrinidir: giriş yapmadan, telefondan açılabilir.
 | [docs/SECURITY.md](docs/SECURITY.md) | OWASP analizi, dosya güvenliği, saldırı senaryoları |
 | [docs/STATE_MACHINE.md](docs/STATE_MACHINE.md) | Engagement durum makinesi |
 | [docs/ENV.md](docs/ENV.md) | Ortam değişkenleri + `.env.example` şablonu |
-| [PLAN.md](PLAN.md) | İş sırası ve ilerleme |
+| [docs/PLAN.md](docs/PLAN.md) | İş sırası ve ilerleme |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Katkı akışı, dal ve commit kuralları |
 | [SECURITY.md](SECURITY.md) | Güvenlik açığı bildirimi |
-| `yetkin360-final-analiz.md` | 39 bölümlük mühendislik ve ürün analizi — **tüm kararların gerekçesi** |
+| `docs/yetkin360-final-analiz.md` | 39 bölümlük mühendislik ve ürün analizi — **tüm kararların gerekçesi** |
 
 ---
 
@@ -245,7 +245,7 @@ reddedilmiştir: manipülasyona davetiyedir ve açıklanabilirliği yok eder.
 ## Durum
 
 Hackathon MVP'si. Kapsamın dışında bırakılanlar ve gerekçeleri
-[PLAN.md](PLAN.md) ve `yetkin360-final-analiz.md` §39'dadır.
+[docs/PLAN.md](docs/PLAN.md) ve `docs/yetkin360-final-analiz.md` §39'dadır.
 
 Bilinen eksikler ([docs/SECURITY.md](docs/SECURITY.md) §9): virüs taraması,
 ayrı içerik domain'i, RLS, MFA — hepsi bilinçli erteleme, gerekçeleriyle

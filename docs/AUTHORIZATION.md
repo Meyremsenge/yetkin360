@@ -152,7 +152,7 @@ Admin erişimi gerçekten gerekiyorsa, **gerekçeli ve denetim kaydına yazılan
 > ❓ AÇIK SORU: Break-glass akışının mekaniği final analizde tanımlanmamış
 > (gerekçe zorunlu mu, ikinci onay gerekiyor mu, öğrenciye bildirim gidiyor mu).
 > MVP'de admin için `PRIVATE` evidence erişimi **tamamen kapalıdır**; break-glass
-> Faz 5'e bırakılır ([PLAN.md](../PLAN.md) 5.4).
+> Faz 5'e bırakılır ([PLAN.md](PLAN.md) 5.4).
 
 ### 4.2 404 mü 403 mü?
 

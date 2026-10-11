@@ -5,7 +5,7 @@ LİSANS — HENÜZ BELİRLENMEDİ
 
 Zemin360 Hackathon şartnamesi platformun açık kaynak olmasını zorunlu tutuyor.
 Ancak şartnamenin **izin verici bir lisans (MIT/Apache-2.0) şart koşup
-koşmadığı** teyit edilmemiştir (bkz. `yetkin360-final-analiz.md` §37, madde 0b).
+koşmadığı** teyit edilmemiştir (bkz. `docs/yetkin360-final-analiz.md` §37, madde 0b).
 
 Bu teyit yapılmadan lisans seçilemez, çünkü seçim geri alınamaz:
 bir kez yayımlanan kod, o lisans altında alınmış olur.

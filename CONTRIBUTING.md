@@ -3,14 +3,14 @@
 Yetkin360'a katkı vermek için gereken her şey. Proje hackathon takvimiyle
 çalışıyor — kurallar kısa ve bağlayıcı.
 
-**Önce okuyun:** [README.md](README.md) (kurulum) · [PLAN.md](PLAN.md) (iş sırası)
+**Önce okuyun:** [README.md](README.md) (kurulum) · [docs/PLAN.md](docs/PLAN.md) (iş sırası)
 · `CLAUDE.md` (değişmez kurallar)
 
 ---
 
 ## Ekip ve sahiplik
 
-[PLAN.md](PLAN.md)'deki her madde bir sahip etiketi taşır. Etiket sabittir —
+[docs/PLAN.md](docs/PLAN.md)'deki her madde bir sahip etiketi taşır. Etiket sabittir —
 isim değişse bile plan satırı kısa kalır.
 
 | Etiket | Alan | Kişi |
@@ -29,7 +29,7 @@ yazması gerekmez. Başkasının maddesine dokunmadan önce ona haber verin.
 
 ### 1. Maddeyi seçin
 
-İş her zaman [PLAN.md](PLAN.md)'den gelir. Planda olmayan iş yapılmaz —
+İş her zaman [docs/PLAN.md](docs/PLAN.md)'den gelir. Planda olmayan iş yapılmaz —
 gerekliyse önce plana eklenir.
 
 ```bash
@@ -140,7 +140,7 @@ docs/0.4-yetki-matrisi
 
 - Mesaj **Türkçe**, tek satır özet + gerekirse gövde.
 - Her mantıklı birim ayrı commit. **Bomba commit atmayın** — jüri repoya bakabilir.
-- [PLAN.md](PLAN.md) maddesiyle ilgiliyse gövdeye madde numarasını yazın.
+- [docs/PLAN.md](docs/PLAN.md) maddesiyle ilgiliyse gövdeye madde numarasını yazın.
 - `git add -A` / `git add .` **yasak** — dosyaları adıyla ekleyin.
 
 ```
@@ -195,7 +195,7 @@ Her PR bir ekip arkadaşından onay ister. Tek istisna: yalnız dokümantasyon.
 
 - İnceleme yorumu kişiye değil koda yöneliktir.
 - Katılmıyorsanız tartışın — sessizce uygulamak da, sessizce yok saymak da yanlıştır.
-- Bir kararı değiştirmek gerekiyorsa `yetkin360-final-analiz.md`'deki gerekçeye
+- Bir kararı değiştirmek gerekiyorsa `docs/yetkin360-final-analiz.md`'deki gerekçeye
   bakın; hâlâ katılmıyorsanız ekibe açın.
 
 ---
@@ -246,5 +246,5 @@ okunabilir.** Güvenlik kuralları gevşetilmez, sıkılaştırılır.
 |---|---|
 | Hata, özellik önerisi | GitHub Issues |
 | **Güvenlik açığı** | **[SECURITY.md](SECURITY.md) — issue AÇMAYIN** |
-| Mimari karar tartışması | `yetkin360-final-analiz.md`'deki ilgili bölüme atıfla Issue |
-| Plan sırası | Ekip içi, sonra [PLAN.md](PLAN.md) güncellenir |
+| Mimari karar tartışması | `docs/yetkin360-final-analiz.md`'deki ilgili bölüme atıfla Issue |
+| Plan sırası | Ekip içi, sonra [docs/PLAN.md](docs/PLAN.md) güncellenir |
