@@ -1,7 +1,7 @@
 # Sunum öncesi frontend planı (9 Ekim gece → 11 Ekim sunum)
 
 > Kopyala-yapıştır prompt'lar: [`gece-promptlari.md`](gece-promptlari.md) · Ekran prosedürü: `.claude/skills/ekran/SKILL.md` (`/ekran <no>`)
-> Tasarım kaynağı: [`sayfa-tasarim-brifi.md`](sayfa-tasarim-brifi.md) (çelişirse `planfrontend.md`'nin önüne geçer) + `tasarimlar/stitch/` mockup'ları.
+> Tasarım kaynağı: [`sayfa-tasarim-brifi.md`](../sayfa-tasarim-brifi.md) (çelişirse `planfrontend.md`'nin önüne geçer) + `tasarimlar/stitch/` mockup'ları.
 
 ## Neredeyiz (9 Ekim 23:00)
 

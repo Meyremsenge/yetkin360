@@ -37,6 +37,7 @@ $TotalSteps = 5
 
 $script:Step     = 0
 $script:Services = @()
+$script:QuitArmedAt = $null
 $esc = [char]27
 $bel = [char]7
 # CSI colour codes and OSC sequences (e.g. window-title escapes).
@@ -147,7 +148,9 @@ function Write-ServiceLine($Svc, [string]$Line) {
     if ([string]::IsNullOrWhiteSpace($clean)) { return }
 
     $color = 'Gray'
-    if ($clean -match '(?i)\b(error|exception|traceback|failed)\b|^\s+File "') { $color = 'Red' }
+    # Local email is printed, not sent: verification / reset links must stand out.
+    if ($clean -match '\[EMAIL\]') { $color = 'Magenta' }
+    elseif ($clean -match '(?i)\b(error|exception|traceback|failed)\b|^\s+File "') { $color = 'Red' }
     elseif ($clean -match '(?i)\bwarn(ing)?\b') { $color = 'Yellow' }
 
     Write-Host "$stamp " -NoNewline -ForegroundColor DarkGray
@@ -199,7 +202,16 @@ function Test-QuitKey {
         while ([Console]::KeyAvailable) {
             $k = [Console]::ReadKey($true)
             $ctrlC = ($k.Key -eq 'C') -and (($k.Modifiers -band [ConsoleModifiers]::Control) -ne 0)
-            if ($ctrlC -or $k.Key -eq 'Q') { return 'quit' }
+            if ($ctrlC -or $k.Key -eq 'Q') {
+                # Ctrl+C is also the copy shortcut (e.g. the e-mail link in the log):
+                # a single press only warns, a second one within 3 s stops.
+                $now = [DateTime]::UtcNow
+                if ($script:QuitArmedAt -and ($now - $script:QuitArmedAt).TotalSeconds -le 3) { return 'quit' }
+                $script:QuitArmedAt = $now
+                Write-Host ''
+                Write-Host '  Durdurmak için 3 saniye içinde tekrar Q veya Ctrl+C''ye basın.' -ForegroundColor Yellow
+                continue
+            }
             if ($k.Key -eq 'B') { Start-Process $AppUrl }
             if ($k.Key -eq 'H') { Show-Summary }
         }
@@ -290,12 +302,26 @@ function Test-Prerequisites {
     if ($missing.Count -gt 0) { Stop-WithError 'Eksik araç var:' $missing }
     Write-Ok "Docker, Node $(& node --version), Python bulundu"
 
-    if (-not (Test-Path (Join-Path $Root '.env'))) {
-        Copy-Item (Join-Path $Root '.env.example') (Join-Path $Root '.env')
-        Write-Warn '.env yoktu, .env.example kopyalandı. DEGISTIR_ ile başlayan değerleri doldur.'
-    } else {
-        Write-Ok '.env mevcut'
+    # scripts/init_env.py: creates .env with random secrets, or repairs a missing
+    # SEED_ADMIN_PASSWORD (without it the whole seed rolls back). Stdlib only.
+    $initEnv = Join-Path $Root 'scripts\init_env.py'
+    if (Test-Path $Py) { $envRun = Invoke-Captured $Py @($initEnv) }
+    elseif (Get-Command py -ErrorAction SilentlyContinue) { $envRun = Invoke-Captured 'py' @('-3', $initEnv) }
+    else { $envRun = Invoke-Captured 'python' @($initEnv) }
+    if ($envRun.Code -ne 0) { Stop-WithError '.env hazırlanamadı.' $envRun.Output }
+    switch (($envRun.Output | Select-Object -Last 1)) {
+        'created'            { Write-Ok '.env oluşturuldu (rastgele parolalarla, elle düzenleme gerekmez)' }
+        'admin-password-set' { Write-Ok '.env mevcut; platform yöneticisi şifresi eklendi' }
+        default              { Write-Ok '.env mevcut' }
     }
+}
+
+function Get-EnvValue([string]$Key) {
+    $envFile = Join-Path $Root '.env'
+    if (-not (Test-Path $envFile)) { return '' }
+    $line = Get-Content $envFile -Encoding UTF8 | Where-Object { $_ -match "^\s*$Key\s*=" } | Select-Object -Last 1
+    if (-not $line) { return '' }
+    return ($line -split '=', 2)[1].Trim()
 }
 
 function Start-Docker {
@@ -321,8 +347,30 @@ function Start-Docker {
 
     # --wait blocks until the healthchecks in docker-compose.yml pass.
     $up = Invoke-Captured 'docker' @('compose', 'up', '-d', '--wait', '--wait-timeout', '120')
-    if ($up.Code -ne 0) { Stop-WithError 'docker compose up başarısız.' $up.Output }
+    if ($up.Code -ne 0) {
+        # After an unclean shutdown PostgreSQL runs crash recovery first (fsync of the
+        # whole data dir) and can outlast the compose healthcheck retries. The data is
+        # fine; keep waiting for the containers to turn healthy instead of failing.
+        if (-not ($up.Output -match 'unhealthy')) { Stop-WithError 'docker compose up başarısız.' $up.Output }
+        Write-Note 'Veritabanı açılışta kurtarma yapıyor (önceki kapanış düzgün değildi), bekleniyor...'
+        if (-not (Wait-ContainersHealthy 180)) {
+            Stop-WithError 'Container''lar 3 dakikada sağlıklı duruma geçmedi.' (Invoke-Captured 'docker' @('compose', 'logs', '--tail', '20')).Output
+        }
+    }
     Write-Ok 'PostgreSQL ve MinIO hazır (healthcheck geçti)'
+}
+
+function Wait-ContainersHealthy([int]$TimeoutSec) {
+    $watch = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($watch.Elapsed.TotalSeconds -lt $TimeoutSec) {
+        $ids = @((Invoke-Captured 'docker' @('compose', 'ps', '-q')).Output | Where-Object { $_ })
+        if ($ids.Count -gt 0) {
+            $states = @((Invoke-Captured 'docker' (@('inspect', '--format', '{{.State.Health.Status}}') + $ids)).Output)
+            if (@($states | Where-Object { $_ -ne 'healthy' }).Count -eq 0) { return $true }
+        }
+        Start-Sleep -Seconds 3
+    }
+    return $false
 }
 
 function Initialize-Backend {
@@ -335,6 +383,13 @@ function Initialize-Backend {
         }
         if (-not (Test-Path $Py)) { Invoke-Captured 'python' @('-m', 'venv', '.venv') $Backend | Out-Null }
         if (-not (Test-Path $Py)) { Stop-WithError '.venv oluşturulamadı. Python 3.12 kurulu mu?' }
+    }
+
+    $ver = Invoke-Captured $Py @('-c', 'import sys; print(sys.version_info >= (3, 12))') $Backend
+    if (($ver.Output | Select-Object -Last 1) -ne 'True') {
+        Stop-WithError 'backend\.venv Python 3.12 veya üstü değil.' @(
+            'Python 3.12+ kur (https://www.python.org/downloads), sonra backend\.venv klasörünü silip tekrar başlat.'
+        )
     }
 
     # Compiled extensions built for another Python version look installed but fail on import.
@@ -413,20 +468,30 @@ function Show-Summary {
     Write-Host '  API         ' -NoNewline -ForegroundColor DarkGray; Write-Host 'http://localhost:8000/docs'
     Write-Host '  MinIO       ' -NoNewline -ForegroundColor DarkGray; Write-Host 'http://localhost:9001'
     Write-Host ''
-    Write-Host '  Seed hesapları  (şifre: SeedTest123!)' -ForegroundColor DarkGray
-    Write-Host '    Bireysel         ayse.yilmaz@posta.test  (tümü ad.soyad@posta.test)'
+    Write-Host '  Hazır demo hesapları — yeni hesap açmanız gerekmez' -ForegroundColor White
+    Write-Host '  Ortak şifre: ' -NoNewline -ForegroundColor DarkGray; Write-Host 'SeedTest123!' -ForegroundColor Yellow
+    Write-Host '    Bireysel         ayse.yilmaz@posta.test'
     Write-Host '    Kuruluş admini   murat.demirci@yelkovanyazilim.test'
     Write-Host '    Onaylayıcı       mehmet.karaca@yelkovanyazilim.test'
     Write-Host '    Aday doğrulayan  seda.gurbuz@gundogusuenerji.test'
     Write-Host '    Kurum admini     nermin.basaran@cinaralti.edu.test'
     Write-Host '    Koordinatör      kerem.taskin@cinaralti.edu.test'
-    Write-Host '    Platform admini  admin@yetkin360.test  ' -NoNewline
-    Write-Host '(şifre: .env → SEED_ADMIN_PASSWORD)' -ForegroundColor DarkGray
+    Write-Host '  Platform yöneticisi  ' -NoNewline -ForegroundColor DarkGray
+    $adminEmail = Get-EnvValue 'SEED_ADMIN_EMAIL'
+    if (-not $adminEmail) { $adminEmail = 'admin@yetkin360.test' }  # backend/app/core/config.py default
+    Write-Host "$adminEmail  " -NoNewline
+    $adminPw = Get-EnvValue 'SEED_ADMIN_PASSWORD'
+    if ($adminPw) { Write-Host $adminPw -ForegroundColor Yellow } else { Write-Host '(.env → SEED_ADMIN_PASSWORD)' -ForegroundColor DarkGray }
+    Write-Host '    Giriş: ' -NoNewline -ForegroundColor DarkGray; Write-Host "$AppUrl/admin/giris"
+    Write-Host ''
+    Write-Host '  Yeni hesap açarsanız: e-posta gönderilmez; doğrulama bağlantısı' -ForegroundColor DarkGray
+    Write-Host '  aşağıda ' -NoNewline -ForegroundColor DarkGray; Write-Host '[EMAIL]' -NoNewline -ForegroundColor Magenta
+    Write-Host ' satırında görünür — tarayıcıya yapıştırın.' -ForegroundColor DarkGray
     Write-Host ''
     Write-Host '  Loglar      ' -NoNewline -ForegroundColor DarkGray; Write-Host '.logs\api.log  .logs\worker.log  .logs\web.log'
     Write-Host '              ' -NoNewline; Write-Host 'Destek kodunu (request_id) api.log içinde ara.' -ForegroundColor DarkGray
     Write-Host '  Kısayollar  ' -NoNewline -ForegroundColor DarkGray
-    Write-Host '[B] tarayıcı   [H] bu özet   [Q] / Ctrl+C durdur'
+    Write-Host '[B] tarayıcı   [H] bu özet   [Q] / Ctrl+C (iki kez) durdur'
     Write-Host $line -ForegroundColor DarkGray
     Write-Host ''
 }

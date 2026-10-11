@@ -172,7 +172,14 @@
     "signedInAs": "Oturum açık",
     "contextSwitcher": "Panel seç",
     "contextPanels": "Paneller",
-    "viewPublicProfile": "Profilimi gör"
+    "viewPublicProfile": "Profilimi gör",
+    "adminNav": "Yönetim menüsü",
+    "adminBadge": "Yönetim",
+    "adminOverviewLink": "Genel bakış",
+    "adminGroupReview": "İnceleme",
+    "adminGroupDirectory": "Dizin",
+    "adminGroupSystem": "Sistem",
+    "leaveAdmin": "Kullanıcı paneline dön"
   },
   "emailVerificationBanner": {
     "message": "E-posta adresiniz doğrulanmadı. Doğrulanana kadar kayıt oluşturamaz veya değişiklik yapamazsınız.",
@@ -223,7 +230,26 @@
     "invalidCredentials": "E-posta veya şifre hatalı.",
     "accountLocked": "Hesabınız geçici olarak kilitlendi.",
     "subtitle": "Sicil kaydınıza erişmek için e-posta ve şifrenizle giriş yapın.",
-    "backHome": "Ana sayfaya dön"
+    "backHome": "Ana sayfaya dön",
+    "demo": {
+      "title": "Hazır demo hesapları",
+      "hint": "Yeni hesap açmanız gerekmez. Bir hesaba tıklayın, bilgiler forma dolsun; sonra Giriş Yap'a basın.",
+      "passwordLabel": "Ortak şifre:",
+      "fillLabel": "{role} hesabını forma doldur",
+      "adminHint": "Platform yöneticisi Yönetici girişi sayfasından girer; e-postası ve şifresi başlatıcı terminalindeki özette yazar.",
+      "adminTitle": "Demo yönetici hesabı",
+      "adminRole": "Platform yöneticisi",
+      "adminFillLabel": "Platform yöneticisi e-postasını forma doldur",
+      "adminPasswordHint": "Şifre her kurulumda rastgele üretilir ve başlatıcı terminalindeki özette yazar (ayrıca .env → SEED_ADMIN_PASSWORD). E-postaya tıklayın, şifreyi yazıp Giriş Yap'a basın.",
+      "roles": {
+        "talent": "Bireysel kullanıcı",
+        "orgAdmin": "Kuruluş yöneticisi",
+        "approver": "Kuruluş onaylayıcısı",
+        "candidateVerifier": "Aday doğrulayan kuruluş",
+        "institutionAdmin": "Kurum yöneticisi",
+        "coordinator": "Kurum koordinatörü"
+      }
+    }
   },
   "adminGiris": {
     "title": "Yönetici Girişi",
@@ -249,6 +275,8 @@
     "fullNameLabel": "Ad Soyad",
     "submit": "Kayıt Ol",
     "success": "Kaydınız alındı. E-postanızı doğrulayın.",
+    "demoNotice": "Demo için yeni hesap açmanız gerekmez: giriş sayfasındaki hazır hesapları kullanın.",
+    "demoEmailHint": "Yerel kurulumda e-posta gönderilmez. Doğrulama bağlantısı başlatıcı terminalinde [EMAIL] ile başlayan satırda görünür; tarayıcıya yapıştırın.",
     "successOrganization": "Kaydınız alındı. Doğrulama bağlantısı kurumsal e-posta adresinize gönderildi.",
     "corporateEmailHint": "Kuruluş hesabı için kurumsal e-posta adresi gerekir; doğrulama bağlantısı bu adrese gönderilir.",
     "corporateEmailRequired": "Kuruluş hesabı için kurumsal e-posta adresi gereklidir (gmail, hotmail vb. kabul edilmez).",
@@ -1619,6 +1647,10 @@
     "fraudQueueDescription": "Şüpheli işaretleri incele ve karara bağla.",
     "auditDescription": "Yönetici işlemlerinin ve sistem olaylarının değiştirilemez kaydını incele.",
     "fraudHistoryDescription": "Daha önce karara bağlanmış sahtekarlık işaretlerini gözden geçir.",
+    "complaintsDescription": "Yanıtsız kalan onay talepleri için açılan şikayetleri karara bağla.",
+    "reviewDescription": "Karar bekleyen başvurular, şikayetler ve işaretler.",
+    "directoryDescription": "Hesapları, kuruluşları ve kurumları ara; gerekirse askıya al.",
+    "systemDescription": "Yetkinlik taksonomisi ve değiştirilemez işlem kayıtları.",
     "checking": "Yetki kontrol ediliyor..."
   },
   "adminUsers": {

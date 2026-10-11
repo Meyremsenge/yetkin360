@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
+import { EmptyCard, FIELD_CLASS, LoadError, LoadingBlock, statusTone } from "@/components/admin/admin-ui";
+import { PageBody, PageHeader } from "@/components/page-layout";
+import { PanelGrid, PanelSection, StatusPill, actionClass } from "@/components/panel-kit";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ComplaintAttachmentLink } from "@/components/complaint-attachment-link";
 import { adminGetComplaint, adminTransition, type ComplaintAction } from "@/lib/api/complaints";
@@ -104,194 +107,205 @@ export default function AdminSikayetDetayPage() {
 
   return (
     <AppShell>
-      <main className="mx-auto max-w-3xl p-6">
-        <Link href="/admin/sikayetler" className="text-sm underline underline-offset-4">
-          {t.detail.back}
-        </Link>
+      <main>
+        <PageHeader
+          eyebrow={messages.shell.groupAdmin}
+          title={t.title}
+          back={{ href: "/admin/sikayetler", label: t.detail.back }}
+        />
+        <PageBody>
+          <div aria-live="polite">
+            {isLoading ? (
+              <LoadingBlock label={t.loading} />
+            ) : isError ? (
+              <LoadError message={error instanceof ApiError && error.status === 404 ? t.notFound : t.loadError} />
+            ) : !complaint ? (
+              <EmptyCard icon="inbox" title={t.notFound} />
+            ) : (
+              <PanelGrid
+                main={
+                  <article className="space-y-6">
+                    <section className="rounded-xl border border-border bg-card p-5">
+                      <dl className="grid gap-4 text-sm sm:grid-cols-3">
+                        <div>
+                          <dt className="text-xs text-muted-foreground">{t.detail.status}</dt>
+                          <dd className="mt-1">
+                            <StatusPill tone={statusTone(complaint.status ?? "OPEN")}>
+                              {(complaint.status && statusLabels[complaint.status]) || statusLabels.OPEN}
+                            </StatusPill>
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-muted-foreground">{t.detail.subject}</dt>
+                          <dd className="mt-1 font-medium text-foreground">
+                            {(t.subjectType as Record<string, string>)[complaint.subject_type] ?? complaint.subject_type}
+                            {complaint.subject_label ? ` - ${complaint.subject_label}` : ""}
+                          </dd>
+                        </div>
+                        {created ? (
+                          <div>
+                            <dt className="text-xs text-muted-foreground">{t.detail.createdAt}</dt>
+                            <dd className="mt-1 text-foreground">{created}</dd>
+                          </div>
+                        ) : null}
+                      </dl>
+                      {complaint.subject_still_pending === false && (
+                        <p className="mt-4 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
+                          {t.stalePending}
+                        </p>
+                      )}
+                    </section>
 
-        <div aria-live="polite" className="mt-4">
-          {isLoading ? (
-            <p className="text-muted-foreground">{t.loading}</p>
-          ) : isError ? (
-            <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-              {error instanceof ApiError && error.status === 404 ? t.notFound : t.loadError}
-            </div>
-          ) : !complaint ? (
-            <p className="text-muted-foreground">{t.notFound}</p>
-          ) : (
-            <article className="space-y-6">
-              <header>
-                <h1 className="text-2xl font-bold">{t.title}</h1>
-                <dl className="mt-3 space-y-1 text-sm">
-                  <div>
-                    <dt className="inline font-medium">{t.detail.status}: </dt>
-                    <dd className="inline">{(complaint.status && statusLabels[complaint.status]) || statusLabels.OPEN}</dd>
-                  </div>
-                  <div>
-                    <dt className="inline font-medium">{t.detail.subject}: </dt>
-                    <dd className="inline">
-                      {(t.subjectType as Record<string, string>)[complaint.subject_type] ?? complaint.subject_type}
-                      {complaint.subject_label ? ` - ${complaint.subject_label}` : ""}
-                    </dd>
-                  </div>
-                  {created ? (
-                    <div>
-                      <dt className="inline font-medium">{t.detail.createdAt}: </dt>
-                      <dd className="inline">{created}</dd>
-                    </div>
-                  ) : null}
-                </dl>
-                {complaint.subject_still_pending === false && (
-                  <p className="mt-2 text-sm text-warning">{t.stalePending}</p>
-                )}
-              </header>
+                    {complaint.description ? (
+                      <PanelSection icon="mail" title={t.detail.description}>
+                        <p className="whitespace-pre-wrap text-[15px] leading-6 text-foreground">{complaint.description}</p>
+                      </PanelSection>
+                    ) : null}
 
-              {complaint.description ? (
-                <section>
-                  <h2 className="mb-1 text-sm font-semibold">{t.detail.description}</h2>
-                  <p className="whitespace-pre-wrap text-sm">{complaint.description}</p>
-                </section>
-              ) : null}
+                    <PanelSection icon="link" title={t.detail.attachments}>
+                      {(complaint.attachments ?? []).length === 0 ? (
+                        <p className="text-sm text-muted-foreground">{t.detail.noAttachments}</p>
+                      ) : (
+                        <ul className="space-y-1 text-sm">
+                          {(complaint.attachments ?? []).map((att, index) => (
+                            <li key={att.id}>
+                              <ComplaintAttachmentLink
+                                admin
+                                complaintId={complaint.id}
+                                attachmentId={att.id}
+                                label={att.filename ?? `${t.detail.attachmentOpen} ${index + 1}`}
+                                errorText={t.errors.downloadFailed}
+                              />
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </PanelSection>
 
-              <section>
-                <h2 className="mb-1 text-sm font-semibold">{t.detail.attachments}</h2>
-                {(complaint.attachments ?? []).length === 0 ? (
-                  <p className="text-sm text-muted-foreground">{t.detail.noAttachments}</p>
-                ) : (
-                  <ul className="space-y-1 text-sm">
-                    {(complaint.attachments ?? []).map((att, index) => (
-                      <li key={att.id}>
-                        <ComplaintAttachmentLink
-                          admin
-                          complaintId={complaint.id}
-                          attachmentId={att.id}
-                          label={att.filename ?? `${t.detail.attachmentOpen} ${index + 1}`}
-                          errorText={t.errors.downloadFailed}
+                    <PanelSection icon="clipboard" title={t.detail.explanation}>
+                      {complaint.explanation_text ? (
+                        <p className="whitespace-pre-wrap text-[15px] leading-6 text-foreground">{complaint.explanation_text}</p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">{t.detail.noExplanation}</p>
+                      )}
+                    </PanelSection>
+
+                    {(complaint.events ?? []).length > 0 && (
+                      <PanelSection icon="clock" title={t.detail.history}>
+                        <ul className="space-y-1.5 text-sm text-muted-foreground">
+                          {(complaint.events ?? []).map((ev, index) => {
+                            const when = formatDate(ev.created_at);
+                            const parts = [
+                              when,
+                              ev.action,
+                              ev.to_status ? (statusLabels[ev.to_status] ?? ev.to_status) : null,
+                              ev.note,
+                            ].filter(Boolean);
+                            return <li key={ev.id ?? index}>{parts.join(" - ")}</li>;
+                          })}
+                        </ul>
+                      </PanelSection>
+                    )}
+                  </article>
+                }
+                aside={
+                  <section className="rounded-xl border border-border bg-card p-5">
+                    <h2 className="mb-3 font-serif text-lg font-semibold text-foreground">{t.detail.actions}</h2>
+
+                    {done && !transition.isError && (
+                      <p role="status" className="mb-3 text-sm text-success">
+                        {t.success}
+                      </p>
+                    )}
+                    {errorText && (
+                      <p role="alert" className="mb-3 text-sm text-destructive">
+                        {errorText}
+                      </p>
+                    )}
+
+                    {actions.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">{t.detail.noActions}</p>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {actions.map((a) => (
+                          <button
+                            key={a}
+                            type="button"
+                            aria-pressed={action === a}
+                            onClick={() => choose(a)}
+                            className={cn(
+                              a === "UPHOLD" || a === "DISMISS" ? actionClass.dangerOutline : actionClass.neutral,
+                              "w-full",
+                              action === a && "ring-2 ring-success ring-offset-1"
+                            )}
+                          >
+                            {t.actions[a]}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {action && (
+                      <div className="mt-4 space-y-2">
+                        <label htmlFor="transition-text" className="block text-sm font-medium">
+                          {actionRequiresReason(action)
+                            ? action === "REQUEST_EXPLANATION"
+                              ? t.form.noteLabel
+                              : t.form.reasonLabel
+                            : t.form.optionalLabel}
+                        </label>
+                        <textarea
+                          id="transition-text"
+                          rows={4}
+                          value={text}
+                          onChange={(e) => setText(e.target.value)}
+                          aria-invalid={textError ? true : undefined}
+                          className={cn(FIELD_CLASS, "h-auto py-2")}
                         />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
+                        <p role="alert" className="text-xs text-destructive">
+                          {textError}
+                        </p>
+                        <button type="button" onClick={apply} disabled={transition.isPending} className={cn(actionClass.primary, "w-full")}>
+                          {transition.isPending ? t.form.submitting : t.form.submit}
+                        </button>
+                      </div>
+                    )}
 
-              <section>
-                <h2 className="mb-1 text-sm font-semibold">{t.detail.explanation}</h2>
-                {complaint.explanation_text ? (
-                  <p className="whitespace-pre-wrap text-sm">{complaint.explanation_text}</p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">{t.detail.noExplanation}</p>
-                )}
-              </section>
-
-              {(complaint.events ?? []).length > 0 && (
-                <section>
-                  <h2 className="mb-1 text-sm font-semibold">{t.detail.history}</h2>
-                  <ul className="space-y-1 text-xs text-muted-foreground">
-                    {(complaint.events ?? []).map((ev, index) => {
-                      const when = formatDate(ev.created_at);
-                      const parts = [
-                        when,
-                        ev.action,
-                        ev.to_status ? (statusLabels[ev.to_status] ?? ev.to_status) : null,
-                        ev.note,
-                      ].filter(Boolean);
-                      return <li key={ev.id ?? index}>{parts.join(" - ")}</li>;
-                    })}
-                  </ul>
-                </section>
-              )}
-
-              <section className="rounded-lg border border-border p-4">
-                <h2 className="mb-3 font-semibold">{t.detail.actions}</h2>
-
-                {done && !transition.isError && (
-                  <p role="status" className="mb-3 text-sm text-success">
-                    {t.success}
-                  </p>
-                )}
-                {errorText && (
-                  <p role="alert" className="mb-3 text-sm text-destructive">
-                    {errorText}
-                  </p>
-                )}
-
-                {actions.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">{t.detail.noActions}</p>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {actions.map((a) => (
-                      <Button
-                        key={a}
-                        type="button"
-                        variant={a === "UPHOLD" || a === "DISMISS" ? "destructive" : "secondary"}
-                        aria-pressed={action === a}
-                        onClick={() => choose(a)}
+                    {confirming && (
+                      <div
+                        role="alertdialog"
+                        aria-modal="true"
+                        aria-labelledby="uphold-confirm-title"
+                        aria-describedby="uphold-confirm-body"
+                        className="mt-4 rounded-lg border border-destructive/40 bg-destructive/10 p-4"
                       >
-                        {t.actions[a]}
-                      </Button>
-                    ))}
-                  </div>
-                )}
-
-                {action && (
-                  <div className="mt-4 space-y-2">
-                    <label htmlFor="transition-text" className="block text-sm font-medium">
-                      {actionRequiresReason(action)
-                        ? action === "REQUEST_EXPLANATION"
-                          ? t.form.noteLabel
-                          : t.form.reasonLabel
-                        : t.form.optionalLabel}
-                    </label>
-                    <textarea
-                      id="transition-text"
-                      rows={4}
-                      value={text}
-                      onChange={(e) => setText(e.target.value)}
-                      aria-invalid={textError ? true : undefined}
-                      className="block w-full rounded-md border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-success/25"
-                    />
-                    <p role="alert" className="text-xs text-destructive">
-                      {textError}
-                    </p>
-                    <Button type="button" onClick={apply} disabled={transition.isPending}>
-                      {transition.isPending ? t.form.submitting : t.form.submit}
-                    </Button>
-                  </div>
-                )}
-
-                {confirming && (
-                  <div
-                    role="alertdialog"
-                    aria-modal="true"
-                    aria-labelledby="uphold-confirm-title"
-                    aria-describedby="uphold-confirm-body"
-                    className="mt-4 rounded-lg border border-destructive/40 bg-destructive/10 p-4"
-                  >
-                    <h3 id="uphold-confirm-title" className="font-semibold">
-                      {t.confirm.title}
-                    </h3>
-                    <p id="uphold-confirm-body" className="mt-1 text-sm">
-                      {t.confirm.body}
-                    </p>
-                    <div className="mt-3 flex gap-2">
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        disabled={transition.isPending}
-                        onClick={() => transition.mutate({ action: "UPHOLD", text: text.trim() })}
-                      >
-                        {t.confirm.confirm}
-                      </Button>
-                      <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>
-                        {t.confirm.cancel}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </section>
-            </article>
-          )}
-        </div>
+                        <h3 id="uphold-confirm-title" className="font-semibold">
+                          {t.confirm.title}
+                        </h3>
+                        <p id="uphold-confirm-body" className="mt-1 text-sm">
+                          {t.confirm.body}
+                        </p>
+                        <div className="mt-3 flex gap-2">
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            disabled={transition.isPending}
+                            onClick={() => transition.mutate({ action: "UPHOLD", text: text.trim() })}
+                          >
+                            {t.confirm.confirm}
+                          </Button>
+                          <Button type="button" variant="secondary" onClick={() => setConfirming(false)}>
+                            {t.confirm.cancel}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                }
+              />
+            )}
+          </div>
+        </PageBody>
       </main>
     </AppShell>
   );

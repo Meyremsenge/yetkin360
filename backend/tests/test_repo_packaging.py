@@ -28,7 +28,7 @@ def test_readme_does_not_claim_env_example_missing():
     stale_phrase = "henüz repoda yok"
     assert stale_phrase not in readme_text, (
         f"README.md contains stale instruction '{stale_phrase}' — "
-        f".env.example file exists at repo root (PLAN.md 0.9 complete), "
+        f".env.example file exists at repo root (docs/PLAN.md 0.9 complete), "
         f"but README still directs users to docs/ENV.md instead"
     )
 

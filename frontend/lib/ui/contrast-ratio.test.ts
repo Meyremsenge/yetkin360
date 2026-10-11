@@ -2,7 +2,7 @@
 // Risks bölümü: Senkronizasyon riski (kabul edilen). Test dosyasında HSL değerleri hardcoded tutulur, bilinçli trade-off.
 
 // NOT (düzeltme, orkestratör + bağımsız Node.js hesabıyla doğrulandı):
-// planfrontend.md §1.2'deki 3 değer (beyaz/çam 8.5, aşı/zemin 5.1, tuğla/zemin 5.8)
+// docs/arsiv/planfrontend.md §1.2'deki 3 değer (beyaz/çam 8.5, aşı/zemin 5.1, tuğla/zemin 5.8)
 // matematiksel olarak hatalı hesaplanmıştı. Standart WCAG formülüyle gerçek
 // değerler: 8.57, 5.46, 6.25 (hepsi hâlâ ≥4.5 WCAG AA eşiğini geçiyor, daha
 // güçlü kontrast — regresyon değil). Testler gerçek değerlere güncellendi.

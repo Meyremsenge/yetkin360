@@ -299,7 +299,7 @@ def _issue_email_verification_token(session: Session, user_id: uuid.UUID) -> Non
 def resend_email_verification(session: Session, user_id: uuid.UUID, actor_ip: str | None) -> bool:
     """
     Issue a fresh verification token for an authenticated, unverified user
-    (docs/API.md §2.1; HATA.md IS-08: the 24h token otherwise expires and
+    (docs/API.md §2.1; docs/arsiv/HATA.md IS-08: the 24h token otherwise expires and
     leaves the account unverified for good).
 
     Returns True when a token was issued. Returns False — a silent no-op for the

@@ -1,13 +1,13 @@
 ---
 name: bitir
-description: Üzerinde çalışılan PLAN.md maddesini kapatır - testleri çalıştırır, planı işaretler, commit atar ve tek satır özet verir.
+description: Üzerinde çalışılan docs/PLAN.md maddesini kapatır - testleri çalıştırır, planı işaretler, commit atar ve tek satır özet verir.
 disable-model-invocation: true
 argument-hint: "(boş) | <commit mesajı>"
 ---
 
 # Maddeyi kapat
 
-Bir `PLAN.md` maddesi bittiğinde çalışır. Amaç: her seferinde elle "testleri çalıştır, planı işaretle, commit at" demeyi ortadan kaldırmak.
+Bir `docs/PLAN.md` maddesi bittiğinde çalışır. Amaç: her seferinde elle "testleri çalıştır, planı işaretle, commit at" demeyi ortadan kaldırmak.
 
 ## Sıra
 
@@ -20,7 +20,7 @@ Test kırılırsa: **dur, commit atma.** Çıktıyı göster ve sor.
 
 **2. Planı güncelle**
 
-`PLAN.md`'de ilgili maddeyi `- [x]` yap. Plan dışına çıkılan bir şey yapıldıysa plana yeni madde olarak ekle — sessizce geçme.
+`docs/PLAN.md`'de ilgili maddeyi `- [x]` yap. Plan dışına çıkılan bir şey yapıldıysa plana yeni madde olarak ekle — sessizce geçme.
 
 **3. Sır kontrolü**
 
@@ -43,7 +43,7 @@ Tek blok, fazlası yok:
 Kapatıldı: <madde no> <başlık>
 Doğrulandı: <çalıştırılan test, sonuç>
 Commit: <kısa hash> <mesaj>
-Sıradaki: <PLAN.md'deki bir sonraki işaretsiz madde>
+Sıradaki: <docs/PLAN.md'deki bir sonraki işaretsiz madde>
 ```
 
 ## Kural

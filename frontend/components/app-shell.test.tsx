@@ -603,13 +603,12 @@ describe("AppShell", () => {
         </AppShell>
       );
 
-      // Assert: admin link metinleri TAM EŞLEŞMEYLE bulunur
+      // Kullanıcı tarafında admin ekranları tek girişle açılır: Yönetim paneli → /admin.
+      // Ekran listesi admin kabuğunun yan menüsündedir.
       const html = container.innerHTML;
-      expect(html).toContain(messages.shell.adminVerificationQueueLink);
-      expect(html).toContain(messages.shell.adminFraudQueueLink);
-      // Yetkinlik yönetimi menüde yok; sayfa /admin/skiller adresinden açılır.
-      expect(html).not.toContain(messages.shell.adminSkillsLink);
-      expect(html).not.toContain("/admin/skiller");
+      expect(html).toContain(messages.adminHome.title);
+      expect(html).toContain('href="/admin"');
+      expect(html).not.toContain(messages.shell.adminVerificationQueueLink);
     });
 
     it("AC-2: is_platform_admin=false iken admin linklerini HİÇ gösterme", () => {
@@ -782,6 +781,42 @@ describe("AppShell", () => {
 
     afterEach(() => {
       window.history.pushState({}, "", "/");
+    });
+
+    it("/admin altında admin kabuğu: gruplu yan menü, kullanıcı tarafı linkleri yok", () => {
+      renderAt("/admin/sahtekarlik-isaretleri/gecmis", {
+        user: { id: "a1", is_platform_admin: true },
+        talent_profile: null,
+      });
+      expect(screen.queryByRole("navigation", { name: messages.shell.mainNav })).toBeNull();
+      const nav = screen.getByRole("navigation", { name: messages.shell.adminNav });
+      expect(within(nav).getByText(messages.shell.adminGroupReview)).toBeTruthy();
+      expect(within(nav).getByRole("link", { name: messages.shell.adminSkillsLink })).toBeTruthy();
+      // En uzun eşleşme: yalnız "İşaret Geçmişi" etkin, üst sayfası değil.
+      const history = within(nav).getByRole("link", { name: messages.shell.adminFraudHistoryLink });
+      expect(history.getAttribute("aria-current")).toBe("page");
+      const queue = within(nav).getByRole("link", { name: messages.shell.adminFraudQueueLink });
+      expect(queue.getAttribute("aria-current")).toBeNull();
+      expect(screen.queryByText(messages.shell.engagementsLink)).toBeNull();
+      expect(screen.queryByText(messages.shell.discoverLink)).toBeNull();
+    });
+
+    it("yalnız admin olan hesap kullanıcı sayfalarında da admin kabuğunu görür", () => {
+      renderAt("/calismalar", { user: { id: "a1", is_platform_admin: true }, talent_profile: null });
+      expect(screen.getByRole("navigation", { name: messages.shell.adminNav })).toBeTruthy();
+      expect(screen.queryByText(messages.shell.leaveAdmin)).toBeNull();
+    });
+
+    it("kuruluş üyesi admin /admin altında kullanıcı paneline dönebilir", () => {
+      renderAt("/admin", {
+        user: { id: "a1", is_platform_admin: true },
+        talent_profile: null,
+        organizations: [{ id: "org-1", name: "Acme A.Ş." }],
+      });
+      const nav = screen.getByRole("navigation", { name: messages.shell.adminNav });
+      const overview = within(nav).getByRole("link", { name: messages.shell.adminOverviewLink });
+      expect(overview.getAttribute("aria-current")).toBe("page");
+      expect(screen.getByRole("link", { name: messages.shell.leaveAdmin }).getAttribute("href")).toBe("/calismalar");
     });
 
     it("bulunulan sayfanın menü öğesi aria-current=page alır (alt sayfalar dahil)", () => {

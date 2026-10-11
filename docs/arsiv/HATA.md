@@ -145,14 +145,14 @@ linkini yeniden gönderme, T4 ve T9/T10 geçişleri (bkz. IS-03, IS-10).
 
 ### GUV-01 — Giriş kilitleme hiç çalışmıyor · KRİTİK · [CANLI] — ✅ DÜZELTİLDİ (PLAN 3.24, dal fix/3.24-giris-kilitleme)
 
-**Konum:** [backend/app/services/auth.py:363-389](backend/app/services/auth.py#L363-L389),
-[backend/app/core/deps.py:20-29](backend/app/core/deps.py#L20-L29)
+**Konum:** [backend/app/services/auth.py:363-389](../../backend/app/services/auth.py#L363-L389),
+[backend/app/core/deps.py:20-29](../../backend/app/core/deps.py#L20-L29)
 
 **Sorun:** Yanlış parolada `failed_login_count` artırılıp `InvalidCredentials`
 fırlatılıyor. Router bunu `ApiError`'a çeviriyor; `get_session` istisnayı görünce
 **tüm transaction'ı rollback ediyor**. Sayaç artışı ve `USER_LOGIN/DENIED` audit
 kaydı hiçbir zaman DB'ye yazılmıyor. Aynı tuzak `refresh_tokens()` için fark edilip
-açık `session.commit()` ile çözülmüş ([auth.py:457](backend/app/services/auth.py#L457)),
+açık `session.commit()` ile çözülmüş ([auth.py:457](../../backend/app/services/auth.py#L457)),
 login için unutulmuş.
 
 **Kanıt:** Seed kullanıcısıyla 3 yanlış giriş → `failed_login_count` 0'da kaldı,
@@ -168,10 +168,10 @@ desen) veya servisten istisna yerine sonuç nesnesi dön, router 401'i commit'te
 
 ### GUV-02 — Rızasız üyelik ataması: hesap kilitleme + e-posta numaralandırma · YÜKSEK · [KOD]
 
-**Konum:** [backend/app/api/institutions.py:128](backend/app/api/institutions.py#L128),
-[backend/app/services/institution.py:80-120](backend/app/services/institution.py#L80-L120),
-[backend/app/api/organizations.py:136-204](backend/app/api/organizations.py#L136-L204),
-[backend/app/api/deps.py:43-54](backend/app/api/deps.py#L43-L54)
+**Konum:** [backend/app/api/institutions.py:128](../../backend/app/api/institutions.py#L128),
+[backend/app/services/institution.py:80-120](../../backend/app/services/institution.py#L80-L120),
+[backend/app/api/organizations.py:136-204](../../backend/app/api/organizations.py#L136-L204),
+[backend/app/api/deps.py:43-54](../../backend/app/api/deps.py#L43-L54)
 
 **Sorun (zincir):**
 1. Kimliği doğrulanmış **her kullanıcı** `POST /institutions/` veya `POST /organizations/`
@@ -198,8 +198,8 @@ ele alınmalı.
 
 ### GUV-03 — Tek kişiyle sahte "doğrulanmış deneyim" üretimi (Sybil) · YÜKSEK · [KOD]
 
-**Konum:** engagement oluşturma [engagement.py:90-222](backend/app/services/engagement.py#L90-L222),
-kurum/organizasyon oluşturma (GUV-02), tanıklık [attestation.py](backend/app/services/attestation.py)
+**Konum:** engagement oluşturma [engagement.py:90-222](../../backend/app/services/engagement.py#L90-L222),
+kurum/organizasyon oluşturma (GUV-02), tanıklık [attestation.py](../../backend/app/services/attestation.py)
 
 **Senaryo (3 hesap, hepsi self-servis):** A hesabı organizasyon "X A.Ş." açar; B hesabı
 kurum açıp kendini koordinatör yapar (ya da C'yi davet eder); C talent B'nin kurumuna
@@ -219,7 +219,7 @@ kriterine kat; (c) public sayfada kurum seviyesini ve org alan adını göster.
 
 ### GUV-04 — Talent kendi değerlendirmesiyle kendine STRONG skill sinyali yazabiliyor · YÜKSEK · [KOD]
 
-**Konum:** [backend/app/services/evaluation.py:173-203](backend/app/services/evaluation.py#L173-L203)
+**Konum:** [backend/app/services/evaluation.py:173-203](../../backend/app/services/evaluation.py#L173-L203)
 
 **Sorun:** Skill sinyali üretimi yönden bağımsız. Talent `TALENT_TO_ORG` yönünde
 (organizasyonu değerlendirirken) maddelere `skill_id` + `EXCEEDS` yazarsa
@@ -227,7 +227,7 @@ kriterine kat; (c) public sayfada kurum seviyesini ve org alan adını göster.
 (`attested_by_org_id=None`).
 
 **İlgili:** Talent her teslimde (`POST /deliverables`) `skill_id` vererek sınırsız
-**MODERATE** sinyal üretebiliyor ([engagement.py:643-655](backend/app/services/engagement.py#L643-L655));
+**MODERATE** sinyal üretebiliyor ([engagement.py:643-655](../../backend/app/services/engagement.py#L643-L655));
 organizasyon görev açtığı anda **WEAK** sinyal üretiliyor (görev tamamlanmadan).
 
 **Etki:** Platformun ana vaadi olan "kanıta dayalı yetkinlik sinyali" talent tarafından
@@ -238,9 +238,9 @@ onayından sonra ya da strength'i NONE/WEAK sınırlı olacak şekilde.
 
 ### GUV-05 — Geri çekilen tanıklık geçerli görünmeye devam ediyor · YÜKSEK · [KOD]
 
-**Konum:** [backend/app/services/attestation.py:408+](backend/app/services/attestation.py#L408),
-[backend/app/services/authorization.py:352-372](backend/app/services/authorization.py#L352-L372),
-[backend/app/api/public.py:138-229](backend/app/api/public.py#L138-L229)
+**Konum:** [backend/app/services/attestation.py:408+](../../backend/app/services/attestation.py#L408),
+[backend/app/services/authorization.py:352-372](../../backend/app/services/authorization.py#L352-L372),
+[backend/app/api/public.py:138-229](../../backend/app/api/public.py#L138-L229)
 
 **Sorun:** `revoke_attestation` yalnız attestation'ı ve ATTESTATION kaynaklı skill
 sinyallerini işaretliyor. `revoked_at` **hiçbir okuma yolunda filtrelenmiyor**:
@@ -258,8 +258,8 @@ sorulmalı).
 
 ### GUV-06 — Logout refresh token'ı iptal edemiyor · YÜKSEK · [KOD]
 
-**Konum:** [backend/app/api/auth.py:58-66](backend/app/api/auth.py#L58-L66) ve
-[auth.py:126-143](backend/app/api/auth.py#L126-L143)
+**Konum:** [backend/app/api/auth.py:58-66](../../backend/app/api/auth.py#L58-L66) ve
+[auth.py:126-143](../../backend/app/api/auth.py#L126-L143)
 
 **Sorun:** `refresh_token` cookie'si `path="/auth/refresh"` ile yazılıyor; tarayıcı bu
 cookie'yi `/auth/logout` isteğine **göndermez**. Logout'ta `refresh_token_value` her zaman
@@ -273,8 +273,8 @@ logout'ta kullanıcının tüm aktif ailelerini iptal et.
 
 ### GUV-07 — Organizasyona bilinmeyen e-posta davet edilince 500 · YÜKSEK · [KOD]
 
-**Konum:** [backend/app/services/organization.py:159](backend/app/services/organization.py#L159),
-[backend/app/api/organizations.py:288](backend/app/api/organizations.py#L288)
+**Konum:** [backend/app/services/organization.py:159](../../backend/app/services/organization.py#L159),
+[backend/app/api/organizations.py:288](../../backend/app/api/organizations.py#L288)
 
 `invite_org_member` `ValueError` fırlatıyor, router yalnız `AlreadyMemberError`'ı
 yakalıyor → **500 Internal Server Error**. Hem hata, hem numaralandırma oracle'ı (500 vs
@@ -283,7 +283,7 @@ doğrulanmıyor → geçersiz rol DB CHECK'e çarpar → yine 500.
 
 ### GUV-08 — Talent ve organizasyon, karşı tarafın rızası olmadan engagement açabiliyor · ORTA · [KOD]
 
-**Konum:** [backend/app/services/engagement.py:145-184](backend/app/services/engagement.py#L145-L184)
+**Konum:** [backend/app/services/engagement.py:145-184](../../backend/app/services/engagement.py#L145-L184)
 
 - TALENT herhangi bir organizasyon için engagement açabiliyor (org sadece var mı diye
   bakılıyor). Açılan kayıt o organizasyonun listesine düşer → organizasyon listesine spam.
@@ -299,13 +299,13 @@ doğrulanmıyor → geçersiz rol DB CHECK'e çarpar → yine 500.
 - Domain doğrulanmış (T2) bir organizasyonun **adı serbest metin**; public sayfada alan
   adı gösterilmediğinden "Google (T2)" gibi yanıltıcı görüntü mümkün.
 - `DomainAlreadyVerifiedError` kontrolü yalnız `verification_level == "T2"` arıyor
-  ([organization.py:278](backend/app/services/organization.py#L278)); T3/T4'e yükseltilmiş
+  ([organization.py:278](../../backend/app/services/organization.py#L278)); T3/T4'e yükseltilmiş
   bir organizasyonun alanı başka org tarafından yeniden doğrulanabilir.
 - Ücretsiz e-posta listesi yalnız 4 alan (gmail/hotmail/outlook/yahoo).
 
 ### GUV-10 — Kayıtta zamanlama ile e-posta numaralandırma · ORTA · [KOD]
 
-[auth.py:128-160](backend/app/services/auth.py#L128-L160): yeni kullanıcı yolu Argon2
+[auth.py:128-160](../../backend/app/services/auth.py#L128-L160): yeni kullanıcı yolu Argon2
 hash hesaplıyor (~50-100 ms), mevcut e-posta yolu hesaplamıyor. Yanıt süresi farkı
 e-postanın kayıtlı olduğunu sızdırır. Çözüm: mevcut e-posta yolunda da sahte hash hesapla.
 
@@ -318,18 +318,18 @@ GUV-01 düzeltilse bile IP bazlı sınır olmadan hesap kilitleme DoS'a dönüş
 
 ### GUV-12 — Kanıt kaydı depodaki dosyayla bağlanmıyor · ORTA · [KOD]
 
-[backend/app/services/evidence.py](backend/app/services/evidence.py) `POST /evidence`:
+[backend/app/services/evidence.py](../../backend/app/services/evidence.py) `POST /evidence`:
 - Nesnenin MinIO'da gerçekten var olduğu, boyutunun/tipinin eşleştiği kontrol edilmiyor.
 - `mime_type` allowlist'e göre doğrulanmıyor (upload-url'de doğrulanıyor, kayıtta değil);
   `size_bytes` üst sınırı yok.
 - Aynı `storage_key` sınırsız kez kaydedilebilir (unique yok).
 - Magic-byte kontrolü (CLAUDE.md kuralı) hiçbir yerde yok — tarama worker'ı yok (IS-07).
-- Hız sınırı süreç içi bellekte ([storage.py:33](backend/app/services/storage.py#L33)):
+- Hız sınırı süreç içi bellekte ([storage.py:33](../../backend/app/services/storage.py#L33)):
   çoklu worker'da etkisiz, anahtarlar hiç temizlenmiyor (yavaş bellek sızıntısı).
 
 ### GUV-13 — Toplu hatırlatma ile outbox şişirme · ORTA · [KOD]
 
-[backend/app/services/reminder.py](backend/app/services/reminder.py): `template` serbest
+[backend/app/services/reminder.py](../../backend/app/services/reminder.py): `template` serbest
 metin → `reminder.<her şey>` topic'i; `engagement_ids` listesinin üst sınırı yok, tekrar
 koruması yok. Handler yok → her satır kuyruğu kalıcı tıkar (OPS-01).
 
@@ -339,8 +339,8 @@ koruması yok. Handler yok → her satır kuyruğu kalıcı tıkar (OPS-01).
 
 ### AUTHZ-01 — Tek `kind` modeli çoklu rollü kullanıcıyı bozuyor · YÜKSEK · [KOD]
 
-**Konum:** [backend/app/api/deps.py:43-54](backend/app/api/deps.py#L43-L54),
-[backend/app/services/authorization.py:52-235](backend/app/services/authorization.py#L52-L235)
+**Konum:** [backend/app/api/deps.py:43-54](../../backend/app/api/deps.py#L43-L54),
+[backend/app/services/authorization.py:52-235](../../backend/app/services/authorization.py#L52-L235)
 
 Kayıtta **her kullanıcıya talent profili açılıyor**; yani her koordinatör ve
 organizasyon üyesi aynı zamanda talent. `Principal.kind` docstring'i "yalnız gösterim
@@ -368,13 +368,13 @@ Seed'deki 15 VERIFIED engagement API ile değil, seed betiğinin doğrudan yazma
 yani demo senaryosunun koordinatör adımı bugünkü haliyle canlı gösterilemez.
 
 
-[engagement.py:297-335](backend/app/services/engagement.py#L297-L335): T2/T3/T6/T5
+[engagement.py:297-335](../../backend/app/services/engagement.py#L297-L335): T2/T3/T6/T5
 yalnız `principal.kind == "COORDINATOR"` kabul ediyor. Endpoint docstring'i
 "COORDINATOR/INST_ADMIN" diyor. Kurum admin'i onay veremiyor, tanıklık veremiyor
 (attestation da yalnız COORDINATOR). Bir kurumda admin, diğerinde koordinatör olan
 kişi `kind=INST_ADMIN` olduğu için hiçbirinde onay veremez.
 
-Ek tutarsızlık: login yanıtındaki `role` ([auth.py summarize_role](backend/app/services/auth.py))
+Ek tutarsızlık: login yanıtındaki `role` ([auth.py summarize_role](../../backend/app/services/auth.py))
 COORDINATOR'ı INST_ADMIN'in önüne koyuyor; `get_current_principal` tersini yapıyor.
 Frontend'in gördüğü rol ile backend'in uyguladığı rol farklı olabilir.
 
@@ -388,13 +388,13 @@ Frontend'in gördüğü rol ile backend'in uyguladığı rol farklı olabilir.
 | T5 `ACTIVE→PENDING_EVALUATION` | TALENT veya ORG:SUPERVISOR | ORG üyesi/admin **veya COORDINATOR**; **TALENT yapamıyor** |
 | T8 kurumsuz | ORG:SUPERVISOR | ORG_ADMIN |
 | T9/T10 DISPUTED | "vakit kalırsa" | Yok (bilinçli) |
-| Tanıklık kriter 1 "karşılıklı onay" | İki yönlü değerlendirme | Kontrol edilmiyor; yalnız ORG_TO_TALENT yeterli ([attestation.py:102](backend/app/services/attestation.py#L102)) |
+| Tanıklık kriter 1 "karşılıklı onay" | İki yönlü değerlendirme | Kontrol edilmiyor; yalnız ORG_TO_TALENT yeterli ([attestation.py:102](../../backend/app/services/attestation.py#L102)) |
 
 Ayrıca DRAFT'taki bir engagement'ı iptal/silme yolu yok; REJECTED'tan yeniden gönderme yok.
 
 ### AUTHZ-04 — Ağ çağrısı açık transaction içinde · ORTA · [KOD]
 
-[organization.py verify_domain](backend/app/services/organization.py): DNS sorgusundan
+[organization.py verify_domain](../../backend/app/services/organization.py): DNS sorgusundan
 önce `session.commit()` yapılmış (iyi niyet), ama hemen ardından
 `org.domain_verification_token` okunurken ORM yeni transaction açıyor → DNS (3 sn'ye kadar)
 açık transaction içinde. CLAUDE.md "ağ çağrısı asla açık transaction içinde" kuralı.
@@ -405,10 +405,10 @@ açık transaction içinde. CLAUDE.md "ağ çağrısı asla açık transaction i
 
 ### IS-01 — Public doğrulama linki ve public profil deneyimleri hiç çalışmaz · KRİTİK · [CANLI]
 
-- `generate_public_token()` ([verified_experience.py:15](backend/app/services/verified_experience.py#L15))
+- `generate_public_token()` ([verified_experience.py:15](../../backend/app/services/verified_experience.py#L15))
   tanımlı ama **hiçbir yerden çağrılmıyor**; kendi docstring'i "YERINDE kalmış" diyor.
 - VerifiedExperience her zaman `visibility="PRIVATE"` oluşuyor
-  ([attestation.py:315](backend/app/services/attestation.py#L315)) ve görünürlüğü
+  ([attestation.py:315](../../backend/app/services/attestation.py#L315)) ve görünürlüğü
   değiştiren **uç yok**.
 - Sonuç: `GET /public/v/{token}` gerçek veride **her zaman 404**; `GET /public/talents/{slug}`
   deneyim listesini **her zaman boş** döner.
@@ -419,7 +419,7 @@ kopuk olduğu anlamına geliyor.
 
 ### IS-02 — COMPETENCE hiçbir zaman verilemez · KRİTİK · [KOD]
 
-[attestation.py:107-114](backend/app/services/attestation.py#L107-L114): süre kriteri
+[attestation.py:107-114](../../backend/app/services/attestation.py#L107-L114): süre kriteri
 `started_on`/`ended_on` boşsa downgrade ediyor. Bu alanları set eden **hiçbir API yok**
 (`POST /engagements` almıyor, PATCH ucu yok); yalnız `scripts/seed.py:608` doğrudan
 yazıyor. Seed dışındaki her tanıklık `PARTICIPATION` + `ENGAGEMENT_DURATION_BELOW_THRESHOLD`
@@ -442,7 +442,7 @@ olmalı.
 
 ### IS-04 — Frontend geçiş listesi backend'le uyuşmuyor · YÜKSEK · [KOD]
 
-[frontend/lib/api/engagements.ts:69-76](frontend/lib/api/engagements.ts#L69-L76):
+[frontend/lib/api/engagements.ts:69-76](../../frontend/lib/api/engagements.ts#L69-L76):
 `PENDING_EVALUATION: []` — değerlendirme sonrası durumlar (`EVALUATED`, `VERIFIED`,
 `DISPUTED`, `RESOLVED`) tipte ve etiket sözlüğünde yok. Rol bilgisi `/me`'de olmadığı için
 her kullanıcıya her aday geçiş düğmesi gösteriliyor; yanlış rol 403 ile öğreniliyor.
@@ -463,7 +463,7 @@ her kullanıcıya her aday geçiş düğmesi gösteriliyor; yanlış rol 403 ile
   (append-only); yeniden eklenince ikinci sinyal oluşuyor. Silinen iddia sinyallerde yaşamaya
   devam ediyor.
 - `GET /talents/me/signals/` her sinyal için `attested_by: None` dönüyor
-  ([skill_signal.py](backend/app/services/skill_signal.py)) — organizasyon tanıklı sinyaller
+  ([skill_signal.py](../../backend/app/services/skill_signal.py)) — organizasyon tanıklı sinyaller
   bile "kimse tanıklık etmedi" gibi görünüyor.
 - Skill MERGE edilince mevcut iddia/sinyaller hedefe yönlenmiyor (DOMAIN.md §3.5 "sorgular
   hedefe yönlenir" diyor); `parent_id` döngüsü (A→B→A) engellenmiyor.
@@ -488,7 +488,7 @@ her kullanıcıya her aday geçiş düğmesi gösteriliyor; yanlış rol 403 ile
 
 ### IS-09 — Profil güncellemede eksikler · ORTA · [KOD]
 
-[backend/app/api/me.py:155-208](backend/app/api/me.py#L155-L208):
+[backend/app/api/me.py:155-208](../../backend/app/api/me.py#L155-L208):
 - `public_slug` biçim doğrulaması yok (boşluk, `/`, Unicode, tek karakter kabul);
   eşzamanlı iki istekte unique ihlali 500'e düşer.
 - `None` gönderilen alan yok sayılıyor → kullanıcı başlık/şehir/slug'ı **silemiyor**.
@@ -528,7 +528,7 @@ düz metin (önceki rapor #4).
 
 ### ENT-03 — Oturum yenilemeden sonraki ilk yazma isteği 403 · KRİTİK · [KOD]
 
-**Konum:** [frontend/lib/api/client.ts:116-188](frontend/lib/api/client.ts#L116-L188)
+**Konum:** [frontend/lib/api/client.ts:116-188](../../frontend/lib/api/client.ts#L116-L188)
 
 `apiFetch` CSRF başlığını istek başında bir kez okuyup `options`'a koyuyor. 401 →
 `/auth/refresh` → backend **yeni** `csrf_token` cookie'si yazıyor → retry aynı `options`
@@ -547,7 +547,7 @@ Seed'deki 15 engagement'ın tamamı `VERIFIED` → çalışmalar listesinde duru
 
 - `GET /me` `is_platform_admin`, rol, `email_verified` dönmüyor. Frontend rol bazlı UI
   yapamıyor (engagements.ts dosya başında da "BACKEND GAP" olarak not düşülmüş).
-- [frontend/components/app-shell.tsx:137-142](frontend/components/app-shell.tsx#L137-L142):
+- [frontend/components/app-shell.tsx:137-142](../../frontend/components/app-shell.tsx#L137-L142):
   "Kurum Doğrulama" ve "Yetkinlik Yönetimi" linkleri **her oturum açmış kullanıcıya**
   gösteriliyor; tıklayınca 404. Link metinleri koda gömülü (CLAUDE.md "UI metni koda
   gömülmez" kuralı ihlali).
@@ -577,13 +577,13 @@ girişe yönlenir. Yerelde `localhost` ortak olduğu için görünmüyor. Dağı
 
 ### OPS-01 — Outbox worker: hiç çalışmıyor + kalıcı tıkanma · KRİTİK · [CANLI]
 
-**Konum:** [backend/app/workers/outbox_worker.py](backend/app/workers/outbox_worker.py)
+**Konum:** [backend/app/workers/outbox_worker.py](../../backend/app/workers/outbox_worker.py)
 
 1. `__main__` **tek batch** işleyip çıkıyor; `outbox_poll_interval_seconds` hiç
    kullanılmıyor. `baslat.bat` worker'ı hiç başlatmıyor.
 2. Handler'ı olmayan topic'ler (`evidence.scan_requested`, `engagement.pending_approval`,
    `attestation.created`, `email.organization_member_invited`, `reminder.*`) seçiliyor ama
-   işlenmiyor ve `attempts` artmıyor ([satır 74](backend/app/workers/outbox_worker.py#L74)).
+   işlenmiyor ve `attempts` artmıyor ([satır 74](../../backend/app/workers/outbox_worker.py#L74)).
    Sorgu `ORDER BY created_at LIMIT 10` olduğundan, kuyruğun başında 10 handler'sız satır
    biriktiği an **worker kalıcı olarak aynı 10 satırı seçer; hiçbir e-posta bir daha
    gönderilmez.**
@@ -603,8 +603,8 @@ worker penceresi.
 
 ### OPS-02 — E-posta linkleri 404 sayfasına gidiyor · KRİTİK · [KOD]
 
-[outbox_worker.py:187](backend/app/workers/outbox_worker.py#L187) `/verify-email?token=`,
-[satır 215](backend/app/workers/outbox_worker.py#L215) `/reset-password?token=` üretiyor.
+[outbox_worker.py:187](../../backend/app/workers/outbox_worker.py#L187) `/verify-email?token=`,
+[satır 215](../../backend/app/workers/outbox_worker.py#L215) `/reset-password?token=` üretiyor.
 Frontend sayfaları `/e-posta-dogrula` ve `/sifre-sifirla`; `next.config.ts`'de yönlendirme
 yok. Şifre sıfırlama ve e-posta doğrulama linkleri **not-found** sayfasına düşer.
 
@@ -672,7 +672,7 @@ koşuyor ama **`vitest` koşmuyor** — bu 9 kırık test CI'da görünmez.
 
 ### TEST-02 — Test fixture'ı üretimdeki rollback davranışını gizliyor · YÜKSEK · [KOD]
 
-[backend/tests/conftest.py:43-48](backend/tests/conftest.py#L43-L48): `override_get_session`
+[backend/tests/conftest.py:43-48](../../backend/tests/conftest.py#L43-L48): `override_get_session`
 oturumu **generator olmadan** döndürüyor. Üretimdeki `get_session` istisnada `rollback()`
 yapıyor; test override'ı yapmıyor. Sonuç: "önce yaz, sonra hata fırlat" deseni (GUV-01'deki
 kilitleme sayacı, DENIED audit kayıtları) testte **yeşil**, üretimde **kayıp**.

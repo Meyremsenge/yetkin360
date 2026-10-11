@@ -10,7 +10,7 @@ paths:
 
 # Test
 
-Detay: `yetkin360-final-analiz.md` §21.
+Detay: `docs/yetkin360-final-analiz.md` §21.
 
 ## Öncelik sırası
 

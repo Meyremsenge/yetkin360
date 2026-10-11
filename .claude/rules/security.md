@@ -15,7 +15,7 @@ paths:
 
 # Güvenlik-kritik kod
 
-Bu dosyalarda **token tasarrufu için context kısma.** Gerekiyorsa `yetkin360-final-analiz.md` §15 ve §16'yı oku.
+Bu dosyalarda **token tasarrufu için context kısma.** Gerekiyorsa `docs/yetkin360-final-analiz.md` §15 ve §16'yı oku.
 
 ## Yetkilendirme (en kritik risk: BOLA)
 

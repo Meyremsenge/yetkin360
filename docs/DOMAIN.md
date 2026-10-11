@@ -182,7 +182,7 @@ OrganizationMember
 | `T3` | MERSİS/vergi no + ticaret sicil + yetkili beyanı | Yarı-otomatik (admin onayı) | `COMPETENCE` tanıklığı |
 | `T4` | Üniversitece "tanınan staj yeri" işareti | Koordinatör onayı | Tam güven, akreditasyon geçerli |
 
-**MVP kapsamı:** T1 ve T2 otomatik çalışır ([PLAN.md](../PLAN.md) 1.9).
+**MVP kapsamı:** T1 ve T2 otomatik çalışır ([PLAN.md](PLAN.md) 1.9).
 T3 admin kuyruğu üzerinden (3.6). T4 koordinatör onayıyla (2.3).
 
 ### 3.5 Skill
@@ -209,7 +209,7 @@ Skill
 - `status = MERGED` ise `merged_into_id` zorunlu; sorgular merge hedefine yönlendirilir.
 
 > ❓ AÇIK SORU: Seed skill sayısı — final analiz §7.3 "~300 küratörlü skill" diyor,
-> [PLAN.md](../PLAN.md) 1.10 "~150 skill" diyor. Hackathon süresi için 150 makul
+> [PLAN.md](PLAN.md) 1.10 "~150 skill" diyor. Hackathon süresi için 150 makul
 > görünüyor ama bu final analizden bir sapma. Karar verilip iki dosya hizalanmalı.
 
 ### 3.6 SkillClaim
@@ -470,7 +470,7 @@ SkillSignal
 
 > ❓ AÇIK SORU: Hangi `source_type` hangi `strength` değerini üretir — final
 > analizde tablolanmamış (ör. `SELF_CLAIM` her zaman `NONE` mı?). Sinyal üretim
-> kuralları [PLAN.md](../PLAN.md) 2.9 yazılırken netleşmeli ve buraya eklenmeli.
+> kuralları [PLAN.md](PLAN.md) 2.9 yazılırken netleşmeli ve buraya eklenmeli.
 
 ### 3.15 AuditEvent
 

@@ -1,6 +1,7 @@
 import messages from "@/messages/tr.json";
 import LoginForm from "@/app/giris/form";
 import { AuthLayout } from "@/components/ui/auth-layout";
+import { demoAccountsEnabled } from "@/lib/demo-accounts";
 
 /**
  * Separate sign-in entry for platform admins. It calls the same
@@ -34,7 +35,7 @@ export default async function AdminLoginPage({
         </div>
       )}
 
-      <LoginForm nextPath={params.next} adminOnly />
+      <LoginForm nextPath={params.next} adminOnly showDemoAccounts={demoAccountsEnabled()} />
     </AuthLayout>
   );
 }

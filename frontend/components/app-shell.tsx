@@ -15,6 +15,13 @@ import { cn } from "@/lib/utils";
 import { SealMark } from "@/components/brand/brand-mark";
 import { PAGE_CONTAINER } from "@/components/page-layout";
 import { isOrgSide } from "@/lib/session/roles";
+import {
+  ADMIN_HOME_HREF,
+  ADMIN_NAV_GROUPS,
+  ADMIN_OVERVIEW,
+  activeAdminHref,
+  type AdminNavItem,
+} from "@/components/admin/admin-nav";
 import messages from "@/messages/tr.json";
 
 const FOCUS_RING =
@@ -83,6 +90,48 @@ const ICON_PATHS = {
       <path d="M7 17 17 7" />
     </>
   ),
+  overview: (
+    <>
+      <rect width="7" height="9" x="3" y="3" rx="1" />
+      <rect width="7" height="5" x="14" y="3" rx="1" />
+      <rect width="7" height="9" x="14" y="12" rx="1" />
+      <rect width="7" height="5" x="3" y="16" rx="1" />
+    </>
+  ),
+  inbox: (
+    <>
+      <path d="M22 12h-6l-2 3h-4l-2-3H2" />
+      <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+    </>
+  ),
+  flag: (
+    <>
+      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+      <path d="M4 22v-7" />
+    </>
+  ),
+  history: (
+    <>
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <path d="M3 3v5h5" />
+      <path d="M12 7v5l4 2" />
+    </>
+  ),
+  users: (
+    <>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </>
+  ),
+  scroll: (
+    <>
+      <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+      <path d="M16 13H8M16 17H8M10 9H8" />
+    </>
+  ),
   menu: <path d="M4 6h16M4 12h16M4 18h16" />,
   close: <path d="M18 6 6 18M6 6l12 12" />,
   chevronDown: <path d="m6 9 6 6 6-6" />,
@@ -97,7 +146,7 @@ const ICON_PATHS = {
 
 type IconName = keyof typeof ICON_PATHS;
 
-function Icon({ name, className }: { name: IconName; className?: string }) {
+export function Icon({ name, className }: { name: IconName; className?: string }) {
   return (
     <svg
       aria-hidden="true"
@@ -212,10 +261,10 @@ function describeError(error: unknown): { message: string; requestId?: string } 
   return { message: messages.errors.generic };
 }
 
-function Logo({ size = "md" }: { size?: "md" | "sm" }) {
+function Logo({ size = "md", href = "/calismalar" }: { size?: "md" | "sm"; href?: string }) {
   return (
     <Link
-      href="/calismalar"
+      href={href}
       className={cn(
         "inline-flex shrink-0 items-center gap-2 rounded-md font-serif font-bold text-foreground",
         size === "md" ? "text-xl" : "text-lg",
@@ -274,17 +323,10 @@ function primaryLinks(data: NavData): NavEntry[] {
   ];
 }
 
+// Outside the admin shell (an admin who also has a profile or membership),
+// the context switcher only needs the way in: the overview.
 const ADMIN_LINKS: NavEntry[] = [
-  { href: "/admin/dogrulama-kuyrugu", icon: "shield", label: messages.shell.adminVerificationQueueLink },
-  { href: "/admin/sikayetler", icon: "shield", label: messages.adminComplaints.navLink },
-  // Skill management (/admin/skiller) stays reachable by URL but is not in the
-  // menu: the taxonomy is seeded and rarely edited.
-  { href: "/admin/sahtekarlik-isaretleri", icon: "shield", label: messages.shell.adminFraudQueueLink },
-  { href: "/admin/sahtekarlik-isaretleri/gecmis", icon: "shield", label: messages.shell.adminFraudHistoryLink },
-  { href: "/admin/denetim-kayitlari", icon: "shield", label: messages.shell.adminAuditLink },
-  { href: "/admin/kullanicilar", icon: "shield", label: messages.shell.adminUsersLink },
-  { href: "/admin/kuruluslar", icon: "shield", label: messages.shell.adminOrganizationsLink },
-  { href: "/admin/kurumlar", icon: "landmark", label: messages.shell.adminInstitutionsLink },
+  { href: ADMIN_OVERVIEW.href, icon: ADMIN_OVERVIEW.icon, label: messages.adminHome.title },
 ];
 
 /** Role-specific destinations, grouped: organisations, institutions, admin. */
@@ -444,10 +486,12 @@ function UserMenu({
   identity,
   onLogout,
   showIndividualProfile = false,
+  showComplaints = true,
 }: {
   identity: Identity;
   onLogout: () => void;
   showIndividualProfile?: boolean;
+  showComplaints?: boolean;
 }) {
   const { name, subtitle, email } = identity;
   const [open, setOpen] = useState(false);
@@ -507,17 +551,19 @@ function UserMenu({
               {messages.shell.individualProfileLink}
             </Link>
           )}
-          <Link
-            href="/sikayetlerim"
-            onClick={() => setOpen(false)}
-            className={cn(
-              "flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm text-foreground transition-colors duration-[120ms] hover:bg-muted/60",
-              FOCUS_RING
-            )}
-          >
-            <Icon name="shield" />
-            {messages.complaints.navLink}
-          </Link>
+          {showComplaints && (
+            <Link
+              href="/sikayetlerim"
+              onClick={() => setOpen(false)}
+              className={cn(
+                "flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm text-foreground transition-colors duration-[120ms] hover:bg-muted/60",
+                FOCUS_RING
+              )}
+            >
+              <Icon name="shield" />
+              {messages.complaints.navLink}
+            </Link>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -553,6 +599,84 @@ function PublicProfileLink({ slug }: { slug: string }) {
       <Icon name="arrowUpRight" className="h-3.5 w-3.5 text-success" />
       <span className="sr-only">{messages.shell.newTab}</span>
     </Link>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Admin navigation (sidebar ≥1024px, drawer below)                    */
+/* ------------------------------------------------------------------ */
+
+function AdminNavLink({
+  item,
+  active,
+  onNavigate,
+}: {
+  item: AdminNavItem;
+  active: boolean;
+  onNavigate?: () => void;
+}) {
+  return (
+    <li className="relative">
+      {active && (
+        <span aria-hidden="true" className="absolute -left-3 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-success" />
+      )}
+      <Link
+        href={item.href}
+        onClick={onNavigate}
+        aria-current={active ? "page" : undefined}
+        className={cn(
+          "flex h-9 items-center gap-2.5 rounded-md px-2.5 text-sm transition-colors duration-[120ms]",
+          active
+            ? "bg-success/[0.08] font-medium text-success"
+            : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+          FOCUS_RING
+        )}
+      >
+        <Icon name={item.icon} className={active ? "text-success" : undefined} />
+        <span className="min-w-0 flex-1 truncate">{item.label}</span>
+      </Link>
+    </li>
+  );
+}
+
+/** Every admin screen, grouped and always visible: no hunting in a dropdown. */
+function AdminNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+  const active = activeAdminHref(pathname);
+  return (
+    <nav aria-label={messages.shell.adminNav} className="px-3 py-5">
+      <ul>
+        <AdminNavLink item={ADMIN_OVERVIEW} active={active === ADMIN_OVERVIEW.href} onNavigate={onNavigate} />
+      </ul>
+      {ADMIN_NAV_GROUPS.map((group) => (
+        <AdminNavGroupList key={group.label} label={group.label}>
+          {group.items.map((item) => (
+            <AdminNavLink key={item.href} item={item} active={active === item.href} onNavigate={onNavigate} />
+          ))}
+        </AdminNavGroupList>
+      ))}
+    </nav>
+  );
+}
+
+function AdminNavGroupList({ label, children }: { label: string; children: ReactNode }) {
+  const id = useId();
+  return (
+    <div className="mt-6">
+      <p id={id} className="mb-1.5 px-2.5 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+        {label}
+      </p>
+      <ul aria-labelledby={id} className="space-y-0.5">
+        {children}
+      </ul>
+    </div>
+  );
+}
+
+function AdminBadge() {
+  return (
+    <span className="rounded-md border border-success/25 bg-success/[0.06] px-2 py-0.5 font-mono text-[11px] uppercase tracking-wider text-success">
+      {messages.shell.adminBadge}
+    </span>
   );
 }
 
@@ -622,10 +746,12 @@ function MobileDrawer({
   data,
   pathname,
   onClose,
+  adminMode = false,
 }: {
   data: NavData;
   pathname: string;
   onClose: () => void;
+  adminMode?: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -669,7 +795,7 @@ function MobileDrawer({
         )}
       >
         <div className="flex items-center justify-between gap-2 px-5 pb-5 pt-6">
-          <Logo />
+          <Logo href={adminMode ? ADMIN_HOME_HREF : undefined} />
           <button
             ref={closeRef}
             type="button"
@@ -684,6 +810,9 @@ function MobileDrawer({
           </button>
         </div>
         <div aria-hidden="true" className="mx-5 h-px bg-border" />
+        {adminMode ? (
+          <AdminNav pathname={pathname} onNavigate={onClose} />
+        ) : (
         <nav aria-label={messages.shell.mainNav} className="pb-6">
           <DrawerGroup label={messages.shell.groupWork}>
             {primaryLinks(data).map((entry) => (
@@ -727,6 +856,7 @@ function MobileDrawer({
             </DrawerGroup>
           ))}
         </nav>
+        )}
       </div>
     </div>
   );
@@ -886,6 +1016,94 @@ export function AppShell({ children }: { children: ReactNode }) {
     menuButtonRef.current?.focus();
   };
 
+  const banners = hasBanners ? (
+    <div className={cn(PAGE_CONTAINER, "space-y-2 pt-6")}>
+      {cachedError && (
+        <ErrorBanner
+          message={cachedError.message}
+          requestId={cachedError.requestId}
+          onRetry={() => session.refetch()}
+        />
+      )}
+
+      {/* YET-196: unverified e-mail -> explain the 401 and offer a new link */}
+      {showEmailBanner && <EmailVerificationBanner />}
+
+      {showNoOrganizations && (
+        <p className="rounded-md border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
+          {messages.shell.noOrganizations}
+        </p>
+      )}
+
+      {/* AC-8: Logout error */}
+      {showLogoutError && <ErrorBanner message={messages.session.logoutFailed} />}
+    </div>
+  ) : null;
+
+  // Admin shell: under /admin, and everywhere for an admin with no profile or
+  // membership (user-side pages like Çalışmalarım/Keşfet mean nothing to them).
+  const adminOnly =
+    navData?.isAdmin === true &&
+    !data?.talent_profile &&
+    data?.organizations.length === 0 &&
+    data.institutions.length === 0;
+  const adminMode =
+    data && navData?.isAdmin === true && (adminOnly || isActivePath(pathname, ADMIN_HOME_HREF));
+
+  if (data && navData && adminMode) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="sticky top-0 z-40 border-b border-border bg-card">
+          <div className="flex h-14 items-center gap-3 px-4 md:px-6 lg:h-16">
+            <button
+              ref={menuButtonRef}
+              type="button"
+              aria-label={messages.shell.openMenu}
+              aria-expanded={drawerOpen}
+              onClick={() => setDrawerOpen(true)}
+              className={cn(
+                "-ml-2 flex h-10 w-10 items-center justify-center rounded-md text-foreground hover:bg-muted lg:hidden",
+                FOCUS_RING
+              )}
+            >
+              <Icon name="menu" className="h-5 w-5" />
+            </button>
+            <Logo href={ADMIN_HOME_HREF} />
+            <AdminBadge />
+            <div className="ml-auto flex items-center gap-3">
+              {!adminOnly && (
+                <Link
+                  href="/calismalar"
+                  className={cn(
+                    "hidden h-9 items-center rounded-md border border-border px-3 text-sm text-muted-foreground transition-colors duration-[120ms] hover:text-foreground md:inline-flex",
+                    FOCUS_RING
+                  )}
+                >
+                  {messages.shell.leaveAdmin}
+                </Link>
+              )}
+              <UserMenu identity={identity} onLogout={() => logoutState.logout()} showComplaints={!adminOnly} />
+            </div>
+          </div>
+        </header>
+
+        {drawerOpen && <MobileDrawer data={navData} pathname={pathname} onClose={closeDrawer} adminMode />}
+
+        <div className="lg:flex">
+          <aside className="hidden w-64 shrink-0 border-r border-border bg-card lg:block">
+            <div className="sticky top-16 max-h-[calc(100vh-4rem)] overflow-y-auto">
+              <AdminNav pathname={pathname} />
+            </div>
+          </aside>
+          <div className="min-w-0 flex-1">
+            {banners}
+            {children}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {data && navData && (
@@ -936,29 +1154,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </>
       )}
 
-      {hasBanners && (
-        <div className={cn(PAGE_CONTAINER, "space-y-2 pt-6")}>
-          {cachedError && (
-            <ErrorBanner
-              message={cachedError.message}
-              requestId={cachedError.requestId}
-              onRetry={() => session.refetch()}
-            />
-          )}
-
-          {/* YET-196: unverified e-mail -> explain the 401 and offer a new link */}
-          {showEmailBanner && <EmailVerificationBanner />}
-
-          {showNoOrganizations && (
-            <p className="rounded-md border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
-              {messages.shell.noOrganizations}
-            </p>
-          )}
-
-          {/* AC-8: Logout error */}
-          {showLogoutError && <ErrorBanner message={messages.session.logoutFailed} />}
-        </div>
-      )}
+      {banners}
 
       {/* AC-1: Children render */}
       <div>{children}</div>

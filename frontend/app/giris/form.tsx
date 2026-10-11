@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { SESSION_QUERY_KEY } from "@/lib/session/use-session";
 import { fetchMe } from "@/lib/session/fetch-me";
 import { homePathFor } from "@/lib/session/roles";
+import { DEMO_ACCOUNTS, DEMO_ADMIN_EMAIL, DEMO_PASSWORD } from "@/lib/demo-accounts";
 
 const DEFAULT_AFTER_LOGIN = "/calismalar";
 const ADMIN_AFTER_LOGIN = "/admin/dogrulama-kuyrugu";
@@ -38,7 +39,15 @@ function useQueryClientSafe() {
  * credentials error. This is UX only — every /admin/* request is still
  * decided on the server (require_platform_admin).
  */
-export default function LoginForm({ nextPath, adminOnly = false }: { nextPath?: string; adminOnly?: boolean }) {
+export default function LoginForm({
+  nextPath,
+  adminOnly = false,
+  showDemoAccounts = false,
+}: {
+  nextPath?: string;
+  adminOnly?: boolean;
+  showDemoAccounts?: boolean;
+}) {
   const router = useRouter();
   const queryClient = useQueryClientSafe();
   const {
@@ -46,6 +55,8 @@ export default function LoginForm({ nextPath, adminOnly = false }: { nextPath?: 
     handleSubmit,
     formState: { errors, isSubmitting },
     setError,
+    setValue,
+    setFocus,
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
   });
@@ -184,6 +195,75 @@ export default function LoginForm({ nextPath, adminOnly = false }: { nextPath?: 
       >
         {isSubmitting ? "..." : messages.giris.login}
       </Button>
+
+      {showDemoAccounts && !adminOnly && (
+        <DemoAccounts
+          onPick={(email) => {
+            setValue("email", email, { shouldValidate: true });
+            setValue("password", DEMO_PASSWORD, { shouldValidate: true });
+          }}
+        />
+      )}
+      {showDemoAccounts && adminOnly && (
+        <DemoAdmin
+          onPick={() => {
+            setValue("email", DEMO_ADMIN_EMAIL, { shouldValidate: true });
+            setFocus("password");
+          }}
+        />
+      )}
     </form>
+  );
+}
+
+function DemoAdmin({ onPick }: { onPick: () => void }) {
+  const demo = messages.giris.demo;
+  return (
+    <section aria-labelledby="demo-admin-title" className="rounded-md border border-border bg-card px-4 py-4">
+      <h2 id="demo-admin-title" className="text-sm font-semibold text-foreground">
+        {demo.adminTitle}
+      </h2>
+      <button
+        type="button"
+        onClick={onPick}
+        aria-label={demo.adminFillLabel}
+        className="mt-2 flex w-full flex-col items-start gap-0.5 rounded px-1 py-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success motion-reduce:transition-none"
+      >
+        <span className="text-[13px] font-medium text-foreground">{demo.adminRole}</span>
+        <span className="break-all font-mono text-[12px] text-muted-foreground">{DEMO_ADMIN_EMAIL}</span>
+      </button>
+      <p className="mt-2 text-[13px] text-muted-foreground">{demo.adminPasswordHint}</p>
+    </section>
+  );
+}
+
+function DemoAccounts({ onPick }: { onPick: (email: string) => void }) {
+  const demo = messages.giris.demo;
+  return (
+    <section aria-labelledby="demo-accounts-title" className="rounded-md border border-border bg-card px-4 py-4">
+      <h2 id="demo-accounts-title" className="text-sm font-semibold text-foreground">
+        {demo.title}
+      </h2>
+      <p className="mt-1 text-[13px] text-muted-foreground">{demo.hint}</p>
+      <p className="mt-2 text-[13px] text-muted-foreground">
+        {demo.passwordLabel} <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-foreground">{DEMO_PASSWORD}</code>
+      </p>
+      <ul className="mt-3 divide-y divide-border">
+        {DEMO_ACCOUNTS.map(({ role, email }) => (
+          <li key={email}>
+            <button
+              type="button"
+              onClick={() => onPick(email)}
+              aria-label={demo.fillLabel.replace("{role}", demo.roles[role])}
+              className="flex w-full flex-col items-start gap-0.5 rounded px-1 py-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success motion-reduce:transition-none"
+            >
+              <span className="text-[13px] font-medium text-foreground">{demo.roles[role]}</span>
+              <span className="break-all font-mono text-[12px] text-muted-foreground">{email}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-[12px] text-muted-foreground">{demo.adminHint}</p>
+    </section>
   );
 }

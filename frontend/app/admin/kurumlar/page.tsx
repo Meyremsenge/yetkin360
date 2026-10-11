@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { DirectoryPage, NONE, formatDate } from "@/components/admin/directory-page";
+import { FIELD_CLASS, SM, statusTone } from "@/components/admin/admin-ui";
+import { StatusPill, actionClass } from "@/components/panel-kit";
+import { cn } from "@/lib/utils";
 import {
   listInstitutions,
   setInstitutionVerificationLevel,
@@ -39,7 +42,7 @@ function LevelControl({
   };
 
   return (
-    <span className="flex items-center gap-1">
+    <span className="flex items-center gap-1.5">
       <label htmlFor={selectId} className="sr-only">
         {`${m.levelLabel}: ${inst.name}`}
       </label>
@@ -48,7 +51,7 @@ function LevelControl({
         value={level}
         onChange={(e) => setLevel(e.target.value)}
         disabled={busy}
-        className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+        className={cn(FIELD_CLASS, "h-8 w-auto px-2 text-xs")}
       >
         {LEVELS.map((l) => (
           <option key={l} value={l}>
@@ -60,7 +63,7 @@ function LevelControl({
         type="button"
         onClick={save}
         disabled={busy || level === inst.verification_level}
-        className="rounded-md bg-slate-900 px-2 py-1 text-xs text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+        className={cn(actionClass.primary, SM)}
       >
         {m.saveLevel}
       </button>
@@ -80,10 +83,17 @@ export default function KurumlarPage() {
         <LevelControl key={`${inst.id}-${inst.verification_level}`} inst={inst} onChanged={onChanged} onError={onError} />
       )}
       columns={[
-        { header: m.headers.name, cell: (i) => i.name },
+        { header: m.headers.name, cell: (i) => <span className="font-medium">{i.name}</span> },
         { header: m.headers.domain, cell: (i) => i.domain || NONE },
-        { header: m.headers.verificationLevel, cell: (i) => i.verification_level },
-        { header: m.headers.status, cell: (i) => m.statusLabels[i.status as keyof typeof m.statusLabels] ?? i.status },
+        { header: m.headers.verificationLevel, cell: (i) => <span className="rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-xs">{i.verification_level}</span> },
+        {
+          header: m.headers.status,
+          cell: (i) => (
+            <StatusPill tone={statusTone(i.status)}>
+              {m.statusLabels[i.status as keyof typeof m.statusLabels] ?? i.status}
+            </StatusPill>
+          ),
+        },
         { header: m.headers.createdAt, cell: (i) => formatDate(i.created_at) },
       ]}
     />

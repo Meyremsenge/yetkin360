@@ -65,13 +65,13 @@ Değişen her dosyayı şu listeye karşı gözden geçir — biri bile işaretl
 ## 2b. AI Dev Log / Setup Güncellemesi
 Commit kapsamındaki değişikliklere bak, ilgili proje için (örn. `your-service/`)
 şu iki dosyanın güncellenmesi gerekip gerekmediğini değerlendir:
-- **`AI_DEVLOG.md`** — bu oturumda/task'ta gerçek bir zorluk, mimari karar,
+- **`docs/AI_DEVLOG.md`** — bu oturumda/task'ta gerçek bir zorluk, mimari karar,
   bilinçli kapsam kararı, veya bulunup düzeltilen bir bug ortaya çıktıysa
   (örn. "test fixture geçersiz UUID kullanıyordu", "Authorization header
   literal `******` yazılmıştı"), ilgili epic/KAN-xx başlığı altına (yoksa
   yeni bir başlık açarak) mevcut "zorluklar ve çözümler" formatını takip
   eden kısa bir madde ekle.
-- **`SETUP.md`** — yeni bir env değişkeni, yeni bir kurulum/çalıştırma adımı,
+- **`docs/arsiv/SETUP.md`** — yeni bir env değişkeni, yeni bir kurulum/çalıştırma adımı,
   yeni bir migration, veya yeni bir manuel/uçtan-uca doğrulama adımı
   eklendiyse güncelle.
 - İkisi de gerekmiyorsa (küçük/rutin bir değişiklik, yeni bir mimari karar

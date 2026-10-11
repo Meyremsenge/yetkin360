@@ -1,6 +1,6 @@
 ---
 name: ilerle
-description: PLAN.md'deki sıradaki maddeyi rapor vermeden doğrudan uygulamaya başlar. /durum'un sessiz hâli.
+description: docs/PLAN.md'deki sıradaki maddeyi rapor vermeden doğrudan uygulamaya başlar. /durum'un sessiz hâli.
 disable-model-invocation: true
 ---
 
@@ -10,10 +10,10 @@ disable-model-invocation: true
 
 ## Akış
 
-1. `PLAN.md`'yi oku, ilk işaretsiz `- [ ]` maddeyi bul
+1. `docs/PLAN.md`'yi oku, ilk işaretsiz `- [ ]` maddeyi bul
 2. Tek satır söyle: `Başlıyorum: <madde no> <başlık>`
 3. Uygula — `CLAUDE.md` çalışma döngüsü ve doğrulama matrisine göre
-4. Bitince `PLAN.md`'de kutuyu işaretle, kısa çıktı formatıyla bitir
+4. Bitince `docs/PLAN.md`'de kutuyu işaretle, kısa çıktı formatıyla bitir
 
 ## İstisna
 

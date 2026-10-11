@@ -1,6 +1,6 @@
 ---
 name: ekran
-description: Tek bir frontend ekranını docs/sayfa-tasarim-brifi.md + tasarimlar/stitch/ mockup'ına göre yeni görsel dile (kâğıt/mürekkep/mühür) geçirir. Yalnız sunum katmanı; veri/iş mantığı değişmez. Argümansız çağrılırsa kuyruktaki sıradaki ekranı seçer. Kullanıcı /ekran yazdığında çalışır.
+description: Tek bir frontend ekranını docs/sayfa-tasarim-brifi.md + docs/arsiv/tasarimlar/stitch/ mockup'ına göre yeni görsel dile (kâğıt/mürekkep/mühür) geçirir. Yalnız sunum katmanı; veri/iş mantığı değişmez. Argümansız çağrılırsa kuyruktaki sıradaki ekranı seçer. Kullanıcı /ekran yazdığında çalışır.
 disable-model-invocation: true
 argument-hint: "(boş = kuyruktaki sıradaki) | <kuyruk kodu: ui, 2, shell, 3, 10, 10b, 10c, auth, 13, 11, 9, 14, 21, 16, 12, 18, 19, 20>"
 ---
@@ -13,9 +13,9 @@ Kullanıcıyla **Türkçe** konuş. Kod, yorum, tanımlayıcı İngilizce. UI me
 
 ## 0. Hangi ekran? (kuyruk)
 
-Argüman verildiyse onu al. **Argüman boşsa:** `planfrontend.md`'yi oku ve aşağıdaki sırada FE satırı `[ ]` olan **ilk** kodu seç. `[x]` ve `[~]` olanları atla. `[~]`, başka biri ya da yarım bırakılmış iş demektir. Seçtiğini tek cümleyle söyle ve başla. Soru sorma.
+Argüman verildiyse onu al. **Argüman boşsa:** `docs/arsiv/planfrontend.md`'yi oku ve aşağıdaki sırada FE satırı `[ ]` olan **ilk** kodu seç. `[x]` ve `[~]` olanları atla. `[~]`, başka biri ya da yarım bırakılmış iş demektir. Seçtiğini tek cümleyle söyle ve başla. Soru sorma.
 
-| Sıra | Kod | Ekran | FE | Model | Dosya(lar) | Mockup (`tasarimlar/stitch/proje1-tum-sayfalar/`) |
+| Sıra | Kod | Ekran | FE | Model | Dosya(lar) | Mockup (`docs/arsiv/tasarimlar/stitch/proje1-tum-sayfalar/`) |
 |---|---|---|---|---|---|---|
 | 0 | `ui` | Ortak ilkeller + paylaşılan bileşenler (birincil buton bugün siyah, brifte çam) | FE-05 | Sonnet | `components/ui/button.tsx`, `input.tsx`, `label.tsx`, `components/email-verification-banner.tsx`, `components/skill-picker.tsx` | — (brif §2.1, §2.2, §5.3) |
 | 1 | `2` | `/v/[token]` sertifika | FE-13 | Sonnet | `app/v/[token]/page.tsx` | `19-…`, `04-…` |
@@ -38,11 +38,11 @@ Argüman verildiyse onu al. **Argüman boşsa:** `planfrontend.md`'yi oku ve aş
 
 **Model kontrolü:** Seçilen ekran **Opus** ise ve sen Opus değilsen, işe başlamadan tek satır yaz ve dur: "Bu ekran (`<kod>`) Opus önerilir: `/model opus` yazıp `/ekran <kod>` ile yeniden başlat, ya da 'devam' de." Kullanıcı "devam" derse sen yap. Opus ekranları riskli olanlar: çok testli (shell 29 test), durum makinesine bağlı butonlar, dosya yükleme akışı. Sonnet ekranlarını Opus da yapabilir, uyarı gerekmez.
 
-**Kuyruk bittiyse** (tablodaki tüm kodlar `[x]`): ekran dönüştürme yapma. Kullanıcıya şunu söyle ve dur: "Ekran kuyruğu bitti. Kalan cila işleri (`planfrontend.md` Faz 4): FE-26 durumlar turu, FE-27 responsive turu, FE-28 erişilebilirlik turu, FE-31 tam doğrulama, FE-32 demo provası. Hangisiyle devam edelim?"
+**Kuyruk bittiyse** (tablodaki tüm kodlar `[x]`): ekran dönüştürme yapma. Kullanıcıya şunu söyle ve dur: "Ekran kuyruğu bitti. Kalan cila işleri (`docs/arsiv/planfrontend.md` Faz 4): FE-26 durumlar turu, FE-27 responsive turu, FE-28 erişilebilirlik turu, FE-31 tam doğrulama, FE-32 demo provası. Hangisiyle devam edelim?"
 
 Dosya yolları `frontend/` altında. Brif bölümü = kodun numarası (`shell` → §5; `auth` → brif 4–8; `10/10b/10c` → "10. Çalışma detayı"; `18` → brif 17+18 ve 15).
-Mockup tam adı: `ls tasarimlar/stitch/proje1-tum-sayfalar/ | grep '^19-'`. Ek referans: `tasarimlar/stitch/proje2-brifi-v2/`.
-Mockup **ilham**dir, kaynak değil. Stitch HTML'ini kopyalama: CDN Tailwind, sahte veri ve farklı sınıf adları içerir. Brif ile mockup çelişirse **brif**, brif ile `planfrontend.md` çelişirse yine **brif** kazanır.
+Mockup tam adı: `ls docs/arsiv/tasarimlar/stitch/proje1-tum-sayfalar/ | grep '^19-'`. Ek referans: `docs/arsiv/tasarimlar/stitch/proje2-brifi-v2/`.
+Mockup **ilham**dir, kaynak değil. Stitch HTML'ini kopyalama: CDN Tailwind, sahte veri ve farklı sınıf adları içerir. Brif ile mockup çelişirse **brif**, brif ile `docs/arsiv/planfrontend.md` çelişirse yine **brif** kazanır.
 
 **Paralel mod:** `git rev-parse --git-dir` çıktısında `worktrees` geçiyorsa bir worktree'desin; başka oturumlar da çalışıyor demektir. Bu durumda:
 - Argüman boşsa seçme; kullanıcıdan kod iste.
@@ -50,9 +50,9 @@ Mockup **ilham**dir, kaynak değil. Stitch HTML'ini kopyalama: CDN Tailwind, sah
 - `tr.json`'da yalnız kendi ekranının bölümüne anahtar ekle.
 - Commit'ten sonra kullanıcıya `git pull --rebase origin main && git push origin HEAD:main` öner.
 
-Ayrıntı: `docs/gece-plani.md` "Paralel oturumlar".
+Ayrıntı: `docs/arsiv/gece-plani.md` "Paralel oturumlar".
 
-**Başlarken:** `git status --short` temiz değilse DUR ve kullanıcıya göster. Önceki oturumdan commit'lenmemiş iş kalmış olabilir. Temizse `planfrontend.md`'de ilgili FE satırını `[~]` yap.
+**Başlarken:** `git status --short` temiz değilse DUR ve kullanıcıya göster. Önceki oturumdan commit'lenmemiş iş kalmış olabilir. Temizse `docs/arsiv/planfrontend.md`'de ilgili FE satırını `[~]` yap.
 
 ## 1. Kapsam kilidi
 
@@ -180,7 +180,7 @@ Seed hesapları: `ayse.yilmaz@posta.test`, `murat.demirci@yelkovanyazilim.test`,
 
 ## 8. Kapat
 
-1. `planfrontend.md`'de FE satırını `[x]` yap (`10`/`10b` için `[~]` kalır).
+1. `docs/arsiv/planfrontend.md`'de FE satırını `[x]` yap (`10`/`10b` için `[~]` kalır).
 2. Commit: dosyaları **adıyla** ekle (`git add -A`/`git add .` yasak). Mesaj Türkçe, tek satır + gövdede FE kodu. **Co-Authored-By satırı ekleme.**
    ```
    feat(ui): /v/[token] sertifika sayfası yeni görsel dile geçirildi
