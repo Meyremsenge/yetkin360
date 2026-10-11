@@ -286,15 +286,19 @@ export async function getAttachmentDownloadUrl(
 
 // --- admin ------------------------------------------------------------------
 
-export async function adminListComplaints(params: { limit?: number; offset?: number } = {}): Promise<AdminComplaintPage> {
+/** Without `status` the server returns the open queue (every non-terminal status). */
+export async function adminListComplaints(
+  params: { limit?: number; offset?: number; status?: string } = {}
+): Promise<AdminComplaintPage> {
   const limit = params.limit ?? 50;
   const offset = params.offset ?? 0;
+  const status = params.status ? `&status=${encodeURIComponent(params.status)}` : "";
   const response = await apiFetch<{
     items?: ComplaintWire[] | null;
     limit?: number;
     offset?: number;
     has_more?: boolean;
-  }>(`/admin/complaints?limit=${limit}&offset=${offset}`);
+  }>(`/admin/complaints?limit=${limit}&offset=${offset}${status}`);
   return {
     items: (response?.items ?? []).map(normalize),
     limit: response?.limit ?? limit,

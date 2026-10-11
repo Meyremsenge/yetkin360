@@ -1961,6 +1961,14 @@
   },
   "adminComplaints": {
     "navLink": "Şikayetler",
+    "tabs": {
+      "label": "Şikayet durumu",
+      "open": "Açık",
+      "UPHELD": "Haklı bulunan",
+      "RESOLVED": "Çözülen",
+      "DISMISSED": "Kapatılan",
+      "empty": "\"{tab}\" sekmesinde şikayet yok."
+    },
     "title": "Şikayetler",
     "description": "Kişilerin yanıtsız kalan onay talepleri için açtığı şikayetler. Kararlar geri alınamaz olabilir; gerekçe yazarak ilerleyin.",
     "loading": "Şikayetler yükleniyor...",

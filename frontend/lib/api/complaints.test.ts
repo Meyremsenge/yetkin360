@@ -173,6 +173,12 @@ describe("lib/api/complaints", () => {
     });
   });
 
+  it("adminListComplaints adds the status filter only when given", async () => {
+    mockApiFetch.mockResolvedValueOnce({ items: [], limit: 50, offset: 0, has_more: false });
+    await adminListComplaints({ limit: 50, offset: 0, status: "UPHELD" });
+    expect(mockApiFetch).toHaveBeenCalledWith("/admin/complaints?limit=50&offset=0&status=UPHELD");
+  });
+
   it("adminGetComplaint maps events and the closing reason", async () => {
     mockApiFetch.mockResolvedValueOnce({
       id: "c1",
