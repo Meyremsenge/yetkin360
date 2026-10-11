@@ -1508,9 +1508,9 @@ class TestExtraFieldsIgnored:
 
 class TestApprovalRequestRecipients:
     """
-    The sender must address the approval request to someone at the engagement's
-    institution. Addresses of its coordinators receive it alone; anything else is
-    ignored without an error (every coordinator is notified then), so the
+    The sender may address the approval request to someone at the engagement's
+    institution. Addresses of its coordinators receive it alone; anything else
+    (or nothing) means every coordinator is notified, without an error, so the
     response never tells who is (or is not) a member.
     """
 
@@ -1545,23 +1545,18 @@ class TestApprovalRequestRecipients:
         assert "diana" not in str(payload).lower()
 
     @pytest.mark.parametrize("body", [{}, {"notify_emails": []}, {"notify_emails": None}], ids=["missing", "empty", "null"])
-    def test_recipient_is_required_and_nothing_changes_without_it(
+    def test_without_a_recipient_every_coordinator_is_notified(
         self, body, client, session, user_talent_alice, engagement_draft_alice, inst_coord_diana
     ):
-        from app.models import Outbox
-
         response = client.post(
             f"/engagements/{engagement_draft_alice.id}/transitions",
             json={"to_status": "PENDING_APPROVAL", "version": 1, **body},
             headers={"X-Debug-User-Id": str(user_talent_alice.id)},
         )
 
-        assert response.status_code == 422, response.text
-        assert response.json()["code"] == "PRECONDITION_FAILED"
-        session.refresh(engagement_draft_alice)
-        assert engagement_draft_alice.status == "DRAFT"
-        assert engagement_draft_alice.version == 1
-        assert session.query(Outbox).filter_by(topic="engagement.pending_approval").count() == 0
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] == "PENDING_APPROVAL"
+        assert "notify_user_ids" not in self._payload(session)
 
     @pytest.mark.parametrize(
         "case",

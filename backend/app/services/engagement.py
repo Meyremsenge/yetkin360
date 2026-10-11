@@ -2,7 +2,8 @@
 
 import uuid
 from datetime import datetime, timezone, date
-from typing import Any, Callable, Sequence, TypedDict
+from dataclasses import dataclass
+from typing import Any, Callable, Optional, Sequence, TypedDict
 from sqlalchemy import and_, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -28,10 +29,12 @@ from app.services.authorization import (
     engagement_relation,
     get_scoped_or_404,
     scoped_engagements,
+    scoped_talent_profiles,
 )
 from app.services.attestation import attestation_role_allowed
 from app.services.audit import log_audit_event
 from app.services.evaluation import can_submit_org_evaluation
+from app.services.organization import mask_email
 from app.services.outbox import enqueue
 
 
@@ -140,7 +143,7 @@ def _transition_specs(
     """
     return {
         ("DRAFT", "PENDING_APPROVAL"): {
-            "preconditions": ["institution_id_not_null", "recipient_required"],
+            "preconditions": ["institution_id_not_null"],
             "can_transition": lambda: (
                 rel.is_subject or rel.is_org_member
             ),
@@ -200,6 +203,12 @@ def _task_creation_allowed(rel: EngagementRelation, status: str) -> bool:
     return False
 
 
+# Internships and capstones always go through the student's school when they
+# have one: the coordinator's approval (T1/T2) is the defence against fake
+# internships, so the school cannot be left out to self-activate via T4.
+SCHOOL_BOUND_KINDS = frozenset({"INTERNSHIP", "CAPSTONE"})
+
+
 def create_engagement(
     session: Session,
     principal: Principal,
@@ -218,6 +227,7 @@ def create_engagement(
     - Validates talent exists and is accessible to principal
     - Validates organization exists and is accessible to principal
     - Validates institution_id (if provided) matches talent's institution
+    - SCHOOL_BOUND_KINDS: the talent's institution is attached even if omitted
     - Creates engagement with status=DRAFT, version=1
     - Logs audit event in same transaction
 
@@ -304,6 +314,8 @@ def create_engagement(
         if talent.institution_id != inst_uuid:
             # Generic error message that doesn't reveal whether institution exists
             raise InstitutionMismatchError("institution_id does not match talent's institution")
+    elif kind in SCHOOL_BOUND_KINDS and talent.institution_id is not None:
+        inst_uuid = talent.institution_id
 
     # SPRINT D1: the approver must be an active member of THIS organization and never
     # the talent (self-dealing). Same generic error for every failure: no member oracle.
@@ -376,6 +388,7 @@ def transition_engagement(
     started_on: str | None = None,
     ended_on: str | None = None,
     notify_emails: Sequence[str] | None = None,
+    notify_user_ids: Sequence[uuid.UUID] | None = None,
 ) -> Engagement:
     """
     Transition engagement status with optimistic locking and authorization checks.
@@ -403,11 +416,12 @@ def transition_engagement(
         reason: Optional reason for REJECTED/CANCELLED transitions
         started_on: Optional start date (ISO format string) for engagement
         ended_on: Optional end date (ISO format string) for engagement
-        notify_emails: Required for DRAFT → PENDING_APPROVAL, ignored otherwise.
-            Addresses that belong to coordinators of the engagement's institution
-            receive the approval request instead of every coordinator. Other
-            addresses are ignored without an error, so the caller cannot probe
-            who is a member; if none matches, every coordinator is notified.
+        notify_emails / notify_user_ids: Optional, DRAFT → PENDING_APPROVAL only.
+            Coordinators of the engagement's institution named here (by address,
+            or by id from list_approval_recipients) receive the approval request
+            instead of every coordinator. Anything else is ignored without an
+            error, so the caller cannot probe who is a member; if nothing
+            matches (or nothing is given), every coordinator is notified.
 
     Returns:
         Updated Engagement object
@@ -462,10 +476,6 @@ def transition_engagement(
         elif precondition == "reason_not_empty":
             if not reason or reason.strip() == "":
                 raise PreconditionFailedError("reason is required for this transition")
-        elif precondition == "recipient_required":
-            # The sender names who at the institution should receive the request.
-            if not any(email.strip() for email in notify_emails or []):
-                raise PreconditionFailedError("notify_emails is required for this transition")
         elif precondition == "has_deliverable":
             # Real database query to verify at least one Deliverable exists (AC-S4: client input ignored)
             count = session.execute(
@@ -576,7 +586,9 @@ def transition_engagement(
             "institution_id": str(engagement.institution_id),
         }
         # User ids, never the addresses (PII guard); absent = every coordinator.
-        selected = _coordinator_ids_for_emails(session, engagement.institution_id, notify_emails)
+        selected = _coordinator_ids_for_recipients(
+            session, engagement.institution_id, notify_emails, notify_user_ids
+        )
         if selected:
             payload["notify_user_ids"] = selected
         enqueue(session=session, topic="engagement.pending_approval", payload=payload)
@@ -593,20 +605,22 @@ def transition_engagement(
     return engagement
 
 
-def _coordinator_ids_for_emails(
+def _coordinator_ids_for_recipients(
     session: Session,
     institution_id: uuid.UUID | None,
     emails: Sequence[str] | None,
+    user_ids: Sequence[uuid.UUID] | None,
 ) -> list[str]:
     """
-    Ids of the institution's COORDINATOR members whose e-mail is in `emails`.
+    Ids of the institution's COORDINATOR members named in `emails` or `user_ids`.
 
     Only coordinators can approve, and only this engagement's institution is
-    searched: an address of anyone else (another institution, a non-member)
-    matches nothing.
+    searched: an address or id of anyone else (another institution, a
+    non-member, an organization member) matches nothing.
     """
-    wanted = {email.strip().lower() for email in emails or [] if email.strip()}
-    if institution_id is None or not wanted:
+    wanted_emails = {email.strip().lower() for email in emails or [] if email.strip()}
+    wanted_ids = set(user_ids or [])
+    if institution_id is None or not (wanted_emails or wanted_ids):
         return []
 
     rows = session.execute(
@@ -615,11 +629,81 @@ def _coordinator_ids_for_emails(
         .where(
             InstitutionMember.institution_id == institution_id,
             InstitutionMember.role == "COORDINATOR",
-            func.lower(User.email).in_(wanted),
+            func.lower(User.email).in_(wanted_emails) | User.id.in_(wanted_ids),
         )
         .order_by(User.id)
     ).scalars().all()
     return [str(user_id) for user_id in rows]
+
+
+@dataclass(frozen=True)
+class ApprovalRecipientRow:
+    user_id: uuid.UUID
+    display_name: str
+    email_hint: str
+
+
+def list_approval_recipients(
+    session: Session, principal: Principal, engagement_id: uuid.UUID
+) -> Optional[list[ApprovalRecipientRow]]:
+    """
+    Coordinators of the engagement's institution the sender may address the
+    approval request to: name and masked e-mail only.
+
+    None (-> 404) unless the engagement is in scope, still DRAFT, has an
+    institution, and the caller may send it for approval (same check as the
+    DRAFT -> PENDING_APPROVAL transition). Active, non-deleted users only.
+    """
+    engagement = get_scoped_or_404(
+        scoped_engagements(session, principal).where(Engagement.id == engagement_id), session
+    )
+    if engagement is None or engagement.status != "DRAFT" or engagement.institution_id is None:
+        return None
+    rel = engagement_relation(principal, engagement)
+    if not _transition_specs(principal, engagement, rel)[("DRAFT", "PENDING_APPROVAL")]["can_transition"]():
+        return None
+
+    return _institution_coordinators(session, engagement.institution_id)
+
+
+def list_own_approval_recipients(
+    session: Session, principal: Principal
+) -> Optional[list[ApprovalRecipientRow]]:
+    """
+    Coordinators of the caller's own school, before the engagement exists (the
+    "Yeni çalışma" form sends it for approval right after creating it).
+    None (-> 404) when the caller has no talent profile or no institution.
+    """
+    talent = session.execute(
+        scoped_talent_profiles(session, principal).where(TalentProfile.deleted_at.is_(None))
+    ).scalar_one_or_none()
+    if talent is None or talent.institution_id is None:
+        return None
+    return _institution_coordinators(session, talent.institution_id)
+
+
+def _institution_coordinators(session: Session, institution_id: uuid.UUID) -> list[ApprovalRecipientRow]:
+    """ACTIVE, non-deleted COORDINATOR members by name; e-mail masked."""
+    display_name = func.coalesce(TalentProfile.full_name, "")
+    rows = session.execute(
+        select(User.id, display_name.label("display_name"), User.email)
+        .join(InstitutionMember, InstitutionMember.user_id == User.id)
+        .outerjoin(
+            TalentProfile,
+            and_(TalentProfile.user_id == User.id, TalentProfile.deleted_at.is_(None)),
+        )
+        .where(
+            InstitutionMember.institution_id == institution_id,
+            InstitutionMember.role == "COORDINATOR",
+            User.status == "ACTIVE",
+            User.deleted_at.is_(None),
+        )
+        .order_by(display_name, User.id)
+    ).all()
+    return [
+        ApprovalRecipientRow(user_id=row.id, display_name=row.display_name, email_hint=mask_email(row.email))
+        for row in rows
+    ]
 
 
 def create_engagement_task(
