@@ -1,5 +1,7 @@
 "use client";
 
+import { actionClass } from "@/components/panel-kit";
+import { cn } from "@/lib/utils";
 import messages from "@/messages/tr.json";
 
 interface AdminPaginationProps {
@@ -16,13 +18,12 @@ export function AdminPagination({ offset, limit, hasMore, disabled, onChange }: 
   const hasPrevious = offset > 0;
   if (!hasPrevious && !hasMore) return null;
 
-  const buttonClass =
-    "px-3 py-1.5 text-sm border border-slate-300 rounded-md hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed";
+  const buttonClass = cn(actionClass.neutral, "h-8 px-3 text-xs");
 
   return (
     <nav
       aria-label={messages.adminPagination.nav}
-      className="mt-4 flex items-center justify-between gap-4"
+      className="flex items-center justify-between gap-4 border-t border-border px-5 py-3"
     >
       <button
         type="button"
@@ -32,7 +33,7 @@ export function AdminPagination({ offset, limit, hasMore, disabled, onChange }: 
       >
         {messages.adminPagination.previous}
       </button>
-      <span aria-live="polite" className="text-sm text-slate-600">
+      <span aria-live="polite" className="text-sm text-muted-foreground">
         {messages.adminPagination.page} {page}
       </span>
       <button
