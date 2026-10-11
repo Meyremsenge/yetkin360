@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { apiFetch, login } from "@/lib/api/client";
@@ -14,7 +15,8 @@ import { Button } from "@/components/ui/button";
 import { SESSION_QUERY_KEY } from "@/lib/session/use-session";
 import { fetchMe } from "@/lib/session/fetch-me";
 import { homePathFor } from "@/lib/session/roles";
-import { DEMO_ACCOUNTS, DEMO_ADMIN_EMAIL, DEMO_PASSWORD } from "@/lib/demo-accounts";
+import { DEMO_ACCOUNTS, DEMO_ADMIN_EMAIL, DEMO_PASSWORD, demoAccountsEnabled } from "@/lib/demo-accounts";
+import { DEMO_ACCOUNTS_ANCHOR } from "@/components/ui/demo-accounts-link";
 
 const DEFAULT_AFTER_LOGIN = "/calismalar";
 const ADMIN_AFTER_LOGIN = "/admin/dogrulama-kuyrugu";
@@ -43,10 +45,13 @@ export default function LoginForm({
   nextPath,
   adminOnly = false,
   showDemoAccounts = false,
+  footer,
 }: {
   nextPath?: string;
   adminOnly?: boolean;
   showDemoAccounts?: boolean;
+  /** Rendered right under the submit button (e.g. register / forgot password links). */
+  footer?: ReactNode;
 }) {
   const router = useRouter();
   const queryClient = useQueryClientSafe();
@@ -107,8 +112,15 @@ export default function LoginForm({
 
         if (errObj.status === 401 && errObj.code === "INVALID_CREDENTIALS") {
           // General message, no field-specific error
+          // A browser often autofills another saved password for a demo
+          // e-mail; tell the visitor the shared demo password instead.
+          const isDemoEmail = DEMO_ACCOUNTS.some((account) => account.email === data.email.trim().toLowerCase());
+          const hint =
+            isDemoEmail && !adminOnly && demoAccountsEnabled()
+              ? ` ${messages.giris.demo.wrongPasswordHint.replace("{password}", DEMO_PASSWORD)}`
+              : "";
           setError("root", {
-            message: messages.giris.invalidCredentials,
+            message: messages.giris.invalidCredentials + hint,
           });
         } else if (errObj.status === 423 && errObj.code === "ACCOUNT_LOCKED") {
           setError("root", {
@@ -196,6 +208,8 @@ export default function LoginForm({
         {isSubmitting ? "..." : messages.giris.login}
       </Button>
 
+      {footer}
+
       {showDemoAccounts && !adminOnly && (
         <DemoAccounts
           onPick={(email) => {
@@ -240,7 +254,7 @@ function DemoAdmin({ onPick }: { onPick: () => void }) {
 function DemoAccounts({ onPick }: { onPick: (email: string) => void }) {
   const demo = messages.giris.demo;
   return (
-    <section aria-labelledby="demo-accounts-title" className="rounded-md border border-border bg-card px-4 py-4">
+    <section id={DEMO_ACCOUNTS_ANCHOR} aria-labelledby="demo-accounts-title" className="scroll-mt-6 rounded-md border border-border bg-card px-4 py-4">
       <h2 id="demo-accounts-title" className="text-sm font-semibold text-foreground">
         {demo.title}
       </h2>

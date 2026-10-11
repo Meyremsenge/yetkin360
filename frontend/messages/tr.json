@@ -233,6 +233,9 @@
     "backHome": "Ana sayfaya dön",
     "demo": {
       "title": "Hazır demo hesapları",
+      "cta": "Hazır demo hesaplarıyla deneyin",
+      "ctaHint": "Veriyle dolu örnek hesaplar, yeni hesap açmanız gerekmez.",
+      "wrongPasswordHint": "Demo hesaplarının şifresi {password}. Tarayıcınız farklı bir kayıtlı şifre doldurmuş olabilir.",
       "hint": "Yeni hesap açmanız gerekmez. Bir hesaba tıklayın, bilgiler forma dolsun; sonra Giriş Yap'a basın.",
       "passwordLabel": "Ortak şifre:",
       "fillLabel": "{role} hesabını forma doldur",
@@ -275,7 +278,7 @@
     "fullNameLabel": "Ad Soyad",
     "submit": "Kayıt Ol",
     "success": "Kaydınız alındı. E-postanızı doğrulayın.",
-    "demoNotice": "Demo için yeni hesap açmanız gerekmez: giriş sayfasındaki hazır hesapları kullanın.",
+    "demoNotice": "Yeni hesap boş başlar. Platformu dolu verilerle görmek için hazır demo hesaplarını kullanın.",
     "demoEmailHint": "Yerel kurulumda e-posta gönderilmez. Doğrulama bağlantısı başlatıcı terminalinde [EMAIL] ile başlayan satırda görünür; tarayıcıya yapıştırın.",
     "successOrganization": "Kaydınız alındı. Doğrulama bağlantısı kurumsal e-posta adresinize gönderildi.",
     "corporateEmailHint": "Kuruluş hesabı için kurumsal e-posta adresi gerekir; doğrulama bağlantısı bu adrese gönderilir.",
