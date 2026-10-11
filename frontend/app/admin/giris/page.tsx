@@ -1,3 +1,4 @@
+import Link from "next/link";
 import messages from "@/messages/tr.json";
 import LoginForm from "@/app/giris/form";
 import { AuthLayout } from "@/components/ui/auth-layout";
@@ -19,7 +20,6 @@ export default async function AdminLoginPage({
   return (
     <AuthLayout
       brandSentence={messages.adminGiris.brandSentence}
-      links={[{ href: "/giris", label: messages.adminGiris.userLoginLink }]}
     >
       <h1 className="font-serif text-[32px] font-semibold leading-tight text-foreground">
         {messages.adminGiris.title}
@@ -35,7 +35,21 @@ export default async function AdminLoginPage({
         </div>
       )}
 
-      <LoginForm nextPath={params.next} adminOnly showDemoAccounts={demoAccountsEnabled()} />
+      <LoginForm
+        nextPath={params.next}
+        adminOnly
+        showDemoAccounts={demoAccountsEnabled()}
+        footer={
+          <div className="text-sm">
+            <Link
+              href="/giris"
+              className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-success"
+            >
+              {messages.adminGiris.userLoginLink}
+            </Link>
+          </div>
+        }
+      />
     </AuthLayout>
   );
 }
