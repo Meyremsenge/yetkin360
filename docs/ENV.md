@@ -2,9 +2,12 @@
 
 Projenin okuduğu tüm ortam değişkenleri, varsayılanları ve anlamları.
 
-> **Bu dosya `.env.example`'ın kaynağıdır.** Kurulum sırasında aşağıdaki
-> §8'deki şablonu kopyalayıp repo köküne `.env.example` olarak kaydedin,
-> sonra `cp .env.example .env` ile çalışma kopyanızı oluşturun.
+> **`.env.example` repo kökündedir.** Çalışma kopyası `.env`'i başlatıcı
+> (`baslat.bat` / `baslat.command`) kendisi oluşturur: `scripts/init_env.py`
+> şablonu kopyalar ve `DEGISTIR_` ile başlayan her değeri rastgele bir değerle
+> doldurur. Elle: `python scripts/init_env.py` ya da `cp .env.example .env` +
+> yer tutucuları doldurmak. §8'deki şablon açıklama amaçlıdır; güncel liste
+> `.env.example`'dır.
 >
 > **`.env` asla commit edilmez** — `.gitignore` içindedir.
 > `.env.example` yalnız **placeholder** içerir, gerçek sır içermez.
