@@ -582,6 +582,18 @@ class ApproverRow:
     user_id: uuid.UUID
     display_name: str
     unit: Optional[str]
+    email_hint: str
+
+
+def mask_email(email: str) -> str:
+    """
+    "mehmet.kaya@lale.example" -> "me•••@lale.example": enough for a student to
+    tell which address of the organization approves, too little to harvest.
+    At most two leading characters, and never the whole local part.
+    """
+    local, _, domain = email.partition("@")
+    shown = local[: min(2, max(len(local) - 1, 0))]
+    return f"{shown}•••@{domain}"
 
 
 def _display_name_column():
@@ -686,10 +698,11 @@ def list_approvers(
     People a student may ask to approve their engagement with an organization.
     Any e-mail-verified user may ask (no membership to scope by), so this goes
     through scoped_organization_directory (ACTIVE, not deleted; otherwise None
-    -> 404) and is deliberately thin: no e-mail, no role. Every call, a 404
+    -> 404) and is deliberately thin: no full e-mail, no role. Every call, a 404
     probe included, counts against the shared Keşfet limit (60/min/user;
     raises RateLimitExceeded). Only ACTIVE memberships of ACTIVE, non-deleted
-    users; by unit (no unit last), name.
+    users; by unit (no unit last), name. The e-mail leaves only masked
+    (mask_email), so the student sees which address approves.
     """
     rate_limit.hit(session, rate_limit.DISCOVER_USER, str(principal.user_id))
     organization = session.execute(
@@ -703,6 +716,7 @@ def list_approvers(
             OrganizationMember.user_id,
             _display_name_column().label("display_name"),
             OrganizationMember.unit,
+            User.email,
         )
         .join(User, User.id == OrganizationMember.user_id)
         .outerjoin(
@@ -722,7 +736,12 @@ def list_approvers(
         )
     )
     return [
-        ApproverRow(user_id=row.user_id, display_name=row.display_name, unit=row.unit)
+        ApproverRow(
+            user_id=row.user_id,
+            display_name=row.display_name,
+            unit=row.unit,
+            email_hint=mask_email(row.email),
+        )
         for row in session.execute(stmt).all()
     ]
 

@@ -149,11 +149,12 @@ class OrgMemberUnitUpdate(BaseModel):
 
 
 class ApproverEntry(BaseModel):
-    """GET /organizations/{id}/approvers row — deliberately no e-mail and no role."""
+    """GET /organizations/{id}/approvers row — masked e-mail only, no role."""
 
     user_id: uuid.UUID
     display_name: str
     unit: str | None
+    email_hint: str
 
 
 def _invalid_unit() -> ApiError:
@@ -617,7 +618,8 @@ def list_approvers_endpoint(
 ) -> list[ApproverEntry]:
     """
     Approver picker for a student starting an engagement: any e-mail-verified
-    user, no membership needed (like the directory). Name + unit only.
+    user, no membership needed (like the directory). Name, unit and masked
+    e-mail only.
 
     Status codes:
         200: List (by unit, no unit last, then name)
