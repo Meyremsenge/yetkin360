@@ -98,10 +98,10 @@ DRAFT ──────────► PENDING_APPROVAL ──────► A
 
 | # | Geçiş | Yetkili aktör | Ön koşul | Yan etki |
 |---|---|---|---|---|
-| T1 | `DRAFT` → `PENDING_APPROVAL` | Kurum (`ORG:MEMBER`) veya `TALENT` | `institution_id` dolu; `title`, `kind` dolu | `AuditEvent`, koordinatöre bildirim |
+| T1 | `DRAFT` → `PENDING_APPROVAL` | Kurum (`ORG:MEMBER`) veya `TALENT` | `institution_id` dolu; `title`, `kind` dolu | `AuditEvent`, koordinatöre bildirim (`notify_user_ids` ile seçilene, yoksa tümüne) |
 | T2 | `PENDING_APPROVAL` → `ACTIVE` | **`INST:COORD`** (kendi kurumu) | Talent, koordinatörün kurumuna bağlı | `AuditEvent`, taraflara bildirim |
 | T3 | `PENDING_APPROVAL` → `REJECTED` | **`INST:COORD`** (kendi kurumu) | `reason` **zorunlu** | `AuditEvent`, bildirim |
-| T4 | `DRAFT` → `ACTIVE` | Kurum (`ORG:MEMBER`) | **`institution_id` NULL** (platform dışı işbirliği) | `AuditEvent` |
+| T4 | `DRAFT` → `ACTIVE` | `TALENT` (kendi çalışması; `institution_id` NULL) veya `INST:COORD` (kendi kurumu; `institution_id` dolu) | Okulsuz çalışma: koordinatör onayı yok. `INTERNSHIP`/`CAPSTONE` öğrencinin okulu varsa okulsuz oluşturulamaz (bkz. §4.3) | `AuditEvent` |
 | T5 | `ACTIVE` → `PENDING_EVALUATION` | `TALENT` veya `ORG:SUPERVISOR` | **En az 1 `Deliverable` olmalı** | `AuditEvent`, kuruma bildirim |
 | T6 | `ACTIVE` → `CANCELLED` | `ORG:ADMIN` veya `INST:COORD` | `reason` **zorunlu** | `AuditEvent`, bildirim |
 | T7 | `PENDING_EVALUATION` → `EVALUATED` | **Sistem** (otomatik) | `ORG_TO_TALENT` yönünde `Evaluation` gönderildi | `AuditEvent` |
@@ -148,12 +148,14 @@ UPDATE engagements
 kullanıcının şu anda yapabileceği** geçişleri listeler. Frontend butonları
 bundan üretir; durum makinesini kendisi hesaplamaz.
 
-> ❓ AÇIK SORU: T4 (`DRAFT → ACTIVE`, koordinatörsüz yol) §10.2 diyagramında
-> açıkça çizilmemiş; §7.7'deki "`Engagement n──1 Institution` (nullable —
-> platform dışı işbirliği için)" ifadesinden türetildi. Platform dışı engagement
-> gerçekten koordinatör onayını atlayabilir mi, yoksa `institution_id` her zaman
-> zorunlu mu? Hackathon demosu üniversite bağlamı üzerinden gittiği için T4
-> MVP'de gerçeklenmeyebilir.
+> ✅ KARAR (T4, koordinatörsüz yol): Okulu olmayan kullanıcılar ve okulla
+> ilgisi olmayan işler (`SHORT_PROJECT`, `PART_TIME`) okul onayından geçmez:
+> öğrenci çalışmayı oluşturup T4 ile hemen başlatır, doğrulamayı en sonda
+> kuruluş yapar (T8, `ORG:SUPERVISOR`). Sahte staja karşı savunma korunur:
+> `INTERNSHIP` ve `CAPSTONE` oluşturulurken öğrencinin okulu varsa
+> `institution_id` istemci göndermese de bağlanır (`SCHOOL_BOUND_KINDS`), bu
+> yüzden staj T4'ü kullanamaz ve T1 → T2'den geçer. Öğrenci kısa proje / yarı
+> zamanlı iş için de isterse okul onayını seçebilir (`institution_id` gönderir).
 
 > ❓ AÇIK SORU: T7 (`PENDING_EVALUATION → EVALUATED`) tetikleyicisi —
 > değerlendirme gönderilir gönderilmez otomatik mi geçiliyor, yoksa `TALENT_TO_ORG`
@@ -227,7 +229,7 @@ Hackathon fazlarına dağılım — [PLAN.md](PLAN.md):
 | T7 | 2.7 | ✅ MVP'de |
 | T8 | **2.8** | ✅ MVP'de — **zincirin kilit taşı** |
 | T6 (`CANCELLED`) | 2.2 | ✅ MVP'de |
-| T4 (koordinatörsüz) | — | ⚠️ Açık soru (§4.3) |
+| T4 (koordinatörsüz) | — | ✅ MVP'de — okulsuz çalışma ve kısa proje / yarı zamanlı (§4.3) |
 | T9, T10 (`DISPUTED`) | **R.3** | ⚠️ "Vakit kalırsa" — gerçeklenmeyebilir |
 
 > **Altın kural hatırlatması ([PLAN.md](PLAN.md)):** Tek uçtan uca senaryo
