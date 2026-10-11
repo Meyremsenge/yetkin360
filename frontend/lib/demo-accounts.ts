@@ -17,6 +17,9 @@ export const DEMO_ACCOUNTS: ReadonlyArray<{ role: DemoRole; email: string }> = [
   { role: "coordinator", email: "kerem.taskin@cinaralti.edu.test" },
 ];
 
+/** SEED_ADMIN_EMAIL in .env.example. The password is random per install and is never sent to the browser. */
+export const DEMO_ADMIN_EMAIL = "admin@yetkin360.test";
+
 export function demoAccountsEnabled(): boolean {
   return process.env.NODE_ENV === "development" || process.env.NEXT_PUBLIC_DEMO_ACCOUNTS === "1";
 }

@@ -237,6 +237,10 @@
       "passwordLabel": "Ortak şifre:",
       "fillLabel": "{role} hesabını forma doldur",
       "adminHint": "Platform yöneticisi Yönetici girişi sayfasından girer; e-postası ve şifresi başlatıcı terminalindeki özette yazar.",
+      "adminTitle": "Demo yönetici hesabı",
+      "adminRole": "Platform yöneticisi",
+      "adminFillLabel": "Platform yöneticisi e-postasını forma doldur",
+      "adminPasswordHint": "Şifre her kurulumda rastgele üretilir ve başlatıcı terminalindeki özette yazar (ayrıca .env → SEED_ADMIN_PASSWORD). E-postaya tıklayın, şifreyi yazıp Giriş Yap'a basın.",
       "roles": {
         "talent": "Bireysel kullanıcı",
         "orgAdmin": "Kuruluş yöneticisi",
