@@ -1,75 +1,56 @@
 "use client";
 
 import Link from "next/link";
-import { AppShell } from "@/components/app-shell";
+import { AppShell, Icon } from "@/components/app-shell";
+import { PageBody, PageHeader } from "@/components/page-layout";
+import { ADMIN_NAV_GROUPS } from "@/components/admin/admin-nav";
 import messages from "@/messages/tr.json";
 
-/**
- * Admin screens listed on the /admin landing page. To add a screen, append a
- * row here (plus its i18n strings) — nothing else on this page changes.
- */
-const ADMIN_LINKS: { href: string; label: string; description: string }[] = [
-  {
-    href: "/admin/dogrulama-kuyrugu",
-    label: messages.shell.adminVerificationQueueLink,
-    description: messages.adminHome.verificationQueueDescription,
-  },
-  {
-    href: "/admin/skiller",
-    label: messages.shell.adminSkillsLink,
-    description: messages.adminHome.skillsDescription,
-  },
-  {
-    href: "/admin/sahtekarlik-isaretleri",
-    label: messages.shell.adminFraudQueueLink,
-    description: messages.adminHome.fraudQueueDescription,
-  },
-  {
-    href: "/admin/sahtekarlik-isaretleri/gecmis",
-    label: messages.shell.adminFraudHistoryLink,
-    description: messages.adminHome.fraudHistoryDescription,
-  },
-  {
-    href: "/admin/denetim-kayitlari",
-    label: messages.shell.adminAuditLink,
-    description: messages.adminHome.auditDescription,
-  },
-  {
-    href: "/admin/kullanicilar",
-    label: messages.shell.adminUsersLink,
-    description: messages.adminUsers.intro,
-  },
-  {
-    href: "/admin/kuruluslar",
-    label: messages.shell.adminOrganizationsLink,
-    description: messages.adminOrganizations.intro,
-  },
-  {
-    href: "/admin/kurumlar",
-    label: messages.shell.adminInstitutionsLink,
-    description: messages.adminInstitutions.intro,
-  },
-];
-
+/** /admin overview: every admin screen as a card, grouped like the sidebar. */
 export default function AdminHomePage() {
   return (
     <AppShell>
-      <main className="p-6 max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold mb-2">{messages.adminHome.title}</h1>
-        <p className="text-sm text-slate-600 mb-6">{messages.adminHome.description}</p>
-        <ul className="space-y-3">
-          {ADMIN_LINKS.map((link) => (
-            <li key={link.href}>
-              <Link
-                href={link.href}
-                className="block rounded-lg border border-slate-200 p-4 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
-              >
-                <span className="block font-medium text-slate-900">{link.label}</span>
-                <span className="block text-sm text-slate-600">{link.description}</span>
-              </Link>
-            </li>
+      <main>
+        <PageHeader
+          eyebrow={messages.shell.groupAdmin}
+          title={messages.adminHome.title}
+          description={messages.adminHome.description}
+        />
+        <PageBody className="space-y-10">
+          {ADMIN_NAV_GROUPS.map((group, index) => (
+            <section key={group.label} aria-labelledby={`admin-group-${index}`}>
+              <div className="mb-4 border-b border-border pb-2">
+                <h2
+                  id={`admin-group-${index}`}
+                  className="font-serif text-xl font-semibold text-foreground"
+                >
+                  {group.label}
+                </h2>
+                <p className="mt-0.5 text-sm text-muted-foreground">{group.description}</p>
+              </div>
+              <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {group.items.map((item) => (
+                  <li key={item.href} className="flex">
+                    <Link
+                      href={item.href}
+                      className="group flex w-full items-start gap-3 rounded-lg border border-border bg-card p-4 transition-colors duration-[120ms] hover:border-success/40 hover:bg-success/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors group-hover:border-success/30 group-hover:text-success">
+                        <Icon name={item.icon} />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block font-medium text-foreground">{item.label}</span>
+                        <span className="mt-0.5 block text-sm leading-5 text-muted-foreground">
+                          {item.description}
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
           ))}
-        </ul>
+        </PageBody>
       </main>
     </AppShell>
   );

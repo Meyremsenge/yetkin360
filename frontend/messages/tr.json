@@ -172,7 +172,14 @@
     "signedInAs": "Oturum açık",
     "contextSwitcher": "Panel seç",
     "contextPanels": "Paneller",
-    "viewPublicProfile": "Profilimi gör"
+    "viewPublicProfile": "Profilimi gör",
+    "adminNav": "Yönetim menüsü",
+    "adminBadge": "Yönetim",
+    "adminOverviewLink": "Genel bakış",
+    "adminGroupReview": "İnceleme",
+    "adminGroupDirectory": "Dizin",
+    "adminGroupSystem": "Sistem",
+    "leaveAdmin": "Kullanıcı paneline dön"
   },
   "emailVerificationBanner": {
     "message": "E-posta adresiniz doğrulanmadı. Doğrulanana kadar kayıt oluşturamaz veya değişiklik yapamazsınız.",
@@ -1636,6 +1643,10 @@
     "fraudQueueDescription": "Şüpheli işaretleri incele ve karara bağla.",
     "auditDescription": "Yönetici işlemlerinin ve sistem olaylarının değiştirilemez kaydını incele.",
     "fraudHistoryDescription": "Daha önce karara bağlanmış sahtekarlık işaretlerini gözden geçir.",
+    "complaintsDescription": "Yanıtsız kalan onay talepleri için açılan şikayetleri karara bağla.",
+    "reviewDescription": "Karar bekleyen başvurular, şikayetler ve işaretler.",
+    "directoryDescription": "Hesapları, kuruluşları ve kurumları ara; gerekirse askıya al.",
+    "systemDescription": "Yetkinlik taksonomisi ve değiştirilemez işlem kayıtları.",
     "checking": "Yetki kontrol ediliyor..."
   },
   "adminUsers": {
