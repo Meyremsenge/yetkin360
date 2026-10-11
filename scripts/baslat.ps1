@@ -147,7 +147,9 @@ function Write-ServiceLine($Svc, [string]$Line) {
     if ([string]::IsNullOrWhiteSpace($clean)) { return }
 
     $color = 'Gray'
-    if ($clean -match '(?i)\b(error|exception|traceback|failed)\b|^\s+File "') { $color = 'Red' }
+    # Local email is printed, not sent: verification / reset links must stand out.
+    if ($clean -match '\[EMAIL\]') { $color = 'Magenta' }
+    elseif ($clean -match '(?i)\b(error|exception|traceback|failed)\b|^\s+File "') { $color = 'Red' }
     elseif ($clean -match '(?i)\bwarn(ing)?\b') { $color = 'Yellow' }
 
     Write-Host "$stamp " -NoNewline -ForegroundColor DarkGray
@@ -290,12 +292,26 @@ function Test-Prerequisites {
     if ($missing.Count -gt 0) { Stop-WithError 'Eksik araç var:' $missing }
     Write-Ok "Docker, Node $(& node --version), Python bulundu"
 
-    if (-not (Test-Path (Join-Path $Root '.env'))) {
-        Copy-Item (Join-Path $Root '.env.example') (Join-Path $Root '.env')
-        Write-Warn '.env yoktu, .env.example kopyalandı. DEGISTIR_ ile başlayan değerleri doldur.'
-    } else {
-        Write-Ok '.env mevcut'
+    # scripts/init_env.py: creates .env with random secrets, or repairs a missing
+    # SEED_ADMIN_PASSWORD (without it the whole seed rolls back). Stdlib only.
+    $initEnv = Join-Path $Root 'scripts\init_env.py'
+    if (Test-Path $Py) { $envRun = Invoke-Captured $Py @($initEnv) }
+    elseif (Get-Command py -ErrorAction SilentlyContinue) { $envRun = Invoke-Captured 'py' @('-3', $initEnv) }
+    else { $envRun = Invoke-Captured 'python' @($initEnv) }
+    if ($envRun.Code -ne 0) { Stop-WithError '.env hazırlanamadı.' $envRun.Output }
+    switch (($envRun.Output | Select-Object -Last 1)) {
+        'created'            { Write-Ok '.env oluşturuldu (rastgele parolalarla, elle düzenleme gerekmez)' }
+        'admin-password-set' { Write-Ok '.env mevcut; platform yöneticisi şifresi eklendi' }
+        default              { Write-Ok '.env mevcut' }
     }
+}
+
+function Get-EnvValue([string]$Key) {
+    $envFile = Join-Path $Root '.env'
+    if (-not (Test-Path $envFile)) { return '' }
+    $line = Get-Content $envFile -Encoding UTF8 | Where-Object { $_ -match "^\s*$Key\s*=" } | Select-Object -Last 1
+    if (-not $line) { return '' }
+    return ($line -split '=', 2)[1].Trim()
 }
 
 function Start-Docker {
@@ -335,6 +351,13 @@ function Initialize-Backend {
         }
         if (-not (Test-Path $Py)) { Invoke-Captured 'python' @('-m', 'venv', '.venv') $Backend | Out-Null }
         if (-not (Test-Path $Py)) { Stop-WithError '.venv oluşturulamadı. Python 3.12 kurulu mu?' }
+    }
+
+    $ver = Invoke-Captured $Py @('-c', 'import sys; print(sys.version_info >= (3, 12))') $Backend
+    if (($ver.Output | Select-Object -Last 1) -ne 'True') {
+        Stop-WithError 'backend\.venv Python 3.12 veya üstü değil.' @(
+            'Python 3.12+ kur (https://www.python.org/downloads), sonra backend\.venv klasörünü silip tekrar başlat.'
+        )
     }
 
     # Compiled extensions built for another Python version look installed but fail on import.
@@ -413,15 +436,23 @@ function Show-Summary {
     Write-Host '  API         ' -NoNewline -ForegroundColor DarkGray; Write-Host 'http://localhost:8000/docs'
     Write-Host '  MinIO       ' -NoNewline -ForegroundColor DarkGray; Write-Host 'http://localhost:9001'
     Write-Host ''
-    Write-Host '  Seed hesapları  (şifre: SeedTest123!)' -ForegroundColor DarkGray
-    Write-Host '    Bireysel         ayse.yilmaz@posta.test  (tümü ad.soyad@posta.test)'
+    Write-Host '  Hazır demo hesapları — yeni hesap açmanız gerekmez' -ForegroundColor White
+    Write-Host '  Ortak şifre: ' -NoNewline -ForegroundColor DarkGray; Write-Host 'SeedTest123!' -ForegroundColor Yellow
+    Write-Host '    Bireysel         ayse.yilmaz@posta.test'
     Write-Host '    Kuruluş admini   murat.demirci@yelkovanyazilim.test'
     Write-Host '    Onaylayıcı       mehmet.karaca@yelkovanyazilim.test'
     Write-Host '    Aday doğrulayan  seda.gurbuz@gundogusuenerji.test'
     Write-Host '    Kurum admini     nermin.basaran@cinaralti.edu.test'
     Write-Host '    Koordinatör      kerem.taskin@cinaralti.edu.test'
-    Write-Host '    Platform admini  admin@yetkin360.test  ' -NoNewline
-    Write-Host '(şifre: .env → SEED_ADMIN_PASSWORD)' -ForegroundColor DarkGray
+    Write-Host '  Platform yöneticisi  ' -NoNewline -ForegroundColor DarkGray
+    Write-Host 'admin@yetkin360.test  ' -NoNewline
+    $adminPw = Get-EnvValue 'SEED_ADMIN_PASSWORD'
+    if ($adminPw) { Write-Host $adminPw -ForegroundColor Yellow } else { Write-Host '(.env → SEED_ADMIN_PASSWORD)' -ForegroundColor DarkGray }
+    Write-Host '    Giriş: ' -NoNewline -ForegroundColor DarkGray; Write-Host "$AppUrl/admin/giris"
+    Write-Host ''
+    Write-Host '  Yeni hesap açarsanız: e-posta gönderilmez; doğrulama bağlantısı' -ForegroundColor DarkGray
+    Write-Host '  aşağıda ' -NoNewline -ForegroundColor DarkGray; Write-Host '[EMAIL]' -NoNewline -ForegroundColor Magenta
+    Write-Host ' satırında görünür — tarayıcıya yapıştırın.' -ForegroundColor DarkGray
     Write-Host ''
     Write-Host '  Loglar      ' -NoNewline -ForegroundColor DarkGray; Write-Host '.logs\api.log  .logs\worker.log  .logs\web.log'
     Write-Host '              ' -NoNewline; Write-Host 'Destek kodunu (request_id) api.log içinde ara.' -ForegroundColor DarkGray
