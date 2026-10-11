@@ -33,10 +33,15 @@ from app.models import (
     Engagement,
     VerifiedExperience,
     CertificateCheck,
+    Complaint,
     Deliverable,
     Evidence,
     PortfolioItem,
 )
+from app.models.fraud_flag import FraudFlag
+from app.services.audit import log_audit_event
+from app.services.complaint import PENDING_ENGAGEMENT_STATES, create_complaint, transition_complaint
+from app.services.fraud_flag import resolve_fraud_flag
 from app.models.base import uuid7_default
 from app.services.auth import register_user
 from app.services.institution import (
@@ -1853,6 +1858,149 @@ def seed_demo_story(session: Session) -> int:
     return inserted
 
 
+# Admin panel demo data: organizations that applied for T3 (verification
+# queue), complaints in several states and already-decided fraud flags.
+# (name, domain, legal_id, admin full name)
+VERIFICATION_APPLICANTS = [
+    ("Pusula Bilişim Hizmetleri A.Ş.", "pusulabilisim.test", "4810293756", "Selin Akbaş"),
+    ("Karayel Gıda Sanayi Ltd. Şti.", "karayelgida.test", "6023847195", "Okan Bilgiç"),
+    ("Mavi Kanat Havacılık Teknolojileri A.Ş.", "mavikanat.test", "3957102846", "Derya Sezer"),
+    ("Çarkıfelek Eğitim Danışmanlık Ltd. Şti.", "carkifelekegitim.test", "7184620593", "Hakan Uysal"),
+]
+
+# (pipeline engagement title, complaint text, admin steps after opening)
+ADMIN_COMPLAINTS: list[tuple[str, str, list[tuple[str, str | None]]]] = [
+    (
+        "Raporlama Altyapısı Stajı",
+        "Staj başvurum on gündür kurum onayı bekliyor. Koordinatöre e-posta ile de yazdım ama yanıt alamadım.",
+        [],
+    ),
+    (
+        "Trafo Arıza Kayıtları Analizi",
+        "Teslimimi yaptım, değerlendirme bir haftadan uzun süredir yapılmadı. Bitirme dosyam için bu kayda ihtiyacım var.",
+        [("REQUEST_EXPLANATION", "Değerlendirmenin neden geciktiğini ve tahmini tarihi paylaşır mısınız?")],
+    ),
+    (
+        "Kimlik Doğrulama Modülü Projesi",
+        "Güvenlik inceleme raporumu teslim ettim; kuruluş değerlendirmeyi yapmıyor ve mesajlarıma dönmüyor.",
+        [("START_REVIEW", None)],
+    ),
+    (
+        "Veri Ambarı Temizleme Projesi",
+        "Proje bitti, değerlendirme bekliyorum. Sorumlu kişi değişti ve kimin değerlendireceği belli değil.",
+        [],
+    ),
+]
+
+# Decisions for the oldest non-HIGH pending flags; HIGH ones stay in the queue for the demo.
+FRAUD_DECISIONS = ["DISMISSED", "DISMISSED", "CONFIRMED", "DISMISSED", "DISMISSED", "CONFIRMED", "DISMISSED"]
+
+
+def _admin_principal(user_id: uuid.UUID) -> Principal:
+    return Principal(
+        user_id=user_id,
+        kind="ADMIN",
+        talent_id=None,
+        org_ids=[],
+        org_admin_ids=[],
+        institution_ids=[],
+        institution_admin_ids=[],
+        is_platform_admin=True,
+        is_suspended=False,
+    )
+
+
+def seed_admin_queues(session: Session) -> int:
+    """
+    Fill the admin screens through the real services: T3 applications in the
+    verification queue, complaints (open, under review, explanation requested)
+    and reviewed fraud flags for the history screen. Idempotent: applicants by
+    legal_id, complaints per engagement, flags only while none is reviewed.
+    Needs seed_admin and seed_pipeline_engagements. Returns rows inserted/updated.
+    """
+    if settings.environment == "production":
+        raise RuntimeError("Seed script cannot run in production environment")
+
+    admin = session.execute(select(User).where(User.email == settings.seed_admin_email)).scalars().first()
+    if admin is None:
+        print("Warning: admin queues skipped — run seed_admin first")
+        return 0
+    admin_principal = _admin_principal(admin.id)
+    changed = 0
+
+    # 1) Verification queue: T2 (domain verified) + legal_id = applied for T3.
+    for name, domain, legal_id, admin_name in VERIFICATION_APPLICANTS:
+        if session.execute(select(Organization.id).where(Organization.legal_id == legal_id)).first():
+            continue
+        owner = register_user(
+            session=session, email=seed_email(admin_name, domain), password="SeedTest123!", full_name=admin_name
+        )
+        org = create_organization(
+            name=name, domain=domain, legal_id=legal_id, caller_user_id=owner.user_id, session=session
+        )
+        set_verification_level(session, org.id, "T2", admin.id)
+        changed += 1
+
+    # 2) Complaints on stalled pipeline engagements. The 7-day wait is lifted
+    #    only while seeding: the pipeline transitions all happen "now".
+    min_wait = settings.complaint_min_wait_days
+    settings.complaint_min_wait_days = 0
+    try:
+        for title, text, steps in ADMIN_COMPLAINTS:
+            engagement = session.execute(select(Engagement).where(Engagement.title == title)).scalars().first()
+            if engagement is None or engagement.status not in PENDING_ENGAGEMENT_STATES:
+                print(f"Warning: complaint skipped (engagement not pending): {title}")
+                continue
+            if session.execute(select(Complaint.id).where(Complaint.engagement_id == engagement.id)).first():
+                continue
+            talent = session.get(TalentProfile, engagement.talent_id)
+            assert talent is not None
+            created = create_complaint(
+                session,
+                _seed_principal(talent.user_id, "TALENT", talent_id=talent.id),
+                "ENGAGEMENT",
+                engagement.id,
+                text,
+            )
+            for action, note in steps:
+                transition_complaint(session, admin_principal, created.id, action, note=note)
+            changed += 1
+    finally:
+        settings.complaint_min_wait_days = min_wait
+
+    # 3) Fraud history: decide a few low/medium flags like an admin would.
+    already_reviewed = session.execute(
+        select(FraudFlag.id).where(FraudFlag.status.in_(("CONFIRMED", "DISMISSED")))
+    ).first()
+    if already_reviewed is None:
+        flags = session.execute(
+            select(FraudFlag)
+            .where(FraudFlag.status == "PENDING", FraudFlag.confidence != "HIGH")
+            .order_by(FraudFlag.created_at.asc())
+            .limit(len(FRAUD_DECISIONS))
+        ).scalars().all()
+        now = datetime.now(timezone.utc)
+        for index, (flag, outcome) in enumerate(zip(flags, FRAUD_DECISIONS)):
+            resolve_fraud_flag(session, flag_id=flag.id, outcome=outcome, admin_user_id=admin.id)
+            # Spread the decisions over the last days so the history reads naturally.
+            flag.reviewed_at = now - timedelta(hours=6 * (index + 1))
+            log_audit_event(
+                session=session,
+                actor_user_id=admin.id,
+                actor_ip=None,
+                action="ADMIN_RESOLVE_FRAUD_FLAG",
+                subject_type="fraud_flag",
+                subject_id=flag.id,
+                result="SUCCESS",
+                metadata={"outcome": outcome},
+            )
+            changed += 1
+
+    session.flush()
+    print(f"Admin queues seed: {changed} rows inserted/updated")
+    return changed
+
+
 if __name__ == "__main__":
     session = _SessionLocal()
     try:
@@ -1885,6 +2033,8 @@ if __name__ == "__main__":
         seed_public_experiences(session)
 
         seed_verify_users(session)
+
+        seed_admin_queues(session)
 
         # Final commit for all seed data (AC-4: single transaction)
         session.commit()
