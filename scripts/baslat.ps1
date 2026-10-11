@@ -337,8 +337,30 @@ function Start-Docker {
 
     # --wait blocks until the healthchecks in docker-compose.yml pass.
     $up = Invoke-Captured 'docker' @('compose', 'up', '-d', '--wait', '--wait-timeout', '120')
-    if ($up.Code -ne 0) { Stop-WithError 'docker compose up başarısız.' $up.Output }
+    if ($up.Code -ne 0) {
+        # After an unclean shutdown PostgreSQL runs crash recovery first (fsync of the
+        # whole data dir) and can outlast the compose healthcheck retries. The data is
+        # fine; keep waiting for the containers to turn healthy instead of failing.
+        if (-not ($up.Output -match 'unhealthy')) { Stop-WithError 'docker compose up başarısız.' $up.Output }
+        Write-Note 'Veritabanı açılışta kurtarma yapıyor (önceki kapanış düzgün değildi), bekleniyor...'
+        if (-not (Wait-ContainersHealthy 180)) {
+            Stop-WithError 'Container''lar 3 dakikada sağlıklı duruma geçmedi.' (Invoke-Captured 'docker' @('compose', 'logs', '--tail', '20')).Output
+        }
+    }
     Write-Ok 'PostgreSQL ve MinIO hazır (healthcheck geçti)'
+}
+
+function Wait-ContainersHealthy([int]$TimeoutSec) {
+    $watch = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($watch.Elapsed.TotalSeconds -lt $TimeoutSec) {
+        $ids = @((Invoke-Captured 'docker' @('compose', 'ps', '-q')).Output | Where-Object { $_ })
+        if ($ids.Count -gt 0) {
+            $states = @((Invoke-Captured 'docker' (@('inspect', '--format', '{{.State.Health.Status}}') + $ids)).Output)
+            if (@($states | Where-Object { $_ -ne 'healthy' }).Count -eq 0) { return $true }
+        }
+        Start-Sleep -Seconds 3
+    }
+    return $false
 }
 
 function Initialize-Backend {

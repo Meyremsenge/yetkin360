@@ -157,8 +157,29 @@ start_docker() {
     assert_container_port 9001 'MinIO konsol'
 
     # --wait blocks until the healthchecks in docker-compose.yml pass.
-    (cd "$ROOT" && run_quiet 'docker compose up başarısız.' docker compose up -d --wait --wait-timeout 120) || exit 1
+    local up_out
+    if ! up_out="$(cd "$ROOT" && docker compose up -d --wait --wait-timeout 120 2>&1)"; then
+        # After an unclean shutdown PostgreSQL runs crash recovery first and can outlast
+        # the compose healthcheck retries. The data is fine; keep waiting instead.
+        printf '%s\n' "$up_out" | grep -q 'unhealthy' \
+            || die 'docker compose up başarısız.' "$(printf '%s\n' "$up_out" | tail -n 25)"
+        note 'Veritabanı açılışta kurtarma yapıyor (önceki kapanış düzgün değildi), bekleniyor...'
+        wait_containers_healthy 180 \
+            || die "Container'lar 3 dakikada sağlıklı duruma geçmedi." "$(cd "$ROOT" && docker compose logs --tail 20 2>&1)"
+    fi
     ok 'PostgreSQL ve MinIO hazır (healthcheck geçti)'
+}
+
+wait_containers_healthy() {
+    local waited=0 ids
+    while [ $waited -lt "$1" ]; do
+        ids="$(cd "$ROOT" && docker compose ps -q)"
+        if [ -n "$ids" ] && ! docker inspect --format '{{.State.Health.Status}}' $ids | grep -qv '^healthy$'; then
+            return 0
+        fi
+        sleep 3; waited=$((waited + 3))
+    done
+    return 1
 }
 
 init_backend() {
