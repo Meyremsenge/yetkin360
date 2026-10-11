@@ -152,12 +152,13 @@ export async function updateMemberUnit(
 
 /**
  * SPRINT D2: öğrencinin çalışmayı onaya gönderirken seçebileceği onaylayıcılar.
- * E-posta ve rol bilinçli olarak yok. Keşfet ile ortak hız sınırı → 429 RATE_LIMITED.
+ * Rol yok; e-posta yalnız maskeli gelir ("me•••@acme.com"). Keşfet ile ortak hız sınırı → 429 RATE_LIMITED.
  */
 export interface Approver {
   user_id: string;
   display_name: string;
   unit: string | null;
+  email_hint: string;
 }
 
 export async function listApprovers(organizationId: string): Promise<Approver[]> {

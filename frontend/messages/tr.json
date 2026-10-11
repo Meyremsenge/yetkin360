@@ -573,7 +573,7 @@
     "statusLabel": "Durum",
     "organizationLabel": "Kuruluş",
     "updatedAtLabel": "Güncellenme",
-    "supervisorLabel": "Onaylayıcı",
+    "supervisorLabel": "Değerlendiren",
     "tasksTitle": "Görevler",
     "emptyTasksMessage": "Henüz görev eklenmemiş.",
     "deliverablesTitle": "Çıktılar",
@@ -801,13 +801,13 @@
     },
     "nextStep": {
       "DRAFT": "Onaya gönderin",
-      "PENDING_APPROVAL": "Kuruluş onayı bekleniyor",
+      "PENDING_APPROVAL": "Okul koordinatörünün onayı bekleniyor",
       "ACTIVE": "Görev ve kanıt ekleyin",
       "PENDING_EVALUATION": "Kuruluş değerlendirmesi bekleniyor",
       "EVALUATED": "Tanıklık bekleniyor",
       "VERIFIED": "Tamamlandı, paylaşılabilir",
       "RESOLVED": "Tamamlandı",
-      "REJECTED": "Kuruluş reddetti",
+      "REJECTED": "Okul koordinatörü onaylamadı",
       "CANCELLED": "Çalışma kapatıldı",
       "DISPUTED": "İtiraz inceleniyor"
     },
@@ -826,27 +826,82 @@
       "verifiedText": "Kanıt ve tanıklıkla mühürlendi; doğrulanmış deneyim olarak profilinize işlendi.",
       "verifiedLink": "Profilde gör",
       "verifiedTextOther": "Kanıt ve tanıklıkla mühürlendi; kişinin doğrulanmış deneyimi olarak kaydedildi.",
-      "submittedOn": "Teslim: {date}"
-    }
+      "submittedOn": "Teslim: {date}",
+      "deliverablesLockedSubject": "Çıktılarınızı, kuruluş çalışmayı onaylayıp aktifleştirdikten sonra buraya eklersiniz. Şimdilik görevlerinizi yazın ve çalışmayı onaya gönderin.",
+      "deliverablesLockedOther": "Kişi, çalışma aktifleşince çıktılarını ve kanıt dosyalarını buraya ekler.",
+      "attestationsPendingSubject": "Tanıklığı siz eklemezsiniz. Kuruluş, çalışmanızı değerlendirdikten sonra tanıklığını burada verir ve deneyiminiz böylece doğrulanır.",
+      "attestationsPendingOther": "Değerlendirme tamamlanınca kuruluş tanıklığını \"Durum ve işlemler\" bölümünden verir; burada listelenir."
+    },
+    "openTaskForm": "Görev ekle",
+    "taskTitlePlaceholder": "Örn. Satış verisini temizleyen bir betik yazmak",
+    "taskDescriptionPlaceholder": "Ne yaptığınızı, hangi araçları kullandığınızı kısaca yazın.",
+    "taskDueAtHint": "Bitmiş bir iş için bitirdiğiniz günü seçebilirsiniz.",
+    "taskSkillHint": "Bu görevin gösterdiği yetkinlik; onaylanınca profilinize sinyal olarak işlenir.",
+    "taskCancelButton": "Vazgeç",
+    "taskFormIntro": "Bu çalışmada üstlendiğiniz tek bir işi tanımlayın. Dosya ve bağlantıları sonra çıktı olarak eklersiniz.",
+    "approvalRecipientsLabel": "Onay isteği kime gitsin?",
+    "approvalRecipientsHint": "Çalışmanın başlaması için okulunuzun koordinatörü onay verir. Tanıdığınız bir koordinatör varsa seçin; seçmezseniz istek tüm koordinatörlere gider. E-posta adresleri gizlilik için kısaltılmıştır.",
+    "approvalRecipientsAll": "Okulumun tüm koordinatörleri",
+    "approvalRecipientsAllHint": "Uygun olan ilk koordinatör onaylar.",
+    "approvalRecipientsLoading": "Koordinatörler yükleniyor",
+    "approvalRecipientsNone": "Onay isteği okulunuzun koordinatörlerine gider.",
+    "approvalSentAll": "Onay isteği okulunuzun koordinatörlerine gönderildi.",
+    "approvalSentTo": "Onay isteği {name} adlı koordinatöre gönderildi.",
+    "approvalNoInstitutionError": "Bu çalışma bir okula bağlı olmadığı için onaya gönderilemiyor. Önce profilinizden okulunuza bağlanın."
   },
   "calismaOlustur": {
-    "title": "Yeni Çalışma Oluştur",
+    "title": "Çalışmanın ayrıntıları",
     "kindLabel": "Tür",
     "titleLabel": "Başlık",
-    "submitButton": "Oluştur",
-    "submittingButton": "Oluşturuluyor...",
+    "submitButton": "Taslak olarak kaydet",
+    "submittingButton": "Gönderiliyor...",
     "missingLinkMessage": "Önce bir kuruluş seçmeniz gerekiyor.",
     "missingLinkPickerLink": "Kuruluş seç",
     "notATalentMessage": "Bu özellik yalnızca bireysel hesaplar için kullanılabilir.",
     "invalidLinkError": "Bu kuruluş bulunamadı. Kuruluşunuzdan doğru bağlantıyı isteyin.",
-    "description": "Oluşturduğunuz çalışma taslak olarak kaydedilir; ardından kuruluşun onayına gönderirsiniz.",
+    "description": "Türünü ve başlığını yazın, kimin değerlendireceğini seçin. Çalışma oluşturulunca hemen başlar ya da okulunuzun onayına gider.",
     "titlePlaceholder": "Örn. Veri Analisti Yaz Stajı",
     "loadingLabel": "Form yükleniyor",
-    "supervisorLabel": "Kime gönderilsin? (isteğe bağlı)",
-    "supervisorDefault": "Kuruluş yöneticisine (genel)",
-    "supervisorHint": "Seçtiğiniz kişi çalışmanızı kuruluş tarafında takip eder. Seçmezseniz kuruluş yöneticisi görür.",
+    "supervisorLabel": "Kuruluşta sizi kim takip etsin? (isteğe bağlı)",
+    "supervisorDefault": "Kuruluş yöneticileri (genel)",
+    "supervisorHint": "Seçtiğiniz kişi çalışmanızı kuruluş adına değerlendirir ve tanıklık verir. E-posta adresleri gizlilik için kısaltılmıştır.",
     "supervisorUnnamed": "Adı girilmemiş üye",
-    "supervisorUnavailableError": "Seçtiğiniz kişi artık bu kuruluşta onaylayıcı olarak görünmüyor. Listeyi yenileyip başka birini seçin ya da genel seçeneği kullanın."
+    "supervisorUnavailableError": "Seçtiğiniz kişi artık bu kuruluşta onaylayıcı olarak görünmüyor. Listeyi yenileyip başka birini seçin ya da genel seçeneği kullanın.",
+    "kindHint": {
+      "INTERNSHIP": "Zorunlu ya da gönüllü staj",
+      "CAPSTONE": "Kuruluşla yürütülen bitirme projesi",
+      "SHORT_PROJECT": "Birkaç haftalık, sınırlı kapsamlı iş",
+      "PART_TIME": "Okulla birlikte sürdürülen iş"
+    },
+    "titleHint": "Kuruluşun tanıyacağı kısa ve açık bir ad yazın.",
+    "supervisorDefaultHint": "Kuruluşun yöneticileri değerlendirir ve tanıklık verir.",
+    "orgSummaryLabel": "Seçili kuruluş",
+    "changeOrg": "Değiştir",
+    "orgLoadingLabel": "Kuruluş bilgisi yükleniyor",
+    "nextTitle": "Sonra ne olacak?",
+    "backToPicker": "Kuruluş seçimine dön",
+    "submitAndSendButton": "Oluştur ve onaya gönder",
+    "submitAndStartButton": "Oluştur ve başlat",
+    "schoolLegend": "Okulunuzda onayı kim versin?",
+    "schoolHint": "Stajlar ve bitirme projeleri okulunuzun koordinatörü onaylayınca başlar. Tanıdığınız bir koordinatör varsa seçin; seçmezseniz istek tüm koordinatörlere gider.",
+    "schoolAll": "Okulumun tüm koordinatörleri",
+    "schoolAllHint": "Uygun olan ilk koordinatör onaylar.",
+    "schoolNone": "Onay isteği okulunuzun koordinatörlerine gider.",
+    "schoolOptIn": "Bu çalışmayı okulum da onaylasın",
+    "schoolOptInHint": "İşaretlemezseniz çalışma hemen başlar; en sonda kuruluş değerlendirip doğrular.",
+    "noSchoolNote": "Okul onayı gerekmiyor: çalışma hemen başlar, en sonda kuruluş değerlendirip doğrular.",
+    "sendFailedAfterCreate": "Çalışma taslak olarak kaydedildi ama gönderilemedi. Taslaktan tekrar deneyebilirsiniz.",
+    "openDraft": "Taslağı aç",
+    "nextStepsSchool": [
+      "Çalışma oluşur ve okulunuzun koordinatörüne onaya gider.",
+      "Onaylanınca görevlerinizi, çıktılarınızı ve kanıtlarınızı eklersiniz.",
+      "Bitince kuruluştaki kişi değerlendirir ve tanıklık verir."
+    ],
+    "nextStepsDirect": [
+      "Çalışma oluşur ve hemen başlar.",
+      "Görevlerinizi, çıktılarınızı ve kanıtlarınızı eklersiniz.",
+      "Bitince kuruluştaki kişi değerlendirir ve tanıklık verir; deneyiminiz doğrulanır."
+    ]
   },
   "kesfet": {
     "title": "Keşfet",
@@ -932,8 +987,8 @@
     "shareFailed": "Bağlantı kopyalanamadı"
   },
   "kurulusSec": {
-    "title": "Kuruluş Seç",
-    "description": "Çalışma başlatmak istediğiniz kuruluşu arayıp seçin.",
+    "title": "Hangi kuruluşla çalışıyorsunuz?",
+    "description": "Staj, proje ya da yarı zamanlı işinizi yaptığınız kuruluşu seçin. Devam etmeden önce kuruluşta çalışmanızı kimin değerlendirebileceğini görürsünüz.",
     "searchPlaceholder": "Kuruluş adı ara...",
     "searchLabel": "Kuruluş ara",
     "loadingLabel": "Kuruluşlar yükleniyor",
@@ -945,7 +1000,44 @@
       "T2": "Alan adı doğrulandı",
       "T3": "Tam doğrulama",
       "T4": "Üst düzey doğrulama"
-    }
+    },
+    "eyebrow": "Yeni çalışma",
+    "resultCount": "{count} kuruluş",
+    "selectHint": "Kuruluştaki kişileri görmek için bir kuruluş seçin.",
+    "selectedLabel": "Seçili",
+    "approversTitle": "Çalışmanızı değerlendirebilecek kişiler",
+    "approversHint": "Bu kişiler çalışmanızı kuruluş adına değerlendirir ve tanıklık verir. Bir sonraki adımda birini seçebilirsiniz; seçmezseniz kuruluş yöneticileri üstlenir. E-posta adresleri gizlilik için kısaltılmıştır.",
+    "approversEmpty": "Bu kuruluşta henüz listelenen bir kişi yok; çalışmanızı kuruluş yöneticileri değerlendirir.",
+    "approversLoading": "Kuruluştaki kişiler yükleniyor",
+    "approversError": "Kuruluştaki kişiler şu anda alınamadı; yine de devam edebilirsiniz.",
+    "approverUnnamed": "Adı girilmemiş üye",
+    "continueButton": "Bu kuruluşla devam et",
+    "emptyHint": "Kuruluşunuz listede yoksa yetkilisinden Yetkin360'a katılmasını ve size çalışma başlatma bağlantısını göndermesini isteyin.",
+    "domainUnverified": "Alan adı doğrulanmadı",
+    "guideTitle": "Nasıl işler?",
+    "guideSteps": [
+      {
+        "title": "Kuruluşu seçin",
+        "body": "Çalıştığınız yeri listeden bulun."
+      },
+      {
+        "title": "Çalışmayı tanımlayın",
+        "body": "Türünü, başlığını ve kuruluşta sizi değerlendirecek kişiyi belirleyin."
+      },
+      {
+        "title": "Gönderin",
+        "body": "Staj ve bitirme projesi okulunuzun onayına gider; diğer çalışmalar hemen başlar."
+      },
+      {
+        "title": "Kanıtları ekleyin",
+        "body": "Görev ve kanıtları ekleyin; sonunda kuruluş değerlendirir ve tanıklık verir."
+      }
+    ],
+    "stepsLabel": "Yeni çalışma adımları",
+    "stepOrg": "Kuruluş",
+    "stepDetails": "Ayrıntılar",
+    "stepTasks": "Gönder ve kanıtla",
+    "stepCurrent": "(şu anki adım)"
   },
   "degerlendirme": {
     "title": "Değerlendirme Formu",

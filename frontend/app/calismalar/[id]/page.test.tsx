@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, waitFor, cleanup, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import CalismaDetayPage from "@/app/calismalar/[id]/page";
 import messages from "@/messages/tr.json";
@@ -163,7 +163,7 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
     expect(screen.getByText(messages.calismalar.evidenceUploadLabel)).toBeTruthy();
   });
 
-  it("SPRINT D1: onaylayıcı varsa başlıkta 'Onaylayıcı: Ad · Birim' gösterilir", async () => {
+  it("SPRINT D1: onaylayıcı varsa başlıkta 'Değerlendiren: Ad · Birim' gösterilir", async () => {
     vi.mocked(getEngagement).mockResolvedValueOnce({
       ...baseEngagement,
       supervisor: { user_id: "user-mehmet", display_name: "Mehmet Kaya", unit: "Yazılım" },
@@ -172,7 +172,7 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
     const { container } = renderWithQueryClient(<CalismaDetayPage />);
 
     await waitFor(() => {
-      expect(container.textContent).toContain("Onaylayıcı: Mehmet Kaya · Yazılım");
+      expect(container.textContent).toContain("Değerlendiren: Mehmet Kaya · Yazılım");
     });
   });
 
@@ -182,7 +182,7 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
     const { container } = renderWithQueryClient(<CalismaDetayPage />);
 
     await waitFor(() => expect(screen.getByText("Yaz Kısa Projesi")).toBeTruthy());
-    expect(container.textContent).not.toContain("Onaylayıcı:");
+    expect(container.textContent).not.toContain("Değerlendiren:");
   });
 
   it("reddedilmiş/iptal gerekçesi (reason) varsa gösterilir", async () => {
@@ -294,14 +294,30 @@ describe("CalismaDetayPage (/calismalar/[id])", () => {
     expect(screen.queryByText("Tanıklık Ver")).toBeNull();
   });
 
-  it("YET-202/ENT-01: ACTIVE durumunda görev ekleme formu gösterilir", async () => {
-    vi.mocked(getEngagement).mockResolvedValueOnce(baseEngagement); // status: ACTIVE
+  it("taslakta öğrenciye çıktının onaydan sonra eklendiğini, tanıklığı kuruluşun verdiğini söyler", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce({
+      ...baseEngagement,
+      status: "DRAFT",
+      viewer: makeViewer({ relation: "SUBJECT", can_add_task: true }),
+    });
 
     renderWithQueryClient(<CalismaDetayPage />);
 
-    await waitFor(() => {
-      expect(screen.getByText("Yeni Görev Ekle")).toBeTruthy();
-    });
+    expect(await screen.findByText(messages.calismalar.detail.deliverablesLockedSubject)).toBeTruthy();
+    expect(screen.getByText(messages.calismalar.detail.attestationsPendingSubject)).toBeTruthy();
+    expect(screen.queryByText("Henüz çıktı yüklenmemiş.")).toBeNull();
+  });
+
+  it("YET-202/ENT-01: ACTIVE durumunda görev ekleme formu 'Görev ekle' ile açılır", async () => {
+    vi.mocked(getEngagement).mockResolvedValueOnce(baseEngagement); // status: ACTIVE, has tasks
+
+    renderWithQueryClient(<CalismaDetayPage />);
+
+    const open = await screen.findByRole("button", { name: messages.calismalar.openTaskForm });
+    expect(screen.queryByText("Yeni Görev Ekle")).toBeNull();
+    fireEvent.click(open);
+    expect(screen.getByText("Yeni Görev Ekle")).toBeTruthy();
+    expect(document.activeElement?.id).toBe("task-title");
   });
 
   it("YET-202/ENT-01: attestations[] doluysa listelenir; tanığın kendisi Geri Çek butonunu görür", async () => {

@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, waitFor, cleanup, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TransitionActions } from "@/app/calismalar/[id]/transition-actions";
-import { transitionEngagement } from "@/lib/api/engagements";
+import { listApprovalRecipients, transitionEngagement } from "@/lib/api/engagements";
 import { ApiError } from "@/lib/api/errors";
 import type { EngagementDetail } from "@/lib/api/engagements";
 import { makeViewer } from "@/lib/api/engagements.fixtures";
@@ -13,6 +13,7 @@ vi.mock("@/lib/api/engagements", async (importOriginal) => {
   return {
     ...actual,
     transitionEngagement: vi.fn(),
+    listApprovalRecipients: vi.fn(),
   };
 });
 
@@ -313,7 +314,7 @@ describe("TransitionActions", () => {
     });
   });
 
-  describe("onaya gönderirken alıcı seçimi", () => {
+  describe("onaya gönderirken koordinatör seçimi", () => {
     const draft: EngagementDetail = {
       ...activeEngagement,
       status: "DRAFT",
@@ -321,46 +322,45 @@ describe("TransitionActions", () => {
       version: 1,
       viewer: makeViewer({ relation: "SUBJECT", allowed_transitions: ["PENDING_APPROVAL"] }),
     };
+    const coordinators = [
+      { user_id: "u-kerem", display_name: "Kerem Taşkın", email_hint: "ke•••@cinaralti.edu.test" },
+      { user_id: "u-nermin", display_name: "Nermin Başaran", email_hint: "ne•••@cinaralti.edu.test" },
+    ];
+    const label = "Onay isteği kime gitsin?";
 
     function sent() {
       vi.mocked(transitionEngagement).mockResolvedValueOnce({ ...draft, status: "PENDING_APPROVAL", version: 2 });
     }
 
-    it("'Onaya Gönder' hemen göndermez; önce zorunlu alıcı kutusunu açar", async () => {
+    it("'Onaya Gönder' hemen göndermez; okulun koordinatörlerini maskeli e-postayla listeler, varsayılan hepsidir", async () => {
+      vi.mocked(listApprovalRecipients).mockResolvedValueOnce(coordinators);
       const user = userEvent.setup();
       renderWithQueryClient(<TransitionActions engagement={draft} onSuccess={vi.fn()} />);
 
       await user.click(screen.getByRole("button", { name: "Onaya Gönder" }));
 
       expect(transitionEngagement).not.toHaveBeenCalled();
-      const input = screen.getByLabelText("Onay isteği kime gitsin?");
-      expect(input.getAttribute("aria-required")).toBe("true");
+      const group = await screen.findByRole("group", { name: label });
+      const radios = within(group).getAllByRole("radio") as HTMLInputElement[];
+      expect(radios.map((radio) => radio.value)).toEqual(["", "u-kerem", "u-nermin"]);
+      expect(radios[0].checked).toBe(true);
+      expect(within(group).getByText("ke•••@cinaralti.edu.test")).toBeTruthy();
+      // No free-text e-mail box any more.
+      expect(screen.queryByRole("textbox")).toBeNull();
+      expect(listApprovalRecipients).toHaveBeenCalledWith("eng-1");
       // One submit button only: the form replaces the action row.
       expect(screen.getAllByRole("button", { name: "Onaya Gönder" })).toHaveLength(1);
     });
 
-    it("kutu boşsa istek gönderilmez ve alıcının zorunlu olduğu söylenir", async () => {
-      const user = userEvent.setup();
-      renderWithQueryClient(<TransitionActions engagement={draft} onSuccess={vi.fn()} />);
-
-      await user.click(screen.getByRole("button", { name: "Onaya Gönder" }));
-      await user.click(screen.getByRole("button", { name: "Onaya Gönder" }));
-
-      expect(screen.getByRole("alert").textContent).toBe("Onay isteğinin gideceği en az bir e-posta adresi yazın.");
-      expect(transitionEngagement).not.toHaveBeenCalled();
-    });
-
-    it("yazılan adresler notify_emails olarak gönderilir ve ne olacağı açıklanır", async () => {
+    it("seçim yapılmazsa alıcısız gönderilir ve tüm koordinatörlere gittiği söylenir", async () => {
+      vi.mocked(listApprovalRecipients).mockResolvedValueOnce(coordinators);
       sent();
       const onSuccess = vi.fn();
       const user = userEvent.setup();
       renderWithQueryClient(<TransitionActions engagement={draft} onSuccess={onSuccess} />);
 
       await user.click(screen.getByRole("button", { name: "Onaya Gönder" }));
-      await user.type(
-        screen.getByLabelText("Onay isteği kime gitsin?"),
-        "kerem@kurum.edu.tr, selin@kurum.edu.tr",
-      );
+      await screen.findByRole("group", { name: label });
       await user.click(screen.getByRole("button", { name: "Onaya Gönder" }));
 
       await waitFor(() => {
@@ -368,48 +368,80 @@ describe("TransitionActions", () => {
           to_status: "PENDING_APPROVAL",
           version: 1,
           reason: undefined,
-          notify_emails: ["kerem@kurum.edu.tr", "selin@kurum.edu.tr"],
         });
         expect(onSuccess).toHaveBeenCalled();
-        expect(screen.getByRole("status").textContent).toContain("kurumun kayıtlı koordinatörüne aitse");
+        expect(screen.getByRole("status").textContent).toBe(
+          "Onay isteği okulunuzun koordinatörlerine gönderildi."
+        );
       });
     });
 
-    it("biçimi bozuk adres gönderilmez, hata adresi adıyla bildirir", async () => {
+    it("seçilen koordinatör notify_user_ids olarak gönderilir ve adıyla bildirilir", async () => {
+      vi.mocked(listApprovalRecipients).mockResolvedValueOnce(coordinators);
+      sent();
       const user = userEvent.setup();
       renderWithQueryClient(<TransitionActions engagement={draft} onSuccess={vi.fn()} />);
 
       await user.click(screen.getByRole("button", { name: "Onaya Gönder" }));
-      await user.type(screen.getByLabelText("Onay isteği kime gitsin?"), "koordinator");
+      await user.click(await screen.findByRole("radio", { name: /Nermin Başaran/ }));
       await user.click(screen.getByRole("button", { name: "Onaya Gönder" }));
 
-      expect(screen.getByRole("alert").textContent).toBe("Geçerli bir e-posta adresi değil: koordinator");
-      expect(transitionEngagement).not.toHaveBeenCalled();
+      await waitFor(() => {
+        expect(transitionEngagement).toHaveBeenCalledWith(
+          "eng-1",
+          expect.objectContaining({ to_status: "PENDING_APPROVAL", notify_user_ids: ["u-nermin"] })
+        );
+        expect(screen.getByRole("status").textContent).toBe(
+          "Onay isteği Nermin Başaran adlı koordinatöre gönderildi."
+        );
+      });
     });
 
-    it("beşten fazla adres gönderilmez", async () => {
+    it("liste boşsa ya da alınamazsa seçim gösterilmez, istek yine tüm koordinatörlere gönderilebilir", async () => {
+      vi.mocked(listApprovalRecipients).mockRejectedValueOnce(
+        new ApiError({ status: 404, code: "NOT_FOUND", message: "x", requestId: null })
+      );
+      sent();
       const user = userEvent.setup();
       renderWithQueryClient(<TransitionActions engagement={draft} onSuccess={vi.fn()} />);
 
       await user.click(screen.getByRole("button", { name: "Onaya Gönder" }));
-      await user.type(
-        screen.getByLabelText("Onay isteği kime gitsin?"),
-        "a@k.tr b@k.tr c@k.tr d@k.tr e@k.tr f@k.tr",
+
+      expect(await screen.findByText("Onay isteği okulunuzun koordinatörlerine gider.")).toBeTruthy();
+      expect(screen.queryAllByRole("radio")).toHaveLength(0);
+      await user.click(screen.getByRole("button", { name: "Onaya Gönder" }));
+      await waitFor(() => {
+        expect(vi.mocked(transitionEngagement).mock.calls[0][1].notify_user_ids).toBeUndefined();
+      });
+    });
+
+    it("okulsuz çalışmada (PRECONDITION_FAILED) okula bağlanması gerektiği söylenir", async () => {
+      vi.mocked(listApprovalRecipients).mockResolvedValueOnce([]);
+      vi.mocked(transitionEngagement).mockRejectedValueOnce(
+        new ApiError({ status: 422, code: "PRECONDITION_FAILED", message: "x", requestId: null })
       );
+      const user = userEvent.setup();
+      renderWithQueryClient(<TransitionActions engagement={draft} onSuccess={vi.fn()} />);
+
+      await user.click(screen.getByRole("button", { name: "Onaya Gönder" }));
+      await screen.findByText("Onay isteği okulunuzun koordinatörlerine gider.");
       await user.click(screen.getByRole("button", { name: "Onaya Gönder" }));
 
-      expect(screen.getByRole("alert").textContent).toBe("En fazla 5 adres yazabilirsiniz.");
-      expect(transitionEngagement).not.toHaveBeenCalled();
+      expect((await screen.findByRole("alert")).textContent).toBe(
+        "Bu çalışma bir okula bağlı olmadığı için onaya gönderilemiyor. Önce profilinizden okulunuza bağlanın."
+      );
     });
 
     it("'Vazgeç' kutuyu kapatır ve hiçbir şey göndermez", async () => {
+      vi.mocked(listApprovalRecipients).mockResolvedValueOnce(coordinators);
       const user = userEvent.setup();
       renderWithQueryClient(<TransitionActions engagement={draft} onSuccess={vi.fn()} />);
 
       await user.click(screen.getByRole("button", { name: "Onaya Gönder" }));
+      await screen.findByRole("group", { name: label });
       await user.click(screen.getByRole("button", { name: "Vazgeç" }));
 
-      expect(screen.queryByLabelText("Onay isteği kime gitsin?")).toBeNull();
+      expect(screen.queryByRole("group", { name: label })).toBeNull();
       expect(screen.getByRole("button", { name: "Onaya Gönder" })).toBeTruthy();
       expect(transitionEngagement).not.toHaveBeenCalled();
     });

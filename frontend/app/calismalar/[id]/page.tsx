@@ -24,8 +24,14 @@ import messages from "@/messages/tr.json";
 
 const c = messages.calismalar;
 
+// Before ACTIVE nobody can add a deliverable; before VERIFIED no attestation exists yet.
+const PRE_ACTIVE_STATES = new Set(["DRAFT", "PENDING_APPROVAL"]);
+const PRE_ATTESTATION_STATES = new Set(["DRAFT", "PENDING_APPROVAL", "ACTIVE", "PENDING_EVALUATION", "EVALUATED"]);
+
 // Mirrors verify_engagement_task: organization members (admins included) and coordinators.
 const TASK_VERIFIER_RELATIONS = new Set<ViewerRelation>(["ORG_ADMIN", "ORG_MEMBER", "COORDINATOR"]);
+// Mirrors TASK_VERIFICATION_BLOCKED_STATUSES (backend): no task verification before the engagement starts or after it closes.
+const TASK_VERIFICATION_BLOCKED = new Set(["DRAFT", "PENDING_APPROVAL", "REJECTED", "CANCELLED"]);
 const COMPLAINABLE_STATES = new Set<string>(["PENDING_APPROVAL", "PENDING_EVALUATION"]);
 
 const TONE_BADGE: Record<StatusTone, string> = {
@@ -135,7 +141,8 @@ export default function CalismaDetayPage() {
   // Complaints target the institution (PENDING_APPROVAL) or the organization
   // (PENDING_EVALUATION); the server checks the waiting period and ownership.
   const canReport = isSubject && COMPLAINABLE_STATES.has(engagement.status);
-  const canVerifyTasks = TASK_VERIFIER_RELATIONS.has(engagement.viewer.relation);
+  const canVerifyTasks =
+    TASK_VERIFIER_RELATIONS.has(engagement.viewer.relation) && !TASK_VERIFICATION_BLOCKED.has(engagement.status);
 
   return (
     <AppShell>
@@ -215,7 +222,8 @@ export default function CalismaDetayPage() {
             <DetailSection icon="tasks" title={c.tasksTitle} hint={c.detail.tasksHint} count={engagement.tasks.length}>
               <TaskForm engagement={engagement} onSuccess={refresh} isSubject={isSubject} />
               {engagement.tasks.length === 0 ? (
-                <EmptyLine>{c.emptyTasksMessage}</EmptyLine>
+                // With nothing yet, the open task form is the empty state.
+                engagement.viewer.can_add_task ? null : <EmptyLine>{c.emptyTasksMessage}</EmptyLine>
               ) : (
                 <TaskList engagement={engagement} canVerify={canVerifyTasks} onChange={refresh} />
               )}
@@ -250,7 +258,14 @@ export default function CalismaDetayPage() {
             >
               <DeliverableForm engagement={engagement} onSuccess={refresh} />
               {engagement.deliverables.length === 0 ? (
-                <EmptyLine>{c.emptyDeliverablesMessage}</EmptyLine>
+                <EmptyLine>
+                  {/* Deliverables open only once the organization activates the engagement. */}
+                  {PRE_ACTIVE_STATES.has(engagement.status)
+                    ? isSubject
+                      ? c.detail.deliverablesLockedSubject
+                      : c.detail.deliverablesLockedOther
+                    : c.emptyDeliverablesMessage}
+                </EmptyLine>
               ) : (
                 <ul className="space-y-3">
                   {engagement.deliverables.map((deliverable) => (
@@ -280,7 +295,14 @@ export default function CalismaDetayPage() {
               count={engagement.attestations.length}
             >
               {engagement.attestations.length === 0 ? (
-                <EmptyLine>{c.emptyAttestationsMessage}</EmptyLine>
+                <EmptyLine>
+                  {/* The organization attests after evaluating; the student never adds one. */}
+                  {PRE_ATTESTATION_STATES.has(engagement.status)
+                    ? isSubject
+                      ? c.detail.attestationsPendingSubject
+                      : c.detail.attestationsPendingOther
+                    : c.emptyAttestationsMessage}
+                </EmptyLine>
               ) : (
                 <ul className="space-y-3">
                   {engagement.attestations.map((attestation) => (

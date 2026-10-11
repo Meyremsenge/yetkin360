@@ -2,11 +2,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, cleanup, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import KurulusSecPage from "@/app/calismalar/kurulus-sec/page";
-import { listOrganizationDirectory } from "@/lib/api/organizations";
+import { listApprovers, listOrganizationDirectory } from "@/lib/api/organizations";
 import { useSession } from "@/lib/session/use-session";
+import messages from "@/messages/tr.json";
 
 vi.mock("@/lib/api/organizations", () => ({
   listOrganizationDirectory: vi.fn(),
+  listApprovers: vi.fn(),
 }));
 vi.mock("@/lib/session/use-session");
 
@@ -73,7 +75,7 @@ describe("KurulusSecPage (/calismalar/kurulus-sec)", () => {
     });
   });
 
-  it("dönen kuruluşları ad, domain ve doğrulama seviyesiyle listeler; her biri olustur linkine gider", async () => {
+  it("dönen kuruluşları ad, domain ve doğrulama seviyesiyle listeler", async () => {
     vi.mocked(listOrganizationDirectory).mockResolvedValueOnce([
       { id: "org-1", name: "Acme A.Ş.", domain: "acme.com", verification_level: "T2" },
       { id: "org-2", name: "Küçük Kuruluş", domain: null, verification_level: "T1" },
@@ -89,9 +91,46 @@ describe("KurulusSecPage (/calismalar/kurulus-sec)", () => {
     expect(screen.getByText("Alan adı doğrulandı")).toBeTruthy();
     expect(screen.getByText("Küçük Kuruluş")).toBeTruthy();
     expect(screen.getByText("Temel doğrulama")).toBeTruthy();
+    expect(screen.getByText("2 kuruluş")).toBeTruthy();
+    // Nothing is fetched or offered before a card is chosen.
+    expect(listApprovers).not.toHaveBeenCalled();
+    expect(screen.queryByRole("link", { name: /Bu kuruluşla devam et/ })).toBeNull();
+  });
 
-    const link = screen.getByRole("link", { name: /Acme A\.Ş\./ });
+  it("kuruluş seçilince onaylayıcıları maskeli e-postayla gösterir ve olustur linkine yönlendirir", async () => {
+    vi.mocked(listOrganizationDirectory).mockResolvedValueOnce([
+      { id: "org-1", name: "Acme A.Ş.", domain: "acme.com", verification_level: "T2" },
+    ]);
+    vi.mocked(listApprovers).mockResolvedValueOnce([
+      { user_id: "u-1", display_name: "Mehmet Kaya", unit: "Yazılım", email_hint: "me•••@acme.com" },
+    ]);
+
+    renderWithQueryClient(<KurulusSecPage />);
+
+    const card = await screen.findByRole("button", { name: /Acme A\.Ş\./ });
+    expect(card.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(card);
+
+    expect(await screen.findByText("Mehmet Kaya")).toBeTruthy();
+    expect(screen.getByText("me•••@acme.com")).toBeTruthy();
+    expect(listApprovers).toHaveBeenCalledWith("org-1");
+    expect(card.getAttribute("aria-expanded")).toBe("true");
+    const link = screen.getByRole("link", { name: /Bu kuruluşla devam et/ });
     expect(link.getAttribute("href")).toBe("/calismalar/olustur?organization_id=org-1");
+  });
+
+  it("onaylayıcı yoksa kuruluş yöneticisine gideceğini söyler, devam yine mümkündür", async () => {
+    vi.mocked(listOrganizationDirectory).mockResolvedValueOnce([
+      { id: "org-1", name: "Acme A.Ş.", domain: "acme.com", verification_level: "T2" },
+    ]);
+    vi.mocked(listApprovers).mockResolvedValueOnce([]);
+
+    renderWithQueryClient(<KurulusSecPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Acme A\.Ş\./ }));
+
+    expect(await screen.findByText(messages.kurulusSec.approversEmpty)).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Bu kuruluşla devam et/ })).toBeTruthy();
   });
 
   it("arama kutusuna yazıldığında listOrganizationDirectory arama terimiyle çağrılır", async () => {
