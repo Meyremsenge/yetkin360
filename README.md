@@ -97,9 +97,11 @@ dolar, **Giriş Yap**'a basın.
 E-postası ve her kurulumda rastgele üretilen şifresi **başlatıcının terminal
 özetinde yazar** (ayrıca `.env` → `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`).
 
-> **Yine de yeni hesap açarsanız:** yerel kurulum gerçek e-posta göndermez.
-> E-posta doğrulama bağlantısı başlatıcı terminalinde **`[EMAIL]`** ile başlayan
-> renkli satırda görünür — bağlantıyı tarayıcıya yapıştırın. Yeni hesaplar boş
+> **Yine de yeni hesap açarsanız:** GitHub'dan klonlanan kurulumda SMTP şifresi
+> bulunmadığı için gerçek e-posta gönderilmez (`EMAIL_BACKEND=console`). E-posta
+> doğrulama bağlantısı başlatıcı terminalinde **`[EMAIL]`** ile başlayan renkli
+> satırda görünür — bağlantıyı tarayıcıya yapıştırın. (`.env`'de SMTP ayarları
+> dolu bir kurulumda bağlantı gerçek e-posta olarak gider.) Yeni hesaplar boş
 > başlar ve yeni bir kuruluş düşük doğrulama seviyesinden başlar; ürünü görmek
 > için hazır hesaplar çok daha hızlıdır.
 
