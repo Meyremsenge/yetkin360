@@ -15,13 +15,23 @@ import messages from "@/messages/tr.json";
 const t = messages.adminComplaints;
 const PAGE_SIZE = 50;
 
+/** "" = open queue (server default); the rest are the terminal outcomes. */
+const TABS: { status: string; label: string }[] = [
+  { status: "", label: t.tabs.open },
+  { status: "UPHELD", label: t.tabs.UPHELD },
+  { status: "RESOLVED", label: t.tabs.RESOLVED },
+  { status: "DISMISSED", label: t.tabs.DISMISSED },
+];
+
 /** C8: admin şikayet kuyruğu (limit/offset + has_more ile Önceki/Sonraki). */
 export default function AdminSikayetlerPage() {
+  const [status, setStatus] = useState("");
   const [offset, setOffset] = useState(0);
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["admin", "complaints", offset],
-    queryFn: () => adminListComplaints({ limit: PAGE_SIZE, offset }),
+    queryKey: ["admin", "complaints", status, offset],
+    queryFn: () => adminListComplaints(status ? { limit: PAGE_SIZE, offset, status } : { limit: PAGE_SIZE, offset }),
   });
+  const activeTab = TABS.find((tab) => tab.status === status) ?? TABS[0];
 
   const page = Math.floor(offset / PAGE_SIZE) + 1;
   const statusLabels = t.statusLabel as Record<string, string>;
@@ -32,15 +42,45 @@ export default function AdminSikayetlerPage() {
       <main>
         <PageHeader eyebrow={messages.shell.groupAdmin} title={t.title} description={t.description} />
         <PageBody className="space-y-6">
-          <div aria-live="polite">
+          <div role="tablist" aria-label={t.tabs.label} className="flex flex-wrap gap-2">
+            {TABS.map((tab) => {
+              const selected = tab.status === status;
+              return (
+                <button
+                  key={tab.status || "open"}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => {
+                    setStatus(tab.status);
+                    setOffset(0);
+                  }}
+                  className={cn(
+                    "h-9 rounded-full border px-4 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success",
+                    selected
+                      ? "border-success/30 bg-success/[0.08] font-medium text-success"
+                      : "border-border bg-card text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div aria-live="polite" role="tabpanel" aria-label={activeTab.label}>
             {isLoading ? (
               <LoadingBlock label={t.loading} />
             ) : isError ? (
               <LoadError message={t.loadError} />
             ) : !data || data.items.length === 0 ? (
-              <EmptyCard icon="inbox" title={t.empty.title} hint={t.empty.body} />
+              status ? (
+                <EmptyCard icon="inbox" title={t.tabs.empty.replace("{tab}", activeTab.label)} />
+              ) : (
+                <EmptyCard icon="inbox" title={t.empty.title} hint={t.empty.body} />
+              )
             ) : (
-              <PanelSection icon="inbox" title={t.title} count={data.items.length} flush>
+              <PanelSection icon="inbox" title={activeTab.label} count={data.items.length} flush>
                 <ul className="divide-y divide-border">
                   {data.items.map((c) => {
                     const created = formatDate(c.created_at);

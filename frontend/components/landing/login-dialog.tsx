@@ -6,6 +6,8 @@ import Link from "next/link";
 import messages from "@/messages/tr.json";
 import LoginForm from "@/app/giris/form";
 import { SealMark } from "@/components/brand/brand-mark";
+import { DemoAccountsLink } from "@/components/ui/demo-accounts-link";
+import { demoAccountsEnabled } from "@/lib/demo-accounts";
 
 const { loginDialog, home, authLayout } = messages;
 
@@ -71,6 +73,8 @@ export function LoginDialogLink({
 
         <div className="px-8 pb-8 pt-7">
           <LoginForm />
+
+          {demoAccountsEnabled() && <DemoAccountsLink className="mt-5" />}
 
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5 text-sm">
             <p className="text-muted-foreground">

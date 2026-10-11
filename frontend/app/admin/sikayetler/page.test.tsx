@@ -29,6 +29,21 @@ describe("AdminSikayetlerPage", () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => cleanup());
 
+  it("status tabs: open queue by default, a tab filters by status and resets paging", async () => {
+    vi.mocked(adminListComplaints).mockResolvedValue({ items: [], limit: 50, offset: 0, has_more: false });
+    renderPage();
+    const open = await screen.findByRole("tab", { name: "Açık" });
+    expect(open.getAttribute("aria-selected")).toBe("true");
+    await waitFor(() => expect(adminListComplaints).toHaveBeenCalledWith({ limit: 50, offset: 0 }));
+
+    fireEvent.click(screen.getByRole("tab", { name: "Haklı bulunan" }));
+    await waitFor(() =>
+      expect(adminListComplaints).toHaveBeenCalledWith({ limit: 50, offset: 0, status: "UPHELD" })
+    );
+    expect(screen.getByRole("tab", { name: "Haklı bulunan" }).getAttribute("aria-selected")).toBe("true");
+    expect(await screen.findByText('"Haklı bulunan" sekmesinde şikayet yok.')).toBeTruthy();
+  });
+
   it("shows empty state", async () => {
     vi.mocked(adminListComplaints).mockResolvedValue({ items: [], limit: 50, offset: 0, has_more: false });
     renderPage();

@@ -1,7 +1,7 @@
 import messages from "@/messages/tr.json";
 import RegisterForm from "./form";
-import Link from "next/link";
 import { AuthLayout } from "@/components/ui/auth-layout";
+import { DemoAccountsLink } from "@/components/ui/demo-accounts-link";
 import { demoAccountsEnabled } from "@/lib/demo-accounts";
 
 export default function RegisterPage() {
@@ -16,12 +16,10 @@ export default function RegisterPage() {
         </h1>
 
         {demo && (
-          <p className="mb-6 rounded-md border border-border bg-card px-3.5 py-3 text-sm text-muted-foreground">
-            {messages.kayit.demoNotice}{" "}
-            <Link href="/giris" className="font-medium text-foreground underline underline-offset-2">
-              {messages.home.loginLink}
-            </Link>
-          </p>
+          <div className="mb-6">
+            <p className="mb-2 text-sm text-muted-foreground">{messages.kayit.demoNotice}</p>
+            <DemoAccountsLink />
+          </div>
         )}
 
         <RegisterForm showLocalEmailHint={demo} />
