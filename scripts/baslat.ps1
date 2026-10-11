@@ -445,7 +445,9 @@ function Show-Summary {
     Write-Host '    Kurum admini     nermin.basaran@cinaralti.edu.test'
     Write-Host '    Koordinatör      kerem.taskin@cinaralti.edu.test'
     Write-Host '  Platform yöneticisi  ' -NoNewline -ForegroundColor DarkGray
-    Write-Host 'admin@yetkin360.test  ' -NoNewline
+    $adminEmail = Get-EnvValue 'SEED_ADMIN_EMAIL'
+    if (-not $adminEmail) { $adminEmail = 'admin@yetkin360.test' }  # backend/app/core/config.py default
+    Write-Host "$adminEmail  " -NoNewline
     $adminPw = Get-EnvValue 'SEED_ADMIN_PASSWORD'
     if ($adminPw) { Write-Host $adminPw -ForegroundColor Yellow } else { Write-Host '(.env → SEED_ADMIN_PASSWORD)' -ForegroundColor DarkGray }
     Write-Host '    Giriş: ' -NoNewline -ForegroundColor DarkGray; Write-Host "$AppUrl/admin/giris"

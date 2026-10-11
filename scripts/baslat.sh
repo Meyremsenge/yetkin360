@@ -224,8 +224,10 @@ init_frontend() {
 
 summary() {
     local line="  ${C_DIM}────────────────────────────────────────────────────${C_RESET}"
-    local admin_pw
+    local admin_pw admin_email
     admin_pw="$(env_value SEED_ADMIN_PASSWORD)"
+    admin_email="$(env_value SEED_ADMIN_EMAIL)"
+    [ -z "$admin_email" ] && admin_email='admin@yetkin360.test'  # backend/app/core/config.py default
     echo
     echo "$line"
     printf '  %sUygulama%s    %s%s%s\n' "$C_DIM" "$C_RESET" "$C_BOLD" "$APP_URL" "$C_RESET"
@@ -240,7 +242,7 @@ summary() {
     echo   '    Aday doğrulayan  seda.gurbuz@gundogusuenerji.test'
     echo   '    Kurum admini     nermin.basaran@cinaralti.edu.test'
     echo   '    Koordinatör      kerem.taskin@cinaralti.edu.test'
-    printf '  %sPlatform yöneticisi%s  admin@yetkin360.test  %s%s%s\n' "$C_DIM" "$C_RESET" "$C_YELLOW" "${admin_pw:-(.env → SEED_ADMIN_PASSWORD)}" "$C_RESET"
+    printf '  %sPlatform yöneticisi%s  %s  %s%s%s\n' "$C_DIM" "$C_RESET" "$admin_email" "$C_YELLOW" "${admin_pw:-(.env → SEED_ADMIN_PASSWORD)}" "$C_RESET"
     printf '    %sGiriş:%s %s/admin/giris\n' "$C_DIM" "$C_RESET" "$APP_URL"
     echo
     printf '  %sYeni hesap açarsanız: e-posta gönderilmez; doğrulama bağlantısı%s\n' "$C_DIM" "$C_RESET"

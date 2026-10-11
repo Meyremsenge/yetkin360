@@ -93,9 +93,9 @@ dolar, **Giriş Yap**'a basın.
 | Kurum yöneticisi (Çınaraltı Teknik Üniversitesi) | `nermin.basaran@cinaralti.edu.test` | Kurum paneli |
 | Kurum koordinatörü (Çınaraltı) | `kerem.taskin@cinaralti.edu.test` | Kurum paneli: onay ve mühür kuyruğu |
 
-**Platform yöneticisi:** `admin@yetkin360.test` — giriş adresi
-<http://localhost:3000/admin/giris>. Şifresi her kurulumda rastgele üretilir ve
-**başlatıcının terminal özetinde yazar** (ayrıca `.env` → `SEED_ADMIN_PASSWORD`).
+**Platform yöneticisi:** giriş adresi <http://localhost:3000/admin/giris>.
+E-postası ve her kurulumda rastgele üretilen şifresi **başlatıcının terminal
+özetinde yazar** (ayrıca `.env` → `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`).
 
 > **Yine de yeni hesap açarsanız:** yerel kurulum gerçek e-posta göndermez.
 > E-posta doğrulama bağlantısı başlatıcı terminalinde **`[EMAIL]`** ile başlayan

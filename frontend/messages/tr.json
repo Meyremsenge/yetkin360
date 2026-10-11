@@ -229,7 +229,7 @@
       "hint": "Yeni hesap açmanız gerekmez. Bir hesaba tıklayın, bilgiler forma dolsun; sonra Giriş Yap'a basın.",
       "passwordLabel": "Ortak şifre:",
       "fillLabel": "{role} hesabını forma doldur",
-      "adminHint": "Platform yöneticisi (admin@yetkin360.test) Yönetici girişi sayfasından girer; şifresi başlatıcı terminalinde yazar.",
+      "adminHint": "Platform yöneticisi Yönetici girişi sayfasından girer; e-postası ve şifresi başlatıcı terminalindeki özette yazar.",
       "roles": {
         "talent": "Bireysel kullanıcı",
         "orgAdmin": "Kuruluş yöneticisi",
