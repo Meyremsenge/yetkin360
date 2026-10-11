@@ -2,6 +2,7 @@ import Link from "next/link";
 import messages from "@/messages/tr.json";
 import LoginForm from "./form";
 import { AuthLayout } from "@/components/ui/auth-layout";
+import { demoAccountsEnabled } from "@/lib/demo-accounts";
 
 export default async function LoginPage({
   searchParams,
@@ -44,7 +45,7 @@ export default async function LoginPage({
           </div>
         )}
 
-        <LoginForm nextPath={nextPath} />
+        <LoginForm nextPath={nextPath} showDemoAccounts={demoAccountsEnabled()} />
     </AuthLayout>
   );
 }

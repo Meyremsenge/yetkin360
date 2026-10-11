@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -60,7 +61,7 @@ const registerFormSchema = registerSchema
 
 type RegisterFormData = z.infer<typeof registerFormSchema>;
 
-export default function RegisterForm() {
+export default function RegisterForm({ showLocalEmailHint = false }: { showLocalEmailHint?: boolean }) {
   const router = useRouter();
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const {
@@ -94,7 +95,8 @@ export default function RegisterForm() {
       setSuccessMessage(
         data.account_kind === "ORGANIZATION" ? messages.kayit.successOrganization : messages.kayit.success
       );
-      setTimeout(() => router.push("/giris"), 800);
+      // With the local-email hint the user must read the message first; a link replaces the redirect.
+      if (!showLocalEmailHint) setTimeout(() => router.push("/giris"), 800);
     } catch (error) {
       // Duck-typing: check for error object with status property
       if (error && typeof error === "object") {
@@ -138,6 +140,14 @@ export default function RegisterForm() {
     return (
       <div role="status" className="rounded-md bg-green-50 border border-green-200 p-6 text-center">
         <p className="text-green-700">{successMessage}</p>
+        {showLocalEmailHint && (
+          <>
+            <p className="mt-2 text-sm text-green-700">{messages.kayit.demoEmailHint}</p>
+            <Link href="/giris" className="mt-3 inline-block text-sm font-medium text-green-800 underline underline-offset-2">
+              {messages.home.loginLink}
+            </Link>
+          </>
+        )}
       </div>
     );
   }
